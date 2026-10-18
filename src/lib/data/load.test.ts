@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createMemoryRepository } from "@/data/memory-repository";
 import { DEFAULT_CATEGORIES } from "@/domain/defaults";
-import { ensureHouseholdReady, loadHouseholdData, participantIdFor } from "./load";
+import { ensureHouseholdReady, loadHouseholdData, loadReadyHouseholdData, participantIdFor } from "./load";
 
 const members = [{ uid: "u1", displayName: "Vimal" }, { uid: "u2", displayName: "Varru" }];
 
@@ -40,5 +40,22 @@ describe("loadHouseholdData", () => {
     expect(d.records).toEqual([]);
     expect(d.categories[0].id).toBe("groceries");
     expect(d.categories.at(-1)!.id).toBe("c_pets");
+  });
+});
+
+describe("loadReadyHouseholdData", () => {
+  it("sets up a new household and returns its data in one call", async () => {
+    const repo = createMemoryRepository("h");
+    const data = await loadReadyHouseholdData(repo, members);
+    expect(data.categories.length).toBe(DEFAULT_CATEGORIES.length);
+    expect(data.participants.length).toBe(2);
+  });
+  it("adds a participant for a member who joined later, and leaves edits alone", async () => {
+    const repo = createMemoryRepository("h");
+    await loadReadyHouseholdData(repo, members.slice(0, 1));
+    await repo.categories.put({ id: "groceries", name: "Food at home" });
+    const data = await loadReadyHouseholdData(repo, members);
+    expect(data.participants.length).toBe(2);
+    expect(data.categories.find((c) => c.id === "groceries")!.name).toBe("Food at home");
   });
 });

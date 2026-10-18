@@ -3,7 +3,7 @@ import { Suspense, type ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { StoreProvider, type LiveInit } from "@/data/store";
 import { createFirestoreRepository } from "@/data/firestore-repository";
-import { ensureHouseholdReady, loadHouseholdData, participantIdFor, type HouseholdData } from "@/lib/data/load";
+import { loadReadyHouseholdData, participantIdFor, type HouseholdData } from "@/lib/data/load";
 import { ProfileProvider } from "@/components/profile-context";
 import { requireSession } from "@/lib/auth/session";
 import { HouseholdProvider, type HouseholdStatus } from "@/components/household-context";
@@ -21,23 +21,22 @@ async function AuthedShell({ children }: { children: ReactNode }) {
   await connection(); // the date below changes per request, so opt into request-time rendering (also in demo mode)
   let profile: Awaited<ReturnType<typeof getProfile>> | null = null;
   let status: "ok" | "off" | "error" = "off";
-  if (session.mode === "on") {
-    try {
-      profile = await getProfile(session);
-      status = "ok";
-    } catch (e) {
-      // Log the cause (no secrets) so a failing Firestore setup is diagnosable.
-      console.error("profile load failed:", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 200));
-      status = "error";
-    }
-  }
   let membership: Membership | null = null;
   let invited: { offers: InviteOffer[]; firstName: string } | null = null;
   let hStatus: HouseholdStatus = "off";
   if (session.mode === "on") {
+    // The profile and the membership do not depend on each other, so read them at the same time.
+    const hStore = createFirestoreHouseholdStore();
+    const [p, m] = await Promise.allSettled([getProfile(session), getMembership(hStore, session.uid)]);
+    if (p.status === "fulfilled") { profile = p.value; status = "ok"; }
+    else {
+      // Log the cause (no secrets) so a failing Firestore setup is diagnosable.
+      console.error("profile load failed:", (p.reason as { code?: string }).code, String((p.reason as Error).message).split("\n")[0].slice(0, 200));
+      status = "error";
+    }
     try {
-      const hStore = createFirestoreHouseholdStore();
-      membership = await getMembership(hStore, session.uid);
+      if (m.status === "rejected") throw m.reason;
+      membership = m.value;
       if (!membership && session.email) {
         // Personal first: with no invitation waiting, a private space is created automatically.
         const name = profile?.displayName ?? defaultDisplayName(session.name, session.email);
@@ -64,8 +63,7 @@ async function AuthedShell({ children }: { children: ReactNode }) {
     if (!dataError && membership) {
       try {
         const repo = createFirestoreRepository(membership.household.id);
-        await ensureHouseholdReady(repo, membership.members);
-        const data = await loadHouseholdData(repo);
+        const data = await loadReadyHouseholdData(repo, membership.members);
         live = {
           data, today, ready: true,
           meId: data.participants.find((p) => p.userId === session.uid)?.id ?? participantIdFor(session.uid),
@@ -96,9 +94,22 @@ async function AuthedShell({ children }: { children: ReactNode }) {
   );
 }
 
+/** Shown while the server reads the session and data: the page frame appears at once instead of a bare word. */
+function ShellSkeleton() {
+  return (
+    <div role="status" aria-label="Loading" className="mx-auto max-w-5xl space-y-4 p-4 sm:p-6">
+      <div className="h-8 w-40 animate-pulse rounded-full bg-border" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => <div key={i} className="h-16 animate-pulse rounded-[var(--radius-card)] bg-border/70" />)}
+      </div>
+      <div className="h-56 animate-pulse rounded-[var(--radius-card)] bg-border/70" />
+    </div>
+  );
+}
+
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <Suspense fallback={<p className="p-6 text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<ShellSkeleton />}>
       <AuthedShell>{children}</AuthedShell>
     </Suspense>
   );

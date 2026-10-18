@@ -43,6 +43,18 @@ export async function loadHouseholdData(repo: Repository): Promise<HouseholdData
   };
 }
 
+/**
+ * One round of reads in the normal case. First-run setup only happens (and the data is re-read) when something is
+ * actually missing, instead of checking with extra sequential reads on every page load.
+ */
+export async function loadReadyHouseholdData(repo: Repository, members: { uid: string; displayName: string }[]): Promise<HouseholdData> {
+  const data = await loadHouseholdData(repo);
+  const complete = data.categories.length > 0 && members.every((m) => data.participants.some((p) => p.userId === m.uid));
+  if (complete) return data;
+  await ensureHouseholdReady(repo, members);
+  return loadHouseholdData(repo);
+}
+
 // Keep the default order stable, with custom categories after the defaults.
 const order = new Map(DEFAULT_CATEGORIES.map((c, i) => [c.id, i]));
 const orderCategories = (a: Category, b: Category) => (order.get(a.id) ?? 999) - (order.get(b.id) ?? 999) || a.name.localeCompare(b.name);
