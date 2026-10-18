@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { participants } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
@@ -6,6 +7,7 @@ import { computeShares, equalSplit, validateSplit } from "@/domain/splits";
 import type { Paise, SplitConfig, SplitMode } from "@/domain/types";
 import { ChipGroup, CompactChips, FormRow, Input } from "./ui";
 
+const CUSTOM = "__custom";
 const modes = [
   { id: "personal", label: "One person" },
   { id: "equal", label: "Equal" },
@@ -49,39 +51,48 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
 
   const presetOn = (who: string[]) => who.length === ids.length && who.every((w) => ids.includes(w));
 
-  const presetId = presets.find((p) => presetOn(p.ids))?.label ?? "";
+  const presetId = value.mode === "personal" || value.mode === "equal" ? presets.find((p) => presetOn(p.ids))?.label ?? "" : "";
+  const [advanced, setAdvanced] = useState(!presetId);
+  const showAdvanced = advanced || !presetId;
   const whoOptions = participants.map((p) => ({ id: p.id, label: p.userId === null ? `${nameOf(p.id)} (friend)` : nameOf(p.id) }));
+  const summary = ids.map((id) => `${nameOf(id)} ${formatINR(shares[id] ?? 0)}`).join(" · ");
+  const pickPreset = (label: string) => {
+    if (label === CUSTOM) return setAdvanced(true);
+    setAdvanced(false);
+    applyPreset(presets.find((p) => p.label === label)!.ids);
+  };
 
   return (
     <div className="space-y-2">
-      <FormRow label="Quick">
-        <CompactChips label="Quick split" options={presets.map((p) => ({ id: p.label, label: p.label }))} selected={presetId ? [presetId] : []} onPick={(l) => applyPreset(presets.find((p) => p.label === l)!.ids)} />
-      </FormRow>
       <FormRow label="Split">
-        <ChipGroup tabs label="Split type" options={modes.map((m) => ({ id: m.id, label: m.label }))} value={value.mode} onChange={(m) => onChange(build(m, ids.length ? ids : ["me"]))} />
+        <CompactChips label="Split" options={[...presets.map((p) => ({ id: p.label, label: p.label })), { id: CUSTOM, label: "Custom…" }]} selected={showAdvanced ? [CUSTOM] : [presetId]} onPick={pickPreset} />
+        {!showAdvanced && !error && ids.length > 1 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
       </FormRow>
-      <FormRow label="With">
-        <CompactChips multi={value.mode !== "personal"} label="People" options={whoOptions} selected={ids} onPick={toggle} />
-      </FormRow>
-      {(value.mode === "percent" || value.mode === "custom" || ids.length > 1) && (
-        <ul className="space-y-1.5 pl-[4.75rem]">
-          {ids.map((id) => (
-            <li key={id} className="flex items-center gap-2 text-sm">
-              <span className="flex-1">{nameOf(id)}</span>
-              {value.mode === "percent" && (
-                <span className="flex items-center gap-1"><Input aria-label={`${nameOf(id)} percent`} inputMode="decimal" className="w-20 text-right"
-                  value={String((value.values?.[id] ?? 0) / 100)} onChange={(e) => onChange({ ...value, values: { ...value.values, [id]: Math.round((Number(e.target.value) || 0) * 100) } })} />%</span>
-              )}
-              {value.mode === "custom" && (
-                <span className="flex items-center gap-1">₹<Input aria-label={`${nameOf(id)} amount`} inputMode="decimal" className="w-28 text-right"
-                  defaultValue={((value.values?.[id] ?? 0) / 100).toFixed(2)} onChange={(e) => onChange({ ...value, values: { ...value.values, [id]: parseRupees(e.target.value) ?? 0 } })} /></span>
-              )}
-              {!error && <span className="num w-24 text-right text-muted">{formatINR(shares[id] ?? 0)}</span>}
-            </li>
-          ))}
-        </ul>
+      {showAdvanced && (
+        <div className="space-y-2 rounded-xl bg-background p-3">
+          <ChipGroup tabs label="Split type" options={modes.map((m) => ({ id: m.id, label: m.label }))} value={value.mode} onChange={(m) => onChange(build(m, ids.length ? ids : ["me"]))} />
+          <CompactChips multi={value.mode !== "personal"} label="People" options={whoOptions} selected={ids} onPick={toggle} />
+          {(value.mode === "percent" || value.mode === "custom" || ids.length > 1) && (
+            <ul className="space-y-1.5">
+              {ids.map((id) => (
+                <li key={id} className="flex items-center gap-2 text-sm">
+                  <span className="flex-1">{nameOf(id)}</span>
+                  {value.mode === "percent" && (
+                    <span className="flex items-center gap-1"><Input aria-label={`${nameOf(id)} percent`} inputMode="decimal" className="w-20 text-right"
+                      value={String((value.values?.[id] ?? 0) / 100)} onChange={(e) => onChange({ ...value, values: { ...value.values, [id]: Math.round((Number(e.target.value) || 0) * 100) } })} />%</span>
+                  )}
+                  {value.mode === "custom" && (
+                    <span className="flex items-center gap-1">₹<Input aria-label={`${nameOf(id)} amount`} inputMode="decimal" className="w-28 text-right"
+                      defaultValue={((value.values?.[id] ?? 0) / 100).toFixed(2)} onChange={(e) => onChange({ ...value, values: { ...value.values, [id]: parseRupees(e.target.value) ?? 0 } })} /></span>
+                  )}
+                  {!error && <span className="num w-24 text-right text-muted">{formatINR(shares[id] ?? 0)}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
-      {error && <p role="alert" className="pl-[4.75rem] text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
     </div>
   );
 }

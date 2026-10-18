@@ -1,6 +1,7 @@
 "use client";
 // Shared UI primitives (shadcn-style, token-driven). Compose screens from these.
 import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
@@ -94,7 +95,10 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
     >
       {open && (
         <div className="max-h-[88vh] overflow-y-auto px-4 pt-4">
-          <h2 className="mb-3 text-base font-semibold">{title}</h2>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-base font-semibold">{title}</h2>
+            <button type="button" onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-full text-muted hover:bg-background"><X size={16} aria-hidden /></button>
+          </div>
           {children}
         </div>
       )}

@@ -1,4 +1,5 @@
 "use client";
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { MOCK_TODAY, ME, accounts, categories, participants, recurringItems } from "@/data/mock";
 import { useStore } from "@/data/store";
@@ -68,6 +69,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [fundedBy, setFundedBy] = useState(record.fundedBy ?? "");
   const [notes, setNotes] = useState(record.notes ?? "");
   const [excluded, setExcluded] = useState(record.excluded);
+  const [more, setMore] = useState(!!record.recurringId || record.excluded || record.kind !== "purchase");
   const amountPaise = adding ? (parseRupees(amountText) ?? 0) : record.amountPaise;
   const isUpi = accounts.find((a) => a.id === accountId)?.type === "upi";
   const splitError = validateSplit(amountPaise, split);
@@ -102,7 +104,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   };
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       {adding ? (
         <div className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-background p-3">
           <label className="flex items-center gap-1.5"><span className="text-lg font-semibold">₹</span>
@@ -124,32 +126,48 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       {adding && <FormRow label="Paid with"><CompactChips label="Payment method" options={accounts.map((a) => ({ id: a.id, label: a.name }))} selected={[accountId]} onPick={setAccountId} /></FormRow>}
       <FormRow label="Merchant"><Input value={merchant} onChange={(e) => setMerchant(e.target.value)} /></FormRow>
       <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[categoryId]} onPick={setCategoryId} /></FormRow>
-      <FormRow label="Type"><CompactChips label="Type" options={kinds} selected={[kind]} onPick={setKind} /></FormRow>
       <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} selected={[payerId]} onPick={setPayerId} /></FormRow>
-      {isUpi && (
-        <FormRow label="From bank"><CompactChips label="Paid from bank" options={[{ id: "", label: "Unknown" }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name }))]} selected={[fundedBy]} onPick={setFundedBy} /></FormRow>
-      )}
-      <SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} />
-      <FormRow label="Recurring">
-        <CompactChips label="Recurring commitment" options={[{ id: "", label: "None" }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name }))]} selected={[recurringId]} onPick={setRecurringId} />
-      </FormRow>
-      <FormRow label="Notes">
-        <div className="flex items-center gap-2">
-          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
-          <button type="button" aria-pressed={excluded} onClick={() => setExcluded(!excluded)} title="Exclude from reports (original record is kept)"
-            className={`min-h-9 shrink-0 rounded-full border px-3 text-sm ${excluded ? "border-danger bg-danger/10 text-danger" : "border-border bg-surface"}`}>Exclude</button>
+      <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>
+      <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="flex w-full items-center gap-1.5 border-t border-border pt-3 text-sm font-medium text-muted hover:text-foreground">
+        <ChevronDown size={16} aria-hidden className={more ? "" : "-rotate-90"} /> More options <span className="text-xs font-normal">type, recurring, notes</span>
+      </button>
+      {more && (
+        <div className="space-y-2.5">
+          <FormRow label="Type"><CompactChips label="Type" options={kinds} selected={[kind]} onPick={setKind} /></FormRow>
+          {isUpi && (
+            <FormRow label="From bank"><CompactChips label="Paid from bank" options={[{ id: "", label: "Unknown" }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name }))]} selected={[fundedBy]} onPick={setFundedBy} /></FormRow>
+          )}
+          <FormRow label="Recurring">
+            <CompactChips label="Recurring commitment" options={[{ id: "", label: "None" }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name }))]} selected={[recurringId]} onPick={setRecurringId} />
+          </FormRow>
+          <FormRow label="Notes">
+            <div className="flex items-center gap-2">
+              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
+              <button type="button" aria-pressed={excluded} onClick={() => setExcluded(!excluded)} title="Exclude from reports (original record is kept)"
+                className={`min-h-9 shrink-0 rounded-full border px-3 text-sm ${excluded ? "border-danger bg-danger/10 text-danger" : "border-border bg-surface"}`}>Exclude</button>
+            </div>
+          </FormRow>
         </div>
-      </FormRow>
+      )}
 
-      <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        {mode === "review" && (rejecting
-          ? <><Button onClick={() => setRejecting(false)}>Keep</Button><Button variant="danger" onClick={() => { rejectStaged(record.id); onClose(); }}>Confirm reject</Button></>
-          : <Button variant="danger" onClick={() => setRejecting(true)}>Reject</Button>)}
-        {!rejecting && <Button onClick={onClose}>{mode === "review" ? "Later" : "Cancel"}</Button>}
-        {mode === "review" && !rejecting && <Button onClick={() => save("draft")} disabled={!!bad}>Save draft</Button>}
+      <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        {mode === "review" && !rejecting && (
+          <div className="mr-auto flex gap-1">
+            <Button variant="danger" onClick={() => setRejecting(true)} className="border-0">Reject</Button>
+            <Button onClick={() => save("draft")} disabled={!!bad} className="border-0">Save draft</Button>
+          </div>
+        )}
+        {mode === "review" && rejecting && (
+          <>
+            <span className="mr-auto text-sm text-muted">Remove this row from the import?</span>
+            <Button onClick={() => setRejecting(false)}>Keep</Button>
+            <Button variant="danger" onClick={() => { rejectStaged(record.id); onClose(); }}>Confirm reject</Button>
+          </>
+        )}
+        {mode !== "review" && <Button onClick={onClose} className="mr-auto border-0">Cancel</Button>}
         {adding && <Button onClick={() => save("another")} disabled={!!bad}>Add another</Button>}
-        {mode === "review" && !rejecting && next && next.remaining > 0 && <Button onClick={() => save("next")} disabled={!!bad}>Approve & next ({next.remaining} left)</Button>}
-        {mode === "edit" && next && next.remaining > 0 && <Button onClick={() => save("next")} disabled={!!bad}>Save & next ({next.remaining} left)</Button>}
+        {mode === "review" && !rejecting && next && next.remaining > 0 && <Button onClick={() => save("next")} disabled={!!bad}>Approve & next ({next.remaining})</Button>}
+        {mode === "edit" && next && next.remaining > 0 && <Button onClick={() => save("next")} disabled={!!bad}>Save & next ({next.remaining})</Button>}
         {!rejecting && <Button variant="primary" onClick={() => save("close")} disabled={!!bad}>{adding ? "Add" : mode === "review" ? "Approve" : "Save"}</Button>}
       </div>
     </div>
