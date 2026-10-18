@@ -4,6 +4,8 @@ Private, mobile-first personal finance app (PWA). First: track your own spending
 
 **Status: live app with real saved data (Stage 3, slice 5).** Sign in with Google (Firebase), and your household's transactions, splits, settlements, categories and people are saved in Firestore and shared by its members. Without Firebase configured it runs as a prototype on fictional September 2026 data (nothing saved). See [docs/DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md) for exactly what works and what does not (statement import, receipts and file storage are not built yet).
 
+**New here?** Read [PROJECT.md](PROJECT.md) (what this is and how it works) and [ROADMAP.md](ROADMAP.md) (what is next).
+
 ## Quick start
 ```bash
 nvm use            # Node 22 (see .nvmrc); pnpm 9 via corepack

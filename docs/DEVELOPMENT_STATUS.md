@@ -138,8 +138,4 @@ Updated: 2026-10-18 · Branch `feat/slice5-persistence` · Stage 3 slices 1–5 
 Firebase project (Auth, Firestore, Storage), Firestore/Storage rules + emulator tests, Vercel project, real CSV/XLSX/PDF parsing, export/restore round trip, migrations.
 
 ## Next recommended tasks
-1. Merge branches to `main` after review (no remote configured yet; create the GitHub repo and push).
-2. Owner: sign in to the live app, add payment methods in Settings, add a transaction, and tell me if anything saves wrong or loads empty. Invite Varru (her Google email must be in `ALLOWED_EMAILS`).
-3. Add UI to create/edit recurring items; then slice 6 (private file storage; needs Blaze) and the statement parsers.
-3. Split raw transactions from expenses in the data model; add export/restore round-trip test.
-4. Stage 4: CSV parser with real file-hash dedupe, then XLSX, then PDF.
+Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, then partner, then friends). The immediate ones: approve the first real Amex import; clean merchant names; automatic capture via iPhone Shortcuts (route 1) with forwarded alert emails as backup (route 2); more issuers' PDF parsers; the open question on hiding personal expenses from the partner. Keep this file for build and test status, not for planning.

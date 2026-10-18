@@ -1,6 +1,6 @@
 # AGENTS.md — rules for any AI agent or contributor
 
-Platform-neutral. Start here, then read `docs/DEVELOPMENT_STATUS.md` and `docs/PROJECT_CONTEXT.md`. Read other docs only when relevant to the task (see index in PROJECT_CONTEXT).
+Platform-neutral. Start here, then read `PROJECT.md` (what the app is), `ROADMAP.md` (what is next), `docs/DEVELOPMENT_STATUS.md` (exact state) and `docs/PROJECT_CONTEXT.md`. Read other docs only when relevant to the task (see index in PROJECT_CONTEXT).
 
 ## Session start
 1. `git status`, `git log -5`; compare DEVELOPMENT_STATUS against the real code.
