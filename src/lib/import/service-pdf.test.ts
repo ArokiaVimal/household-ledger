@@ -6,7 +6,7 @@ import { DEFAULT_CATEGORIES } from "@/domain/defaults";
 import { parseStatementPdf } from "@/domain/import/pdf";
 import { header, page, row, standard } from "@/domain/import/pdf/test-fixtures";
 import type { PdfPage } from "@/domain/import/pdf/types";
-import { commitImport, ImportError, previewImport, type ImportDeps, type ImportInput } from "./service";
+import { commitImport, ImportError, previewImport, refreshSuggestions, type ImportDeps, type ImportInput } from "./service";
 import type { Suggest } from "./ai";
 
 let n = 0;
@@ -185,5 +185,30 @@ describe("smart suggestions (memory + Claude)", () => {
     const p = await previewImport(repo, pdfInput(withPayment()), { ...deps, suggest: bad });
     expect(p.smart.ai.error).toBe("Could not reach Claude");
     expect(p.rows.every((r) => r.status === "new")).toBe(true);
+  });
+});
+
+describe("Fill in with AI for rows already in the review queue", () => {
+  it("suggests for unsuggested rows only, changes nothing bank-sourced, and a second run asks nothing", async () => {
+    const repo = await setup();
+    await commitImport(repo, actor, pdfInput(withPayment()), deps); // no AI at import time: rows arrive without suggestions
+    const before = (await repo.records.list()).filter((r) => r.status === "unreviewed");
+    expect(before.some((r) => !r.suggested)).toBe(true);
+    const asked: string[][] = [];
+    const suggest: Suggest = async (items) => {
+      asked.push(items.map((i) => i.key));
+      return { suggestions: items.map((i) => ({ key: i.key, name: "Sample Cafe", categoryId: "restaurants", kind: i.direction === "credit" ? "refund" as const : "purchase" as const, confident: true })), usage: { asked: items.length, calls: 1, inputTokens: 200, outputTokens: 20 } };
+    };
+    const res = await refreshSuggestions(repo, { ...deps, suggest });
+    expect(res.filled).toBeGreaterThan(0);
+    const after = (await repo.records.list()).filter((r) => r.status === "unreviewed");
+    for (const r of after) {
+      const was = before.find((b) => b.id === r.id)!;
+      expect([r.amountPaise, r.date, r.originalDescription]).toEqual([was.amountPaise, was.date, was.originalDescription]);
+    }
+    expect(after.find((r) => r.merchant === "Sample Cafe")?.suggested).toBe("ai");
+    const again = await refreshSuggestions(repo, { ...deps, suggest });
+    expect(again.filled).toBe(0);
+    expect(asked.length).toBe(1);
   });
 });

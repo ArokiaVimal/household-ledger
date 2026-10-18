@@ -57,3 +57,5 @@ What is sent: the statement text with digit runs of 5+ hidden, the amount in who
 
 Rows carry `suggested` (`memory`, `ai`, `ai_unsure`) while in the review queue. The review page shows Remembered / Smart guess / Check this badges and a "Select N I'm sure about" button; approving always happens in your hands, and approving is what teaches the memory. Preview shows how many rows came from memory, from Claude, and need you, plus tokens used.
 
+**Fill in with AI (review queue):** `POST /api/suggest` runs the same memory + Claude steps over unreviewed rows that have no suggestion yet (for example rows imported before the key was set, or whose file cannot be re-imported because its hash is already recorded). It changes only merchant, category and payment type, never amounts, dates or bank text. Rows Claude could not place are left for you and asked again next time.
+

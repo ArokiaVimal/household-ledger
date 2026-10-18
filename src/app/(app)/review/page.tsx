@@ -1,6 +1,7 @@
 "use client";
 import { ClipboardCheck, Sparkles, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MerchantAvatar, Amount } from "@/components/txn-row";
 import { TxnReviewDialog } from "@/components/txn-edit-dialog";
@@ -9,7 +10,10 @@ import { useStore } from "@/data/store";
 import type { ExpenseRecord } from "@/domain/types";
 
 export default function Review() {
-  const { staged, nameOf, categoryName, accountName, approveStaged, deleteRecords } = useStore();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const { live, staged, nameOf, categoryName, accountName, approveStaged, deleteRecords } = useStore();
   const [open, setOpen] = useState<ExpenseRecord | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState(false);
@@ -21,6 +25,18 @@ export default function Review() {
   const chosen = staged.filter((r) => picked.has(r.id));
   // Rows the app is confident about: remembered from your own approvals, or Claude was sure. Possible duplicates always need you.
   const confident = staged.filter((r) => (r.suggested === "memory" || r.suggested === "ai") && !r.duplicateOf);
+  const fillable = staged.filter((r) => !r.suggested).length;
+  const fillWithAi = async () => {
+    setBusy(true); setNote(null);
+    try {
+      const res = await fetch("/api/suggest", { method: "POST" });
+      const body = (await res.json()) as { error?: string; result?: { filled: number; needYou: number; aiEnabled: boolean; ai: { asked: number; inputTokens: number; outputTokens: number; error?: string } } };
+      if (!res.ok || !body.result) throw new Error(body.error ?? "Could not fill in suggestions.");
+      const r = body.result;
+      setNote(`${r.filled} rows filled in${r.ai.asked > 0 ? `, ${r.ai.asked} new merchants asked to AI (${(r.ai.inputTokens + r.ai.outputTokens).toLocaleString("en-IN")} tokens)` : ""}. ${r.needYou} still need you.${!r.aiEnabled ? " AI is off (no API key on the server), so only your memory was used." : ""}${r.ai.error ? ` ${r.ai.error}.` : ""}`);
+      router.refresh();
+    } catch (e) { setNote((e as Error).message); } finally { setBusy(false); }
+  };
   const flagged = chosen.filter((r) => r.duplicateOf).length;
 
   return (
@@ -35,10 +51,12 @@ export default function Review() {
             <Badge tone="warn">{staged.length} awaiting review</Badge>
             <Button onClick={() => setOpen(staged[0])} variant="primary"><ClipboardCheck size={16} aria-hidden />Start reviewing</Button>
             <Button onClick={() => setPicked(picked.size === staged.length ? new Set() : new Set(staged.map((r) => r.id)))}>{picked.size === staged.length ? "Clear selection" : "Select all"}</Button>
+            {live && fillable > 0 && <Button onClick={fillWithAi} disabled={busy}><Sparkles size={15} aria-hidden />{busy ? "Asking AI…" : `Fill in ${fillable} with AI`}<AiBadge>AI</AiBadge></Button>}
             {confident.length > 0 && <Button onClick={() => setPicked(new Set(confident.map((r) => r.id)))}><Sparkles size={15} aria-hidden />Select {confident.length} confident ones</Button>}
             {picked.size > 0 && <Button onClick={() => setConfirm(true)}>Approve {picked.size} as they are…</Button>}
             {picked.size > 0 && <Button variant="danger" onClick={() => setDeleting(chosen)}><Trash2 size={15} aria-hidden />Delete {picked.size}…</Button>}
           </div>
+          {note && <p role="status" className="mb-3 rounded-xl bg-accent/5 p-3 text-sm">{note}</p>}
           <ul className="space-y-2">
             {staged.map((r) => (
               <li key={r.id} className="flex items-center gap-3 rounded-[var(--radius-card)] bg-surface p-3">
