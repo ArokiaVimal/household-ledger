@@ -15,7 +15,7 @@ import { defaultDisplayName } from "@/lib/profile/profile";
 import { getProfile } from "@/lib/profile/store";
 
 const body = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("invite"), email: z.string().max(200), name: z.string().max(60).optional() }),
+  z.object({ action: z.literal("invite"), email: z.string().max(200), name: z.string().max(60).optional(), shareBps: z.number().int().min(500).max(9500).optional() }),
   z.object({ action: z.literal("revoke"), hash: z.string().regex(/^[a-f0-9]{64}$/) }),
   z.object({ action: z.literal("accept"), hash: z.string().regex(/^[a-f0-9]{64}$/) }),
   z.object({ action: z.literal("ratio"), leaderUid: z.string().min(1).max(128), leaderBps: z.number().int() }),
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
         const own = await getMembership(store, actor.uid);
         const email = a.email.trim().toLowerCase();
         const label = a.name?.trim() || email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-        if (own) await sideEffect(() => setPendingPartner(createFirestoreRepository(own.household.id), { id: `p_inv_${createHash("sha256").update(email).digest("hex").slice(0, 12)}`, name: label, email }));
+        if (own) await sideEffect(() => setPendingPartner(createFirestoreRepository(own.household.id), { id: `p_inv_${createHash("sha256").update(email).digest("hex").slice(0, 12)}`, name: label, email, inviterShareBps: a.shareBps }));
         return NextResponse.json({ ok: true, ...sent });
       }
       case "revoke": {
@@ -68,7 +68,13 @@ export async function POST(req: Request) {
         const inv = await store.getInvite(a.hash);
         await acceptPartnerInvite(store, actor, a.hash, serverDeps);
         // Splits made with the invited person's temporary entry now point at their real account.
-        if (inv) await sideEffect(() => adoptPendingPartner(createFirestoreRepository(inv.householdId), { email: actor.email, id: participantIdFor(actor.uid), uid: actor.uid, name: actor.name }));
+        if (inv) {
+          await sideEffect(async () => {
+            const adopted = await adoptPendingPartner(createFirestoreRepository(inv.householdId), { email: actor.email, id: participantIdFor(actor.uid), uid: actor.uid, name: actor.name });
+            // The usual split chosen when inviting becomes the couple's usual split, with the inviter carrying that share.
+            if (adopted.inviterShareBps) await setSplitRatio(store, actor, { leaderUid: inv.createdBy, leaderBps: adopted.inviterShareBps });
+          });
+        }
         return NextResponse.json({ ok: true });
       }
       case "ratio": await setSplitRatio(store, actor, { leaderUid: a.leaderUid, leaderBps: a.leaderBps }); return NextResponse.json({ ok: true });

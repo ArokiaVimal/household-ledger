@@ -12,9 +12,9 @@ const swapSplit = (s: SplitConfig, from: string, to: string): SplitConfig => ({
 const touches = (id: string, o: { payerId: string; split: SplitConfig }) => o.payerId === id || o.split.participantIds.includes(id);
 
 /** Shows the invited person by name. Replaces any earlier pending person (one invitation waits at a time). */
-export async function setPendingPartner(repo: Repository, p: { id: string; name: string; email: string }): Promise<void> {
+export async function setPendingPartner(repo: Repository, p: { id: string; name: string; email: string; inviterShareBps?: number }): Promise<void> {
   await dropPendingPartners(repo, p.id);
-  await repo.participants.put({ id: p.id, name: p.name.trim().slice(0, 60) || "Partner", userId: null, pendingEmail: p.email.trim().toLowerCase() });
+  await repo.participants.put({ id: p.id, name: p.name.trim().slice(0, 60) || "Partner", userId: null, pendingEmail: p.email.trim().toLowerCase(), ...(p.inviterShareBps ? { inviterShareBps: p.inviterShareBps } : {}) });
 }
 
 /** The invitation was cancelled or replaced: remove the pending person, or keep them as a plain friend if a split already uses them. */
@@ -24,18 +24,18 @@ export async function dropPendingPartners(repo: Repository, except?: string): Pr
   const [records, recurring] = await Promise.all([repo.records.list(), repo.recurring.list()]);
   for (const p of pending) {
     if (records.some((r) => touches(p.id, r)) || recurring.some((r) => touches(p.id, r))) {
-      const { pendingEmail: _gone, ...friend } = p;
-      void _gone;
+      const { pendingEmail: _gone, inviterShareBps: _share, ...friend } = p;
+      void _gone; void _share;
       await repo.participants.put(friend);
     } else await repo.participants.remove(p.id);
   }
 }
 
-/** The invited person accepted: their pending id becomes their real participant everywhere. Returns how many records changed. */
-export async function adoptPendingPartner(repo: Repository, who: { email: string; id: string; uid: string; name: string }): Promise<number> {
+/** The invited person accepted: their pending id becomes their real participant everywhere. Returns how many records changed and the usual split chosen at invite time. */
+export async function adoptPendingPartner(repo: Repository, who: { email: string; id: string; uid: string; name: string }): Promise<{ changed: number; inviterShareBps?: number }> {
   const email = who.email.trim().toLowerCase();
   const pending = (await repo.participants.list()).find((p) => p.pendingEmail === email);
-  if (!pending) return 0;
+  if (!pending) return { changed: 0 };
   const [records, recurring] = await Promise.all([repo.records.list(), repo.recurring.list()]);
   let changed = 0;
   if (!(await repo.participants.get(who.id))) await repo.participants.put({ id: who.id, name: pending.name || who.name, userId: who.uid });
@@ -49,7 +49,7 @@ export async function adoptPendingPartner(repo: Repository, who: { email: string
     await repo.recurring.put(next);
   }
   await repo.participants.remove(pending.id);
-  return changed;
+  return { changed, inviterShareBps: pending.inviterShareBps };
 }
 
 export const isPending = (p: Participant) => !!p.pendingEmail;

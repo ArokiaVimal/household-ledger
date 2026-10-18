@@ -34,6 +34,8 @@ export interface Participant {
   userId: string | null;
   /** Set while this person is an invited partner who has not accepted yet. Their id is temporary. */
   pendingEmail?: string;
+  /** Pending partner only: the share (basis points, 6400 = 64%) the inviter usually carries when they split with this person. */
+  inviterShareBps?: number;
 }
 
 export interface Account {

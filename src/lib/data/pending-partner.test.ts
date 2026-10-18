@@ -36,7 +36,7 @@ describe("pending partner", () => {
     await setPendingPartner(repo, pending);
     await repo.records.put(rec());
     await repo.records.put(rec({ id: "r2", payerId: "p_inv_1", split: { mode: "equal", participantIds: ["me", "p_inv_1"] } }));
-    const changed = await adoptPendingPartner(repo, { email: "varru@example.com", id: "u_v", uid: "v", name: "Varalakshmi" });
+    const { changed } = await adoptPendingPartner(repo, { email: "varru@example.com", id: "u_v", uid: "v", name: "Varalakshmi" });
     expect(changed).toBe(2);
     expect((await repo.records.get("r1"))!.split).toEqual({ mode: "percent", participantIds: ["me", "u_v"], values: { me: 6400, u_v: 3600 } });
     expect((await repo.records.get("r2"))!.payerId).toBe("u_v");
@@ -47,8 +47,14 @@ describe("pending partner", () => {
   it("accepting with a different email changes nothing", async () => {
     const repo = createMemoryRepository("h");
     await setPendingPartner(repo, pending);
-    expect(await adoptPendingPartner(repo, { email: "other@example.com", id: "u_o", uid: "o", name: "O" })).toBe(0);
+    expect((await adoptPendingPartner(repo, { email: "other@example.com", id: "u_o", uid: "o", name: "O" })).changed).toBe(0);
     expect(await repo.participants.list()).toHaveLength(1);
+  });
+  it("remembers the usual split chosen at invite time and hands it over on acceptance", async () => {
+    const repo = createMemoryRepository("h");
+    await setPendingPartner(repo, { ...pending, inviterShareBps: 6400 });
+    expect((await repo.participants.list())[0].inviterShareBps).toBe(6400);
+    expect((await adoptPendingPartner(repo, { email: "varru@example.com", id: "u_v", uid: "v", name: "V" })).inviterShareBps).toBe(6400);
   });
   it("is not removable as a friend", () => {
     const p = { id: "p_inv_1", name: "Varru", userId: null, pendingEmail: "v@x.com" };

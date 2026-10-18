@@ -26,6 +26,7 @@ export function PartnerCard() {
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [theirName, setTheirName] = useState("");
+  const [myShare, setMyShare] = useState(6400); // the usual split most often used here: you carry 64%, they carry 36%
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [unlinking, setUnlinking] = useState(false);
   const [custom, setCustom] = useState("");
@@ -48,8 +49,10 @@ export function PartnerCard() {
   const feedback = msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "text-sm text-good" : "text-sm text-danger"}>{msg.text}</p>;
 
   const inviteForm = (
-    <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); run({ action: "invite", email, name: theirName.trim() }, `Invitation saved for ${email}. ${theirName.trim() || "They"} can already be picked in splits. Ask them to sign in with that email and accept in Settings.`).then((ok) => { if (ok) { setEmail(""); setTheirName(""); } }); }}>
+    <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); run({ action: "invite", email, name: theirName.trim(), shareBps: myShare }, `Invitation saved for ${email}. ${theirName.trim() || "They"} can already be picked in splits. Ask them to sign in with that email and accept in Settings.`).then((ok) => { if (ok) { setEmail(""); setTheirName(""); } }); }}>
       <Field label="Their name (shown in your splits straight away)"><Input value={theirName} onChange={(e) => setTheirName(e.target.value)} placeholder="e.g. Varru" maxLength={60} autoComplete="off" /></Field>
+      <ChipGroup label="Your usual share" options={PRESETS.map((b) => ({ id: String(b), label: b === 5000 ? "50 / 50" : `${pct(b)} / ${pct(10000 - b)}` }))} value={String(myShare)} onChange={(v) => setMyShare(Number(v))} />
+      <p className="text-xs text-muted">You carry {pct(myShare)}%{theirName.trim() ? `, ${theirName.trim()} carries ${pct(10000 - myShare)}%` : ", your partner the rest"}. It is pre-filled whenever you split with them, and you can change any single expense.</p>
       <Field label="Their Google email"><Input type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="partner@example.com" /></Field>
       <Button type="submit" variant="primary" disabled={busy || !email.includes("@") || !theirName.trim()}>Send invitation</Button>
     </form>

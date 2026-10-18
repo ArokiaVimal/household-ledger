@@ -17,7 +17,7 @@ export const SplitConfigSchema = z.object({
   values: z.record(z.string(), z.number().int().safe()).optional(),
 }) satisfies z.ZodType<SplitConfig>;
 
-export const ParticipantSchema = z.object({ id, name: z.string().min(1).max(80), userId: z.string().min(1).nullable(), pendingEmail: z.string().max(200).optional() }) satisfies z.ZodType<Participant>;
+export const ParticipantSchema = z.object({ id, name: z.string().min(1).max(80), userId: z.string().min(1).nullable(), pendingEmail: z.string().max(200).optional(), inviterShareBps: z.number().int().min(500).max(9500).optional() }) satisfies z.ZodType<Participant>;
 export const AccountSchema = z.object({ id, name: z.string().min(1).max(80), type: z.enum(["credit_card", "bank", "upi", "cash"]) }) satisfies z.ZodType<Account>;
 export const CategorySchema = z.object({ id, name: z.string().min(1).max(60) }) satisfies z.ZodType<Category>;
 
