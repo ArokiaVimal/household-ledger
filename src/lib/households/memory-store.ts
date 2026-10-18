@@ -6,6 +6,7 @@ export function createMemoryHouseholdStore(): HouseholdStore & { dump(): { house
   const members = new Map<string, Map<string, Member>>();
   const userHousehold = new Map<string, string>();
   const invites = new Map<string, Invite>();
+  const userCouple = new Map<string, string>();
   return {
     async getUserHouseholdId(uid) { return userHousehold.get(uid) ?? null; },
     async getHousehold(id) { return households.get(id) ?? null; },
@@ -30,6 +31,18 @@ export function createMemoryHouseholdStore(): HouseholdStore & { dump(): { house
       members.delete(hid); households.delete(hid);
       for (const [k, i] of invites) if (i.householdId === hid) invites.delete(k);
     },
+    async getUserCoupleId(uid) { return userCouple.get(uid) ?? null; },
+    async createCoupleFromInvite(hash, usedAt, couple, pair) {
+      const inv = invites.get(hash);
+      if (!inv || inv.usedAt) return false;
+      for (const m of pair) { const cur = userCouple.get(m.uid); if (cur && !households.get(cur)?.endedAt) return false; }
+      invites.set(hash, { ...inv, usedAt });
+      households.set(couple.id, couple);
+      members.set(couple.id, new Map(pair.map((m) => [m.uid, m])));
+      for (const m of pair) userCouple.set(m.uid, couple.id);
+      return true;
+    },
+    async updateHousehold(id, patch) { const h = households.get(id); if (h) households.set(id, { ...h, ...patch }); },
     dump: () => ({ households: [...households.values()], invites: [...invites.values()] }),
   };
 }

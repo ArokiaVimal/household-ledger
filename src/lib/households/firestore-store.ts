@@ -30,6 +30,32 @@ export function createFirestoreHouseholdStore(): HouseholdStore {
       const s = await db.collection("households").doc(id).get();
       return s.exists ? ({ id, ...(s.data() as Omit<Household, "id">) }) : null;
     },
+    async getUserCoupleId(uid) {
+      const d = (await user(uid).get()).data();
+      return typeof d?.coupleId === "string" ? d.coupleId : null;
+    },
+    async createCoupleFromInvite(hash, usedAt, couple, pair) {
+      return db.runTransaction(async (tx) => {
+        const inv = db.collection("invites").doc(hash);
+        const [invSnap, ...userSnaps] = await Promise.all([tx.get(inv), ...pair.map((m) => tx.get(user(m.uid)))]);
+        if (!invSnap.exists || invSnap.data()?.usedAt) return false;
+        for (const u of userSnaps) {
+          const cid = u.data()?.coupleId;
+          if (typeof cid === "string" && !(await tx.get(db.collection("households").doc(cid))).data()?.endedAt) return false;
+        }
+        const { id, ...body } = couple;
+        tx.update(inv, { usedAt });
+        tx.set(db.collection("households").doc(id), JSON.parse(JSON.stringify(body)));
+        for (const m of pair) {
+          tx.set(members(id).doc(m.uid), { email: m.email, displayName: m.displayName, role: m.role, joinedAt: m.joinedAt });
+          tx.set(user(m.uid), { coupleId: id }, { merge: true });
+        }
+        return true;
+      });
+    },
+    async updateHousehold(id, patch) {
+      await db.collection("households").doc(id).set(JSON.parse(JSON.stringify(patch)), { merge: true });
+    },
     async listMembers(hid) {
       return (await members(hid).get()).docs.map((d) => ({ uid: d.id, ...(d.data() as Omit<Member, "uid">) }));
     },

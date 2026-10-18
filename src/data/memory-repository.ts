@@ -1,11 +1,12 @@
 import type { ZodType } from "zod";
-import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, type RuleDoc } from "./schemas";
+import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, SharedExpenseSchema, type RuleDoc } from "./schemas";
 import { ConflictError, type AppendOnly, type Collection, type Repository } from "./repository";
-import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement } from "@/domain/types";
+import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
 
 export interface Seed {
   records?: ExpenseRecord[];
   settlements?: Settlement[];
+  sharedExpenses?: SharedExpense[];
   receipts?: Receipt[];
   recurring?: RecurringItem[];
   participants?: Participant[];
@@ -52,6 +53,7 @@ export function createMemoryRepository(householdId: string, seed: Seed = {}): Re
     householdId,
     records: collection(ExpenseRecordSchema as unknown as ZodType<ExpenseRecord>, seed.records, { guard: guardRecord }),
     settlements: noRemove(collection(SettlementSchema as unknown as ZodType<Settlement>, seed.settlements, { appendOnly: true })),
+    sharedExpenses: noRemove(collection(SharedExpenseSchema as unknown as ZodType<SharedExpense>, seed.sharedExpenses, { appendOnly: true })),
     receipts: collection(ReceiptSchema, seed.receipts),
     recurring: collection(RecurringItemSchema, seed.recurring),
     participants: collection(ParticipantSchema, seed.participants),

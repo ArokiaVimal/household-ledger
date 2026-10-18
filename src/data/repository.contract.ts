@@ -47,6 +47,17 @@ export function describeRepositoryContract(label: string, make: Factory, opts: {
       expect((await repo.settlements.list()).find((x) => x.id === s.id)!.voided).toBe(true);
     }, timeout);
 
+    it("shared expenses are validated, voided instead of deleted, and need a split with someone", async () => {
+      const repo = await fresh();
+      expect("remove" in repo.sharedExpenses).toBe(false);
+      const x = { id: "r1", ownerUid: "u1", payerId: "me", date: "2026-10-01", merchant: "Zepto", amountPaise: 10000, categoryId: "groceries", split: { mode: "equal" as const, participantIds: ["me", "wife"] }, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z" };
+      await repo.sharedExpenses.put(x);
+      await repo.sharedExpenses.put({ ...x, voided: true });
+      expect((await repo.sharedExpenses.get("r1"))?.voided).toBe(true);
+      await expect(repo.sharedExpenses.put({ ...x, id: "r2", split: { mode: "personal", participantIds: ["me"] } })).rejects.toThrow();
+      await expect(repo.sharedExpenses.put({ ...x, id: "r3", amountPaise: 12.5 })).rejects.toThrow();
+    }, timeout);
+
     it("audit log is append-only and timestamped", async () => {
       const repo = await fresh();
       const ev = await repo.audit.append({ actorId: "me", action: "approve", entity: "record", entityId: "t01", summary: "Approved" });

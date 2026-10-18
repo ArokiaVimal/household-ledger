@@ -166,3 +166,38 @@ describe("settlements, audit trail and raw data", () => {
 });
 
 it("sanity: the rules file is non-empty", () => expect(true).toBe(true));
+
+describe("couple space privacy", () => {
+  const shared = { ownerUid: OWNER, payerId: "me", date: "2026-09-05", merchant: "Zepto", amountPaise: 64200, categoryId: "groceries", split: { mode: "equal", participantIds: ["me", "wife"] }, createdAt: "2026-09-05T00:00:00.000Z", updatedAt: "2026-09-05T00:00:00.000Z" };
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      // OWNER and SPOUSE each have a private space; they link into the couple space "c1".
+      await setDoc(doc(db, "households/p-owner"), { name: "Owner", ownerUid: OWNER, kind: "personal" });
+      await setDoc(doc(db, `households/p-owner/members/${OWNER}`), { role: "owner" });
+      await setDoc(doc(db, "households/p-owner/records/r1"), record());
+      await setDoc(doc(db, "households/p-spouse"), { name: "Spouse", ownerUid: SPOUSE, kind: "personal" });
+      await setDoc(doc(db, `households/p-spouse/members/${SPOUSE}`), { role: "owner" });
+      await setDoc(doc(db, "households/c1"), { name: "Couple", ownerUid: OWNER, kind: "couple" });
+      await setDoc(doc(db, `households/c1/members/${OWNER}`), { role: "owner" });
+      await setDoc(doc(db, `households/c1/members/${SPOUSE}`), { role: "member" });
+      await setDoc(doc(db, "households/c1/sharedExpenses/r1"), shared);
+    });
+  });
+  it("a partner cannot read the other partner's private space, only the shared copy", async () => {
+    await assertFails(getDoc(doc(as(SPOUSE), "households/p-owner/records/r1")));
+    await assertFails(getDoc(doc(as(SPOUSE), "households/p-owner")));
+    await assertSucceeds(getDoc(doc(as(SPOUSE), "households/c1/sharedExpenses/r1")));
+    await assertSucceeds(getDoc(doc(as(OWNER), "households/p-owner/records/r1")));
+  });
+  it("outsiders cannot read shared expenses", async () => {
+    for (const db of [as(OTHER), as(STRANGER), anon()]) await assertFails(getDoc(doc(db, "households/c1/sharedExpenses/r1")));
+  });
+  it("nobody writes shared expenses from a client, not even the owner or the partner", async () => {
+    for (const uid of [OWNER, SPOUSE]) {
+      await assertFails(setDoc(doc(as(uid), "households/c1/sharedExpenses/new"), shared));
+      await assertFails(updateDoc(doc(as(uid), "households/c1/sharedExpenses/r1"), { amountPaise: 1 }));
+      await assertFails(deleteDoc(doc(as(uid), "households/c1/sharedExpenses/r1")));
+    }
+  });
+});

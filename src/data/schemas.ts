@@ -3,7 +3,7 @@
 // domain types, so a type change that is not mirrored here fails to compile.
 import { z } from "zod";
 import { validateSplit } from "@/domain/splits";
-import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SplitConfig } from "@/domain/types";
+import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense, SplitConfig } from "@/domain/types";
 
 export const SCHEMA_VERSION = 1;
 
@@ -46,6 +46,7 @@ export const ExpenseRecordSchema = z
     fundedBy: id.optional(),
     recurringId: id.optional(),
     suggested: z.enum(["memory", "ai", "ai_unsure"]).optional(),
+    sharedWithPartner: z.boolean().optional(),
   })
   .superRefine((r, ctx) => {
     // Business rule lives in the domain: shares must add up to the amount, to the paise.
@@ -57,6 +58,17 @@ export const ExpenseRecordSchema = z
 export const SettlementSchema = z
   .object({ id, date, fromId: id, toId: id, amountPaise: paise.positive(), note: z.string().max(500).optional(), voided: z.boolean().optional() })
   .refine((s) => s.fromId !== s.toId, { message: "Pick two different people", path: ["toId"] }) satisfies z.ZodType<Settlement>;
+
+export const SharedExpenseSchema = z
+  .object({
+    id, ownerUid: id, payerId: id, date, merchant: z.string().min(1).max(120), amountPaise: paise.positive("Amount must be greater than zero"), categoryId: id,
+    split: SplitConfigSchema, note: z.string().max(500).optional(), voided: z.boolean().optional(), createdAt: z.string().datetime(), updatedAt: z.string().datetime(),
+  })
+  .superRefine((r, ctx) => {
+    const err = validateSplit(r.amountPaise, r.split as SplitConfig);
+    if (err) ctx.addIssue({ code: "custom", path: ["split"], message: err });
+    if (r.split.mode === "personal") ctx.addIssue({ code: "custom", path: ["split"], message: "A shared expense needs a split with someone else" });
+  }) satisfies z.ZodType<SharedExpense>;
 
 export const ReceiptSchema = z.object({ id, merchant: z.string().min(1), date, amountPaise: paise.positive(), orderId: z.string().optional(), filename: z.string().min(1) }) satisfies z.ZodType<Receipt>;
 

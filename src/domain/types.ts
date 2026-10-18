@@ -77,6 +77,8 @@ export interface ExpenseRecord {
   fundedBy?: string;
   /** Recurring commitment this payment fulfils (rent, EMI, insurance...). */
   recurringId?: string;
+  /** Set when a redacted copy of this expense was shared with the partner (see SharedExpense). */
+  sharedWithPartner?: boolean;
   /** Where the import's guess for merchant/category came from. Only set while the row waits in the review queue. */
   suggested?: Suggestion;
 }
@@ -177,4 +179,27 @@ export interface RawTransaction {
   /** 1-based line in the source file. */
   line: number;
   cells: string[];
+}
+
+/**
+ * The redacted copy of an expense that its owner chose to share with their partner. It lives in the couple space; the
+ * private record (with the bank's text, the card used, import details) never leaves the owner's personal space.
+ * `id` equals the private record's id, so sharing again after a failed attempt is safe.
+ */
+export interface SharedExpense {
+  id: string;
+  /** Account (uid) of the person who shared it. Only they can change or withdraw it. */
+  ownerUid: string;
+  payerId: string;
+  date: string;
+  merchant: string;
+  amountPaise: Paise;
+  categoryId: string;
+  split: SplitConfig;
+  /** Only present when the owner chose to show their note. */
+  note?: string;
+  /** Withdrawn by the owner: kept for history, no longer counted. */
+  voided?: boolean;
+  createdAt: string;
+  updatedAt: string;
 }

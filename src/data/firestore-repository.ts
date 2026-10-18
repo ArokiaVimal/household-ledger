@@ -3,9 +3,9 @@ import { randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import type { ZodType } from "zod";
 import { getAdminDb } from "@/lib/firebase/admin";
-import type { AuditEvent, ExpenseRecord, ImportBatch, RawTransaction, Settlement } from "@/domain/types";
+import type { AuditEvent, ExpenseRecord, ImportBatch, RawTransaction, Settlement, SharedExpense } from "@/domain/types";
 import { ConflictError, type AppendOnly, type Collection, type Repository } from "./repository";
-import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SCHEMA_VERSION, SettlementSchema } from "./schemas";
+import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SCHEMA_VERSION, SettlementSchema, SharedExpenseSchema } from "./schemas";
 
 /** Firestore rejects `undefined`; round-trip through JSON to drop it (all our fields are JSON-safe). */
 const clean = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
@@ -56,6 +56,7 @@ export function createFirestoreRepository(householdId: string, db: Firestore = g
     householdId,
     records: collection<ExpenseRecord>(db, householdId, "records", ExpenseRecordSchema as unknown as ZodType<ExpenseRecord>, { guard: guardRecord }),
     settlements: noRemove(collection<Settlement>(db, householdId, "settlements", SettlementSchema as unknown as ZodType<Settlement>, { appendOnly: true })),
+    sharedExpenses: noRemove(collection<SharedExpense>(db, householdId, "sharedExpenses", SharedExpenseSchema as unknown as ZodType<SharedExpense>, { appendOnly: true })),
     receipts: collection(db, householdId, "receipts", ReceiptSchema),
     recurring: collection(db, householdId, "recurring", RecurringItemSchema),
     participants: collection(db, householdId, "participants", ParticipantSchema),
@@ -77,7 +78,7 @@ export function createFirestoreRepository(householdId: string, db: Firestore = g
 
 /** Deletes every document under households/{id}/ (data only; membership docs are handled by the household service). Used for tests and "delete my data". */
 export async function deleteHouseholdData(householdId: string, db: Firestore = getAdminDb()): Promise<void> {
-  for (const name of ["records", "settlements", "receipts", "recurring", "participants", "accounts", "categories", "merchantRules", "merchantMemory", "auditEvents", "rawTransactions", "importBatches"]) {
+  for (const name of ["records", "settlements", "sharedExpenses", "receipts", "recurring", "participants", "accounts", "categories", "merchantRules", "merchantMemory", "auditEvents", "rawTransactions", "importBatches"]) {
     await db.recursiveDelete(db.collection("households").doc(householdId).collection(name));
   }
 }
