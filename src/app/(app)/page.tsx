@@ -33,24 +33,25 @@ function Pill({ tone, children }: { tone: "good" | "bad"; children: ReactNode })
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet } as const;
 
 export default function Dashboard() {
-  const { live, householdReady, meId, accounts, trendHistory, records, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView } = useStore();
-  const household = useMemo(() => summarize(records.filter((r) => r.date.startsWith(month)), meId), [records, month, meId]);
+  const { live, householdReady, meId, accounts, trendHistory, records, shown, staged, importBatches, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView } = useStore();
+  const household = useMemo(() => summarize(shown.filter((r) => r.date.startsWith(month)), meId), [shown, month, meId]);
   const cats = useMemo(() => Object.entries(byCategory(scoped)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [scoped, categoryName]);
   const perAccount = useMemo(() => groupNet(scoped, (r) => r.accountId), [scoped]);
   const trend = useMemo(() => {
-    const all = { ...trendHistory, ...byMonth(records) };
+    const all = { ...trendHistory, ...byMonth(shown) };
     return Object.keys(all).sort().map((m) => ({ key: m, label: new Date(m + "-01").toLocaleString("en", { month: "short" }), value: all[m] }));
-  }, [records, trendHistory]);
+  }, [shown, trendHistory]);
   const topMerchant = Object.entries(byMerchant(scoped)).sort((a, b) => b[1] - a[1])[0];
   const iOwe = balances.filter((b) => b.from === meId && b.outstanding > 0);
   const owedToMe = balances.filter((b) => b.to === meId && b.outstanding > 0);
   const q = `month=${month}`;
   const prevKey = (() => { const [y, m] = month.split("-").map(Number); return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7); })();
-  const prev = byMonth(records)[prevKey] ?? trendHistory[prevKey];
+  const prev = byMonth(shown)[prevKey] ?? trendHistory[prevKey];
   const delta = prev && prev > 0 ? Math.round(((household.net - prev) / prev) * 1000) / 10 : null;
   const prevName = new Date(`${prevKey}-01T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" });
 
-  if (live && householdReady && records.length === 0) return <Onboarding />;
+  // The welcome guide is only for someone with nothing yet. Once anything is imported or added it gives way to the dashboard.
+  if (live && householdReady && records.length + staged.length + importBatches.length === 0) return <Onboarding />;
   if (scoped.length === 0) {
     return (
       <div className="space-y-4">

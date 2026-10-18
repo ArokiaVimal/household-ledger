@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { pairBalances } from "./balances";
 import { commitmentTotals, recurringStatuses } from "./recurring";
 import { detectDuplicate, planImport, suggestReceiptMatches } from "./dedupe";
+import { pickMonth } from "./months";
 import { suggestCategory } from "./rules";
 import { formatINR, parseRupees } from "./money";
 import { summarize } from "./reports";
@@ -193,5 +194,19 @@ describe("household 64/36 ratio", () => {
     expect(sameSplit(cfg, ratioSplit("owner", "partner", 5000))).toBe(false);
     expect(sameSplit({ mode: "equal", participantIds: ["a", "b"] }, { mode: "equal", participantIds: ["b", "a"] })).toBe(true);
     expect(sameSplit({ mode: "equal", participantIds: ["a", "b"] }, cfg)).toBe(false);
+  });
+});
+
+describe("pickMonth (which month the dashboard opens on)", () => {
+  it("prefers this month when it has data, else the latest earlier month, else this month", () => {
+    expect(pickMonth("2026-10-20", ["2026-10-02", "2026-09-30"])).toBe("2026-10");
+    expect(pickMonth("2026-10-20", ["2026-09-03", "2026-08-30"])).toBe("2026-09"); // a September statement opened in October
+    expect(pickMonth("2026-10-20", [])).toBe("2026-10");
+    expect(pickMonth("2026-10-20", ["bad", ""])).toBe("2026-10");
+  });
+  it("copes with future-dated data and year boundaries", () => {
+    expect(pickMonth("2026-10-20", ["2027-01-05"])).toBe("2027-01");
+    expect(pickMonth("2026-10-20", ["2027-01-05", "2026-07-01"])).toBe("2026-07");
+    expect(pickMonth("2027-01-02", ["2026-12-30", "2026-03-01"])).toBe("2026-12");
   });
 });

@@ -14,6 +14,7 @@ import { signedShare, summarize } from "@/domain/reports";
 import type { MerchantRule } from "@/domain/rules";
 import type { Account, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
 import type { HouseholdData } from "@/lib/data/load";
+import { pickMonth } from "@/domain/months";
 import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, participants as mockParticipants, recurringItems as mockRecurring, trendHistory as mockTrend } from "./mock";
 
 export type View = "household" | "personal";
@@ -50,6 +51,10 @@ interface Store {
   recurringItems: RecurringItem[];
   /** Static prior-month totals for the demo trend chart (empty in live mode). */
   trendHistory: Record<string, number>;
+  /** True while only imported (unreviewed) rows exist: screens show them as a labelled preview. Never true once anything is approved. */
+  previewing: boolean;
+  /** What the screens are built from: the approved ledger, or the waiting rows while previewing. */
+  shown: ExpenseRecord[];
   /** The ledger: only approved records. Everything in reports, balances and recurring comes from here. */
   records: ExpenseRecord[];
   /** Review queue: imported rows waiting for manual approval. Never counted in reports until approved. */
@@ -146,7 +151,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const [accounts, setAccounts] = useState<Account[]>(init.accounts);
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(init.recurringItems);
   const today = live?.today ?? MOCK_TODAY;
-  const [month, setMonth] = useState(today.slice(0, 7));
+  const [month, setMonth] = useState(() => pickMonth(today, [...init.records, ...init.staged].map((r) => r.date)));
   const [view, setView] = useState<View>(initialView);
   const [syncError, setSyncError] = useState<string | null>(null);
   const meId = live?.meId ?? ME;
@@ -159,6 +164,9 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     setPrevInit(init);
     setRecords(init.records); setStaged(init.staged); setCategories(init.categories); setRules(init.rules); setSettlements(init.settlements);
     setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems);
+    // New data may live in a month other than the one on screen (e.g. an older statement): keep the month if it has data, else move to one that does.
+    const dates = [...init.records, ...init.staged].map((r) => r.date);
+    setMonth((m) => (dates.length === 0 || dates.some((d) => d.startsWith(m)) ? m : pickMonth(today, dates)));
   }
 
   /** Sends a change to the server (live mode only). On failure, shows why and re-syncs from the server. */
@@ -173,9 +181,13 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     }
   }, [live, router]);
 
+  // Until the first approval nothing is "in" the ledger, so the screens would be empty right after an import. In that
+  // one situation they show the waiting rows as a clearly labelled preview (see the banner in the app shell).
+  const previewing = !!live && records.length === 0 && staged.length > 0;
+  const shown = previewing ? staged : records;
   const scoped = useMemo(
-    () => records.filter((r) => r.date.startsWith(month) && (view === "household" || r.payerId === meId || signedShare(r, meId) !== 0 || (!r.shared && r.split.participantIds.includes(meId)))),
-    [records, month, view, meId],
+    () => shown.filter((r) => r.date.startsWith(month) && (view === "household" || r.payerId === meId || signedShare(r, meId) !== 0 || (!r.shared && r.split.participantIds.includes(meId)))),
+    [shown, month, view, meId],
   );
   const summary = useMemo(() => summarize(scoped, meId), [scoped, meId]);
   const recurring = useMemo(() => recurringStatuses(recurringItems, records, month, today), [recurringItems, records, month, today]);
@@ -300,7 +312,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
 
   const value: Store = {
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, ownerParticipantId: live ? live.ownerId || meId : ME, partnerId, today, participants, accounts, recurringItems, trendHistory,
-    records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, recurring,
+    previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, recurring,
     categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },

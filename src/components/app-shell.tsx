@@ -83,7 +83,7 @@ function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
 export function AppShell({ children, user }: { children: ReactNode; user: { email: string } | null }) {
   const path = usePathname();
   const router = useRouter();
-  const { live, staged, syncError, dismissSyncError } = useStore();
+  const { live, previewing, staged, syncError, dismissSyncError } = useStore();
   const [q, setQ] = useState("");
   const { profile } = useProfile();
   const [adding, setAdding] = useState(false);
@@ -144,6 +144,12 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 <ScopeSwitch className="min-w-0 flex-1" />
               </div>
             </header>
+            {previewing && (
+              <div role="status" className="mx-4 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-warn-soft px-4 py-2.5 text-sm text-warn md:mx-0">
+                <span className="min-w-0 flex-1"><b>Preview.</b> {staged.length} imported transaction{staged.length === 1 ? " is" : "s are"} waiting for your review. These numbers are provisional, and nothing counts until you approve it.</span>
+                <Link href="/review" className="shrink-0 rounded-full bg-warn px-3.5 py-1.5 text-xs font-medium text-white">Review now</Link>
+              </div>
+            )}
             <main className="px-4 pb-[calc(var(--sab)+9rem)] md:px-0 md:pb-4">{children}</main>
           </div>
         </div>

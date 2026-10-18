@@ -28,6 +28,12 @@ Updated: 2026-10-18 · Branch `feat/slice5-persistence` · Stage 3 slices 1–5 
 - Tests: service tests (previous import reported, refusal without consent, rejected rows come back once, nothing added when all present) and a real-Firestore test. A bug found while checking it in the browser: the dialog's own "closed" event was cancelling the import after Yes; fixed.
 - Not checked in the live app (needs sign-in); checked in the browser with a faked server reply at desktop and phone width.
 
+## After the first import: preview, not an empty screen (added)
+- The welcome guide (`Onboarding`) now shows only when **nothing exists yet** (no approved rows, no waiting rows, no import history). It no longer lingers until the first approval.
+- Imported rows wait in the review queue, so right after an import the ledger is still empty. In exactly that situation (`previewing` in `src/data/store.tsx`: live mode, zero approved, some waiting) every screen is built from the waiting rows and a **"Preview"** banner in the app shell says so ("nothing counts until you approve it", with a Review now button). The moment one row is approved the preview ends and only approved rows count, as before. Demo mode is unaffected.
+- The dashboard now opens on the latest month that has data when this month has none (`pickMonth`, `src/domain/months.ts`, tested), so a September statement opened in October is not an empty page; the month is also re-picked after an import adds data elsewhere.
+- Verified with a temporary preview page (removed) in a browser: preview state with banner and numbers, and the approved state with no banner. Not yet seen on the live site with a real import.
+
 ## Personal first (added; supersedes the earlier household-first framing)
 - **Product order (owner's direction): 1) track my own expenses and categories, 2) split with my partner (Varru), 3) split with friends.** The app no longer starts with a "household".
 - **No "create a household" step.** On first sign-in a private space ("<first name>'s finances") is created automatically (`firstRun` in `src/lib/households/service.ts`; creation is atomic in Firestore so parallel loads cannot create two). Internally the space is still a `households/{id}` document; "household" is now only an implementation word.
