@@ -66,6 +66,19 @@ export function describeRepositoryContract(label: string, make: Factory, opts: {
       await expect(repo.rules.put({ id: "r_x", merchant: "", categoryId: "c_pets" })).rejects.toThrow();
     }, timeout);
 
+    it("import batches and raw rows are append-only; raw rows are write-once", async () => {
+      const repo = await fresh();
+      const batch = { id: "b1", accountId: "cc_hdfc", filename: "s.csv", fileHash: "a".repeat(64), format: "csv" as const, uploadedAt: "2026-10-01T00:00:00.000Z", uploadedBy: "u1", counts: { rows: 2, staged: 2, skippedDuplicate: 0, flaggedDuplicate: 0, unreadable: 0 }, totals: { debitPaise: 100, creditPaise: 0 } };
+      await repo.importBatches.put(batch);
+      expect((await repo.importBatches.get("b1"))!.filename).toBe("s.csv");
+      expect("remove" in repo.importBatches).toBe(false);
+      await expect(repo.importBatches.put({ ...batch, fileHash: "nothex" })).rejects.toThrow();
+      await repo.rawTransactions.put({ id: "raw1", batchId: "b1", line: 4, cells: ["01/09/26", "SWIGGY", "612.00"] });
+      await expect(repo.rawTransactions.put({ id: "raw1", batchId: "b1", line: 4, cells: ["tampered"] })).rejects.toBeInstanceOf(ConflictError);
+      expect((await repo.rawTransactions.get("raw1"))!.cells[1]).toBe("SWIGGY");
+      expect("remove" in repo.rawTransactions).toBe(false);
+    }, timeout);
+
     it("two households do not share data", async () => {
       const a = await make(`ha-${Math.random().toString(36).slice(2, 8)}`, { records: initialRecords });
       const b = await make(`hb-${Math.random().toString(36).slice(2, 8)}`);

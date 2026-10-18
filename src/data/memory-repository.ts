@@ -1,7 +1,7 @@
 import type { ZodType } from "zod";
-import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ParticipantSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, type RuleDoc } from "./schemas";
+import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, type RuleDoc } from "./schemas";
 import { ConflictError, type AppendOnly, type Collection, type Repository } from "./repository";
-import type { Account, AuditEvent, Category, ExpenseRecord, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
+import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, Participant, RawTransaction, Receipt, RecurringItem, Settlement } from "@/domain/types";
 
 export interface Seed {
   records?: ExpenseRecord[];
@@ -14,7 +14,7 @@ export interface Seed {
   rules?: RuleDoc[];
 }
 
-function collection<T extends { id: string }>(schema: ZodType<T>, seed: T[] = [], opts: { appendOnly?: boolean; guard?: (prev: T, next: T) => void } = {}): Collection<T> {
+function collection<T extends { id: string }>(schema: ZodType<T>, seed: T[] = [], opts: { appendOnly?: boolean; immutable?: boolean; guard?: (prev: T, next: T) => void } = {}): Collection<T> {
   const items = new Map<string, T>();
   for (const s of seed) items.set(s.id, structuredClone(schema.parse(s)));
   return {
@@ -23,6 +23,7 @@ function collection<T extends { id: string }>(schema: ZodType<T>, seed: T[] = []
     async put(item) {
       const parsed = schema.parse(item); // throws ZodError on invalid money, dates or splits
       const prev = items.get(parsed.id);
+      if (prev && opts.immutable) throw new ConflictError("This record is write-once");
       if (prev) opts.guard?.(prev, parsed);
       items.set(parsed.id, structuredClone(parsed));
       return structuredClone(parsed);
@@ -56,6 +57,8 @@ export function createMemoryRepository(householdId: string, seed: Seed = {}): Re
     accounts: collection(AccountSchema, seed.accounts),
     categories: collection(CategorySchema, seed.categories),
     rules: collection(RuleDocSchema, seed.rules),
+    importBatches: noRemove(collection(ImportBatchSchema as unknown as ZodType<ImportBatch>, [], { appendOnly: true })),
+    rawTransactions: noRemove(collection(RawTransactionSchema as unknown as ZodType<RawTransaction>, [], { appendOnly: true, immutable: true })),
     audit: {
       async list() { return structuredClone(audit); },
       async append(e) {

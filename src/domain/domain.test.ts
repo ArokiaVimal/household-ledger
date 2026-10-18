@@ -152,6 +152,9 @@ describe("import planning and rules", () => {
     const rules = [{ merchant: "Swiggy", categoryId: "food_delivery" }];
     expect(suggestCategory(rules, " swiggy ")).toBe("food_delivery");
     expect(suggestCategory(rules, "Unknown")).toBe("uncategorized");
+    expect(suggestCategory(rules, "SWIGGY BANGALORE IN")).toBe("food_delivery");
+    expect(suggestCategory(rules, "Swiggy Instamart")).toBe("food_delivery");
+    expect(suggestCategory([{ merchant: "Uber", categoryId: "transport" }], "Superb Uberlike Co")).toBe("uncategorized"); // whole words only
   });
 });
 

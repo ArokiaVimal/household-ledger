@@ -3,16 +3,16 @@ import { randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import type { ZodType } from "zod";
 import { getAdminDb } from "@/lib/firebase/admin";
-import type { AuditEvent, ExpenseRecord, Settlement } from "@/domain/types";
+import type { AuditEvent, ExpenseRecord, ImportBatch, RawTransaction, Settlement } from "@/domain/types";
 import { ConflictError, type AppendOnly, type Collection, type Repository } from "./repository";
-import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ParticipantSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SCHEMA_VERSION, SettlementSchema } from "./schemas";
+import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SCHEMA_VERSION, SettlementSchema } from "./schemas";
 
 /** Firestore rejects `undefined`; round-trip through JSON to drop it (all our fields are JSON-safe). */
 const clean = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 
 type Guard<T> = (prev: T, next: T) => void;
 
-function collection<T extends { id: string }>(db: Firestore, hid: string, name: string, schema: ZodType<T>, opts: { appendOnly?: boolean; guard?: Guard<T> } = {}): Collection<T> {
+function collection<T extends { id: string }>(db: Firestore, hid: string, name: string, schema: ZodType<T>, opts: { appendOnly?: boolean; immutable?: boolean; guard?: Guard<T> } = {}): Collection<T> {
   const col = () => db.collection("households").doc(hid).collection(name);
   const read = (id: string, data: FirebaseFirestore.DocumentData): T => {
     const { schemaVersion: _v, ...rest } = data; // stored for migrations, not part of the entity
@@ -28,6 +28,7 @@ function collection<T extends { id: string }>(db: Firestore, hid: string, name: 
       const ref = col().doc(id);
       await db.runTransaction(async (tx) => {
         const prev = await tx.get(ref);
+        if (prev.exists && opts.immutable) throw new ConflictError("This record is write-once");
         if (prev.exists) opts.guard?.(read(id, prev.data()!), parsed);
         tx.set(ref, { ...body, schemaVersion: SCHEMA_VERSION });
       });
@@ -61,6 +62,8 @@ export function createFirestoreRepository(householdId: string, db: Firestore = g
     accounts: collection(db, householdId, "accounts", AccountSchema),
     categories: collection(db, householdId, "categories", CategorySchema),
     rules: collection(db, householdId, "merchantRules", RuleDocSchema),
+    importBatches: noRemove(collection<ImportBatch>(db, householdId, "importBatches", ImportBatchSchema as unknown as ZodType<ImportBatch>, { appendOnly: true })),
+    rawTransactions: noRemove(collection<RawTransaction>(db, householdId, "rawTransactions", RawTransactionSchema as unknown as ZodType<RawTransaction>, { appendOnly: true, immutable: true })),
     audit: {
       async list() { return (await audit.list()).sort((a, b) => a.at.localeCompare(b.at)); },
       async append(e) {

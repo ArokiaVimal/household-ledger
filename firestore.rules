@@ -84,6 +84,12 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      // Statement upload history is written by the server only.
+      match /importBatches/{id} {
+        allow read: if isMember(hid);
+        allow write: if false;
+      }
+
       match /settlements/{id} {
         allow read: if isMember(hid);
         allow create: if isMember(hid) && validSettlement(request.resource.data);

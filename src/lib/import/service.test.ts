@@ -1,0 +1,130 @@
+import { createHash } from "node:crypto";
+import { describe, expect, it } from "vitest";
+import { createMemoryRepository } from "@/data/memory-repository";
+import type { Repository } from "@/data/repository";
+import { parseCsv } from "@/domain/import/csv";
+import { DEFAULT_CATEGORIES } from "@/domain/defaults";
+import { commitImport, ImportError, MAX_ROWS, previewImport, type ImportDeps, type ImportInput } from "./service";
+
+let n = 0;
+const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+const deps: ImportDeps = { sha256: sha, now: () => Date.parse("2026-10-18T10:00:00Z"), newId: () => `id${++n}` };
+const actor = { uid: "u1", participantId: "u_u1" };
+
+const bankCsv = `Date,Narration,Chq./Ref.No.,Value Dt,Withdrawal Amt.,Deposit Amt.,Closing Balance
+01/09/26,UPI-SWIGGY-swiggy@icici-123456789012-Order,0000123456789012,01/09/26,612.00,,45388.00
+01/09/26,NEFT CR-ACME LTD-SALARY SEP,N123,01/09/26,,"1,85,000.00","2,30,388.00"
+05/09/26,CREDIT CARD PAYMENT HDFC 4471,REF5,05/09/26,"18,500.00",,"2,11,888.00"
+`;
+const file = (csv: string, over: Partial<ImportInput> = {}): ImportInput => ({ accountId: "bank_hdfc", filename: "hdfc_sep.csv", format: "csv", fileHash: sha(csv), table: parseCsv(csv), ...over });
+
+async function setup(): Promise<Repository> {
+  const repo = createMemoryRepository("h");
+  for (const c of DEFAULT_CATEGORIES) await repo.categories.put(c);
+  await repo.accounts.put({ id: "bank_hdfc", name: "HDFC Bank", type: "bank" });
+  await repo.accounts.put({ id: "cc_hdfc", name: "HDFC Credit Card", type: "credit_card" });
+  await repo.rules.put({ id: "r_swiggy", merchant: "Swiggy", categoryId: "food_delivery" });
+  return repo;
+}
+
+describe("preview", () => {
+  it("classifies, categorises and totals without writing anything", async () => {
+    const repo = await setup();
+    const p = await previewImport(repo, file(bankCsv), deps);
+    expect(p.counts).toEqual({ rows: 3, new: 3, duplicate: 0, possible: 0, unreadable: 0 });
+    expect(p.rows.map((r) => [r.kind, r.categoryId, r.merchant])).toEqual([["purchase", "food_delivery", "Swiggy"], ["income", "income", "Neft Cr-Acme Ltd-Salary Sep"], ["cc_payment", "transfers", "Credit Card Payment Hdfc 4471"]]);
+    expect(p.totals).toMatchObject({ debitPaise: 61200 + 1850000, creditPaise: 18500000 });
+    expect(await repo.records.list()).toEqual([]);
+    expect(await repo.importBatches.list()).toEqual([]);
+  });
+  it("uses the card sign convention for card accounts, and the user can flip it", async () => {
+    const repo = await setup();
+    const csv = "Date,Transaction Details,Amount\n02/09/2026,SWIGGY BANGALORE IN,612.00\n13/09/2026,AMAZON REFUND,-1299.00\n";
+    const card = await previewImport(repo, file(csv, { accountId: "cc_hdfc" }), deps);
+    expect(card.rows.map((r) => [r.direction, r.kind])).toEqual([["debit", "purchase"], ["credit", "refund"]]);
+    const flipped = await previewImport(repo, file(csv, { accountId: "cc_hdfc", positiveIsDebit: false }), deps);
+    expect(flipped.rows.map((r) => r.direction)).toEqual(["credit", "debit"]);
+  });
+  it("refuses an unknown account, a table-less file and oversized files", async () => {
+    const repo = await setup();
+    await expect(previewImport(repo, file(bankCsv, { accountId: "nope" }), deps)).rejects.toMatchObject({ code: "not_found" });
+    await expect(previewImport(repo, file("hello,world\n1,2"), deps)).rejects.toMatchObject({ code: "invalid" });
+    const big = "Date,Narration,Debit,Credit\n" + Array.from({ length: MAX_ROWS + 1 }, (_, i) => `01/09/2026,Row ${i},1.00,`).join("\n");
+    await expect(previewImport(repo, file(big), deps)).rejects.toMatchObject({ code: "too_large" });
+  });
+});
+
+describe("commit", () => {
+  it("saves the batch, every raw row, review-queue records and an audit event", async () => {
+    const repo = await setup();
+    const res = await commitImport(repo, actor, file(bankCsv), deps);
+    expect(res.counts).toMatchObject({ rows: 3, staged: 3, duplicate: 0 });
+    const records = await repo.records.list();
+    expect(records).toHaveLength(3);
+    expect(records.every((r) => r.status === "unreviewed" && r.payerId === "u_u1" && r.shared === false)).toBe(true);
+    expect(records.find((r) => r.merchant === "Swiggy")).toMatchObject({ amountPaise: 61200, kind: "purchase", categoryId: "food_delivery", originalDescription: "UPI-SWIGGY-swiggy@icici-123456789012-Order", date: "2026-09-01", accountId: "bank_hdfc" });
+    const raws = await repo.rawTransactions.list();
+    expect(raws.map((r) => r.line).sort()).toEqual([2, 3, 4]);
+    expect(raws.find((r) => r.line === 2)!.cells[1]).toContain("SWIGGY");
+    const batch = (await repo.importBatches.list())[0];
+    expect(batch).toMatchObject({ filename: "hdfc_sep.csv", format: "csv", counts: { rows: 3, staged: 3, skippedDuplicate: 0 } });
+    expect((await repo.audit.list()).map((e) => e.action)).toEqual(["import"]);
+  });
+
+  it("refuses the same file twice for the same account, but allows it for another account", async () => {
+    const repo = await setup();
+    await commitImport(repo, actor, file(bankCsv), deps);
+    await expect(commitImport(repo, actor, file(bankCsv), deps)).rejects.toMatchObject({ code: "already_imported" });
+    expect((await repo.records.list())).toHaveLength(3);
+    await expect(previewImport(repo, file(bankCsv), deps)).rejects.toBeInstanceOf(ImportError);
+  });
+
+  it("an overlapping statement skips rows already imported and adds only the new ones", async () => {
+    const repo = await setup();
+    await commitImport(repo, actor, file(bankCsv), deps);
+    const overlap = bankCsv + "09/09/26,UPI-ZEPTO-zepto@yesb-987654321098-Order,0000987654321098,09/09/26,899.00,,\n";
+    const res = await commitImport(repo, actor, file(overlap), deps);
+    expect(res.counts).toMatchObject({ rows: 4, duplicate: 3, staged: 1 });
+    expect(await repo.records.list()).toHaveLength(4);
+    expect((await repo.importBatches.list()).map((b) => b.counts.skippedDuplicate).sort()).toEqual([0, 3]);
+  });
+
+  it("identical rows inside one file are both kept (two real purchases), while a re-upload of them is not duplicated", async () => {
+    const repo = await setup();
+    const twice = "Date,Narration,Debit,Credit\n03/09/2026,CCD KORAMANGALA,120.00,\n03/09/2026,CCD KORAMANGALA,120.00,\n";
+    const first = await commitImport(repo, actor, file(twice, { accountId: "cc_hdfc" }), deps);
+    expect(first.counts.staged).toBe(2);
+    const other = twice + "04/09/2026,UBER INDIA,200.00,\n"; // different file, same two rows plus one new
+    const second = await commitImport(repo, actor, file(other, { accountId: "cc_hdfc" }), deps);
+    expect(second.counts).toMatchObject({ duplicate: 2, staged: 1 });
+    expect(await repo.records.list()).toHaveLength(3);
+  });
+
+  it("flags, but still stages, a row that looks like an existing record with a different reference", async () => {
+    const repo = await setup();
+    await repo.records.put({ id: "old", date: "2026-09-01", merchant: "Swiggy", originalDescription: "typed", amountPaise: 61200, currency: "INR", accountId: "bank_hdfc", categoryId: "food_delivery", kind: "purchase", payerId: "u_u1", shared: false, split: { mode: "personal", participantIds: ["u_u1"] }, excluded: false, status: "reviewed", importSource: "Manual entry" });
+    const res = await commitImport(repo, actor, file(bankCsv), deps);
+    expect(res.counts).toMatchObject({ possible: 1, staged: 3 });
+    const flagged = (await repo.records.list()).find((r) => r.duplicateOf === "old");
+    expect(flagged).toBeTruthy();
+    expect(flagged!.status).toBe("unreviewed");
+  });
+
+  it("falls back to Uncategorized when a default category was deleted, and reports unreadable rows without dropping silently", async () => {
+    const repo = await setup();
+    await repo.categories.remove("transfers");
+    const csv = bankCsv + "garbage line,with,three cells\n";
+    const res = await commitImport(repo, actor, file(csv), deps);
+    expect(res.counts.unreadable).toBe(1);
+    expect((await repo.records.list()).find((r) => r.kind === "cc_payment")!.categoryId).toBe("uncategorized");
+    expect((await repo.importBatches.list())[0].counts.unreadable).toBe(1);
+  });
+
+  it("imported bank fields stay immutable after commit (the repository refuses edits to them)", async () => {
+    const repo = await setup();
+    await commitImport(repo, actor, file(bankCsv), deps);
+    const r = (await repo.records.list())[0];
+    await expect(repo.records.put({ ...r, amountPaise: r.amountPaise + 1 })).rejects.toThrow();
+    await expect(repo.records.put({ ...r, categoryId: "shopping", status: "reviewed" })).resolves.toBeTruthy();
+  });
+});

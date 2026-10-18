@@ -125,3 +125,26 @@ export interface AuditEvent {
   entityId: string;
   summary: string;
 }
+
+/** One uploaded statement file. The file itself is not stored; its SHA-256 is, so re-uploads can be refused. */
+export interface ImportBatch {
+  id: string;
+  accountId: string;
+  filename: string;
+  fileHash: string;
+  format: "csv" | "xlsx";
+  uploadedAt: string;
+  uploadedBy: string;
+  counts: { rows: number; staged: number; skippedDuplicate: number; flaggedDuplicate: number; unreadable: number };
+  /** Statement totals as read from the file (paise), so a person can compare them with the statement. */
+  totals: { debitPaise: number; creditPaise: number };
+}
+
+/** A transaction row exactly as read from a statement. Write-once: the canonical expense may be edited, this never is. */
+export interface RawTransaction {
+  id: string;
+  batchId: string;
+  /** 1-based line in the source file. */
+  line: number;
+  cells: string[];
+}
