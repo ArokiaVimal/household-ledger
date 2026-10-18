@@ -31,3 +31,10 @@ All household data changes go through `POST /api/data`: same-origin check, verif
 
 ## AI import (added)
 Claude receives statement or typed text only after an explicit click (the server refuses AI without `ai=1`), with digit runs of 8+ characters, emails and phone numbers masked first. The file is never stored or sent whole. The text is treated as untrusted: the prompt forbids following instructions inside it, the answer is validated, and statement rows must be found in the text Claude saw. AI-read rows are still unreviewed until a person approves them.
+
+## Couple space and privacy (added)
+- Personal spaces never have a second member. Linking creates a separate couple space (`households/{id}` with `kind: "couple"`); invitations are accepted by verified email and no longer add anyone to a personal space.
+- A partner cannot read the other partner's personal space: `isMember` fails for it (emulator tests: partner denied on private records/space, allowed on `sharedExpenses`).
+- `sharedExpenses` are written only by server code (rules: `allow write: if false`). The server shares only spending-like kinds (purchase, refund, fee), only when the signed-in user is the payer, and only for splits between the two partners (a split with a partner and a friend is refused).
+- The shared copy is built by `buildShared` and carries no bank text, account, reference or import source; tests assert this.
+- Unlinking sets `endedAt` on the couple space: history stays readable to both, nothing new can be shared or settled.

@@ -10,9 +10,9 @@ import { pairBalances } from "@/domain/balances";
 import { categoryUsage, checkDelete, cleanCategoryName, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { recurringStatuses } from "@/domain/recurring";
-import { signedShare, summarize } from "@/domain/reports";
+import { summarize } from "@/domain/reports";
 import type { MerchantRule } from "@/domain/rules";
-import { sharedToRecord } from "@/domain/sharing";
+import { scopeRecords, sharedToRecord } from "@/domain/sharing";
 import { OWNER_SHARE_BPS } from "@/domain/defaults";
 import type { Account, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
 import type { CoupleData } from "@/lib/data/couple";
@@ -204,13 +204,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   // partner paid; Together = only what is shared. My own shared expenses appear once, from my records.
   const sharedRecords = useMemo(() => shared.map(sharedToRecord), [shared]);
   const together = !!live && !!couple;
-  const scoped = useMemo(() => {
-    const mine = (r: ExpenseRecord) => r.payerId === meId || signedShare(r, meId) !== 0 || (!r.shared && r.split.participantIds.includes(meId));
-    const inMonth = (r: ExpenseRecord) => r.date.startsWith(month);
-    if (together && view === "household") return sharedRecords.filter(inMonth);
-    if (together) return [...shown, ...sharedRecords.filter((r) => r.payerId !== meId)].filter((r) => inMonth(r) && mine(r));
-    return shown.filter((r) => inMonth(r) && (view === "household" || mine(r)));
-  }, [shown, sharedRecords, together, month, view, meId]);
+  const scoped = useMemo(() => scopeRecords({ own: shown, shared: sharedRecords, coupled: together, view, meId, month }), [shown, sharedRecords, together, month, view, meId]);
   const summary = useMemo(() => summarize(scoped, meId), [scoped, meId]);
   const recurring = useMemo(() => recurringStatuses(recurringItems, records, month, today), [recurringItems, records, month, today]);
   const balances = useMemo(() => pairBalances(live ? sharedRecords : records, settlements), [live, sharedRecords, records, settlements]);

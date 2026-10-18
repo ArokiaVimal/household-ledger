@@ -1,5 +1,6 @@
 // Sharing an expense with a partner. The private record stays in the owner's personal space; a redacted copy
 // (SharedExpense) goes to the couple space. Pure rules here; the server action does the writes.
+import { signedShare } from "./reports";
 import type { ExpenseRecord, SharedExpense } from "./types";
 
 const SHAREABLE = new Set<ExpenseRecord["kind"]>(["purchase", "refund", "fee"]);
@@ -51,4 +52,16 @@ export function sharedToRecord(s: SharedExpense): ExpenseRecord {
     categoryId: s.categoryId, kind: s.kind, payerId: s.payerId, shared: true, split: s.split, excluded: false, status: "reviewed",
     importSource: "Shared", notes: s.note,
   };
+}
+
+/**
+ * What a screen shows for a month. Together = only the shared expenses (both people's). Mine = my own records plus my
+ * share of what my partner paid; my own shared expenses are already among my records, so they appear once.
+ */
+export function scopeRecords(o: { own: ExpenseRecord[]; shared: ExpenseRecord[]; coupled: boolean; view: "personal" | "household"; meId: string; month: string }): ExpenseRecord[] {
+  const inMonth = (r: ExpenseRecord) => r.date.startsWith(o.month);
+  const mine = (r: ExpenseRecord) => r.payerId === o.meId || signedShare(r, o.meId) !== 0 || (!r.shared && r.split.participantIds.includes(o.meId));
+  if (o.coupled && o.view === "household") return o.shared.filter(inMonth);
+  if (o.coupled) return [...o.own, ...o.shared.filter((r) => r.payerId !== o.meId)].filter((r) => inMonth(r) && mine(r));
+  return o.own.filter((r) => inMonth(r) && (o.view === "household" || mine(r)));
 }

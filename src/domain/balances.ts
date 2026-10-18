@@ -50,7 +50,7 @@ export function pairBalances(records: ExpenseRecord[], settlements: Settlement[]
     out.push(
       v >= 0
         ? { from: a, to: b, owed: owedAB, settled: st, outstanding: v }
-        : { from: b, to: a, owed: -owedAB, settled: -st, outstanding: -v },
+        : { from: b, to: a, owed: -owedAB, settled: st === 0 ? 0 : -st, outstanding: -v },
     );
   }
   return out.sort((x, y) => y.outstanding - x.outstanding);

@@ -11,7 +11,7 @@ import { PartnerCard } from "./partner-card";
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash" };
 
 export default function Settings() {
-  const { live, aiEnabled, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, addAccount, addSuggestedAccounts, addParticipant } = useStore();
+  const { live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, addAccount, addSuggestedAccounts, addParticipant } = useStore();
   const [confirm, setConfirm] = useState(false);
   const [accName, setAccName] = useState("");
   const [accType, setAccType] = useState<Account["type"]>("credit_card");
@@ -21,7 +21,7 @@ export default function Settings() {
   const missingSuggested = SUGGESTED_ACCOUNTS.filter((s) => !accounts.some((a) => a.id === s.id)).length;
 
   const exportJson = () => {
-    const payload = { schemaVersion: 1, note: live ? "Basic export. Full export/restore arrives later." : "MOCK DATA export", exportedAt: new Date().toISOString(), participants, accounts, categories, rules, recurringItems, records: [...records, ...staged], settlements, receipts };
+    const payload = { schemaVersion: 1, note: live ? "Basic export. Full export/restore arrives later." : "MOCK DATA export", exportedAt: new Date().toISOString(), participants, accounts, categories, rules, recurringItems, records: [...records, ...staged], sharedWithPartner: sharedRecords.map(({ originalDescription: _o, accountId: _a, importSource: _i, ...r }) => { void _o; void _a; void _i; return r; }), settlements, receipts };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
