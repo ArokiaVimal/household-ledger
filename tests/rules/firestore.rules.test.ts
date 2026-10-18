@@ -21,6 +21,7 @@ beforeEach(async () => {
     await setDoc(doc(db, "households/h1/settlements/s1"), settlement());
     await setDoc(doc(db, "households/h1/rawTransactions/raw1"), { text: "ZEPTO 642.00" });
     await setDoc(doc(db, "households/h1/auditEvents/a1"), { at: "2026-09-01T00:00:00Z", actorId: OWNER, action: "approve", entity: "record", entityId: "r1", summary: "x" });
+    await setDoc(doc(db, "households/h1/importBatches/b1"), { filename: "s.csv" });
     await setDoc(doc(db, "invites/abc"), { householdId: "h1", email: "s@x.com" });
     await setDoc(doc(db, `users/${OWNER}`), { displayName: "Owner" });
     await setDoc(doc(db, `users/${SPOUSE}`), { displayName: "Spouse" });
@@ -58,6 +59,18 @@ describe("household access", () => {
     await assertFails(setDoc(doc(as(SPOUSE), `households/h1/members/${SPOUSE}`), { email: "s@x.com", role: "owner" }));
     await assertFails(updateDoc(doc(as(OWNER), "households/h1"), { name: "Renamed" }));
     await assertFails(setDoc(doc(as(STRANGER), "households/h3"), { name: "Mine", ownerUid: STRANGER }));
+  });
+});
+
+describe("import history", () => {
+  it("members can read it; nobody can write it from the client; outsiders cannot read it", async () => {
+    await assertSucceeds(getDoc(doc(as(SPOUSE), "households/h1/importBatches/b1")));
+    for (const db of [as(OWNER), as(SPOUSE)]) {
+      await assertFails(setDoc(doc(db, "households/h1/importBatches/b2"), { filename: "x.csv" }));
+      await assertFails(updateDoc(doc(db, "households/h1/importBatches/b1"), { filename: "edited" }));
+      await assertFails(deleteDoc(doc(db, "households/h1/importBatches/b1")));
+    }
+    for (const db of [as(OTHER), as(STRANGER), anon()]) await assertFails(getDoc(doc(db, "households/h1/importBatches/b1")));
   });
 });
 

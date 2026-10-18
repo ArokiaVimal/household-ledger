@@ -1,4 +1,19 @@
-# Import pipeline (design; only the dedupe/match functions exist)
+# Import pipeline
+
+## Implemented: CSV and Excel (.xlsx) statements
+Flow (live mode): Import screen -> choose payment method + file -> **Read statement** (preview, writes nothing) -> check counts and the statement totals -> **Send to review queue** (commit) -> approve each row in `/review`.
+- **Reading** (`src/domain/import/*`, pure, tested): CSV with auto delimiter, quotes, BOM; Excel via `read-excel-file` (first sheet with a recognisable table); header row found anywhere in the first 60 rows (statement preambles are skipped); columns mapped by common bank headings (Date, Narration/Description/Particulars, Withdrawal/Debit, Deposit/Credit, Amount, Dr/Cr, Balance, Ref No, Value Date). Amounts parse to integer paise (Indian grouping, Rs/INR/₹, brackets, Dr/Cr). Dates are **day-first** (03/09/2026 is 3 Sep) and also accept 2026-09-03, 3 Sep 2026 and Excel serial numbers.
+- **Nothing is dropped silently**: unreadable rows are listed with line number and reason; statement totals (money out / in, row counts) are shown to compare with the statement. A single signed Amount column can be flipped (card statements show purchases as positive, banks as negative); the defaults are card = positive is money out, bank = negative is money out.
+- **Classification** (`classify.ts`, a first guess for review): card bill payments and cash withdrawals are never spending (`cc_payment` / `transfer`), fees, refunds, salary/income; UPI/POS narrations are reduced to a merchant; categories come from the household's merchant rules (substring match on whole words), else Uncategorized.
+- **Duplicates**: (1) the same file (SHA-256) for the same payment method is refused; (2) overlapping statements: a row with the same bank reference + date + amount, or (no reference) the same content, is skipped as already imported; (3) a row that merely looks like an existing record (same account/date/amount, alike merchant) is added but flagged as a possible duplicate; (4) two identical rows inside one file are both kept (they are two real purchases).
+- **Storage**: the file is read in memory and **not kept**; only its hash is stored. Every row is saved as read in `rawTransactions` (write-once), each file in `importBatches` (history), and new rows as `unreviewed` records. Limits: 4 MB (Vercel's request cap), 2000 rows per file. PDFs, old `.xls` and other files are refused with guidance.
+- API: `POST /api/import` (multipart; session, same-origin, household from membership, content sniffing, size cap).
+
+## Local tool: describe-statement
+`node scripts/describe-statement.mjs <file.pdf|.csv|.xlsx>` prints a statement's structure with all digits and names masked (columns, date/amount shapes, totals lines, how the table starts and ends) so a person can review and share it safely. Reads locally, writes and sends nothing. Password-protected PDFs: unlock a copy first (Preview > Export). Scanned PDFs are reported as unreadable.
+
+## Not yet: PDF statements and screenshots (design below)
+
 
 Flow: month → upload → detect source/type → parse → normalize → preview → duplicate check → review/categorize → confirm → summary.
 Implemented now: `detectDuplicate`, `isFileAlreadyImported`, `suggestReceiptMatches` in `src/domain/dedupe.ts` (tested). The import UI is a **simulated** preview using mock rows.
