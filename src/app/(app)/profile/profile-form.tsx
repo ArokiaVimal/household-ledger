@@ -26,7 +26,15 @@ async function toSquareJpeg(file: File, size = 256): Promise<string> {
 }
 
 export function ProfileForm() {
-  const { profile, setProfile } = useProfile();
+  const { profile, status, setProfile } = useProfile();
+  if (!profile && status === "error") {
+    return (
+      <>
+        <PageHeader title="Profile" />
+        <Card><p role="alert" className="text-sm text-danger">Your profile could not be loaded. The server could not reach the database. Check that Firestore is created for this project, then reload. The server log has the exact error.</p></Card>
+      </>
+    );
+  }
   if (!profile) {
     return (
       <>

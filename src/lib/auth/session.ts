@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { getAdminAuth } from "@/lib/firebase/admin";
 import { SESSION_COOKIE, getAuthMode, isSignInAllowed } from "./config";
 
@@ -19,6 +20,8 @@ export async function getSession(): Promise<Session | null> {
   if (getAuthMode(process.env) === "off") return { uid: "prototype", email: null, name: null, picture: null, mode: "off" };
   const value = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!value) return null;
+  // Verification reads the clock; mark it as request-time work (Cache Components).
+  await connection();
   try {
     const decoded = await getAdminAuth().verifySessionCookie(value, true);
     if (!isSignInAllowed({ email: decoded.email, emailVerified: decoded.email_verified, provider: decoded.firebase?.sign_in_provider, allowedCsv: process.env.ALLOWED_EMAILS ?? "" })) return null;
