@@ -1,5 +1,5 @@
 import type { ZodType } from "zod";
-import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ParticipantSchema, ReceiptSchema, RecurringItemSchema, SettlementSchema } from "./schemas";
+import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ParticipantSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, type RuleDoc } from "./schemas";
 import { ConflictError, type AppendOnly, type Collection, type Repository } from "./repository";
 import type { Account, AuditEvent, Category, ExpenseRecord, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
 
@@ -11,6 +11,7 @@ export interface Seed {
   participants?: Participant[];
   accounts?: Account[];
   categories?: Category[];
+  rules?: RuleDoc[];
 }
 
 function collection<T extends { id: string }>(schema: ZodType<T>, seed: T[] = [], opts: { appendOnly?: boolean; guard?: (prev: T, next: T) => void } = {}): Collection<T> {
@@ -54,6 +55,7 @@ export function createMemoryRepository(householdId: string, seed: Seed = {}): Re
     participants: collection(ParticipantSchema, seed.participants),
     accounts: collection(AccountSchema, seed.accounts),
     categories: collection(CategorySchema, seed.categories),
+    rules: collection(RuleDocSchema, seed.rules),
     audit: {
       async list() { return structuredClone(audit); },
       async append(e) {

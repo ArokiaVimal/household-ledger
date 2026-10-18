@@ -2,6 +2,7 @@
 // Implementations: memory-repository.ts (prototype, tests) and, in a later slice,
 // a Firestore adapter under src/data/firebase/. Business rules stay in src/domain.
 import type { Account, AuditEvent, Category, ExpenseRecord, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
+import type { RuleDoc } from "./schemas";
 
 export class NotFoundError extends Error {}
 /** Thrown when a write would break an invariant (e.g. changing an approved record's raw fields). */
@@ -29,5 +30,7 @@ export interface Repository {
   participants: Collection<Participant>;
   accounts: Collection<Account>;
   categories: Collection<Category>;
+  /** Merchant -> category rules used to pre-fill the review queue. */
+  rules: Collection<RuleDoc>;
   audit: Pick<AppendOnly<AuditEvent>, "list"> & { append(event: Omit<AuditEvent, "id" | "at"> & { at?: string }): Promise<AuditEvent> };
 }

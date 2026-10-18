@@ -63,6 +63,11 @@ export const RecurringItemSchema = z.object({
   id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: paise.positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional(),
 }) satisfies z.ZodType<RecurringItem>;
 
+/** Merchant rule document. The id is derived from the merchant so a merchant has at most one rule. */
+export const RuleDocSchema = z.object({ id, merchant: z.string().trim().min(1).max(80), categoryId: id });
+export type RuleDoc = z.infer<typeof RuleDocSchema>;
+export const ruleId = (merchant: string) => `r_${merchant.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "rule"}`;
+
 export const AuditEventSchema = z.object({
   id, at: z.string().datetime(), actorId: id,
   action: z.enum(["import", "approve", "reject", "edit", "create", "match", "unmatch", "settle", "void_settlement", "delete"]),
