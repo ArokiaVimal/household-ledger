@@ -5,7 +5,8 @@ import { Badge, Button, Card, CardTitle, ChipGroup, Dialog, Field, Input, PageHe
 import { useStore } from "@/data/store";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import type { Account } from "@/domain/types";
-import { HouseholdCard } from "./household-card";
+import { MerchantAvatar } from "@/components/txn-row";
+import { SharingCard } from "./sharing-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash" };
 
@@ -24,7 +25,7 @@ export default function Settings() {
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = live ? "household-ledger-export.json" : "ledger-mock-export.json";
+    a.download = live ? "personal-finance-export.json" : "ledger-mock-export.json";
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -33,12 +34,12 @@ export default function Settings() {
     <>
       <PageHeader title="Settings" actions={!live ? <Badge tone="warn">Prototype</Badge> : undefined} />
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="md:col-span-2"><HouseholdCard /></div>
+        <div className="md:col-span-2"><SharingCard /></div>
 
         <Card className="space-y-3">
           <CardTitle>Payment methods</CardTitle>
           <ul className="divide-y divide-border text-sm">
-            {accounts.map((a) => <li key={a.id} className="flex items-center justify-between py-2"><span>{a.name}</span><Badge>{typeLabel[a.type]}</Badge></li>)}
+            {accounts.map((a) => <li key={a.id} className="flex items-center justify-between gap-2 py-2"><span className="flex items-center gap-2"><MerchantAvatar name={a.name} size={28} />{a.name}</span><Badge>{typeLabel[a.type]}</Badge></li>)}
             {accounts.length === 0 && <li className="py-2 text-muted">None yet. Add the cards, UPI apps and banks you use.</li>}
           </ul>
           {missingSuggested > 0 && <Button onClick={addSuggestedAccounts}>Add my usual cards, UPI apps and banks ({missingSuggested})</Button>}
@@ -69,12 +70,12 @@ export default function Settings() {
 
         <Card>
           <CardTitle>Export & privacy</CardTitle>
-          <p className="mb-2 text-xs text-muted">{live ? "Downloads your household's data as JSON (transactions, people, categories, settlements). A full export and restore with CSV is planned." : "Exports the in-memory mock data as JSON."}</p>
-          <div className="flex flex-wrap gap-2"><Button onClick={exportJson}>Export JSON</Button><Button variant="danger" onClick={() => setConfirm(true)}>Delete household data…</Button></div>
+          <p className="mb-2 text-xs text-muted">{live ? "Downloads your data as JSON (transactions, people, categories, settlements). A full export and restore with CSV is planned." : "Exports the in-memory mock data as JSON."}</p>
+          <div className="flex flex-wrap gap-2"><Button onClick={exportJson}>Export JSON</Button><Button variant="danger" onClick={() => setConfirm(true)}>Delete all my data…</Button></div>
         </Card>
       </div>
-      <Dialog open={confirm} onClose={() => setConfirm(false)} title="Delete household data?">
-        <p className="text-sm">{live ? "Deleting your household's data from the app is not built yet, so nothing was removed. When it is, it will permanently delete every record and uploaded file after a typed confirmation." : "The prototype holds only mock data, so nothing is deleted."}</p>
+      <Dialog open={confirm} onClose={() => setConfirm(false)} title="Delete all my data?">
+        <p className="text-sm">{live ? "Deleting your data from the app is not built yet, so nothing was removed. When it is, it will permanently delete every record and uploaded file after a typed confirmation." : "The prototype holds only mock data, so nothing is deleted."}</p>
         <div className="sticky bottom-0 -mx-4 mt-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => setConfirm(false)}>Close</Button></div>
       </Dialog>
     </>

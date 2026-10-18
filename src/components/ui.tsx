@@ -106,7 +106,7 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
   );
 }
 
-export interface ChipOption<T extends string> { id: T; label: string; hint?: string }
+export interface ChipOption<T extends string> { id: T; label: string; hint?: string; /** Shown before the label, e.g. a bank logo. */ icon?: ReactNode }
 
 /** One-tap single choice. Replaces dropdowns for short, frequently used lists. */
 export function ChipGroup<T extends string>({ label, options, value, onChange, tabs }: { label: string; options: ChipOption<T>[]; value: T; onChange: (v: T) => void; tabs?: boolean }) {
@@ -139,8 +139,8 @@ export function FormRow({ label, children }: { label: string; children: ReactNod
   );
 }
 
-const chipClass = (on: boolean) =>
-  cn("min-h-9 shrink-0 whitespace-nowrap rounded-full border px-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-accent",
+const chipClass = (on: boolean, icon = false) =>
+  cn("min-h-9 shrink-0 whitespace-nowrap rounded-full border px-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-accent", icon && "inline-flex items-center gap-1.5 pl-1.5",
     on ? "border-accent bg-accent font-medium text-white" : "border-border bg-surface hover:bg-background");
 
 /**
@@ -192,7 +192,7 @@ export function CompactChips<T extends string>({ label, options, selected, onPic
   const byId = (id: T) => options.find((o) => o.id === id)!;
   const chip = (id: T) => (
     <button key={id} type="button" role={multi ? undefined : "radio"} aria-checked={multi ? undefined : selected.includes(id)} aria-pressed={multi ? selected.includes(id) : undefined}
-      onClick={() => onPick(id)} className={chipClass(selected.includes(id))}>{byId(id).label}</button>
+      onClick={() => onPick(id)} className={chipClass(selected.includes(id), !!byId(id).icon)}>{byId(id).icon}{byId(id).label}</button>
   );
   const more = (n: number) => `+${n}`;
 
@@ -208,7 +208,7 @@ export function CompactChips<T extends string>({ label, options, selected, onPic
       </div>
       <div aria-hidden className="pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden">
         <div ref={meas} className="flex w-max gap-1.5">
-          {options.map((o) => <span key={o.id} className={chipClass(false)}>{o.label}</span>)}
+          {options.map((o) => <span key={o.id} className={chipClass(false, !!o.icon)}>{o.icon}{o.label}</span>)}
           <span className={chipClass(false)}>{more(99)} more</span>
         </div>
       </div>
@@ -216,7 +216,7 @@ export function CompactChips<T extends string>({ label, options, selected, onPic
         <div className="flex flex-wrap gap-1.5 pb-4">
           {ids.map((id) => (
             <button key={id} type="button" aria-pressed={selected.includes(id)}
-              onClick={() => { onPick(id); if (!multi) setOpen(false); }} className={chipClass(selected.includes(id))}>{byId(id).label}</button>
+              onClick={() => { onPick(id); if (!multi) setOpen(false); }} className={chipClass(selected.includes(id), !!byId(id).icon)}>{byId(id).icon}{byId(id).label}</button>
           ))}
         </div>
         {multi && <div className="sticky bottom-0 -mx-4 flex justify-end border-t border-border bg-surface px-4 py-3"><Button variant="primary" onClick={() => setOpen(false)}>Done</Button></div>}

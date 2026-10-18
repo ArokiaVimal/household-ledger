@@ -56,7 +56,7 @@ export default function Categories() {
 
   return (
     <>
-      <PageHeader title="Categories & rules" sub="Your household's categories. Add your own, rename any, delete ones you don't use." actions={<Badge tone="warn">Not persisted yet</Badge>} />
+      <PageHeader title="Categories & rules" sub="Your categories. Add your own, rename any, delete ones you don't use." actions={<Badge tone="warn">Not persisted yet</Badge>} />
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="space-y-3">
           <CardTitle>Categories</CardTitle>

@@ -3,7 +3,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { Deps } from "./service";
-import type { Household, HouseholdStore, Invite, Member } from "./types";
+import { HouseholdError, type Household, type HouseholdStore, type Invite, type Member } from "./types";
 
 /** Production dependencies for the service: real clock, CSPRNG and SHA-256. */
 export const serverDeps: Deps = {
@@ -34,14 +34,19 @@ export function createFirestoreHouseholdStore(): HouseholdStore {
       return (await members(hid).get()).docs.map((d) => ({ uid: d.id, ...(d.data() as Omit<Member, "uid">) }));
     },
     async createHousehold(h, owner) {
-      const batch = db.batch();
-      batch.set(db.collection("households").doc(h.id), { name: h.name, ownerUid: h.ownerUid, createdAt: h.createdAt });
-      batch.set(members(h.id).doc(owner.uid), { email: owner.email, displayName: owner.displayName, role: owner.role, joinedAt: owner.joinedAt });
-      batch.set(user(owner.uid), { householdId: h.id }, { merge: true });
-      await batch.commit();
+      await db.runTransaction(async (tx) => {
+        const cur = await tx.get(user(owner.uid));
+        if (typeof cur.data()?.householdId === "string") throw new HouseholdError("conflict", "You already belong to a household.");
+        tx.set(db.collection("households").doc(h.id), { name: h.name, ownerUid: h.ownerUid, createdAt: h.createdAt });
+        tx.set(members(h.id).doc(owner.uid), { email: owner.email, displayName: owner.displayName, role: owner.role, joinedAt: owner.joinedAt });
+        tx.set(user(owner.uid), { householdId: h.id }, { merge: true });
+      });
     },
     async listInvites(hid) {
       return (await db.collection("invites").where("householdId", "==", hid).get()).docs.map((d) => ({ hash: d.id, ...(d.data() as Omit<Invite, "hash">) }));
+    },
+    async findInvitesByEmail(email) {
+      return (await db.collection("invites").where("email", "==", email).get()).docs.map((d) => ({ hash: d.id, ...(d.data() as Omit<Invite, "hash">) }));
     },
     async getInvite(hash) {
       const s = await db.collection("invites").doc(hash).get();
@@ -63,6 +68,13 @@ export function createFirestoreHouseholdStore(): HouseholdStore {
         tx.set(user(member.uid), { householdId: hid }, { merge: true });
         return true;
       });
+    },
+    async deleteHousehold(hid) {
+      const batch = db.batch();
+      for (const m of (await members(hid).get()).docs) { batch.delete(m.ref); batch.set(user(m.id), { householdId: FieldValue.delete() }, { merge: true }); }
+      for (const i of (await db.collection("invites").where("householdId", "==", hid).get()).docs) batch.delete(i.ref);
+      batch.delete(db.collection("households").doc(hid));
+      await batch.commit();
     },
     async removeMember(hid, uid) {
       const batch = db.batch();

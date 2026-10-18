@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Badge, Button, Card, CardTitle, ChipGroup, CompactChips, EmptyState, FormRow, PageHeader } from "@/components/ui";
+import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import type { Preview } from "@/lib/import/service";
@@ -81,7 +82,7 @@ export function LiveImport() {
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="space-y-3 lg:col-span-2">
             <FormRow label="Statement for">
-              <CompactChips label="Payment method" options={usable.map((a) => ({ id: a.id, label: a.name }))} selected={[accountId]} onPick={(id) => { setAccountId(id); setPreview(null); setDone(null); }} />
+              <CompactChips label="Payment method" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={(id) => { setAccountId(id); setPreview(null); setDone(null); }} />
             </FormRow>
             <FormRow label="File">
               <div className="flex flex-wrap items-center gap-2">

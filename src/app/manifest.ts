@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Personal Finance App",
     short_name: "Finance",
-    description: "Private household spending, splits and settlements",
+    description: "Track your own spending, then split with your partner and friends",
     start_url: "/",
     display: "standalone",
     background_color: "#f3f2f8",

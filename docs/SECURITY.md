@@ -10,6 +10,9 @@
 
 Console hardening to do by hand (required while Email/Password is enabled, because self-registered password accounts have unverified emails): in Firebase Authentication settings disable user sign-up (create accounts for the two of you manually) and keep the project's API key restricted to your domains. Once Google sign-in works, consider disabling the Email/Password provider entirely. Known limit: Google popup sign-in can be unreliable inside an iPhone Home Screen (standalone PWA); use Safari for first sign-in.
 
+## Invitations (personal-first)
+Invites are bound to one email and a week's expiry. Accepting needs the verified sign-in email to match (Google-verified for Google sign-in), is transactional and single-use, and never discards data: an existing private space is dropped only when it is completely empty and only the invitee is in it. A new private space is created atomically so parallel first loads cannot create two.
+
 ## Data API (slice 5)
 All household data changes go through `POST /api/data`: same-origin check, verified session, household resolved from membership (a user can only ever write their own household), body size cap, Zod validation, domain invariants (integer paise, split sums, immutable bank fields, append-only settlements and audit). Identity and household are never taken from the request body. Admin SDK bypasses Firestore rules, so this route and `applyAction` are the authorization boundary; the rules remain a backstop for any direct client access.
 

@@ -112,8 +112,8 @@ function Editor({ profile, onSaved }: { profile: Profile; onSaved: (p: Profile) 
           <Field label="Email (from your sign-in, not editable)"><Input value={profile.email} readOnly /></Field>
           <Field label="Phone (optional)" error={errors.phone?.message}><Input type="tel" autoComplete="tel" inputMode="tel" placeholder="+91 98765 43210" {...register("phone")} /></Field>
           <div className="space-y-1">
-            <span className="text-xs font-medium text-muted">Open the app in</span>
-            <ChipGroup label="Default view" options={[{ id: "household", label: "Household" }, { id: "personal", label: "Personal" }]} value={viewNow} onChange={(v) => setValue("defaultView", v, { shouldDirty: true })} />
+            <span className="text-xs font-medium text-muted">Open the app showing</span>
+            <ChipGroup label="Default view" options={[{ id: "personal", label: "Mine" }, { id: "household", label: "Everything" }]} value={viewNow} onChange={(v) => setValue("defaultView", v, { shouldDirty: true })} />
           </div>
           {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "text-sm text-good" : "text-sm text-danger"}>{msg.text}</p>}
           <div className="flex justify-end"><Button type="submit" variant="primary" disabled={isSubmitting || !dirty}>{isSubmitting ? "Saving…" : "Save changes"}</Button></div>

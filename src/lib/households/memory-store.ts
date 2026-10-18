@@ -1,4 +1,4 @@
-import type { Household, HouseholdStore, Invite, Member } from "./types";
+import { HouseholdError, type Household, type HouseholdStore, type Invite, type Member } from "./types";
 
 /** In-memory store for tests. Mirrors the atomicity the Firestore implementation provides. */
 export function createMemoryHouseholdStore(): HouseholdStore & { dump(): { households: Household[]; invites: Invite[] } } {
@@ -10,8 +10,9 @@ export function createMemoryHouseholdStore(): HouseholdStore & { dump(): { house
     async getUserHouseholdId(uid) { return userHousehold.get(uid) ?? null; },
     async getHousehold(id) { return households.get(id) ?? null; },
     async listMembers(hid) { return [...(members.get(hid)?.values() ?? [])]; },
-    async createHousehold(h, owner) { households.set(h.id, h); members.set(h.id, new Map([[owner.uid, owner]])); userHousehold.set(owner.uid, h.id); },
+    async createHousehold(h, owner) { if (userHousehold.has(owner.uid)) throw new HouseholdError("conflict", "You already belong to a household."); households.set(h.id, h); members.set(h.id, new Map([[owner.uid, owner]])); userHousehold.set(owner.uid, h.id); },
     async listInvites(hid) { return [...invites.values()].filter((i) => i.householdId === hid); },
+    async findInvitesByEmail(email) { return [...invites.values()].filter((i) => i.email === email); },
     async getInvite(hash) { return invites.get(hash) ?? null; },
     async putInvite(i) { invites.set(i.hash, i); },
     async deleteInvite(hash) { invites.delete(hash); },
@@ -24,6 +25,11 @@ export function createMemoryHouseholdStore(): HouseholdStore & { dump(): { house
       return true;
     },
     async removeMember(hid, uid) { members.get(hid)?.delete(uid); userHousehold.delete(uid); },
+    async deleteHousehold(hid) {
+      for (const uid of members.get(hid)?.keys() ?? []) userHousehold.delete(uid);
+      members.delete(hid); households.delete(hid);
+      for (const [k, i] of invites) if (i.householdId === hid) invites.delete(k);
+    },
     dump: () => ({ households: [...households.values()], invites: [...invites.values()] }),
   };
 }

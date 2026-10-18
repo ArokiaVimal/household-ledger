@@ -6,6 +6,7 @@ import { formatINR, parseRupees } from "@/domain/money";
 import { equalSplit, validateSplit } from "@/domain/splits";
 import type { ExpenseRecord, SplitConfig, TxnKind } from "@/domain/types";
 import { SplitEditor } from "./split-editor";
+import { MerchantAvatar } from "./txn-row";
 import { Button, CompactChips, Dialog, FormRow, Input } from "./ui";
 
 const kinds: { id: TxnKind; label: string }[] = [
@@ -122,7 +123,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       {mode === "review" && dupOf && (
         <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Approve only if this is a separate purchase; otherwise reject it.</p>
       )}
-      {adding && <FormRow label="Paid with"><CompactChips label="Payment method" options={accounts.map((a) => ({ id: a.id, label: a.name }))} selected={[accountId]} onPick={setAccountId} /></FormRow>}
+      {adding && <FormRow label="Paid with"><CompactChips label="Payment method" options={accounts.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={setAccountId} /></FormRow>}
       <FormRow label="Merchant"><Input value={merchant} onChange={(e) => setMerchant(e.target.value)} /></FormRow>
       <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[categoryId]} onPick={setCategoryId} /></FormRow>
       <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} selected={[payerId]} onPick={setPayerId} /></FormRow>
@@ -134,7 +135,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         <div className="space-y-2.5">
           <FormRow label="Type"><CompactChips label="Type" options={kinds} selected={[kind]} onPick={setKind} /></FormRow>
           {isUpi && (
-            <FormRow label="From bank"><CompactChips label="Paid from bank" options={[{ id: "", label: "Unknown" }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name }))]} selected={[fundedBy]} onPick={setFundedBy} /></FormRow>
+            <FormRow label="From bank"><CompactChips label="Paid from bank" options={[{ id: "", label: "Unknown" }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[fundedBy]} onPick={setFundedBy} /></FormRow>
           )}
           <FormRow label="Recurring">
             <CompactChips label="Recurring commitment" options={[{ id: "", label: "None" }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name }))]} selected={[recurringId]} onPick={setRecurringId} />

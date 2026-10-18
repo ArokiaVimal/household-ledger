@@ -49,4 +49,53 @@ describe.skipIf(!enabled)("Firestore household store (real database)", () => {
     await svc.removeMember(store, owner, spouse.uid);
     expect(await svc.getMembership(store, spouse.uid)).toBeNull();
   }, 60_000);
+
+  it("personal first: parallel first loads make exactly one space; an invited person is asked, then joins; data is never discarded", async () => {
+    const { createFirestoreHouseholdStore, serverDeps } = await import("@/lib/households/firestore-store");
+    const svc = await import("@/lib/households/service");
+    const { getAdminDb } = await import("@/lib/firebase/admin");
+    const store = createFirestoreHouseholdStore();
+    const a = { uid: `itest-fa-${tag}`, email: `fa-${tag}@example.com`, name: "Vimal Test" };
+    const b = { uid: `itest-fb-${tag}`, email: `fb-${tag}@example.com`, name: "Varru Test" };
+    const spaces = new Set<string>();
+    try {
+      // two loads at the same instant -> one space (the Firestore transaction is what guarantees this)
+      await Promise.all([svc.firstRun(store, a, serverDeps), svc.firstRun(store, a, serverDeps), svc.startPersonalSpace(store, a, serverDeps)]);
+      const mine = await svc.getMembership(store, a.uid);
+      expect(mine?.household.name).toBe("Vimal's finances");
+      spaces.add(mine!.household.id);
+      const owned = (await getAdminDb().collection("households").where("ownerUid", "==", a.uid).get()).size;
+      expect(owned).toBe(1);
+
+      // invite b by email; b is offered the invitation instead of getting a new space
+      await svc.createInvite(store, a, b.email, serverDeps);
+      const first = await svc.firstRun(store, b, serverDeps);
+      expect(first.kind).toBe("invited");
+      expect(await svc.getMembership(store, b.uid)).toBeNull();
+      if (first.kind !== "invited") return;
+      const offer = first.offers[0];
+      expect(offer.inviterName).toBe("Vimal Test");
+
+      // b first starts alone, then accepts: an empty own space is dropped, a space with data is not
+      await svc.startPersonalSpace(store, b, serverDeps);
+      const own = (await svc.getMembership(store, b.uid))!.household.id;
+      spaces.add(own);
+      await expect(svc.acceptInviteByEmail(store, b, offer.hash, serverDeps, { householdId: own, isEmpty: false })).rejects.toMatchObject({ code: "conflict" });
+      expect((await svc.getMembership(store, b.uid))!.household.id).toBe(own);
+      await svc.acceptInviteByEmail(store, b, offer.hash, serverDeps, { householdId: own, isEmpty: true });
+      const joined = await svc.getMembership(store, b.uid);
+      expect(joined?.household.id).toBe(mine!.household.id);
+      expect(joined?.role).toBe("member");
+      expect((await getAdminDb().collection("households").doc(own).get()).exists).toBe(false);
+      expect((await svc.getMembership(store, a.uid))!.members.map((m) => m.email).sort()).toEqual([a.email, b.email].sort());
+    } finally {
+      const db = getAdminDb();
+      for (const h of spaces) {
+        for (const m of (await db.collection("households").doc(h).collection("members").get()).docs) await m.ref.delete();
+        await db.collection("households").doc(h).delete();
+      }
+      for (const i of (await db.collection("invites").where("email", "in", [a.email, b.email]).get()).docs) await i.ref.delete();
+      for (const u of [a, b]) await db.collection("users").doc(u.uid).delete();
+    }
+  }, 90_000);
 });

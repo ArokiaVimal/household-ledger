@@ -55,11 +55,11 @@ export default function LoginPage() {
         {/* Sign-in */}
         <section aria-label="Sign in" className="flex flex-col justify-center p-7 sm:p-10">
           <h2 className="text-xl font-semibold tracking-tight">Welcome back</h2>
-          <p className="mb-6 mt-1 text-sm text-muted">Sign in to your household.</p>
+          <p className="mb-6 mt-1 text-sm text-muted">Sign in to your finances.</p>
           <Suspense fallback={<div role="status" className="space-y-3" aria-label="Loading sign-in"><div className="h-11 animate-pulse rounded-full bg-border" /><div className="h-11 animate-pulse rounded-full bg-border" /></div>}>
             <LoginBody />
           </Suspense>
-          <p className="mt-6 flex items-start gap-2 text-xs text-muted"><ShieldCheck size={14} className="mt-0.5 shrink-0" aria-hidden />Private to invited household members. Your sign-in is protected by Google or your password, and nothing is shared outside your household.</p>
+          <p className="mt-6 flex items-start gap-2 text-xs text-muted"><ShieldCheck size={14} className="mt-0.5 shrink-0" aria-hidden />Private to you. Your sign-in is protected by Google or your password, and only people you invite can ever see what you choose to share.</p>
         </section>
       </div>
     </main>

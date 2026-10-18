@@ -1,6 +1,6 @@
 # Project context (short)
 
-**Purpose:** private household finance app (owner + wife + friends as non-account participants): import statements, categorize, split expenses, settle, report. Mobile-first PWA (iPhone Safari).
+**Purpose (in this order):** 1) one person tracks their own spending and categories, 2) splits expenses with their partner, 3) splits with friends (non-account participants): import statements, categorize, split, settle, report. Mobile-first PWA (iPhone Safari).
 
 **Stack:** Next.js (App Router, TS), Tailwind, shadcn-style primitives, Recharts, Zod, React Hook Form (Stage 3 forms), Firebase Auth/Firestore/Storage (Stage 3), Vercel. Vitest for tests.
 

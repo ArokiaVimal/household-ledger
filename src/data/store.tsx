@@ -127,7 +127,7 @@ function seed(live?: LiveInit) {
   };
 }
 
-export function StoreProvider({ children, initialView = "household", live }: { children: ReactNode; initialView?: View; live?: LiveInit }) {
+export function StoreProvider({ children, initialView = "personal", live }: { children: ReactNode; initialView?: View; live?: LiveInit }) {
   const router = useRouter();
   const init = useMemo(() => seed(live), [live]);
   const [records, setRecords] = useState(init.records);

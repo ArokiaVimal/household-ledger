@@ -2,13 +2,14 @@
 import { BarChart3, Bell, ClipboardCheck, FileUp, LogOut, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useStore } from "@/data/store";
 import { cn } from "@/lib/cn";
 import { greetingName } from "@/lib/profile/profile";
 import { Avatar } from "./avatar";
 import { LogoMark } from "./logo";
 import { useProfile } from "./profile-context";
+import { OPEN_ADD_EVENT } from "./onboarding";
 import { TxnAddDialog } from "./txn-edit-dialog";
 import { Select } from "./ui";
 
@@ -33,6 +34,11 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const { profile } = useProfile();
   const [adding, setAdding] = useState(false);
   const [round, setRound] = useState(0);
+  useEffect(() => {
+    const open = () => setAdding(true);
+    window.addEventListener(OPEN_ADD_EVENT, open);
+    return () => window.removeEventListener(OPEN_ADD_EVENT, open);
+  }, []);
   const [toast, setToast] = useState("");
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const signOut = async () => {
@@ -73,8 +79,8 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 <option value="2026-08">August 2026</option>
               </Select>
               <Select aria-label="View" value={view} onChange={(e) => setView(e.target.value as "household" | "personal")} className="order-5 w-auto flex-1 md:w-32 md:flex-none">
-                <option value="household">Household</option>
-                <option value="personal">Personal</option>
+                <option value="personal">Mine</option>
+                <option value="household">Everything</option>
               </Select>
               <Link href="/review" aria-label={`${staged.length} transactions awaiting review`} className="relative order-2 grid size-10 place-items-center rounded-full bg-surface md:order-6">
                 <Bell size={18} aria-hidden />

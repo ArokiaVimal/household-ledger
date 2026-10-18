@@ -3,8 +3,9 @@ import { CreditCard, Landmark, Smartphone, TrendingDown, TrendingUp, UserRound, 
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import { DonutChart, TrendChart } from "@/components/charts";
+import { Onboarding } from "@/components/onboarding";
 import { MerchantAvatar, TxnBadges, Amount } from "@/components/txn-row";
-import { Badge, Button, Card, CardTitle, EmptyState } from "@/components/ui";
+import { Badge, Card, CardTitle, EmptyState } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import { byCategory, byMerchant, byMonth, groupNet, summarize } from "@/domain/reports";
@@ -34,7 +35,7 @@ function Pill({ tone, children }: { tone: "good" | "bad"; children: ReactNode })
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet } as const;
 
 export default function Dashboard() {
-  const { live, householdReady, meId, accounts, trendHistory, records, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView, addSuggestedAccounts } = useStore();
+  const { live, householdReady, meId, accounts, trendHistory, records, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView } = useStore();
   const household = useMemo(() => summarize(records.filter((r) => r.date.startsWith(month)), meId), [records, month, meId]);
   const cats = useMemo(() => Object.entries(byCategory(scoped)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [scoped, categoryName]);
   const perAccount = useMemo(() => groupNet(scoped, (r) => r.accountId), [scoped]);
@@ -51,23 +52,12 @@ export default function Dashboard() {
   const delta = prev && prev > 0 ? Math.round(((household.net - prev) / prev) * 1000) / 10 : null;
   const prevName = new Date(`${prevKey}-01T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" });
 
+  if (live && householdReady && records.length === 0) return <Onboarding />;
   if (scoped.length === 0) {
     return (
       <div className="space-y-4">
         {live && !householdReady && (
-          <Card className="space-y-2 text-sm"><CardTitle>Create your household first</CardTitle><p>Your data is saved per household. Create one, or join with a code from your partner, in <Link href="/settings" className="text-accent underline-offset-2 hover:underline">Settings → Household</Link>.</p></Card>
-        )}
-        {live && householdReady && records.length === 0 && (
-          <Card className="space-y-3">
-            <CardTitle>Let&apos;s set up your household</CardTitle>
-            <ol className="space-y-3 text-sm">
-              <li className="flex flex-wrap items-center gap-2"><b>1.</b> Add your payment methods{accounts.length > 0 ? ` (${accounts.length} added)` : ""}.
-                {accounts.length === 0 && <Button variant="primary" onClick={addSuggestedAccounts}>Add my usual cards, UPI apps and banks</Button>}
-                <Link href="/settings" className="text-accent underline-offset-2 hover:underline">Edit in Settings</Link></li>
-              <li><b>2.</b> Add your first transaction with the <b>Add</b> button (bottom right). Statement import arrives with the file parsers.</li>
-              <li><b>3.</b> Invite your partner in <Link href="/settings" className="text-accent underline-offset-2 hover:underline">Settings → Household</Link>.</li>
-            </ol>
-          </Card>
+          <Card className="space-y-2 text-sm"><CardTitle>Setting up your space</CardTitle><p>Your data space is not ready yet. Reload in a moment; if this stays, open <Link href="/settings" className="text-accent underline-offset-2 hover:underline">Settings</Link>.</p></Card>
         )}
         <EmptyState title="No transactions this month" hint={live ? "Add a transaction, or pick another month." : "Pick September 2026 or import a statement."} />
       </div>
@@ -80,7 +70,7 @@ export default function Dashboard() {
         <Kpi icon={Wallet} label="Net spending" value={formatINR(summary.net)} sub="after refunds" href={`/transactions?${q}`}
           pill={delta !== null && <Pill tone={delta > 0 ? "bad" : "good"}>{delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{Math.abs(delta)}% vs {prevName}{live ? "" : " (mock)"}</Pill>} />
         <Kpi icon={UserRound} label="My share" value={formatINR(summary.myShare)} sub="what I ultimately bear" />
-        <Kpi icon={Users} label="Household spending" value={formatINR(household.net)} sub={`Shared ${formatINR(summary.sharedNet)}`} href={`/transactions?${q}&shared=1`} />
+        <Kpi icon={Users} label="All spending" value={formatINR(household.net)} sub={`Shared ${formatINR(summary.sharedNet)}`} href={`/transactions?${q}&shared=1`} />
         <Kpi icon={TrendingDown} label="Refunds & review" value={`−${formatINR(summary.refunds)}`} sub={`${staged.length} awaiting review`} href="/review"
           pill={staged.length > 0 && <Pill tone="bad">Review</Pill>} />
       </div>
@@ -140,7 +130,7 @@ export default function Dashboard() {
           {iOwe.length + owedToMe.length === 0 && <p className="text-sm text-muted">All settled up.</p>}
         </Card>
       </div>
-      {view === "personal" && <button className="text-xs text-muted underline" onClick={() => setView("household")}>Back to household view</button>}
+      {view === "personal" && <button className="text-xs text-muted underline" onClick={() => setView("household")}>Show everything</button>}
     </div>
   );
 }

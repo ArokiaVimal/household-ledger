@@ -8,8 +8,11 @@ import { ProfileProvider } from "@/components/profile-context";
 import { requireSession } from "@/lib/auth/session";
 import { HouseholdProvider, type HouseholdStatus } from "@/components/household-context";
 import { createFirestoreHouseholdStore } from "@/lib/households/firestore-store";
-import { getMembership } from "@/lib/households/service";
-import type { Membership } from "@/lib/households/types";
+import { firstRun, getMembership } from "@/lib/households/service";
+import { Invitation } from "@/components/invitation";
+import { serverDeps } from "@/lib/households/firestore-store";
+import { defaultDisplayName, firstName } from "@/lib/profile/profile";
+import type { InviteOffer, Membership } from "@/lib/households/types";
 import { getProfile } from "@/lib/profile/store";
 
 /** Reads the session on every request, so it must stream inside <Suspense> (Cache Components). */
@@ -29,16 +32,27 @@ async function AuthedShell({ children }: { children: ReactNode }) {
     }
   }
   let membership: Membership | null = null;
+  let invited: { offers: InviteOffer[]; firstName: string } | null = null;
   let hStatus: HouseholdStatus = "off";
   if (session.mode === "on") {
     try {
-      membership = await getMembership(createFirestoreHouseholdStore(), session.uid);
+      const hStore = createFirestoreHouseholdStore();
+      membership = await getMembership(hStore, session.uid);
+      if (!membership && session.email) {
+        // Personal first: with no invitation waiting, a private space is created automatically.
+        const name = profile?.displayName ?? defaultDisplayName(session.name, session.email);
+        const first = await firstRun(hStore, { uid: session.uid, email: session.email, name }, serverDeps);
+        if (first.kind === "invited") invited = { offers: first.offers, firstName: firstName(name) };
+        else membership = await getMembership(hStore, session.uid);
+      }
       hStatus = "ok";
     } catch (e) {
       console.error("household load failed:", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 200));
       hStatus = "error";
     }
   }
+  if (invited) return <Invitation offers={invited.offers} firstName={invited.firstName} />;
+
   // Real data for signed-in users. A signed-in user must never see the demo data, even when loading fails.
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const empty: HouseholdData = { records: [], settlements: [], receipts: [], recurring: [], participants: [], accounts: [], categories: [], rules: [], importBatches: [] };
@@ -71,7 +85,7 @@ async function AuthedShell({ children }: { children: ReactNode }) {
           <AppShell user={session.mode === "on" ? { email: session.email ?? "" } : null}>
             {dataError ? (
               <div role="alert" className="rounded-[var(--radius-card)] bg-surface p-6">
-                <h1 className="text-lg font-semibold">We couldn&apos;t load your household data</h1>
+                <h1 className="text-lg font-semibold">We couldn&apos;t load your data</h1>
                 <p className="mt-1 text-sm text-muted">The server could not reach the database. Nothing was lost. Reload to try again; if it keeps happening, check the server log.</p>
               </div>
             ) : children}

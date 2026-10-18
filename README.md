@@ -1,6 +1,6 @@
 # Personal Finance App
 
-Private, mobile-first personal finance and expense-splitting app (PWA) for one household plus friends who need no account.
+Private, mobile-first personal finance app (PWA). First: track your own spending and categories. Then: split with your partner. Then: split with friends, who never need an account.
 
 **Status: live app with real saved data (Stage 3, slice 5).** Sign in with Google (Firebase), and your household's transactions, splits, settlements, categories and people are saved in Firestore and shared by its members. Without Firebase configured it runs as a prototype on fictional September 2026 data (nothing saved). See [docs/DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md) for exactly what works and what does not (statement import, receipts and file storage are not built yet).
 

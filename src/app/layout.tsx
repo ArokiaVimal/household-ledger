@@ -7,7 +7,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   title: "Personal Finance App",
-  description: "Private household spending, splits and settlements",
+  description: "Track your own spending, then split with your partner and friends",
   appleWebApp: { capable: true, title: "Finance", statusBarStyle: "default" },
 };
 
