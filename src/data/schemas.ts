@@ -81,7 +81,7 @@ export const ImportBatchSchema = z.object({
   uploadedAt: z.string().datetime(), uploadedBy: id,
   counts: z.object({ rows: count, staged: count, skippedDuplicate: count, flaggedDuplicate: count, unreadable: count }),
   totals: z.object({ debitPaise: z.number().int().safe().min(0), creditPaise: z.number().int().safe().min(0) }),
-  checksPassed: z.boolean().optional(), acceptedMismatch: z.boolean().optional(),
+  checksPassed: z.boolean().optional(), acceptedMismatch: z.boolean().optional(), reimportOf: id.optional(),
 }) satisfies z.ZodType<ImportBatch>;
 
 export const RawTransactionSchema = z.object({

@@ -164,6 +164,8 @@ export interface ImportBatch {
   /** PDF statements only: did every self-check against the statement's own totals pass, and did the user import despite a failure. */
   checksPassed?: boolean;
   acceptedMismatch?: boolean;
+  /** Set when the owner chose to read an already-imported file again: the earlier batch with the same file hash. */
+  reimportOf?: string;
 }
 
 /** A transaction row exactly as read from a statement. Write-once: the canonical expense may be edited, this never is. */

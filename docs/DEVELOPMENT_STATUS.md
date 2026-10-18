@@ -23,6 +23,11 @@ Updated: 2026-10-18 · Branch `feat/slice5-persistence` · Stage 3 slices 1–5 
 - **Dashboard summary cards:** two per row on phones, compact. **Onboarding:** hero stacks on phones; step text uses the full card width.
 - iOS caches installed web apps: close and reopen the Home Screen app (or remove and re-add it) to see changes.
 
+## Re-reading an already-imported file (added)
+- Uploading the same statement (same bytes, same payment method) is no longer a dead end. The preview reports `previousImport`; the Import screen shows **"Read this file again?"** with the numbers and the preview stays hidden until you answer. **Yes** shows the normal preview (rows still in your ledger or review queue are skipped as duplicates; rows you rejected or removed come back for review). **No** clears the file. If nothing would be added the dialog says so and only offers Close. The server enforces it: committing without `reimport=1` is refused (`already_imported`), a confirmed repeat is stored as a new batch with `reimportOf` and a RE-IMPORTED audit entry, and the history list shows "Read again".
+- Tests: service tests (previous import reported, refusal without consent, rejected rows come back once, nothing added when all present) and a real-Firestore test. A bug found while checking it in the browser: the dialog's own "closed" event was cancelling the import after Yes; fixed.
+- Not checked in the live app (needs sign-in); checked in the browser with a faked server reply at desktop and phone width.
+
 ## Personal first (added; supersedes the earlier household-first framing)
 - **Product order (owner's direction): 1) track my own expenses and categories, 2) split with my partner (Varru), 3) split with friends.** The app no longer starts with a "household".
 - **No "create a household" step.** On first sign-in a private space ("<first name>'s finances") is created automatically (`firstRun` in `src/lib/households/service.ts`; creation is atomic in Firestore so parallel loads cannot create two). Internally the space is still a `households/{id}` document; "household" is now only an implementation word.

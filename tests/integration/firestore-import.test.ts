@@ -76,4 +76,30 @@ describe.skipIf(!enabled)("statement import on Firestore", () => {
     expect((await repo.rawTransactions.list()).every((r) => r.cells[0] === "page 1")).toBe(true);
     expect((await repo.records.list()).map((r) => r.kind).sort()).toEqual(["purchase", "refund"]);
   }, 120_000);
+
+  it("reading an already-imported file again needs consent; after rejecting entries it brings them back without double counting", async () => {
+    const { createFirestoreRepository } = await import("@/data/firestore-repository");
+    const { participantIdFor } = await import("@/lib/data/load");
+    const { commitImport, previewImport } = await import("@/lib/import/service");
+    const { parseCsv } = await import("@/domain/import/csv");
+    const repo = createFirestoreRepository(hid);
+    const deps = { sha256: sha, now: () => Date.now(), newId: () => randomUUID() };
+    const actor = { uid: "itest-u1", participantId: participantIdFor("itest-u1") };
+    const input = { accountId: "bank_hdfc", filename: "hdfc_sep.csv", format: "csv" as const, fileHash: sha(csv), table: parseCsv(csv) };
+
+    expect((await previewImport(repo, input, deps)).previousImport).toBeTruthy(); // previewing is allowed and reports the earlier import
+    await expect(commitImport(repo, actor, input, deps)).rejects.toMatchObject({ code: "already_imported" }); // saving without consent is refused
+
+    for (const r of await repo.records.list()) await repo.records.remove(r.id); // the owner rejected everything from that import
+    const again = await commitImport(repo, actor, { ...input, allowReimport: true }, deps);
+    expect(again.counts).toMatchObject({ staged: 3, duplicate: 0 });
+    const keys = (await repo.records.list()).map((r) => r.referenceId);
+    expect(new Set(keys).size).toBe(keys.length);
+    const batches = await repo.importBatches.list();
+    expect(batches.filter((b) => b.reimportOf)).toHaveLength(1);
+
+    const third = await commitImport(repo, actor, { ...input, allowReimport: true }, deps); // everything is there again
+    expect(third.counts).toMatchObject({ staged: 0, duplicate: 3 });
+    expect((await repo.audit.list()).some((e) => e.summary.startsWith("RE-IMPORTED"))).toBe(true);
+  }, 120_000);
 });

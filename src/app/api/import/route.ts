@@ -39,6 +39,7 @@ export async function POST(req: Request) {
   const mode = form.get("mode") === "commit" ? "commit" : "preview";
   const sign = form.get("positiveIsDebit");
   const acceptMismatch = form.get("acceptMismatch") === "1";
+  const allowReimport = form.get("reimport") === "1";
   if (!(file instanceof File) || !accountId) return NextResponse.json({ error: "Choose a payment method and a file." }, { status: 400 });
   if (file.size > MAX_FILE_BYTES) return NextResponse.json({ error: "That file is larger than 4 MB. Export a shorter date range." }, { status: 413 });
 
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const kind = sniffKind(file.name, bytes);
     const base = {
-      accountId, filename: cleanName(file.name), fileHash: createHash("sha256").update(bytes).digest("hex"), acceptMismatch,
+      accountId, filename: cleanName(file.name), fileHash: createHash("sha256").update(bytes).digest("hex"), acceptMismatch, allowReimport,
       positiveIsDebit: sign === "true" ? true : sign === "false" ? false : undefined,
     };
     const input: ImportInput = kind === "pdf"

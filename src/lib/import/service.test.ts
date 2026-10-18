@@ -73,12 +73,54 @@ describe("commit", () => {
     expect((await repo.audit.list()).map((e) => e.action)).toEqual(["import"]);
   });
 
-  it("refuses the same file twice for the same account, but allows it for another account", async () => {
+  it("the same file again is not saved without consent, and other payment methods are unaffected", async () => {
     const repo = await setup();
     await commitImport(repo, actor, file(bankCsv), deps);
     await expect(commitImport(repo, actor, file(bankCsv), deps)).rejects.toMatchObject({ code: "already_imported" });
-    expect((await repo.records.list())).toHaveLength(3);
-    await expect(previewImport(repo, file(bankCsv), deps)).rejects.toBeInstanceOf(ImportError);
+    expect(await repo.records.list()).toHaveLength(3);
+    expect((await repo.importBatches.list())).toHaveLength(1);
+    // a different payment method is a different statement, so no question is asked
+    const other = await previewImport(repo, file(bankCsv, { accountId: "cc_hdfc" }), deps);
+    expect(other.previousImport).toBeUndefined();
+  });
+
+  it("previewing a file that was imported before reports it (with what would happen) instead of failing", async () => {
+    const repo = await setup();
+    const first = await commitImport(repo, actor, file(bankCsv), deps);
+    const p = await previewImport(repo, file(bankCsv), deps);
+    expect(p.previousImport).toMatchObject({ batchId: first.batchId, filename: "hdfc_sep.csv", staged: 3 });
+    expect(p.counts).toMatchObject({ rows: 3, duplicate: 3, new: 0 }); // everything is still there, so nothing would be added
+    expect((await previewImport(repo, file("Date,Narration,Debit,Credit\n01/09/2026,New file,1.00,\n"), deps)).previousImport).toBeUndefined();
+  });
+
+  it("after entries were rejected, confirming brings back only the missing rows and never counts anything twice", async () => {
+    const repo = await setup();
+    await commitImport(repo, actor, file(bankCsv), deps);
+    const rows = await repo.records.list();
+    const gone = rows.filter((r) => r.merchant === "Swiggy" || r.kind === "cc_payment"); // two of the three were rejected
+    for (const r of gone) await repo.records.remove(r.id);
+    expect(await repo.records.list()).toHaveLength(1);
+
+    const p = await previewImport(repo, file(bankCsv), deps);
+    expect(p.counts).toMatchObject({ new: 2, duplicate: 1 });
+    const res = await commitImport(repo, actor, file(bankCsv, {}), deps, ).catch((e) => e);
+    expect(res).toBeInstanceOf(ImportError); // still refused without the owner's yes
+    const again = await commitImport(repo, actor, { ...file(bankCsv), allowReimport: true }, deps);
+    expect(again.counts).toMatchObject({ staged: 2, duplicate: 1 });
+    expect(await repo.records.list()).toHaveLength(3);
+    expect(new Set((await repo.records.list()).map((r) => r.referenceId)).size).toBe(3);
+    const batches = await repo.importBatches.list();
+    expect(batches).toHaveLength(2);
+    expect(batches.filter((b) => b.reimportOf).map((b) => b.reimportOf)).toEqual([batches.find((b) => !b.reimportOf)!.id]);
+    expect((await repo.audit.list()).at(-1)!.summary).toMatch(/^RE-IMPORTED/);
+  });
+
+  it("confirming when everything is still there adds nothing", async () => {
+    const repo = await setup();
+    await commitImport(repo, actor, file(bankCsv), deps);
+    const again = await commitImport(repo, actor, { ...file(bankCsv), allowReimport: true }, deps);
+    expect(again.counts).toMatchObject({ staged: 0, duplicate: 3 });
+    expect(await repo.records.list()).toHaveLength(3);
   });
 
   it("an overlapping statement skips rows already imported and adds only the new ones", async () => {

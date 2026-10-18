@@ -59,6 +59,8 @@ export interface Preview {
   counts: { rows: number; new: number; duplicate: number; possible: number; unreadable: number };
   /** How the guesses were made, so the cost and the benefit are visible. */
   smart: SmartReport;
+  /** Set when this exact file (same bytes, same payment method) was imported before. Reading it again needs the owner's consent. */
+  previousImport?: { batchId: string; filename: string; uploadedAt: string; staged: number };
 }
 
 export interface SmartReport {
@@ -87,6 +89,8 @@ interface ImportBase {
   positiveIsDebit?: boolean;
   /** Import even though a self-check failed. Only a person who has looked at the differences should set this. */
   acceptMismatch?: boolean;
+  /** The person confirmed they want to read a file that was already imported. Without it a repeat import is refused. */
+  allowReimport?: boolean;
 }
 export type ImportInput = ImportBase & ({ format: "csv" | "xlsx"; table: string[][] } | { format: "pdf"; pdf: PdfParseResult });
 
@@ -158,8 +162,9 @@ export async function resolveRows(
 async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Promise<{ preview: Preview; rows: (PreviewRow & { referenceId: string; parsed: ParsedRow })[]; account: Account }> {
   const account = await repo.accounts.get(input.accountId);
   if (!account) throw new ImportError("not_found", "Choose which payment method this statement is for.");
-  const prior = (await repo.importBatches.list()).find((b) => b.fileHash === input.fileHash && b.accountId === input.accountId);
-  if (prior) throw new ImportError("already_imported", `This exact file was already imported on ${prior.uploadedAt.slice(0, 10)} as "${prior.filename}". Nothing was added again.`);
+  // The same file again is not an error: entries from the first import may since have been rejected or removed, and
+  // row-level duplicate detection below skips anything that is still there. It only needs the owner's say-so.
+  const prior = (await repo.importBatches.list()).filter((b) => b.fileHash === input.fileHash && b.accountId === input.accountId).sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))[0];
 
   const positiveIsDebit = input.positiveIsDebit ?? account.type === "credit_card";
   let rows: ParsedRow[];
@@ -223,6 +228,7 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
     accountId: input.accountId, filename: input.filename, fileHash: input.fileHash, positiveIsDebit,
     singleAmountColumn, format: input.format, summary, checks, warnings,
     columns: headers, rows: out.map(({ referenceId: _r, parsed: _p, ...row }) => { void _r; void _p; return row; }), skipped, totals, counts, smart,
+    ...(prior ? { previousImport: { batchId: prior.id, filename: prior.filename, uploadedAt: prior.uploadedAt, staged: prior.counts.staged } } : {}),
   };
   return { preview, rows: out, account };
 }
@@ -240,6 +246,9 @@ export interface CommitResult { batchId: string; counts: Preview["counts"] & { s
  */
 export async function commitImport(repo: Repository, actor: { uid: string; participantId: string }, input: ImportInput, d: ImportDeps): Promise<CommitResult> {
   const { preview, rows } = await prepare(repo, input, d);
+  if (preview.previousImport && !input.allowReimport) {
+    throw new ImportError("already_imported", `This exact file was already imported on ${preview.previousImport.uploadedAt.slice(0, 10)} as "${preview.previousImport.filename}". Nothing was added. Confirm that you want to read it again to continue.`);
+  }
   const failed = preview.checks.filter((c) => !c.ok);
   if (failed.length > 0 && !input.acceptMismatch) {
     throw new ImportError("check_failed", `The statement's own totals do not match what was read (${failed.map((c) => c.name).join("; ")}). Nothing was imported. Review the differences, then confirm you want to import anyway.`);
@@ -252,6 +261,7 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
     counts: { rows: preview.counts.rows, staged: stage.length, skippedDuplicate: preview.counts.duplicate, flaggedDuplicate: preview.counts.possible, unreadable: preview.counts.unreadable },
     totals: { debitPaise: preview.totals.debitPaise, creditPaise: preview.totals.creditPaise },
     ...(preview.checks.length > 0 ? { checksPassed: failed.length === 0, acceptedMismatch: failed.length > 0 } : {}),
+    ...(preview.previousImport ? { reimportOf: preview.previousImport.batchId } : {}),
   };
   for (const r of rows) {
     const raw: RawTransaction = { id: `${batchId}-${r.line}`, batchId, line: r.line, cells: r.parsed.raw.map((c) => c.slice(0, 1000)).slice(0, 60) };
@@ -266,7 +276,7 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
     await repo.records.put(JSON.parse(JSON.stringify(rec)) as ExpenseRecord);
   }
   await repo.importBatches.put(batch);
-  await repo.audit.append({ actorId: actor.uid, action: "import", entity: "household", entityId: batchId, summary: `Imported ${input.filename}: ${stage.length} to review, ${preview.counts.duplicate} duplicates skipped, ${preview.counts.possible} possible duplicates, ${preview.counts.unreadable} unreadable rows${failed.length > 0 ? `; IMPORTED DESPITE FAILED CHECKS (${failed.map((c) => c.name).join("; ")})` : ""}` });
+  await repo.audit.append({ actorId: actor.uid, action: "import", entity: "household", entityId: batchId, summary: `${preview.previousImport ? `RE-IMPORTED (first imported ${preview.previousImport.uploadedAt.slice(0, 10)}) ` : ""}Imported ${input.filename}: ${stage.length} to review, ${preview.counts.duplicate} duplicates skipped, ${preview.counts.possible} possible duplicates, ${preview.counts.unreadable} unreadable rows${failed.length > 0 ? `; IMPORTED DESPITE FAILED CHECKS (${failed.map((c) => c.name).join("; ")})` : ""}` });
   return { batchId, counts: { ...preview.counts, staged: stage.length } };
 }
 

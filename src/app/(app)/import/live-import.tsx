@@ -3,7 +3,7 @@ import { CheckCircle2, FileUp, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { AiBadge, AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, EmptyState, FormRow, PageHeader } from "@/components/ui";
+import { AiBadge, AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, Dialog, EmptyState, FormRow, PageHeader } from "@/components/ui";
 import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -26,6 +26,7 @@ export function LiveImport() {
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [accept, setAccept] = useState(false);
+  const [reimportOk, setReimportOk] = useState(false); // the owner said yes to reading a file that was imported before
   const input = useRef<HTMLInputElement>(null);
 
   const send = async (mode: "preview" | "commit", signOverride = sign): Promise<Reply> => {
@@ -35,6 +36,7 @@ export function LiveImport() {
     form.set("mode", mode);
     if (signOverride !== "auto") form.set("positiveIsDebit", signOverride === "out" ? "true" : "false");
     if (mode === "commit" && accept) form.set("acceptMismatch", "1");
+    if (mode === "commit" && reimportOk) form.set("reimport", "1");
     try {
       const res = await fetch("/api/import", { method: "POST", body: form });
       const data = (await res.json().catch(() => ({}))) as Reply;
@@ -45,7 +47,7 @@ export function LiveImport() {
   };
 
   const pick = (f: File | undefined) => {
-    setPreview(null); setError(null); setDone(null); setSign("auto"); setAccept(false);
+    setPreview(null); setError(null); setDone(null); setSign("auto"); setAccept(false); setReimportOk(false);
     if (!f) return setFile(null);
     if (f.size > MAX_BYTES) { setFile(null); return setError("That file is larger than 4 MB. Export a shorter date range."); }
     if (!/\.(csv|txt|xlsx|pdf)$/i.test(f.name)) { setFile(null); return setError("Upload a .csv, .xlsx or .pdf statement."); }
@@ -77,6 +79,10 @@ export function LiveImport() {
   const toStage = preview ? preview.counts.new + preview.counts.possible : 0;
   const failed = preview ? preview.checks.filter((c) => !c.ok) : [];
   const blocked = failed.length > 0 && !accept;
+  // The same file again: ask first. Nothing is shown or saved until the owner answers.
+  const askReimport = !!preview?.previousImport && !reimportOk;
+  // Note: the dialog also reports "closed" when it is closed on purpose after a Yes, so cancelling only counts while the question is open.
+  const cancelReimport = () => { setPreview(null); setFile(null); setReimportOk(false); if (input.current) input.current.value = ""; };
 
   return (
     <>
@@ -117,14 +123,14 @@ export function LiveImport() {
                   <li key={b.id}>
                     <div className="truncate font-medium">{b.filename}</div>
                     <div className="text-xs text-muted">{accountName(b.accountId)} · {b.uploadedAt.slice(0, 10)}</div>
-                    <div className="text-xs text-muted">{b.counts.staged} sent to review · {b.counts.skippedDuplicate} duplicates skipped{b.counts.unreadable ? ` · ${b.counts.unreadable} unreadable` : ""}</div>
+                    <div className="text-xs text-muted">{b.reimportOf ? "Read again · " : ""}{b.counts.staged} sent to review · {b.counts.skippedDuplicate} duplicates skipped{b.counts.unreadable ? ` · ${b.counts.unreadable} unreadable` : ""}</div>
                   </li>
                 ))}
               </ul>
             )}
           </Card>
 
-          {preview && (
+          {preview && !askReimport && (
             <Card className="space-y-4 lg:col-span-3">
               <CardTitle>What the file contains</CardTitle>
               {preview.summary && (
@@ -204,6 +210,26 @@ export function LiveImport() {
           )}
         </div>
       )}
+
+      <Dialog open={askReimport} onClose={() => { if (askReimport) cancelReimport(); }} title="Read this file again?">
+        {preview?.previousImport && (
+          <div className="space-y-3 pb-1 text-sm">
+            <p>You already imported this exact file on <b>{preview.previousImport.uploadedAt.slice(0, 10)}</b> (&ldquo;{preview.previousImport.filename}&rdquo;, {preview.previousImport.staged} transaction{preview.previousImport.staged === 1 ? "" : "s"} sent to review).</p>
+            {toStage > 0 ? (
+              <ul className="space-y-1.5 rounded-xl bg-background p-3">
+                <li><b className="num">{toStage}</b> of its {preview.counts.rows} rows are not in your ledger or review queue right now (for example ones you rejected or removed). They will come back for review.</li>
+                <li><b className="num">{preview.counts.duplicate}</b> {preview.counts.duplicate === 1 ? "is" : "are"} already there and will be skipped, so nothing is counted twice.</li>
+              </ul>
+            ) : (
+              <p className="rounded-xl bg-good-soft p-3 text-good">Every row in it is already in your ledger or review queue, so reading it again would add nothing.</p>
+            )}
+            <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3">
+              <Button onClick={cancelReimport}>{toStage > 0 ? "No, cancel" : "Close"}</Button>
+              {toStage > 0 && <Button variant="primary" onClick={() => setReimportOk(true)}>Yes, read it again</Button>}
+            </div>
+          </div>
+        )}
+      </Dialog>
     </>
   );
 }
