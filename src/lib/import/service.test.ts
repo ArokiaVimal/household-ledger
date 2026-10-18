@@ -42,6 +42,8 @@ describe("preview", () => {
     const csv = "Date,Transaction Details,Amount\n02/09/2026,SWIGGY BANGALORE IN,612.00\n13/09/2026,AMAZON REFUND,-1299.00\n";
     const card = await previewImport(repo, file(csv, { accountId: "cc_hdfc" }), deps);
     expect(card.rows.map((r) => [r.direction, r.kind])).toEqual([["debit", "purchase"], ["credit", "refund"]]);
+    expect(card.singleAmountColumn).toBe(true);
+    expect((await previewImport(repo, file(bankCsv), deps)).singleAmountColumn).toBe(false);
     const flipped = await previewImport(repo, file(csv, { accountId: "cc_hdfc", positiveIsDebit: false }), deps);
     expect(flipped.rows.map((r) => r.direction)).toEqual(["credit", "debit"]);
   });

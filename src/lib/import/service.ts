@@ -9,7 +9,8 @@ import { suggestCategory } from "@/domain/rules";
 import type { Account, ExpenseRecord, ImportBatch, RawTransaction, TxnKind } from "@/domain/types";
 
 export const MAX_ROWS = 2000;
-export const MAX_FILE_BYTES = 5 * 1024 * 1024;
+// Vercel functions accept request bodies up to 4.5 MB, so stay under that.
+export const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
 export interface ImportDeps {
   /** SHA-256 hex of a string. */
@@ -37,6 +38,8 @@ export interface Preview {
   filename: string;
   fileHash: string;
   positiveIsDebit: boolean;
+  /** True when the file has one signed Amount column (so the sign convention matters and may need flipping). */
+  singleAmountColumn: boolean;
   columns: string[];
   rows: PreviewRow[];
   skipped: { line: number; reason: string; text: string }[];
@@ -104,6 +107,7 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
   const counts = { rows: out.length, new: out.filter((x) => x.status === "new").length, duplicate: out.filter((x) => x.status === "duplicate").length, possible: out.filter((x) => x.status === "possible").length, unreadable: skipped.length };
   const preview: Preview = {
     accountId: input.accountId, filename: input.filename, fileHash: input.fileHash, positiveIsDebit,
+    singleAmountColumn: layout.columns.amount !== undefined && layout.columns.debit === undefined && layout.columns.credit === undefined,
     columns: layout.headers, rows: out.map(({ referenceId: _r, parsed: _p, ...row }) => { void _r; void _p; return row; }), skipped, totals, counts,
   };
   return { preview, rows: out, account };
