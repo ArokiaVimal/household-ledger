@@ -15,7 +15,8 @@ const SERVER_KEYS = ["FIREBASE_ADMIN_PROJECT_ID", "FIREBASE_ADMIN_CLIENT_EMAIL",
 export function getAuthMode(env: Env): AuthMode {
   const any = [...CLIENT_KEYS, ...SERVER_KEYS].some((k) => !!env[k]);
   if (!any) {
-    if (env.APP_ENV === "production") throw new EnvError("Authentication must be configured in production (see .env.example).");
+    // Vercel sets VERCEL_ENV itself, so a mis-set APP_ENV cannot silently turn a live deployment into an open demo.
+    if (env.APP_ENV === "production" || env.VERCEL_ENV === "production") throw new EnvError("Authentication must be configured in production (see .env.example).");
     return "off";
   }
   parseClientEnv(env);

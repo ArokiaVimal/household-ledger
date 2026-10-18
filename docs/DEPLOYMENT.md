@@ -7,6 +7,9 @@ Status: deployable today, **mock data only**. Real statement import, file storag
 - A Vercel account (free Hobby plan is enough for personal use).
 - The Firebase dev project (`pfst-9ee33`) already created. A separate production project is recommended before real data (see below).
 
+## Node version
+`package.json` pins `engines.node` to `22.x`. Vercel otherwise picks Node 24, where the Firebase Admin SDK fails to load (`ERR_REQUIRE_ESM` from `jose`), which broke the first deploy (login stuck on "Loading", `/api/session` 500). Re-test before ever unpinning.
+
 ## Environment variables (Vercel → Project → Settings → Environment Variables)
 Set for **Production** (and Preview if you want previews to sign in). Names are in `.env.example`:
 `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_APP_ID`, `FIREBASE_ADMIN_PROJECT_ID`, `FIREBASE_ADMIN_CLIENT_EMAIL`, `FIREBASE_ADMIN_PRIVATE_KEY`, `ALLOWED_EMAILS`, `APP_ENV=production`.

@@ -10,6 +10,7 @@ const full = {
 describe("auth mode", () => {
   it("off with no config outside production", () => expect(getAuthMode({})).toBe("off"));
   it("fails closed in production without config", () => expect(() => getAuthMode({ APP_ENV: "production" })).toThrow(EnvError));
+  it("fails closed on a Vercel production deployment even if APP_ENV is wrong", () => expect(() => getAuthMode({ VERCEL_ENV: "production", APP_ENV: "development" })).toThrow(EnvError));
   it("on when fully configured", () => expect(getAuthMode(full)).toBe("on"));
   it("partial config is an error, not silently off", () => {
     expect(() => getAuthMode({ NEXT_PUBLIC_FIREBASE_API_KEY: "k" })).toThrow(EnvError);
