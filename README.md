@@ -27,4 +27,4 @@ pnpm dev                     # http://localhost:3000
 Prototype deploys to Vercel as a normal Next.js app (contains only mock data). Real deployment, Firebase setup and backup guidance: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (plan, not yet implemented).
 
 ## Known limitations
-No authentication, persistence, file parsing, security rules, or export/restore yet. PWA manifest exists but there is no offline support or PNG icons for iOS (add 180px apple-touch-icon in Stage 3). Light theme only.
+No authentication, persistence, file parsing, security rules, or export/restore yet. PWA manifest exists but there is no offline support or PNG icons for iOS (add 180px apple-touch-icon in Stage 3). Light theme only. UI follows a lavender, rounded-card reference design supplied by the owner.

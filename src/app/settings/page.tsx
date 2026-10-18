@@ -31,7 +31,7 @@ export default function Settings() {
         <Card>
           <CardTitle>Household members</CardTitle>
           <ul className="space-y-1 text-sm">
-            <li>Arokia <Badge tone="good">Owner</Badge></li>
+            <li>Vimal <Badge tone="good">Owner</Badge></li>
             <li>Wife <Badge>Member</Badge></li>
           </ul>
           <p className="mt-2 text-xs text-muted">Separate logins and invitations need Firebase Auth (Stage 3).</p>

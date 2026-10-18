@@ -9,6 +9,10 @@ Updated: 2026-10-18 · Branch `feat/domain-core` · Stage 1–2 complete (protot
 - Manual check: dashboard and mobile transactions/edit dialog viewed in browser at 375px and desktop. Other screens were built but only dashboard/transactions/import were eyeballed.
 - Docs, CI workflow (`.github/workflows/ci.yml`, not yet run on GitHub), `.env.example`.
 
+## UI notes
+- Restyled to the owner's lavender reference (tokens in `globals.css`): icon rail, KPI cards, donut + area charts, merchant logos.
+- Brand icons in `public/logos` were fetched once from public favicons (low-res for some, e.g. HDFC/BigBasket 16px); mapping in `src/lib/logos.ts`; no runtime third-party calls. IRCTC icon missing (initial fallback). Brand marks belong to their owners; fine for private use, review before any public release.
+
 ## Mocked / partial
 - Everything persists only in memory. Import never reads files. Receipts, import history, Apr–Aug trend and rules are mock values. "Personal" view = records I paid for or share in.
 - Month selector: only September 2026 has data (August shows empty state).

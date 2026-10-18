@@ -4,7 +4,7 @@ import { useEffect, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes,
 import { cn } from "@/lib/cn";
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <section className={cn("rounded-[var(--radius-card)] border border-border bg-surface p-4", className)}>{children}</section>;
+  return <section className={cn("rounded-[var(--radius-card)] bg-surface p-4 shadow-[0_1px_0_rgba(20,18,31,0.03)]", className)}>{children}</section>;
 }
 
 export function CardTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
@@ -22,7 +22,7 @@ export function Button({ variant = "ghost", className, ...p }: BtnProps) {
     <button
       {...p}
       className={cn(
-        "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50",
+        "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50",
         variant === "primary" && "bg-accent text-white hover:bg-accent/90",
         variant === "ghost" && "border border-border bg-surface hover:bg-background",
         variant === "danger" && "border border-danger/40 bg-surface text-danger hover:bg-danger/5",
@@ -32,7 +32,7 @@ export function Button({ variant = "ghost", className, ...p }: BtnProps) {
   );
 }
 
-const field = "min-h-9 w-full rounded-md border border-border bg-surface px-2.5 text-sm focus-visible:outline-2 focus-visible:outline-accent";
+const field = "min-h-9 w-full rounded-full border border-border bg-surface px-3.5 text-sm focus-visible:outline-2 focus-visible:outline-accent";
 export const Input = (p: InputHTMLAttributes<HTMLInputElement>) => <input {...p} className={cn(field, p.className)} />;
 export const Select = (p: SelectHTMLAttributes<HTMLSelectElement>) => <select {...p} className={cn(field, p.className)} />;
 
@@ -48,12 +48,12 @@ export function Field({ label, children, error }: { label: string; children: Rea
 
 const tones = {
   neutral: "bg-background text-muted",
-  good: "bg-accent-soft text-accent",
+  good: "bg-good-soft text-good",
   warn: "bg-warn-soft text-warn",
   bad: "bg-danger/10 text-danger",
 };
 export function Badge({ tone = "neutral", children }: { tone?: keyof typeof tones; children: ReactNode }) {
-  return <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium", tones[tone])}>{children}</span>;
+  return <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", tones[tone])}>{children}</span>;
 }
 
 export function PageHeader({ title, sub, actions }: { title: string; sub?: string; actions?: ReactNode }) {

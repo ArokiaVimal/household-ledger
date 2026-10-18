@@ -15,7 +15,6 @@ function TransactionsView() {
   const params = useSearchParams();
   const router = useRouter();
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
-  const [q, setQ] = useState("");
 
   const get = (k: string) => params.get(k) ?? "";
   const set = (k: string, v: string) => {
@@ -27,7 +26,7 @@ function TransactionsView() {
   const rows = useMemo(() => {
     const m = params.get("month");
     const base = m ? records.filter((r) => r.date.startsWith(m)) : scoped;
-    const text = q.trim().toLowerCase();
+    const text = (params.get("q") ?? "").trim().toLowerCase();
     return base
       .filter((r) => !get("category") || r.categoryId === get("category"))
       .filter((r) => !get("merchant") || r.merchant === get("merchant"))
@@ -38,16 +37,16 @@ function TransactionsView() {
       .filter((r) => !text || `${r.merchant} ${r.originalDescription} ${r.notes ?? ""}`.toLowerCase().includes(text))
       .sort((a, b) => b.date.localeCompare(a.date));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [records, scoped, params, q]);
+  }, [records, scoped, params]);
 
   const total = summarize(rows, ME);
-  const active = ["category", "merchant", "status", "kind", "account", "shared"].filter((k) => get(k));
+  const active = ["q", "category", "merchant", "status", "kind", "account", "shared"].filter((k) => get(k));
 
   return (
     <>
       <PageHeader title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} />
       <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-6">
-        <Input className="col-span-2" placeholder="Search merchant, description, notes" aria-label="Search" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input className="col-span-2" placeholder="Search merchant, description, notes" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
         <Select aria-label="Category" value={get("category")} onChange={(e) => set("category", e.target.value)}>
           <option value="">All categories</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
@@ -70,7 +69,7 @@ function TransactionsView() {
       {rows.length === 0 ? <EmptyState title="No transactions match" hint="Try clearing a filter." /> : (
         <>
           <div className="space-y-2 md:hidden">{rows.map((r) => <TxnCard key={r.id} r={r} onClick={() => setEditing(r)} />)}</div>
-          <div className="hidden overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface md:block">
+          <div className="hidden overflow-hidden rounded-[var(--radius-card)] bg-surface md:block">
             <table className="w-full text-sm">
               <thead className="border-b border-border bg-background text-left text-xs text-muted">
                 <tr><th className="p-2.5">Date</th><th>Merchant</th><th>Category</th><th>Paid by</th><th>Account</th><th className="text-right">Amount</th><th className="pr-2.5 text-right">My share</th></tr>

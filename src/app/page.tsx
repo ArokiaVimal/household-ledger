@@ -1,90 +1,124 @@
 "use client";
+import { CreditCard, Landmark, Smartphone, TrendingDown, TrendingUp, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
-import { BarsChart } from "@/components/charts";
-import { TxnCard } from "@/components/txn-row";
-import { Badge, Card, CardTitle, EmptyState, PageHeader } from "@/components/ui";
-import { trendHistory } from "@/data/mock";
+import { useMemo, type ReactNode } from "react";
+import { DonutChart, TrendChart } from "@/components/charts";
+import { MerchantAvatar, TxnBadges, Amount } from "@/components/txn-row";
+import { Badge, Card, CardTitle, EmptyState } from "@/components/ui";
+import { ME, accounts, trendHistory } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
-import { byCategory, byMerchant, byMonth, summarize } from "@/domain/reports";
-import { ME } from "@/data/mock";
+import { byCategory, byMerchant, byMonth, groupNet, summarize } from "@/domain/reports";
+import { cn } from "@/lib/cn";
+import { logoFor } from "@/lib/logos";
 
-function Stat({ label, value, sub, href }: { label: string; value: string; sub?: string; href?: string }) {
+function Kpi({ icon: I, label, value, sub, pill, href }: { icon: LucideIcon; label: string; value: string; sub: string; pill?: ReactNode; href?: string }) {
   const body = (
-    <div>
-      <div className="text-xs text-muted">{label}</div>
-      <div className="num text-xl font-semibold">{value}</div>
-      {sub && <div className="text-xs text-muted">{sub}</div>}
-    </div>
+    <Card className="h-full">
+      <div className="text-sm font-medium">{label}</div>
+      <div className="mt-5 flex items-center gap-3">
+        <span className="grid size-11 place-items-center rounded-full bg-background" aria-hidden><I size={18} /></span>
+        <div className="min-w-0">
+          <div className="num truncate text-xl font-semibold tracking-tight">{value}</div>
+          <div className="flex items-center gap-2 text-xs text-muted">{sub}{pill}</div>
+        </div>
+      </div>
+    </Card>
   );
-  return href ? <Link href={href} className="block rounded-md p-1 hover:bg-background">{body}</Link> : body;
+  return href ? <Link href={href} className="block rounded-[var(--radius-card)] transition-shadow hover:shadow-md">{body}</Link> : body;
 }
 
+function Pill({ tone, children }: { tone: "good" | "bad"; children: ReactNode }) {
+  return <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium", tone === "good" ? "bg-good-soft text-good" : "bg-danger/10 text-danger")}>{children}</span>;
+}
+
+const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet } as const;
+
 export default function Dashboard() {
-  const { records, scoped, summary, balances, month, view, categoryName, nameOf, setView } = useStore();
+  const { records, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView } = useStore();
   const household = useMemo(() => summarize(records.filter((r) => r.date.startsWith(month)), ME), [records, month]);
   const cats = useMemo(() => Object.entries(byCategory(scoped)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [scoped, categoryName]);
-  const merchants = useMemo(() => Object.entries(byMerchant(scoped)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 6), [scoped]);
+  const perAccount = useMemo(() => groupNet(scoped, (r) => r.accountId), [scoped]);
   const trend = useMemo(() => {
     const all = { ...trendHistory, ...byMonth(records) };
     return Object.keys(all).sort().map((m) => ({ key: m, label: new Date(m + "-01").toLocaleString("en", { month: "short" }), value: all[m] }));
   }, [records]);
+  const topMerchant = Object.entries(byMerchant(scoped)).sort((a, b) => b[1] - a[1])[0];
   const iOwe = balances.filter((b) => b.from === ME && b.outstanding > 0);
   const owedToMe = balances.filter((b) => b.to === ME && b.outstanding > 0);
   const q = `month=${month}`;
+  const prev = trendHistory["2026-08"];
+  const delta = month === "2026-09" && prev ? Math.round(((household.net - prev) / prev) * 1000) / 10 : null;
 
-  if (scoped.length === 0) return (<><PageHeader title="Dashboard" /><EmptyState title="No transactions this month" hint="Pick September 2026 or import a statement." /></>);
+  if (scoped.length === 0) return <EmptyState title="No transactions this month" hint="Pick September 2026 or import a statement." />;
 
   return (
-    <>
-      <PageHeader title="Dashboard" sub={view === "household" ? "Household view" : "Personal view: items you paid for or share in"} actions={<Badge>Mock data</Badge>} />
-      <div className="grid gap-3 md:grid-cols-3">
-        <Card className="md:col-span-2">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Stat label="Net spending" value={formatINR(summary.net)} sub="after refunds" href={`/transactions?${q}`} />
-            <Stat label="My share" value={formatINR(summary.myShare)} sub="what I ultimately bear" />
-            <Stat label="Household spending" value={formatINR(household.net)} sub="all members" />
-            <Stat label="Unreviewed" value={String(summary.unreviewed)} sub="imported rows" href={`/transactions?${q}&status=unreviewed`} />
-          </div>
-          <dl className="num mt-4 grid grid-cols-2 gap-2 border-t border-border pt-3 text-sm sm:grid-cols-4">
-            <div><dt className="text-xs text-muted">Purchases (gross)</dt><dd>{formatINR(summary.grossPurchases)}</dd></div>
-            <div><dt className="text-xs text-muted">Refunds</dt><dd>−{formatINR(summary.refunds)}</dd></div>
-            <div><dt className="text-xs text-muted">Shared</dt><dd><Link className="underline-offset-2 hover:underline" href={`/transactions?${q}&shared=1`}>{formatINR(summary.sharedNet)}</Link></dd></div>
-            <div><dt className="text-xs text-muted">Personal</dt><dd><Link className="underline-offset-2 hover:underline" href={`/transactions?${q}&shared=0`}>{formatINR(summary.personalNet)}</Link></dd></div>
-          </dl>
-          <p className="mt-3 text-xs text-muted">Total purchase amount ≠ my share ≠ money I paid. Card bill payments, transfers and income are not counted.</p>
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Kpi icon={Wallet} label="Net spending" value={formatINR(summary.net)} sub="after refunds" href={`/transactions?${q}`}
+          pill={delta !== null && <Pill tone={delta > 0 ? "bad" : "good"}>{delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{Math.abs(delta)}% vs Aug (mock)</Pill>} />
+        <Kpi icon={UserRound} label="My share" value={formatINR(summary.myShare)} sub="what I ultimately bear" />
+        <Kpi icon={Users} label="Household spending" value={formatINR(household.net)} sub={`Shared ${formatINR(summary.sharedNet)}`} href={`/transactions?${q}&shared=1`} />
+        <Kpi icon={TrendingDown} label="Refunds & review" value={`−${formatINR(summary.refunds)}`} sub={`${summary.unreviewed} unreviewed`} href={`/transactions?${q}&status=unreviewed`}
+          pill={summary.unreviewed > 0 && <Pill tone="bad">Review</Pill>} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="bg-accent-soft">
+          <CardTitle>Accounts this month</CardTitle>
+          <ul className="space-y-2">
+            {accounts.map((a) => {
+              const I = acctIcon[a.type];
+              return (
+                <li key={a.id}>
+                  <Link href={`/transactions?${q}&account=${a.id}`} className="flex items-center gap-3 rounded-2xl bg-surface/70 p-3 hover:bg-surface">
+                    {logoFor(a.name) ? <MerchantAvatar name={a.name} size={36} /> : <span className="grid size-9 place-items-center rounded-full bg-accent text-white" aria-hidden><I size={16} /></span>}
+                    <span className="flex-1 text-sm font-medium">{accountName(a.id)}</span>
+                    <span className="num text-sm">{formatINR(perAccount[a.id] ?? 0)}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-3 text-xs text-muted">Spending only. Card bill payments, transfers and income are excluded. {topMerchant && <>Top merchant: <b>{topMerchant[0]}</b>.</>}</p>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardTitle action={<Badge>Apr–Aug mock</Badge>}>Net spending trend</CardTitle>
+          <TrendChart data={trend} href={(k) => `/transactions?month=${k}`} />
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card>
+          <CardTitle>Expense breakdown</CardTitle>
+          <DonutChart data={cats} total={summary.net} href={(k) => `/transactions?${q}&category=${k}`} />
+          <p className="mt-3 text-xs text-muted">Purchase total ≠ my share ≠ money paid. My share: {formatINR(summary.myShare)}.</p>
         </Card>
         <Card>
-          <CardTitle action={<Link href="/settlements" className="text-xs text-accent">Details</Link>}>Settlements</CardTitle>
-          {[...iOwe].map((b) => <div key={b.to} className="flex justify-between py-1 text-sm"><span>I owe {nameOf(b.to)}</span><span className="num font-medium text-danger">{formatINR(b.outstanding)}</span></div>)}
-          {owedToMe.map((b) => <div key={b.from} className="flex justify-between py-1 text-sm"><span>{nameOf(b.from)} owes me</span><span className="num font-medium text-accent">{formatINR(b.outstanding)}</span></div>)}
-          {iOwe.length + owedToMe.length === 0 && <p className="text-sm text-muted">All settled up.</p>}
-        </Card>
-        <Card className="md:col-span-2">
-          <CardTitle>Spending by category (select a bar)</CardTitle>
-          <BarsChart horizontal height={Math.max(180, cats.length * 30)} data={cats} href={(k) => `/transactions?${q}&category=${k}`} />
-        </Card>
-        <Card>
-          <CardTitle>Top merchants</CardTitle>
-          <ul className="space-y-1">
-            {merchants.map(([m, v]) => (
-              <li key={m}><Link href={`/transactions?${q}&merchant=${encodeURIComponent(m)}`} className="flex justify-between rounded px-1 py-1 text-sm hover:bg-background"><span>{m}</span><span className="num">{formatINR(v)}</span></Link></li>
+          <CardTitle action={<Link href={`/transactions?${q}`} className="text-xs text-accent">View all</Link>}>Recent transactions</CardTitle>
+          <ul className="space-y-3">
+            {[...scoped].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map((r) => (
+              <li key={r.id} className="flex items-center gap-3">
+                <MerchantAvatar name={r.merchant} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{r.merchant}</div>
+                  <div className="flex flex-wrap items-center gap-1 text-xs text-muted">{r.date}<TxnBadges r={r} /></div>
+                </div>
+                <Amount r={r} />
+              </li>
             ))}
           </ul>
         </Card>
-        <Card className="md:col-span-3">
-          <CardTitle>Net spending trend (Apr–Aug are static mock values)</CardTitle>
-          <BarsChart data={trend} href={(k) => `/transactions?month=${k}`} height={180} />
-        </Card>
-        <Card className="md:col-span-3">
-          <CardTitle action={<Link href={`/transactions?${q}`} className="text-xs text-accent">All</Link>}>Recent transactions</CardTitle>
-          <div className="grid gap-2 md:grid-cols-2">
-            {[...scoped].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6).map((r) => <TxnCard key={r.id} r={r} />)}
-          </div>
+        <Card>
+          <CardTitle action={<Link href="/settlements" className="text-xs text-accent">Details</Link>}>Settlements</CardTitle>
+          <ul className="space-y-3">
+            {iOwe.map((b) => <li key={b.to} className="flex items-center gap-3 text-sm"><MerchantAvatar name={nameOf(b.to)} /><span className="flex-1">I owe {nameOf(b.to)}</span><span className="num font-semibold text-danger">{formatINR(b.outstanding)}</span></li>)}
+            {owedToMe.map((b) => <li key={b.from} className="flex items-center gap-3 text-sm"><MerchantAvatar name={nameOf(b.from)} /><span className="flex-1">{nameOf(b.from)} owes me</span><span className="num font-semibold text-good">{formatINR(b.outstanding)}</span></li>)}
+          </ul>
+          {iOwe.length + owedToMe.length === 0 && <p className="text-sm text-muted">All settled up.</p>}
         </Card>
       </div>
-      {view === "personal" && <button className="mt-3 text-xs text-muted underline" onClick={() => setView("household")}>Back to household view</button>}
-    </>
+      {view === "personal" && <button className="text-xs text-muted underline" onClick={() => setView("household")}>Back to household view</button>}
+    </div>
   );
 }

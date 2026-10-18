@@ -5,7 +5,7 @@ export const ME = "me";
 export const MOCK_MONTH = "2026-09";
 
 export const participants: Participant[] = [
-  { id: "me", name: "Arokia", userId: "u_me" },
+  { id: "me", name: "Vimal", userId: "u_me" },
   { id: "wife", name: "Wife", userId: "u_wife" },
   { id: "karthik", name: "Karthik", userId: null },
   { id: "priya", name: "Priya", userId: null },
