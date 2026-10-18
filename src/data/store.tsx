@@ -26,6 +26,8 @@ interface Store {
   /** Status of each recurring item for the selected month. */
   recurring: ReturnType<typeof recurringStatuses>;
   updateRecord: (id: string, patch: Partial<ExpenseRecord>) => void;
+  /** Manual entry. Id is generated here; `importSource` marks it as not imported. */
+  addRecord: (r: ExpenseRecord) => void;
   addSettlement: (s: Omit<Settlement, "id">) => void;
   voidSettlement: (id: string) => void;
   linkReceipt: (receiptId: string, recordId: string | null) => void;
@@ -56,6 +58,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const balances = useMemo(() => pairBalances(records, settlements), [records, settlements]);
 
   const updateRecord = useCallback((id: string, patch: Partial<ExpenseRecord>) => setRecords((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r))), []);
+  const addRecord = useCallback((r: ExpenseRecord) => setRecords((rs) => [...rs, { ...r, id: `m${rs.length + 1}-${Date.now().toString(36)}` }]), []);
   const addSettlement = useCallback((s: Omit<Settlement, "id">) => setSettlements((x) => [...x, { ...s, id: `s${x.length + 1}` }]), []);
   const voidSettlement = useCallback((id: string) => setSettlements((x) => x.map((s) => (s.id === id ? { ...s, voided: true } : s))), []);
   const linkReceipt = useCallback((receiptId: string, recordId: string | null) => {
@@ -64,7 +67,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const value: Store = {
     records, settlements, receipts, month, setMonth, view, setView, scoped, summary, balances, recurring,
-    updateRecord, addSettlement, voidSettlement, linkReceipt,
+    updateRecord, addRecord, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,
     categoryName: (id) => categories.find((c) => c.id === id)?.name ?? id,

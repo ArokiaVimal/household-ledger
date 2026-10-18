@@ -1,10 +1,11 @@
 "use client";
-import { BarChart3, Bell, FileUp, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags, Waves } from "lucide-react";
+import { BarChart3, Bell, FileUp, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags, Waves } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { useStore } from "@/data/store";
 import { cn } from "@/lib/cn";
+import { TxnAddDialog } from "./txn-edit-dialog";
 import { Select } from "./ui";
 
 const nav = [
@@ -24,6 +25,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { month, setMonth, view, setView, summary } = useStore();
   const [q, setQ] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [round, setRound] = useState(0);
+  const [toast, setToast] = useState("");
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const go = (e: React.FormEvent) => { e.preventDefault(); router.push(`/transactions?q=${encodeURIComponent(q)}`); };
 
@@ -71,6 +75,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>
+      <button onClick={() => setAdding(true)} aria-label="Add transaction"
+        className="fixed bottom-24 right-4 z-20 flex items-center gap-1.5 rounded-full bg-accent px-4 py-3 text-sm font-medium text-white shadow-lg hover:bg-accent/90 md:bottom-8 md:right-8">
+        <Plus size={18} aria-hidden /> Add
+      </button>
+      <TxnAddDialog open={adding} round={round} onClose={() => setAdding(false)} onAnother={() => setRound((r) => r + 1)}
+        onAdded={(m) => { setToast(m); setTimeout(() => setToast(""), 3000); }} />
+      {toast && <div role="status" className="fixed inset-x-0 bottom-40 z-30 mx-auto w-fit rounded-full bg-foreground px-4 py-2 text-sm text-white shadow-lg md:bottom-24">{toast}</div>}
       <nav aria-label="Primary" className="fixed inset-x-3 bottom-3 z-20 grid grid-cols-5 rounded-2xl bg-surface pb-[env(safe-area-inset-bottom)] shadow-lg md:hidden">
         {nav.filter((n) => n.mobile).map(({ href, label, icon: I }) => (
           <Link key={href} href={href} aria-current={active(href) ? "page" : undefined}
