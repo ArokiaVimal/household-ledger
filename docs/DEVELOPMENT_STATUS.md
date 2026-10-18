@@ -16,6 +16,9 @@ Updated: 2026-10-18 · Branch `feat/stage3-slice4-rules` (stacked on earlier sli
 - Google sign-in added (popup; same session cookie flow and allowlist). Needs the Google provider enabled in the Firebase console and the app's domain in Authorized domains (localhost is there by default). Not tested with a real Google account.
 - `ALLOWED_EMAILS` env var added (temporary allowlist until household membership in slice 3).
 
+## Deployment prep (added)
+- Security headers (noindex, no framing, nosniff, referrer policy, permissions policy, HSTS) in `next.config.ts`, `robots.txt` disallowing crawlers, `docs/DEPLOYMENT.md` with the Vercel + Firebase steps. No CSP yet (would need a tested Google sign-in allowlist). Not yet deployed anywhere; no Git remote exists.
+
 ## Stage 3 slice 4: security rules (built; 24 emulator tests pass locally)
 - `firestore.rules`: household membership via `households/{hid}/members/{uid}`; members read everything in their household; `users`, `households`, `members`, `invites` are server-write-only; records validated (integer positive paise, enums, no extra fields), never deletable, imported bank fields immutable; settlements corrected only by setting `voided`; audit events must carry the caller's own uid and are immutable; raw transactions write-once; participants/accounts not deletable; everything else denied. The data collections (`records`, `settlements`, ...) do not exist in the app yet; the rules define the contract for slice 5.
 - `storage.rules`: `households/{hid}/files/{id}` only; members read/upload, PDF/CSV/XLSX/JPEG/PNG/WebP only, 1 byte to 15 MB, write-once (create requires no existing object), owner-only delete; all else denied.
