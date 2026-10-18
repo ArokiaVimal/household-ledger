@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { pairBalances } from "./balances";
 import { commitmentTotals, recurringStatuses } from "./recurring";
-import { detectDuplicate, suggestReceiptMatches } from "./dedupe";
+import { detectDuplicate, planImport, suggestReceiptMatches } from "./dedupe";
+import { suggestCategory } from "./rules";
 import { formatINR, parseRupees } from "./money";
 import { summarize } from "./reports";
 import { computeShares, customSplit, equalSplit, percentSplit, validateSplit } from "./splits";
@@ -133,5 +134,23 @@ describe("recurring", () => {
   });
   it("totals", () => {
     expect(commitmentTotals([item, { ...item, id: "b", expectedPaise: 5050 }])).toEqual({ monthlyPaise: 105050, yearlyPaise: 1260600 });
+  });
+});
+
+describe("import planning and rules", () => {
+  const existing = [rec({ id: "x", referenceId: "R1", merchant: "Swiggy", amountPaise: 45000 })];
+  it("skips exact duplicates, keeps possible and new, catches repeats inside the file", () => {
+    const rows = [
+      { accountId: "a1", date: "2026-09-09", amountPaise: 1, merchant: "A", referenceId: "R1" },
+      { accountId: "a1", date: "2026-09-05", amountPaise: 45000, merchant: "Swiggy" },
+      { accountId: "a1", date: "2026-09-10", amountPaise: 700, merchant: "B", referenceId: "R2" },
+      { accountId: "a1", date: "2026-09-10", amountPaise: 700, merchant: "B", referenceId: "R2" },
+    ];
+    expect(planImport(rows, existing).map((p) => p.dup.status)).toEqual(["exact", "possible", "none", "exact"]);
+  });
+  it("suggests category from merchant rule with fallback", () => {
+    const rules = [{ merchant: "Swiggy", categoryId: "food_delivery" }];
+    expect(suggestCategory(rules, " swiggy ")).toBe("food_delivery");
+    expect(suggestCategory(rules, "Unknown")).toBe("uncategorized");
   });
 });

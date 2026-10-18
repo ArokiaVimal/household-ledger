@@ -35,7 +35,7 @@ function Pill({ tone, children }: { tone: "good" | "bad"; children: ReactNode })
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet } as const;
 
 export default function Dashboard() {
-  const { records, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView } = useStore();
+  const { records, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView } = useStore();
   const household = useMemo(() => summarize(records.filter((r) => r.date.startsWith(month)), ME), [records, month]);
   const cats = useMemo(() => Object.entries(byCategory(scoped)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [scoped, categoryName]);
   const perAccount = useMemo(() => groupNet(scoped, (r) => r.accountId), [scoped]);
@@ -59,8 +59,8 @@ export default function Dashboard() {
           pill={delta !== null && <Pill tone={delta > 0 ? "bad" : "good"}>{delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{Math.abs(delta)}% vs Aug (mock)</Pill>} />
         <Kpi icon={UserRound} label="My share" value={formatINR(summary.myShare)} sub="what I ultimately bear" />
         <Kpi icon={Users} label="Household spending" value={formatINR(household.net)} sub={`Shared ${formatINR(summary.sharedNet)}`} href={`/transactions?${q}&shared=1`} />
-        <Kpi icon={TrendingDown} label="Refunds & review" value={`−${formatINR(summary.refunds)}`} sub={`${summary.unreviewed} unreviewed`} href={`/transactions?${q}&status=unreviewed`}
-          pill={summary.unreviewed > 0 && <Pill tone="bad">Review</Pill>} />
+        <Kpi icon={TrendingDown} label="Refunds & review" value={`−${formatINR(summary.refunds)}`} sub={`${staged.length} awaiting review`} href="/review"
+          pill={staged.length > 0 && <Pill tone="bad">Review</Pill>} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

@@ -103,8 +103,6 @@ function TransactionsView() {
   }, [records, scoped, params]);
 
   const total = summarize(rows, ME);
-  const pending = rows.filter((r) => r.status === "unreviewed" && r.id !== editing?.id);
-  const nextUnreviewed = editing ? { remaining: pending.length, open: () => setEditing(pending[0] ?? null) } : undefined;
   const view = get("view") || "all";
   const active = ["recurring", "q", "category", "merchant", "status", "kind", "account", "shared"].filter((k) => get(k));
 
@@ -121,9 +119,6 @@ function TransactionsView() {
         </Select>
         <Select aria-label="Account" value={get("account")} onChange={(e) => set("account", e.target.value)}>
           <option value="">All accounts</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </Select>
-        <Select aria-label="Status" value={get("status")} onChange={(e) => set("status", e.target.value)}>
-          <option value="">Any status</option><option value="unreviewed">Unreviewed</option><option value="reviewed">Reviewed</option>
         </Select>
       </div>
       {active.length > 0 && (
@@ -167,7 +162,7 @@ function TransactionsView() {
           </div>
         </>
       )}
-      <TxnEditDialog record={editing} onClose={() => setEditing(null)} next={nextUnreviewed} />
+      <TxnEditDialog record={editing} onClose={() => setEditing(null)} />
     </>
   );
 }

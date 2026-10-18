@@ -12,7 +12,10 @@ import { MOCK_TODAY, ME, accounts, categories, initialReceipts, recurringItems, 
 export type View = "household" | "personal";
 
 interface Store {
+  /** The ledger: only approved records. Everything in reports, balances and recurring comes from here. */
   records: ExpenseRecord[];
+  /** Review queue: imported rows waiting for manual approval. Never counted in reports until approved. */
+  staged: ExpenseRecord[];
   settlements: Settlement[];
   receipts: Receipt[];
   month: string;
@@ -28,6 +31,12 @@ interface Store {
   updateRecord: (id: string, patch: Partial<ExpenseRecord>) => void;
   /** Manual entry. Id is generated here; `importSource` marks it as not imported. */
   addRecord: (r: ExpenseRecord) => void;
+  stageRecords: (rs: ExpenseRecord[]) => void;
+  /** Save edits to a queued row without approving it. */
+  updateStaged: (id: string, patch: Partial<ExpenseRecord>) => void;
+  /** Move a queued row into the ledger, marking it reviewed. */
+  approveStaged: (id: string, patch?: Partial<ExpenseRecord>) => void;
+  rejectStaged: (id: string) => void;
   addSettlement: (s: Omit<Settlement, "id">) => void;
   voidSettlement: (id: string) => void;
   linkReceipt: (receiptId: string, recordId: string | null) => void;
@@ -40,7 +49,8 @@ interface Store {
 const Ctx = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [records, setRecords] = useState(initialRecords);
+  const [records, setRecords] = useState(() => initialRecords.filter((r) => r.status === "reviewed"));
+  const [staged, setStaged] = useState(() => initialRecords.filter((r) => r.status === "unreviewed"));
   const [settlements, setSettlements] = useState(initialSettlements);
   const [receipts] = useState(initialReceipts);
   const [month, setMonth] = useState("2026-09");
@@ -59,6 +69,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateRecord = useCallback((id: string, patch: Partial<ExpenseRecord>) => setRecords((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r))), []);
   const addRecord = useCallback((r: ExpenseRecord) => setRecords((rs) => [...rs, { ...r, id: `m${rs.length + 1}-${Date.now().toString(36)}` }]), []);
+  const stageRecords = useCallback((rs: ExpenseRecord[]) => setStaged((x) => [...x, ...rs.map((r, i) => ({ ...r, id: `q${Date.now().toString(36)}-${x.length + i}`, status: "unreviewed" as const }))]), []);
+  const updateStaged = useCallback((id: string, patch: Partial<ExpenseRecord>) => setStaged((xs) => xs.map((r) => (r.id === id ? { ...r, ...patch, status: "unreviewed" as const } : r))), []);
+  const approveStaged = useCallback((id: string, patch: Partial<ExpenseRecord> = {}) => {
+    const r = staged.find((x) => x.id === id);
+    if (!r) return;
+    setRecords((rs) => (rs.some((x) => x.id === id) ? rs : [...rs, { ...r, ...patch, status: "reviewed" }]));
+    setStaged((xs) => xs.filter((x) => x.id !== id));
+  }, [staged]);
+  const rejectStaged = useCallback((id: string) => setStaged((xs) => xs.filter((x) => x.id !== id)), []);
   const addSettlement = useCallback((s: Omit<Settlement, "id">) => setSettlements((x) => [...x, { ...s, id: `s${x.length + 1}` }]), []);
   const voidSettlement = useCallback((id: string) => setSettlements((x) => x.map((s) => (s.id === id ? { ...s, voided: true } : s))), []);
   const linkReceipt = useCallback((receiptId: string, recordId: string | null) => {
@@ -66,8 +85,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value: Store = {
-    records, settlements, receipts, month, setMonth, view, setView, scoped, summary, balances, recurring,
-    updateRecord, addRecord, addSettlement, voidSettlement, linkReceipt,
+    records, staged, settlements, receipts, month, setMonth, view, setView, scoped, summary, balances, recurring,
+    updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,
     categoryName: (id) => categories.find((c) => c.id === id)?.name ?? id,

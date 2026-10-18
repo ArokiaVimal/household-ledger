@@ -9,6 +9,13 @@ Updated: 2026-10-18 · Branch `feat/domain-core` · Stage 1–2 complete (protot
 - Manual check: dashboard and mobile transactions/edit dialog viewed in browser at 375px and desktop. Other screens were built but only dashboard/transactions/import were eyeballed.
 - Docs, CI workflow (`.github/workflows/ci.yml`, not yet run on GitHub), `.env.example`.
 
+## Review queue (added)
+- Imports no longer go straight into the ledger. `store.staged` is the review queue; `store.records` is the ledger. Only approved rows (status `reviewed`) feed the dashboard, reports, balances, recurring and receipts. Imported rows start `unreviewed`.
+- `/review`: edit category, split, payer, recurring, notes; Approve, Approve & next, Save draft, Later, Reject (with confirm). Multi-select "Approve N as they are…" with confirmation. Possible duplicates are flagged with the matching record; exact duplicates (reference id, also within the file and against the queue) are skipped at import (`planImport`).
+- Every ledger row shows a "Reviewed" tag. Manual entries count as reviewed (the user typed them). The 8 mock rows that were "unreviewed" now start in the queue, so receipts for Swiggy/Blinkit only match after approval.
+- Merchant rules (`merchantRules`, `suggestCategory`) pre-fill categories in the queue; the user still confirms each row.
+- Prototype caveats: nothing persists; rejecting discards the row (a real build must keep the raw record and an audit event).
+
 ## Manual entry (added)
 - Floating "Add" button on every screen opens the same compact form in add mode: amount, date, payment method, merchant, category, type, payer, split, recurring, notes. "Add another" resets for fast bulk entry. Stored with `importSource: "Manual entry"`, status reviewed. Not persisted (prototype). No duplicate check against existing records yet.
 

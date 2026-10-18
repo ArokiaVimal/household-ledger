@@ -27,6 +27,15 @@ export function TxnEditDialog({ record, onClose, next }: Props) {
   );
 }
 
+/** Review queue: edit, then approve into the ledger (or reject). Nothing counts until approved. */
+export function TxnReviewDialog({ record, onClose, next }: Props) {
+  return (
+    <Dialog open={!!record} onClose={onClose} title="Review imported transaction">
+      {record && <Form key={record.id} mode="review" record={record} onClose={onClose} next={next} />}
+    </Dialog>
+  );
+}
+
 /** Manual entry. `round` changes after "Add another" so the form resets. */
 export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { open: boolean; round: number; onClose: () => void; onAnother: () => void; onAdded: (msg: string) => void }) {
   const { month } = useStore();
@@ -42,8 +51,10 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
   );
 }
 
-function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { updateRecord, addRecord, accountName } = useStore();
+function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
+  const { records, staged, updateRecord, addRecord, updateStaged, approveStaged, rejectStaged, accountName } = useStore();
+  const [rejecting, setRejecting] = useState(false);
+  const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";
   const [merchant, setMerchant] = useState(record.merchant);
   const [amountText, setAmountText] = useState("");
@@ -69,7 +80,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
     if (split.mode === "custom" && p > 0) setSplit({ ...split, values: equalSplit(p, split.participantIds) });
   };
 
-  const save = (action: "close" | "next" | "another") => {
+  const save = (action: "close" | "next" | "another" | "draft") => {
     const fields = {
       merchant: merchant.trim(), categoryId, kind, payerId, split, shared: split.mode !== "personal", notes: notes || undefined, excluded,
       recurringId: recurringId || undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
@@ -80,7 +91,13 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       if (action === "another") onAnother?.(); else onClose();
       return;
     }
-    updateRecord(record.id, { ...fields, fundedBy: isUpi ? fundedBy || undefined : record.fundedBy });
+    const patch = { ...fields, fundedBy: isUpi ? fundedBy || undefined : record.fundedBy };
+    if (mode === "review") {
+      if (action === "draft") updateStaged(record.id, patch); else approveStaged(record.id, patch);
+      if (action === "next" && next) next.open(); else onClose();
+      return;
+    }
+    updateRecord(record.id, patch);
     if (action === "next" && next) next.open(); else onClose();
   };
 
@@ -100,6 +117,9 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
           </div>
           <div className="mt-1 truncate font-mono text-xs text-muted" title="Original bank text, never edited">{record.originalDescription}</div>
         </div>
+      )}
+      {mode === "review" && dupOf && (
+        <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Approve only if this is a separate purchase; otherwise reject it.</p>
       )}
       {adding && <FormRow label="Paid with"><CompactChips label="Payment method" options={accounts.map((a) => ({ id: a.id, label: a.name }))} selected={[accountId]} onPick={setAccountId} /></FormRow>}
       <FormRow label="Merchant"><Input value={merchant} onChange={(e) => setMerchant(e.target.value)} /></FormRow>
@@ -122,10 +142,15 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       </FormRow>
 
       <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <Button onClick={onClose}>Cancel</Button>
+        {mode === "review" && (rejecting
+          ? <><Button onClick={() => setRejecting(false)}>Keep</Button><Button variant="danger" onClick={() => { rejectStaged(record.id); onClose(); }}>Confirm reject</Button></>
+          : <Button variant="danger" onClick={() => setRejecting(true)}>Reject</Button>)}
+        {!rejecting && <Button onClick={onClose}>{mode === "review" ? "Later" : "Cancel"}</Button>}
+        {mode === "review" && !rejecting && <Button onClick={() => save("draft")} disabled={!!bad}>Save draft</Button>}
         {adding && <Button onClick={() => save("another")} disabled={!!bad}>Add another</Button>}
-        {!adding && next && next.remaining > 0 && <Button onClick={() => save("next")} disabled={!!bad}>Save & next ({next.remaining} left)</Button>}
-        <Button variant="primary" onClick={() => save("close")} disabled={!!bad}>{adding ? "Add" : "Save"}</Button>
+        {mode === "review" && !rejecting && next && next.remaining > 0 && <Button onClick={() => save("next")} disabled={!!bad}>Approve & next ({next.remaining} left)</Button>}
+        {mode === "edit" && next && next.remaining > 0 && <Button onClick={() => save("next")} disabled={!!bad}>Save & next ({next.remaining} left)</Button>}
+        {!rejecting && <Button variant="primary" onClick={() => save("close")} disabled={!!bad}>{adding ? "Add" : mode === "review" ? "Approve" : "Save"}</Button>}
       </div>
     </div>
   );

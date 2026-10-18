@@ -1,5 +1,5 @@
 "use client";
-import { BarChart3, Bell, FileUp, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags, Waves } from "lucide-react";
+import { BarChart3, Bell, ClipboardCheck, FileUp, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags, Waves } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -12,6 +12,7 @@ const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, mobile: true },
   { href: "/transactions", label: "Transactions", icon: List, mobile: true },
   { href: "/recurring", label: "Recurring", icon: Repeat },
+  { href: "/review", label: "Review", icon: ClipboardCheck },
   { href: "/import", label: "Import", icon: FileUp, mobile: true },
   { href: "/settlements", label: "Settle", icon: Handshake, mobile: true },
   { href: "/receipts", label: "Receipts", icon: Receipt },
@@ -23,7 +24,7 @@ const nav = [
 export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const router = useRouter();
-  const { month, setMonth, view, setView, summary } = useStore();
+  const { month, setMonth, view, setView, staged } = useStore();
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
   const [round, setRound] = useState(0);
@@ -65,9 +66,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <option value="household">Household</option>
                 <option value="personal">Personal</option>
               </Select>
-              <Link href={`/transactions?month=${month}&status=unreviewed`} aria-label={`${summary.unreviewed} unreviewed transactions`} className="relative order-2 grid size-10 place-items-center rounded-full bg-surface md:order-6">
+              <Link href="/review" aria-label={`${staged.length} transactions awaiting review`} className="relative order-2 grid size-10 place-items-center rounded-full bg-surface md:order-6">
                 <Bell size={18} aria-hidden />
-                {summary.unreviewed > 0 && <span className="absolute right-1.5 top-1.5 size-2.5 rounded-full bg-danger" />}
+                {staged.length > 0 && <span className="absolute right-1.5 top-1.5 size-2.5 rounded-full bg-danger" />}
               </Link>
               <div aria-hidden className="order-3 grid size-10 md:order-7 place-items-center rounded-full bg-accent text-sm font-medium text-white">A</div>
             </header>

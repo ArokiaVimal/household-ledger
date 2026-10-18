@@ -25,7 +25,7 @@ export default function Settings() {
         <Card>
           <CardTitle>More screens</CardTitle>
           <div className="flex flex-wrap gap-2">
-            {[["/recurring", "Recurring"], ["/receipts", "Receipts"], ["/reports", "Reports"], ["/categories", "Categories & rules"]].map(([h, l]) => <Link key={h} href={h} className="rounded-md border border-border px-3 py-2 text-sm">{l}</Link>)}
+            {[["/review", "Review queue"], ["/recurring", "Recurring"], ["/receipts", "Receipts"], ["/reports", "Reports"], ["/categories", "Categories & rules"]].map(([h, l]) => <Link key={h} href={h} className="rounded-md border border-border px-3 py-2 text-sm">{l}</Link>)}
           </div>
         </Card>
         <Card>

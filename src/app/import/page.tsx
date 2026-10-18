@@ -1,9 +1,12 @@
 "use client";
 import { useState } from "react";
 import { Badge, Button, Card, CardTitle, Field, PageHeader, Select } from "@/components/ui";
-import { mockImportRows, accounts, initialRecords } from "@/data/mock";
+import Link from "next/link";
+import { mockImportRows, accounts, merchantRules, ME } from "@/data/mock";
 import { useStore } from "@/data/store";
-import { detectDuplicate } from "@/domain/dedupe";
+import { planImport } from "@/domain/dedupe";
+import { suggestCategory } from "@/domain/rules";
+import type { ExpenseRecord } from "@/domain/types";
 import { formatINR } from "@/domain/money";
 
 const history = [
@@ -12,17 +15,29 @@ const history = [
 ];
 
 export default function ImportCentre() {
-  const { accountName } = useStore();
+  const { accountName, records, staged, stageRecords } = useStore();
   const [step, setStep] = useState(1);
-  const [done, setDone] = useState(false);
-  const rows = mockImportRows.map((r) => ({ ...r, dup: detectDuplicate(r, initialRecords) }));
+  const [done, setDone] = useState<{ sent: number; skipped: number } | null>(null);
+  const plan = planImport(mockImportRows, [...records, ...staged]);
+  const rows = plan.map((p) => ({ ...p.row, dup: p.dup }));
+  const toStage = rows.filter((r) => r.dup.status !== "exact");
   const fresh = rows.filter((r) => r.dup.status === "none").length;
+
+  const sendToReview = () => {
+    const file = "HDFC_Sep2026_sample.csv (simulated)";
+    stageRecords(toStage.map((r): ExpenseRecord => ({
+      id: "", date: r.date, merchant: r.merchant, originalDescription: r.description, amountPaise: r.amountPaise, currency: "INR", accountId: r.accountId,
+      categoryId: suggestCategory(merchantRules, r.merchant), kind: "purchase", payerId: ME, shared: false, split: { mode: "personal", participantIds: [ME] },
+      excluded: false, status: "unreviewed", importSource: file, referenceId: r.referenceId, duplicateOf: r.dup.status === "possible" ? r.dup.matchId : undefined,
+    })));
+    setDone({ sent: toStage.length, skipped: rows.length - toStage.length });
+  };
 
   return (
     <>
-      <PageHeader title="Import centre" sub="Guided flow. In this prototype no file is read: the preview uses simulated rows." actions={<Badge tone="warn">Simulated</Badge>} />
+      <PageHeader title="Import centre" sub="Guided flow. Nothing is added to your ledger until you approve it in the review queue. Prototype: no file is read, rows are simulated." actions={<Badge tone="warn">Simulated</Badge>} />
       <ol className="mb-4 flex flex-wrap gap-1.5 text-xs">
-        {["Month & file", "Source", "Preview & duplicates", "Confirm"].map((s, i) => (
+        {["Month & file", "Source", "Preview & duplicates", "To review queue"].map((s, i) => (
           <li key={s} className={`rounded px-2 py-1 ${step === i + 1 ? "bg-accent text-white" : "bg-surface text-muted border border-border"}`}>{i + 1}. {s}</li>
         ))}
       </ol>
@@ -67,14 +82,17 @@ export default function ImportCentre() {
           {step === 4 && (
             <div className="space-y-3">
               {done ? (
-                <p className="text-sm"><b>Simulated:</b> {fresh} new records would be saved, {rows.length - fresh} skipped or held for review. Nothing was written.</p>
+                <div className="space-y-2 text-sm">
+                  <p><b>{done.sent} row{done.sent === 1 ? "" : "s"} sent to the review queue</b>; {done.skipped} exact duplicate{done.skipped === 1 ? "" : "s"} skipped. Nothing is in your ledger or reports until you approve it.</p>
+                  <Link href="/review" className="inline-block rounded-full bg-accent px-4 py-2 font-medium text-white">Review now</Link>
+                </div>
               ) : (
                 <>
-                  <p className="text-sm">{fresh} new rows will be saved for review. Exact duplicates are skipped; possible duplicates stay unmerged until you decide.</p>
-                  <Button variant="primary" onClick={() => setDone(true)}>Confirm (simulated)</Button>
+                  <p className="text-sm">{fresh} new and {toStage.length - fresh} possible-duplicate rows go to the review queue, where you check category, split and payer and approve each one. Exact duplicates are skipped.</p>
+                  <Button variant="primary" onClick={sendToReview} disabled={toStage.length === 0}>Send {toStage.length} to review queue</Button>
                 </>
               )}
-              <Button onClick={() => { setStep(1); setDone(false); }}>Start over</Button>
+              <Button onClick={() => { setStep(1); setDone(null); }}>Start over</Button>
             </div>
           )}
         </Card>

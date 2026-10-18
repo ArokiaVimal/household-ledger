@@ -22,7 +22,7 @@ export function Amount({ r }: { r: ExpenseRecord }) {
 export function TxnBadges({ r }: { r: ExpenseRecord }) {
   return (
     <>
-      {r.status === "unreviewed" && <Badge tone="warn">Unreviewed</Badge>}
+      {r.status === "unreviewed" ? <Badge tone="warn">Unreviewed</Badge> : <Badge tone="good">Reviewed</Badge>}
       {r.duplicateOf && <Badge tone="bad">Possible duplicate</Badge>}
       {r.receiptId && <Badge tone="good">Receipt linked</Badge>}
       {r.excluded && <Badge>Excluded</Badge>}

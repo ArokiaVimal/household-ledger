@@ -70,3 +70,23 @@ export function suggestReceiptMatches(receipt: Receipt, records: ExpenseRecord[]
   }
   return out.sort((a, b) => b.score - a.score);
 }
+
+export interface PlannedRow<T extends IncomingTxn> {
+  row: T;
+  dup: DupResult;
+}
+
+/**
+ * Decide what happens to each imported row before anything is staged.
+ * exact = skipped (already in the ledger or review queue, or repeated inside the file);
+ * possible = staged but flagged; none = staged. Rows within the file also count
+ * as existing for later rows so a file repeating a reference id is not double staged.
+ */
+export function planImport<T extends IncomingTxn>(rows: T[], existing: Pick<ExpenseRecord, "id" | "accountId" | "date" | "amountPaise" | "merchant" | "referenceId">[]): PlannedRow<T>[] {
+  const seen = [...existing];
+  return rows.map((row, i) => {
+    const dup = detectDuplicate(row, seen);
+    if (dup.status !== "exact") seen.push({ id: `incoming-${i}`, accountId: row.accountId, date: row.date, amountPaise: row.amountPaise, merchant: row.merchant, referenceId: row.referenceId });
+    return { row, dup };
+  });
+}

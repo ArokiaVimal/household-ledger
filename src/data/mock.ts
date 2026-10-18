@@ -136,3 +136,13 @@ export const recurringItems: RecurringItem[] = [
   { id: "gas", name: "Gas", categoryId: "utilities", dueDay: 18, expectedPaise: r(1050), payerId: "me", split: REC_HOUSE, place: "Sis Safa, Orapakkam" },
   { id: "life_ins", name: "Life insurance", categoryId: "insurance", dueDay: 28, expectedPaise: r(4200), payerId: "me", split: personal() },
 ];
+
+/** Starter merchant rules. Used to suggest categories during import review. */
+export const merchantRules = [
+  { merchant: "Swiggy", categoryId: "food_delivery" },
+  { merchant: "Zepto", categoryId: "groceries" },
+  { merchant: "Blinkit", categoryId: "groceries" },
+  { merchant: "BigBasket", categoryId: "groceries" },
+  { merchant: "Uber", categoryId: "transport" },
+  { merchant: "Indian Oil", categoryId: "fuel" },
+];
