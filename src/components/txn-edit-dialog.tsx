@@ -6,7 +6,7 @@ import { formatINR } from "@/domain/money";
 import { validateSplit } from "@/domain/splits";
 import type { ExpenseRecord, SplitConfig, TxnKind } from "@/domain/types";
 import { SplitEditor } from "./split-editor";
-import { Button, ChipGroup, Dialog, FormRow, Input } from "./ui";
+import { Button, CompactChips, Dialog, FormRow, Input } from "./ui";
 
 const kinds: { id: TxnKind; label: string }[] = [
   { id: "purchase", label: "Purchase" },
@@ -50,7 +50,7 @@ function Form({ record, onClose, next }: { record: ExpenseRecord; onClose: () =>
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       <div className="rounded-xl bg-background p-3">
         <div className="flex items-baseline justify-between gap-2">
           <span className="num text-lg font-semibold">{formatINR(record.amountPaise)}</span>
@@ -60,21 +60,23 @@ function Form({ record, onClose, next }: { record: ExpenseRecord; onClose: () =>
       </div>
 
       <FormRow label="Merchant"><Input value={merchant} onChange={(e) => setMerchant(e.target.value)} /></FormRow>
-      <FormRow label="Category"><ChipGroup label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} value={categoryId} onChange={setCategoryId} /></FormRow>
-      <FormRow label="Type"><ChipGroup label="Type" options={kinds} value={kind} onChange={setKind} /></FormRow>
-      <FormRow label="Paid by"><ChipGroup label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} value={payerId} onChange={setPayerId} /></FormRow>
+      <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[categoryId]} onPick={setCategoryId} /></FormRow>
+      <FormRow label="Type"><CompactChips label="Type" options={kinds} selected={[kind]} onPick={setKind} /></FormRow>
+      <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} selected={[payerId]} onPick={setPayerId} /></FormRow>
       {isUpi && (
-        <FormRow label="Paid from bank"><ChipGroup label="Paid from bank" options={[{ id: "", label: "Unknown" }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name }))]} value={fundedBy} onChange={setFundedBy} /></FormRow>
+        <FormRow label="From bank"><CompactChips label="Paid from bank" options={[{ id: "", label: "Unknown" }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name }))]} selected={[fundedBy]} onPick={setFundedBy} /></FormRow>
       )}
-      <FormRow label="Who owes what"><SplitEditor total={record.amountPaise} value={split} onChange={setSplit} /></FormRow>
+      <SplitEditor total={record.amountPaise} value={split} onChange={setSplit} />
       <FormRow label="Recurring">
-        <ChipGroup label="Recurring commitment" options={[{ id: "", label: "Not recurring" }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name }))]} value={recurringId} onChange={setRecurringId} />
+        <CompactChips label="Recurring commitment" options={[{ id: "", label: "None" }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name }))]} selected={[recurringId]} onPick={setRecurringId} />
       </FormRow>
-      <FormRow label="Notes"><Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" /></FormRow>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={excluded} onChange={(e) => setExcluded(e.target.checked)} className="size-4 accent-[var(--accent)]" />
-        Exclude from reports (original record is kept)
-      </label>
+      <FormRow label="Notes">
+        <div className="flex items-center gap-2">
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
+          <button type="button" aria-pressed={excluded} onClick={() => setExcluded(!excluded)} title="Exclude from reports (original record is kept)"
+            className={`min-h-9 shrink-0 rounded-full border px-3 text-sm ${excluded ? "border-danger bg-danger/10 text-danger" : "border-border bg-surface"}`}>Exclude</button>
+        </div>
+      </FormRow>
 
       <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <Button onClick={onClose}>Cancel</Button>

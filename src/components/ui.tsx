@@ -1,6 +1,6 @@
 "use client";
 // Shared UI primitives (shadcn-style, token-driven). Compose screens from these.
-import { useEffect, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
@@ -125,12 +125,98 @@ export function ChipGroup<T extends string>({ label, options, value, onChange, t
   );
 }
 
-/** Small section label for forms built from chips. */
+/** Label on the left, control on the right: keeps forms to one line per field. */
 export function FormRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <div className="text-xs font-medium text-muted">{label}</div>
-      {children}
+    <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1">
+      <div className="pt-2 text-xs font-medium text-muted">{label}</div>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+const chipClass = (on: boolean) =>
+  cn("min-h-9 shrink-0 whitespace-nowrap rounded-full border px-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-accent",
+    on ? "border-accent bg-accent font-medium text-white" : "border-border bg-surface hover:bg-background");
+
+/**
+ * One line of chips. Whatever does not fit collapses into a "+N" pill that opens
+ * the full list in a pop-up. Selected options are always kept visible.
+ * `multi` keeps the pop-up open for several picks.
+ */
+export function CompactChips<T extends string>({ label, options, selected, onPick, multi }: { label: string; options: ChipOption<T>[]; selected: T[]; onPick: (id: T) => void; multi?: boolean }) {
+  const wrap = useRef<HTMLDivElement>(null);
+  const meas = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(options.length);
+  const [open, setOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    const compute = () => {
+      const w = wrap.current?.clientWidth ?? 0;
+      const kids = Array.from(meas.current?.children ?? []) as HTMLElement[];
+      const total = kids.length - 1; // last child is the "+N" pill
+      if (total <= 0 || w === 0) return;
+      const gap = 6;
+      const all = kids.slice(0, total).reduce((sum, k) => sum + k.offsetWidth + gap, -gap);
+      if (all <= w) return setFit(total);
+      const moreW = kids[total].offsetWidth;
+      let used = 0;
+      let n = 0;
+      for (let i = 0; i < total; i++) {
+        const next = used + kids[i].offsetWidth + gap;
+        if (next + moreW > w) break;
+        used = next;
+        n = i + 1;
+      }
+      setFit(Math.max(1, n));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    if (wrap.current) ro.observe(wrap.current);
+    return () => ro.disconnect();
+  }, [options]);
+
+  const ids = options.map((o) => o.id);
+  const visible = ids.slice(0, fit);
+  const hidden = ids.slice(fit);
+  // Keep selected options visible by swapping them into the trailing slots.
+  const pinned = selected.filter((id) => hidden.includes(id));
+  for (let i = visible.length - 1, k = 0; k < pinned.length && i >= 0; i--) {
+    if (!selected.includes(visible[i])) { visible[i] = pinned[k++]; }
+  }
+  const overflow = ids.filter((id) => !visible.includes(id));
+  const byId = (id: T) => options.find((o) => o.id === id)!;
+  const chip = (id: T) => (
+    <button key={id} type="button" role={multi ? undefined : "radio"} aria-checked={multi ? undefined : selected.includes(id)} aria-pressed={multi ? selected.includes(id) : undefined}
+      onClick={() => onPick(id)} className={chipClass(selected.includes(id))}>{byId(id).label}</button>
+  );
+  const more = (n: number) => `+${n}`;
+
+  return (
+    <div ref={wrap} role={multi ? "group" : "radiogroup"} aria-label={label} className="relative">
+      <div className="flex gap-1.5 overflow-hidden">
+        {visible.map(chip)}
+        {overflow.length > 0 && (
+          <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className={cn(chipClass(false), "border-dashed text-accent")}>
+            {more(overflow.length)} more
+          </button>
+        )}
+      </div>
+      <div aria-hidden className="pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden">
+        <div ref={meas} className="flex w-max gap-1.5">
+          {options.map((o) => <span key={o.id} className={chipClass(false)}>{o.label}</span>)}
+          <span className={chipClass(false)}>{more(99)} more</span>
+        </div>
+      </div>
+      <Dialog open={open} onClose={() => setOpen(false)} title={label}>
+        <div className="flex flex-wrap gap-1.5 pb-4">
+          {ids.map((id) => (
+            <button key={id} type="button" aria-pressed={selected.includes(id)}
+              onClick={() => { onPick(id); if (!multi) setOpen(false); }} className={chipClass(selected.includes(id))}>{byId(id).label}</button>
+          ))}
+        </div>
+        {multi && <div className="sticky bottom-0 -mx-4 flex justify-end border-t border-border bg-surface px-4 py-3"><Button variant="primary" onClick={() => setOpen(false)}>Done</Button></div>}
+      </Dialog>
     </div>
   );
 }
