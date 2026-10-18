@@ -14,6 +14,11 @@ describe("env validation", () => {
     expect(s.APP_ENV).toBe("development");
     expect(s.FIREBASE_ADMIN_PRIVATE_KEY).toContain("\n");
   });
+  it("accepts a private key pasted with its surrounding quotes and literal \\n sequences", () => {
+    const quoted = parseServerEnv({ ...server, FIREBASE_ADMIN_PRIVATE_KEY: `"${server.FIREBASE_ADMIN_PRIVATE_KEY}"` });
+    expect(quoted.FIREBASE_ADMIN_PRIVATE_KEY.startsWith("-----BEGIN PRIVATE KEY-----\n")).toBe(true);
+    expect(quoted.FIREBASE_ADMIN_PRIVATE_KEY.endsWith('"')).toBe(false);
+  });
   it("names every missing variable and never echoes values", () => {
     try { parseClientEnv({ NEXT_PUBLIC_FIREBASE_API_KEY: "secret-value" }); throw new Error("should fail"); } catch (e) {
       expect(e).toBeInstanceOf(EnvError);

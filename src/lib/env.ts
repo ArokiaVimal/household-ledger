@@ -35,5 +35,7 @@ export const parseClientEnv = (source: Record<string, string | undefined>) => pa
 /** Server-only. Never import from client components. */
 export const parseServerEnv = (source: Record<string, string | undefined>) => {
   const env = parse(serverSchema, source, "server");
-  return { ...env, FIREBASE_ADMIN_PRIVATE_KEY: env.FIREBASE_ADMIN_PRIVATE_KEY.replace(/\\n/g, "\n") };
+  // Hosts differ: some keep the surrounding quotes and literal \n sequences from a pasted .env line. Normalise both.
+  const key = env.FIREBASE_ADMIN_PRIVATE_KEY.trim().replace(/^"([\s\S]*)"$/, "$1").replace(/\\n/g, "\n");
+  return { ...env, FIREBASE_ADMIN_PRIVATE_KEY: key };
 };
