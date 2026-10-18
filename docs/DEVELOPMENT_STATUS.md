@@ -1,6 +1,6 @@
 # Development status
 
-Updated: 2026-10-18 · Branch `feat/stage3-slice4-rules` (stacked on earlier slice branches) · Stages 1–2 complete (prototype). Stage 3 slices 1–3 built; slice 4 written but its tests have NOT been run; slices 5–8 not started (see `STAGE3_PLAN.md`).
+Updated: 2026-10-18 · Branch `feat/stage3-slice4-rules` (stacked on earlier slice branches) · Stages 1–2 complete (prototype). Stage 3 slices 1–4 built and tested locally; slices 5–8 not started (see `STAGE3_PLAN.md`).
 
 ## Implemented and verified
 - Domain (`src/domain`): integer-paise money, equal/percent/custom splits (deterministic remainder), spending rules (refunds subtract; cc payments, transfers, income, excluded ignored), pairwise balances with settlements/voids, duplicate detection (reference id exact; date+amount+merchant possible), receipt match suggestions.
@@ -16,11 +16,13 @@ Updated: 2026-10-18 · Branch `feat/stage3-slice4-rules` (stacked on earlier sli
 - Google sign-in added (popup; same session cookie flow and allowlist). Needs the Google provider enabled in the Firebase console and the app's domain in Authorized domains (localhost is there by default). Not tested with a real Google account.
 - `ALLOWED_EMAILS` env var added (temporary allowlist until household membership in slice 3).
 
-## Stage 3 slice 4: security rules (written; **tests not yet run**)
+## Stage 3 slice 4: security rules (built; 24 emulator tests pass locally)
 - `firestore.rules`: household membership via `households/{hid}/members/{uid}`; members read everything in their household; `users`, `households`, `members`, `invites` are server-write-only; records validated (integer positive paise, enums, no extra fields), never deletable, imported bank fields immutable; settlements corrected only by setting `voided`; audit events must carry the caller's own uid and are immutable; raw transactions write-once; participants/accounts not deletable; everything else denied. The data collections (`records`, `settlements`, ...) do not exist in the app yet; the rules define the contract for slice 5.
-- `storage.rules`: `households/{hid}/files/{id}` only; members read/upload, PDF/CSV/XLSX/JPEG/PNG/WebP only, 1 byte to 15 MB, write-once, owner-only delete; all else denied.
-- `firebase.json` (emulator ports), `vitest.rules.config.mts`, `pnpm test:rules` (runs `firebase emulators:exec` with Firestore and Storage emulators), `tests/rules/*.test.ts` (about 30 cases: cross-household denial, anonymous, privilege escalation, money validation, immutability, file type and size).
-- **Blocker: the emulators need Java 21+, which is not installed on this machine.** Until `pnpm test:rules` has actually passed, treat the rules as unverified. Rules are not yet deployed to the Firebase project.
+- `storage.rules`: `households/{hid}/files/{id}` only; members read/upload, PDF/CSV/XLSX/JPEG/PNG/WebP only, 1 byte to 15 MB, write-once (create requires no existing object), owner-only delete; all else denied.
+- Tests: `pnpm test:rules` runs `firebase emulators:exec` (Firestore + Storage) and `tests/rules/*.test.ts`: 19 Firestore cases (cross-household denial, anonymous, privilege escalation, money validation, immutability, audit forgery) and 5 Storage cases (membership, type, size, write-once, paths). All 24 pass.
+- The first run found a real bug: Storage allowed overwriting an existing file; fixed with `resource == null` on create. Mutation check: deliberately loosening two rules (member-doc writes, record deletes) made exactly the matching tests fail, so the tests are not vacuous.
+- Needs Java 21+ and the Firebase CLI (a dev dependency). On this Mac Java is at `~/.local/java/Contents/Home` (Temurin 21 JRE, checksum verified): `export JAVA_HOME=$HOME/.local/java/Contents/Home; export PATH=$JAVA_HOME/bin:$PATH`. CI runs the rules tests with `actions/setup-java` (not yet run on GitHub: no remote).
+- **Not deployed**: the rules are not published to the Firebase project (the app uses server-side Admin access, so deployed rules only matter once clients talk to Firestore/Storage directly). Deploy with `firebase deploy --only firestore:rules,storage` after `firebase login`, as part of slice 5/8. Storage also needs the Blaze plan.
 
 ## Custom categories and Varru (added after slice 3)
 - The partner participant is named **Varru** in the UI and mock data (internal id stays `wife`; split preset reads "Me + Varru").

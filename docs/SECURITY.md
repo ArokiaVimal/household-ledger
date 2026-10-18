@@ -10,6 +10,9 @@
 
 Console hardening to do by hand (required while Email/Password is enabled, because self-registered password accounts have unverified emails): in Firebase Authentication settings disable user sign-up (create accounts for the two of you manually) and keep the project's API key restricted to your domains. Once Google sign-in works, consider disabling the Email/Password provider entirely. Known limit: Google popup sign-in can be unreliable inside an iPhone Home Screen (standalone PWA); use Safari for first sign-in.
 
+## Rules (Stage 3 slice 4, tested in the emulator, not yet deployed)
+`firestore.rules` and `storage.rules` enforce household membership, integer-paise validation, immutability of imported data, append-only settlements/audit, private typed size-limited files. 24 emulator tests (`pnpm test:rules`). Server routes use the Admin SDK (bypasses rules), so every route authorises with the verified session first.
+
 ## Planned (remaining slices)
 
 - Firebase Auth per user; membership doc `households/{h}/members/{uid}` grants access. Firestore/Storage rules check membership server-side; owner-only for member management and deletion.

@@ -16,7 +16,10 @@ export async function setup(): Promise<RulesTestEnvironment> {
   return env;
 }
 
-export const record = (o: Record<string, unknown> = {}) => ({
+/** Firestore's client rejects `undefined`, so drop keys the caller wants absent. */
+const defined = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+
+export const record = (o: Record<string, unknown> = {}) => defined({
   date: "2026-09-05", merchant: "Zepto", originalDescription: "ZEPTO MARKETPLACE BLR", amountPaise: 64200, currency: "INR",
   accountId: "cc_hdfc", categoryId: "groceries", kind: "purchase", payerId: "me", shared: false, split: { mode: "personal", participantIds: ["me"] },
   excluded: false, status: "reviewed", importSource: "HDFC_Sep2026.csv", referenceId: "CC0905A", ...o,

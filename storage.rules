@@ -21,7 +21,7 @@ service firebase.storage {
 
     match /households/{hid}/files/{fileId} {
       allow read: if isMember(hid);
-      allow create: if isMember(hid) && request.resource.size > 0 && request.resource.size <= 15 * 1024 * 1024 && allowedType();
+      allow create: if isMember(hid) && resource == null && request.resource.size > 0 && request.resource.size <= 15 * 1024 * 1024 && allowedType();
       allow update: if false;            // uploads are write-once
       allow delete: if isOwner(hid);
     }
