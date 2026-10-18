@@ -1,6 +1,6 @@
 # Development status
 
-Updated: 2026-10-18 · Branch `feat/stage3-slice2-auth` (stacked on slice 1 and `feat/domain-core`) · Stages 1–2 complete (prototype). Stage 3 slices 1–2 built; slices 3–8 not started (see `STAGE3_PLAN.md`).
+Updated: 2026-10-18 · Branch `feat/stage3-slice3-households` (stacked on slice 2, slice 1 and `feat/domain-core`) · Stages 1–2 complete (prototype). Stage 3 slices 1–3 built; slices 4–8 not started (see `STAGE3_PLAN.md`).
 
 ## Implemented and verified
 - Domain (`src/domain`): integer-paise money, equal/percent/custom splits (deterministic remainder), spending rules (refunds subtract; cc payments, transfers, income, excluded ignored), pairwise balances with settlements/voids, duplicate detection (reference id exact; date+amount+merchant possible), receipt match suggestions.
@@ -15,6 +15,13 @@ Updated: 2026-10-18 · Branch `feat/stage3-slice2-auth` (stacked on slice 1 and 
 - Verified by running a production build with dummy env: no cookie redirects to `/login`, forged cookie shows no app content, cross-origin POST is 403, garbage token is a generic 401, prototype mode (no env) still works. **Not verified against a real Firebase project: the owner must put real values in `.env.local` and test an actual sign-in.**
 - Google sign-in added (popup; same session cookie flow and allowlist). Needs the Google provider enabled in the Firebase console and the app's domain in Authorized domains (localhost is there by default). Not tested with a real Google account.
 - `ALLOWED_EMAILS` env var added (temporary allowlist until household membership in slice 3).
+
+## Stage 3 slice 3: households and membership (built; real signed-in flow not yet exercised by the owner)
+- Firestore layout: `households/{id}`, `households/{id}/members/{uid}` (role owner|member), `invites/{sha256(code)}`, `users/{uid}.householdId`. All access is through server code (`/api/household`, Admin SDK); client access is blocked until slice 4 rules.
+- Logic is split for testing: `src/lib/households/{logic,service}.ts` (pure rules + use cases against a `HouseholdStore` interface), `memory-store.ts` (tests), `firestore-store.ts` (app). Owner-only invite/revoke/remove; invite code is 10 unbiased random chars (XXXXX-XXXXX), valid 7 days, bound to one email, single use (transactional), stored only as a SHA-256 hash, shown to the owner once; every join failure returns one generic message; member cap 4 including pending invites.
+- UI: Settings → Household card (create, join with code, member list, invite, copy code, pending invites with revoke, remove member).
+- Tests: 15 unit tests + 1 opt-in real-Firestore integration test (`RUN_FIRESTORE_TESTS=1 node --env-file=.env.local node_modules/vitest/vitest.mjs run tests/integration`; passed against the dev project, cleans up after itself). Normal `pnpm test` skips it.
+- Known limits: the app's transaction data is still mock/in-memory and is not yet scoped by household (slice 5). Participants (friends without accounts) are not yet persisted per household. The temporary `ALLOWED_EMAILS` allowlist still gates sign-in; once membership gates data it can be relaxed to "invited emails".
 
 ## Profile page (added after slice 2)
 - `/profile`: full name, greeting name (header says "Hi <greeting name>"), phone, default view (Household/Personal), photo upload. Email is read-only (from the sign-in). Header avatar links here and shows the custom photo, else the Google photo, else initials.
@@ -66,6 +73,6 @@ Firebase project (Auth, Firestore, Storage), Firestore/Storage rules + emulator 
 
 ## Next recommended tasks
 1. Merge branches to `main` after review (no remote configured yet; create the GitHub repo and push).
-2. Owner: put real Firebase values in `.env.local`, create the two users, sign in. Then slice 3 (households/membership) and slice 4 (rules + emulator tests; needs Java 21+, firebase-tools).
+2. Owner: create the household in Settings and invite the spouse (their Google email must also be in `ALLOWED_EMAILS`). Then slice 4 (rules + emulator tests; needs Java 21+, firebase-tools).
 3. Split raw transactions from expenses in the data model; add export/restore round-trip test.
 4. Stage 4: CSV parser with real file-hash dedupe, then XLSX, then PDF.

@@ -11,3 +11,6 @@ Planned collections (Stage 3), all under `households/{householdId}/…`: members
 Kinds: purchase, refund, income, transfer, cc_payment, fee. Only purchase/fee/refund affect spending.
 Split: `personal | equal | percent(basis points) | custom(paise)`; equal-split remainder goes to earlier participants in list order.
 Migrations: versioned scripts in `migrations/` (not yet created).
+
+## Auth-side collections (implemented)
+`users/{uid}`: profile fields + `householdId`. `households/{id}` {name, ownerUid, createdAt}; `households/{id}/members/{uid}` {email, displayName, role, joinedAt}; `invites/{sha256(code)}` {householdId, email, createdBy, createdAt, expiresAt, usedAt?}. Written only by server routes.

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Badge, Button, Card, CardTitle, Dialog, PageHeader } from "@/components/ui";
 import { accounts, participants } from "@/data/mock";
 import { useStore } from "@/data/store";
+import { HouseholdCard } from "./household-card";
 
 export default function Settings() {
   const { records, settlements, receipts } = useStore();
@@ -22,6 +23,7 @@ export default function Settings() {
     <>
       <PageHeader title="Settings" actions={<Badge tone="warn">Prototype</Badge>} />
       <div className="grid gap-3 md:grid-cols-2">
+        <div className="md:col-span-2"><HouseholdCard /></div>
         <Card>
           <CardTitle>More screens</CardTitle>
           <div className="flex flex-wrap gap-2">
