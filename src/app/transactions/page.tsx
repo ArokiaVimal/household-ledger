@@ -1,14 +1,54 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
-import { Amount, TxnBadges, TxnCard } from "@/components/txn-row";
+import { Amount, MerchantAvatar, TxnBadges, TxnCard } from "@/components/txn-row";
 import { TxnEditDialog } from "@/components/txn-edit-dialog";
 import { Badge, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { accounts, categories, ME } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
-import { summarize } from "@/domain/reports";
+import { groupNet, summarize } from "@/domain/reports";
+import { cn } from "@/lib/cn";
 import type { ExpenseRecord } from "@/domain/types";
+
+const VIEWS = [
+  { id: "all", label: "All" },
+  { id: "account", label: "Payment methods" },
+  { id: "merchant", label: "Platforms & merchants" },
+  { id: "category", label: "Categories" },
+  { id: "payer", label: "Paid by" },
+] as const;
+
+/** Grouped view. Group totals come from the domain groupNet (same rule as the dashboard). */
+function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: string; onEdit: (r: ExpenseRecord) => void }) {
+  const { nameOf, categoryName, accountName } = useStore();
+  const [open, setOpen] = useState<string | null>(null);
+  const keyOf = (r: ExpenseRecord) => (view === "account" ? r.accountId : view === "merchant" ? r.merchant : view === "category" ? r.categoryId : r.payerId);
+  const label = (k: string) => (view === "account" ? accountName(k) : view === "category" ? categoryName(k) : view === "payer" ? nameOf(k) : k);
+  const totals = groupNet(rows, keyOf);
+  const keys = [...new Set(rows.map(keyOf))].sort((a, b) => (totals[b] ?? 0) - (totals[a] ?? 0));
+  return (
+    <ul className="space-y-2">
+      {keys.map((k) => {
+        const items = rows.filter((r) => keyOf(r) === k);
+        const isOpen = open === k;
+        return (
+          <li key={k} className="overflow-hidden rounded-[var(--radius-card)] bg-surface">
+            <button aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : k)} className="flex w-full items-center gap-3 p-3 text-left hover:bg-background">
+              <MerchantAvatar name={label(k)} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium">{label(k)}</div>
+                <div className="text-xs text-muted">{items.length} transaction{items.length === 1 ? "" : "s"}</div>
+              </div>
+              <div className="num text-right font-semibold">{formatINR(totals[k] ?? 0)}<div className="text-xs font-normal text-muted">net spending</div></div>
+            </button>
+            {isOpen && <div className="space-y-2 border-t border-border bg-background p-2">{items.map((r) => <TxnCard key={r.id} r={r} onClick={() => onEdit(r)} />)}</div>}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 function TransactionsView() {
   const { records, scoped, month, nameOf, categoryName, accountName } = useStore();
@@ -40,6 +80,7 @@ function TransactionsView() {
   }, [records, scoped, params]);
 
   const total = summarize(rows, ME);
+  const view = get("view") || "all";
   const active = ["q", "category", "merchant", "status", "kind", "account", "shared"].filter((k) => get(k));
 
   return (
@@ -66,7 +107,15 @@ function TransactionsView() {
           <button className="text-muted underline" onClick={() => router.replace(`/transactions${get("month") ? `?month=${get("month")}` : ""}`)}>Clear filters</button>
         </div>
       )}
-      {rows.length === 0 ? <EmptyState title="No transactions match" hint="Try clearing a filter." /> : (
+      <div role="tablist" aria-label="Group transactions" className="mb-3 flex gap-1 overflow-x-auto rounded-full bg-surface p-1">
+        {VIEWS.map((v) => (
+          <button key={v.id} role="tab" aria-selected={view === v.id} onClick={() => set("view", v.id === "all" ? "" : v.id)}
+            className={cn("shrink-0 rounded-full px-3.5 py-1.5 text-sm", view === v.id ? "bg-foreground text-white" : "text-muted hover:bg-background")}>{v.label}</button>
+        ))}
+      </div>
+      {rows.length === 0 ? <EmptyState title="No transactions match" hint="Try clearing a filter." /> : view !== "all" ? (
+        <GroupedView rows={rows} view={view} onEdit={setEditing} />
+      ) : (
         <>
           <div className="space-y-2 md:hidden">{rows.map((r) => <TxnCard key={r.id} r={r} onClick={() => setEditing(r)} />)}</div>
           <div className="hidden overflow-hidden rounded-[var(--radius-card)] bg-surface md:block">
@@ -78,7 +127,7 @@ function TransactionsView() {
                 {rows.map((r) => (
                   <tr key={r.id} onClick={() => setEditing(r)} className="cursor-pointer border-b border-border last:border-0 hover:bg-background">
                     <td className="num p-2.5 text-muted">{r.date.slice(5)}</td>
-                    <td><div className="font-medium">{r.merchant}</div><div className="mt-0.5 flex flex-wrap gap-1"><TxnBadges r={r} /></div></td>
+                    <td><div className="flex items-center gap-2.5 py-1.5"><MerchantAvatar name={r.merchant} size={32} /><div><div className="font-medium">{r.merchant}</div><div className="mt-0.5 flex flex-wrap gap-1"><TxnBadges r={r} /></div></div></div></td>
                     <td>{categoryName(r.categoryId)}</td><td>{nameOf(r.payerId)}</td><td className="text-muted">{accountName(r.accountId)}</td>
                     <td className="text-right"><Amount r={r} /></td>
                     <td className="num pr-2.5 text-right text-muted">{summarize([r], ME).myShare ? formatINR(summarize([r], ME).myShare) : "—"}</td>
