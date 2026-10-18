@@ -1,5 +1,6 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
 import { Amount, MerchantAvatar, TxnBadges, TxnCard } from "@/components/txn-row";
 import { TxnEditDialog } from "@/components/txn-edit-dialog";
@@ -22,31 +23,48 @@ const VIEWS = [
 /** Grouped view. Group totals come from the domain groupNet (same rule as the dashboard). */
 function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: string; onEdit: (r: ExpenseRecord) => void }) {
   const { nameOf, categoryName, accountName } = useStore();
-  const [open, setOpen] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const keyOf = (r: ExpenseRecord) => (view === "account" ? r.accountId : view === "merchant" ? r.merchant : view === "category" ? r.categoryId : r.payerId);
   const label = (k: string) => (view === "account" ? accountName(k) : view === "category" ? categoryName(k) : view === "payer" ? nameOf(k) : k);
   const totals = groupNet(rows, keyOf);
   const keys = [...new Set(rows.map(keyOf))].sort((a, b) => (totals[b] ?? 0) - (totals[a] ?? 0));
+  const toggle = (k: string) => setCollapsed((c) => { const n = new Set(c); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   return (
-    <ul className="space-y-2">
+    <div className="space-y-4">
       {keys.map((k) => {
         const items = rows.filter((r) => keyOf(r) === k);
-        const isOpen = open === k;
+        const shut = collapsed.has(k);
         return (
-          <li key={k} className="overflow-hidden rounded-[var(--radius-card)] bg-surface">
-            <button aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : k)} className="flex w-full items-center gap-3 p-3 text-left hover:bg-background">
-              <MerchantAvatar name={label(k)} />
+          <section key={k} aria-label={label(k)} className="overflow-hidden rounded-[var(--radius-card)] bg-surface">
+            <button aria-expanded={!shut} onClick={() => toggle(k)} className="flex w-full items-center gap-3 bg-accent-soft p-4 text-left">
+              <MerchantAvatar name={label(k)} size={48} />
               <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{label(k)}</div>
+                <h3 className="truncate text-lg font-semibold">{label(k)}</h3>
                 <div className="text-xs text-muted">{items.length} transaction{items.length === 1 ? "" : "s"}</div>
               </div>
-              <div className="num text-right font-semibold">{formatINR(totals[k] ?? 0)}<div className="text-xs font-normal text-muted">net spending</div></div>
+              <div className="num text-right text-lg font-semibold">{formatINR(totals[k] ?? 0)}<div className="text-xs font-normal text-muted">net spending</div></div>
+              <ChevronDown size={18} aria-hidden className={cn("shrink-0 text-muted transition-transform", shut && "-rotate-90")} />
             </button>
-            {isOpen && <div className="space-y-2 border-t border-border bg-background p-2">{items.map((r) => <TxnCard key={r.id} r={r} onClick={() => onEdit(r)} />)}</div>}
-          </li>
+            {!shut && (
+              <ul className="ml-9 border-l-2 border-accent-soft py-1">
+                {items.map((r) => (
+                  <li key={r.id}>
+                    <button onClick={() => onEdit(r)} className="flex w-full items-center gap-3 py-2 pl-4 pr-4 text-left hover:bg-background">
+                      <MerchantAvatar name={r.merchant} size={32} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{r.merchant}</div>
+                        <div className="flex flex-wrap items-center gap-1 text-xs text-muted">{r.date.slice(5)} · {view === "category" ? accountName(r.accountId) : categoryName(r.categoryId)}<TxnBadges r={r} /></div>
+                      </div>
+                      <Amount r={r} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         );
       })}
-    </ul>
+    </div>
   );
 }
 
