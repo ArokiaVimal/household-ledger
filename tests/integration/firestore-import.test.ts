@@ -19,6 +19,7 @@ describe.skipIf(!enabled)("statement import on Firestore", () => {
   afterAll(async () => {
     const { deleteHouseholdData } = await import("@/data/firestore-repository");
     await deleteHouseholdData(hid);
+    await deleteHouseholdData(`${hid}-pdf`);
   }, 60_000);
 
   it("commit, re-upload refused, overlap deduplicated, raw rows immutable", async () => {
@@ -64,7 +65,6 @@ describe.skipIf(!enabled)("statement import on Firestore", () => {
     const { parseStatementPdf } = await import("@/domain/import/pdf");
     const { header, page, row } = await import("@/domain/import/pdf/test-fixtures");
     const repo = createFirestoreRepository(`${hid}-pdf`);
-    created.push(`${hid}-pdf`);
     await ensureHouseholdReady(repo, [{ uid: "itest-u1", displayName: "Vimal" }]);
     await repo.accounts.put({ id: "cc_amex", name: "Amex Platinum Travel", type: "credit_card" });
     const pages = [page(1, [...header(undefined, ["0.00", "500.00", "1,500.00", "1,000.00", "50.00"]), ...row(478, "September 10", "TEST MART", "1,500.00"), ...row(460, "September 12", "REFUND TEST", "500.00", { cr: true })])];
