@@ -1,7 +1,7 @@
 import type { Repository } from "@/data/repository";
 import { DEFAULT_CATEGORIES } from "@/domain/defaults";
 import type { MerchantRule } from "@/domain/rules";
-import type { Account, Category, ExpenseRecord, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
+import type { Account, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
 
 /** Everything the UI needs for one household, as plain JSON. */
 export interface HouseholdData {
@@ -13,6 +13,7 @@ export interface HouseholdData {
   accounts: Account[];
   categories: Category[];
   rules: MerchantRule[];
+  importBatches: ImportBatch[];
 }
 
 export const participantIdFor = (uid: string) => `u_${uid}`;
@@ -30,14 +31,15 @@ export async function ensureHouseholdReady(repo: Repository, members: { uid: str
 }
 
 export async function loadHouseholdData(repo: Repository): Promise<HouseholdData> {
-  const [records, settlements, receipts, recurring, participants, accounts, categories, rules] = await Promise.all([
-    repo.records.list(), repo.settlements.list(), repo.receipts.list(), repo.recurring.list(), repo.participants.list(), repo.accounts.list(), repo.categories.list(), repo.rules.list(),
+  const [records, settlements, receipts, recurring, participants, accounts, categories, rules, importBatches] = await Promise.all([
+    repo.records.list(), repo.settlements.list(), repo.receipts.list(), repo.recurring.list(), repo.participants.list(), repo.accounts.list(), repo.categories.list(), repo.rules.list(), repo.importBatches.list(),
   ]);
   const byDate = (a: ExpenseRecord, b: ExpenseRecord) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id);
   return {
     records: records.sort(byDate), settlements: settlements.sort((a, b) => a.date.localeCompare(b.date)), receipts, recurring,
     participants: participants.sort((a, b) => a.name.localeCompare(b.name)), accounts, categories: categories.sort(orderCategories),
     rules: rules.map((r) => ({ merchant: r.merchant, categoryId: r.categoryId })),
+    importBatches: importBatches.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)),
   };
 }
 

@@ -12,7 +12,7 @@ import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { recurringStatuses } from "@/domain/recurring";
 import { signedShare, summarize } from "@/domain/reports";
 import type { MerchantRule } from "@/domain/rules";
-import type { Account, Category, ExpenseRecord, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
+import type { Account, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
 import type { HouseholdData } from "@/lib/data/load";
 import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, participants as mockParticipants, recurringItems as mockRecurring, trendHistory as mockTrend } from "./mock";
 
@@ -52,6 +52,8 @@ interface Store {
   staged: ExpenseRecord[];
   settlements: Settlement[];
   receipts: Receipt[];
+  /** Statement upload history, newest first (live mode). */
+  importBatches: ImportBatch[];
   month: string;
   setMonth: (m: string) => void;
   view: View;
@@ -116,12 +118,12 @@ function seed(live?: LiveInit) {
     const d = live.data;
     return {
       records: d.records.filter((r) => r.status === "reviewed"), staged: d.records.filter((r) => r.status === "unreviewed"), categories: d.categories, rules: d.rules, settlements: d.settlements,
-      receipts: d.receipts, participants: d.participants, accounts: d.accounts, recurringItems: d.recurring,
+      receipts: d.receipts, participants: d.participants, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches,
     };
   }
   return {
     records: initialRecords.filter((r) => r.status === "reviewed"), staged: initialRecords.filter((r) => r.status === "unreviewed"), categories: mockCategories, rules: merchantRules,
-    settlements: initialSettlements, receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring,
+    settlements: initialSettlements, receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[],
   };
 }
 
@@ -285,7 +287,7 @@ export function StoreProvider({ children, initialView = "household", live }: { c
 
   const value: Store = {
     live: !!live, householdReady: live ? live.ready : true, meId, ownerParticipantId: live ? live.ownerId || meId : ME, partnerId, today, participants, accounts, recurringItems, trendHistory,
-    records, staged, settlements, receipts, month, setMonth, view, setView, scoped, summary, balances, recurring,
+    records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, recurring,
     categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
