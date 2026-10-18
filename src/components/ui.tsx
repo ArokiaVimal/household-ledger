@@ -89,7 +89,8 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      // A dialog inside a dialog (e.g. the "+N more" chip pop-up) must not close its parent: React lets `close` bubble through the tree.
+      onClose={(e) => { if (e.target === ref.current) onClose(); }}
       onClick={(e) => e.target === ref.current && onClose()}
       className="m-auto w-[min(36rem,calc(100vw-1.5rem))] rounded-2xl bg-surface p-0 backdrop:bg-black/30 max-sm:mb-0 max-sm:mt-auto max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none"
     >

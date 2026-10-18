@@ -138,6 +138,19 @@ describe("accounts, participants and input safety", () => {
     await fails(applyAction(repo, actor, { type: "participant.add", id: "p_karthik", name: "K" }), "conflict");
     expect((await repo.participants.get("p_karthik"))!.userId).toBeNull();
   });
+  it("removes an unused friend, but never one in a split or a person with an account", async () => {
+    const repo = await setup();
+    await applyAction(repo, actor, { type: "participant.add", id: "p_karthik", name: "Karthik" });
+    await applyAction(repo, actor, { type: "participant.add", id: "p_priya", name: "Priya" });
+    await repo.records.put(imported({ id: "shared1", referenceId: "R2", shared: true, split: { mode: "equal", participantIds: ["me", "p_priya"] } }));
+    await fails(applyAction(repo, actor, { type: "participant.delete", id: "p_priya" }), "conflict");
+    await applyAction(repo, actor, { type: "participant.delete", id: "p_karthik" });
+    expect(await repo.participants.get("p_karthik")).toBeNull();
+    expect(await repo.participants.get("p_priya")).not.toBeNull();
+    await repo.participants.put({ id: "u_u2", name: "Varru", userId: "u2" });
+    await fails(applyAction(repo, actor, { type: "participant.delete", id: "u_u2" }), "conflict");
+    await fails(applyAction(repo, actor, { type: "participant.delete", id: "nobody" }), "not_found");
+  });
   it("unknown actions and junk are refused, and every accepted change wrote an audit event", async () => {
     const repo = await setup();
     await fails(applyAction(repo, actor, { type: "drop.database" }), "invalid");

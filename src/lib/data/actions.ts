@@ -6,6 +6,7 @@ import { categoryUsage, checkDelete, cleanCategoryName, validateCategoryName } f
 import type { Repository } from "@/data/repository";
 import { ConflictError } from "@/data/repository";
 import { ExpenseRecordSchema, SplitConfigSchema, ruleId } from "@/data/schemas";
+import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
 import { buildShared, planShare, SharingError } from "@/domain/sharing";
@@ -42,6 +43,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("account.add"), id, name: z.string().min(1).max(60), accountType: z.enum(["credit_card", "bank", "upi", "cash"]) }),
   z.object({ type: z.literal("accounts.addSuggested") }),
   z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60) }),
+  z.object({ type: z.literal("participant.delete"), id }),
 ]);
 export type Action = z.infer<typeof ActionSchema>;
 
@@ -234,6 +236,15 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const add = SUGGESTED_ACCOUNTS.filter((x) => !have.has(x.id));
       for (const acc of add) await repo.accounts.put(acc);
       await log("create", "household", "accounts", `Added ${add.length} suggested payment methods`);
+      return;
+    }
+    case "participant.delete": {
+      const [p, records, settlements, recurring] = await Promise.all([repo.participants.get(a.id), repo.records.list(), repo.settlements.list(), repo.recurring.list()]);
+      const check = checkFriendDelete(p ?? undefined, `u_${actor.uid}`, friendUsage(a.id, { records, settlements, recurring }));
+      if (!p) throw new ActionError("not_found", "That person was not found.");
+      if (!check.ok) throw new ActionError("conflict", check.reason);
+      await repo.participants.remove(a.id);
+      await log("delete", "household", a.id, `Removed friend ${p.name}`);
       return;
     }
     case "participant.add": {
