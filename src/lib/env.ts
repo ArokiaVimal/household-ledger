@@ -15,6 +15,8 @@ const serverSchema = z.object({
   FIREBASE_ADMIN_PROJECT_ID: z.string().min(1),
   FIREBASE_ADMIN_CLIENT_EMAIL: z.string().email(),
   FIREBASE_ADMIN_PRIVATE_KEY: z.string().includes("PRIVATE KEY"),
+  /** Comma-separated sign-in allowlist until household membership (slice 3) replaces it. */
+  ALLOWED_EMAILS: z.string().min(3),
   APP_ENV: z.enum(["development", "preview", "production"]).default("development"),
 });
 

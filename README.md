@@ -9,7 +9,7 @@ Private, mobile-first personal finance and expense-splitting app (PWA) for one h
 nvm use            # Node 22 (see .nvmrc); pnpm 9 via corepack
 corepack enable
 pnpm install
-cp .env.example .env.local   # not needed yet; used from Stage 3
+cp .env.example .env.local   # optional: without it the app runs in prototype mode (mock data, no sign-in)
 pnpm dev                     # http://localhost:3000
 ```
 

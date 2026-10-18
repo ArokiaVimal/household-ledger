@@ -1,5 +1,5 @@
 "use client";
-import { BarChart3, Bell, ClipboardCheck, FileUp, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags, Waves } from "lucide-react";
+import { BarChart3, Bell, ClipboardCheck, FileUp, LogOut, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags, Waves } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -21,7 +21,7 @@ const nav = [
   { href: "/settings", label: "Settings", icon: Settings, mobile: true },
 ];
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, user }: { children: ReactNode; user: { email: string } | null }) {
   const path = usePathname();
   const router = useRouter();
   const { month, setMonth, view, setView, staged } = useStore();
@@ -30,6 +30,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [round, setRound] = useState(0);
   const [toast, setToast] = useState("");
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+  const signOut = async () => {
+    await fetch("/api/session", { method: "DELETE" });
+    router.replace("/login");
+    router.refresh();
+  };
   const go = (e: React.FormEvent) => { e.preventDefault(); router.push(`/transactions?q=${encodeURIComponent(q)}`); };
 
   return (
@@ -70,7 +75,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Bell size={18} aria-hidden />
                 {staged.length > 0 && <span className="absolute right-1.5 top-1.5 size-2.5 rounded-full bg-danger" />}
               </Link>
-              <div aria-hidden className="order-3 grid size-10 md:order-7 place-items-center rounded-full bg-accent text-sm font-medium text-white">A</div>
+              <div aria-hidden title={user?.email} className="order-3 grid size-10 place-items-center rounded-full bg-accent text-sm font-medium text-white md:order-7">{(user?.email[0] ?? "V").toUpperCase()}</div>
+              {user && <button onClick={signOut} aria-label="Sign out" title="Sign out" className="order-3 grid size-10 place-items-center rounded-full bg-surface text-muted md:order-8"><LogOut size={16} aria-hidden /></button>}
             </header>
             <main className="px-4 pb-24 md:px-0 md:pb-4">{children}</main>
           </div>

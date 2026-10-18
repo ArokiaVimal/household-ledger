@@ -1,6 +1,6 @@
 # Development status
 
-Updated: 2026-10-18 · Branch `feat/stage3-slice1-repository` (on top of `feat/domain-core`) · Stages 1–2 complete (prototype). Stage 3 slice 1 done; slices 2–8 not started (see `STAGE3_PLAN.md`).
+Updated: 2026-10-18 · Branch `feat/stage3-slice2-auth` (stacked on slice 1 and `feat/domain-core`) · Stages 1–2 complete (prototype). Stage 3 slices 1–2 built; slices 3–8 not started (see `STAGE3_PLAN.md`).
 
 ## Implemented and verified
 - Domain (`src/domain`): integer-paise money, equal/percent/custom splits (deterministic remainder), spending rules (refunds subtract; cc payments, transfers, income, excluded ignored), pairwise balances with settlements/voids, duplicate detection (reference id exact; date+amount+merchant possible), receipt match suggestions.
@@ -8,6 +8,12 @@ Updated: 2026-10-18 · Branch `feat/stage3-slice1-repository` (on top of `feat/d
 - UI on 42 fictional Sept 2026 records: Dashboard (clickable charts → filtered Transactions), Transactions (compact edit dialog (one line per field; overflow chips open a "+N more" pop-up) with quick split presets and Save & next for unreviewed rows; search/filters, group tabs: All, Payment methods, Platforms & merchants, Categories, Paid by; table with logos + mobile cards, edit dialog with split editor), Settlements (record/void/partial), Receipts (suggest/link/unlink), Categories & rules (apply to unreviewed), Reports, Settings (members, participants, accounts, mock JSON export, delete-confirm dialog), Import centre (simulated), PWA manifest, mobile bottom nav.
 - Manual check: dashboard and mobile transactions/edit dialog viewed in browser at 375px and desktop. Other screens were built but only dashboard/transactions/import were eyeballed.
 - Docs, CI workflow (`.github/workflows/ci.yml`, not yet run on GitHub), `.env.example`.
+
+## Stage 3 slice 2: Auth (built; verified with dummy config only)
+- `src/lib/auth/config.ts` (mode, allowlist, same-origin, fresh sign-in; 7 tests), `src/lib/firebase/{client,admin}.ts`, `src/lib/auth/session.ts`, `src/app/api/session/route.ts`, `src/proxy.ts`, `src/app/login/*` (React Hook Form + Zod), sign-out button in the shell.
+- Routes moved into the `src/app/(app)/` group whose layout verifies the session; `/login` is outside it.
+- Verified by running a production build with dummy env: no cookie redirects to `/login`, forged cookie shows no app content, cross-origin POST is 403, garbage token is a generic 401, prototype mode (no env) still works. **Not verified against a real Firebase project: the owner must put real values in `.env.local` and test an actual sign-in.**
+- `ALLOWED_EMAILS` env var added (temporary allowlist until household membership in slice 3).
 
 ## Stage 3 slice 1 (done, not yet wired into the UI)
 - `src/data/schemas.ts`: Zod schemas for every entity; `ExpenseRecordSchema` enforces integer positive paise, valid dates, split sums (via domain `validateSplit`) and `shared` consistency. `satisfies z.ZodType<…>` keeps them in sync with `src/domain/types.ts`.
@@ -52,6 +58,6 @@ Firebase project (Auth, Firestore, Storage), Firestore/Storage rules + emulator 
 
 ## Next recommended tasks
 1. Merge branches to `main` after review (no remote configured yet; create the GitHub repo and push).
-2. Stage 3 slices 2–4: Firebase Auth, households/membership, rules + emulator tests (needs the owner's Firebase dev project, Java 21+, firebase-tools).
+2. Owner: put real Firebase values in `.env.local`, create the two users, sign in. Then slice 3 (households/membership) and slice 4 (rules + emulator tests; needs Java 21+, firebase-tools).
 3. Split raw transactions from expenses in the data model; add export/restore round-trip test.
 4. Stage 4: CSV parser with real file-hash dedupe, then XLSX, then PDF.

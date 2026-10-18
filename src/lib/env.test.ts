@@ -5,7 +5,7 @@ const client = {
   NEXT_PUBLIC_FIREBASE_API_KEY: "k", NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "a.firebaseapp.com", NEXT_PUBLIC_FIREBASE_PROJECT_ID: "p",
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "b", NEXT_PUBLIC_FIREBASE_APP_ID: "id",
 };
-const server = { FIREBASE_ADMIN_PROJECT_ID: "p", FIREBASE_ADMIN_CLIENT_EMAIL: "sa@p.iam.gserviceaccount.com", FIREBASE_ADMIN_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n" };
+const server = { FIREBASE_ADMIN_PROJECT_ID: "p", FIREBASE_ADMIN_CLIENT_EMAIL: "sa@p.iam.gserviceaccount.com", ALLOWED_EMAILS: "me@example.com,spouse@example.com", FIREBASE_ADMIN_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n" };
 
 describe("env validation", () => {
   it("accepts complete config", () => {
