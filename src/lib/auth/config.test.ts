@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EnvError } from "@/lib/env";
-import { getAuthMode, isAllowedEmail, isRecentSignIn, isSameOrigin } from "./config";
+import { getAuthMode, isAllowedEmail, isSignInAllowed, isRecentSignIn, isSameOrigin } from "./config";
 
 const full = {
   NEXT_PUBLIC_FIREBASE_API_KEY: "k", NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "a", NEXT_PUBLIC_FIREBASE_PROJECT_ID: "p", NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "b", NEXT_PUBLIC_FIREBASE_APP_ID: "i",
@@ -33,5 +33,19 @@ describe("auth helpers", () => {
     const now = 1_000_000_000_000;
     expect(isRecentSignIn(now / 1000 - 60, now)).toBe(true);
     expect(isRecentSignIn(now / 1000 - 3600, now)).toBe(false);
+  });
+});
+
+describe("sign-in policy", () => {
+  const ok = { email: "me@example.com", allowedCsv: "me@example.com" };
+  it("accepts verified Google and password sign-ins on the allowlist", () => {
+    expect(isSignInAllowed({ ...ok, provider: "google.com", emailVerified: true })).toBe(true);
+    expect(isSignInAllowed({ ...ok, provider: "password", emailVerified: false })).toBe(true);
+  });
+  it("refuses unverified Google, other providers and non-allowlisted emails", () => {
+    expect(isSignInAllowed({ ...ok, provider: "google.com", emailVerified: false })).toBe(false);
+    expect(isSignInAllowed({ ...ok, provider: "anonymous" })).toBe(false);
+    expect(isSignInAllowed({ ...ok, provider: "custom" })).toBe(false);
+    expect(isSignInAllowed({ email: "x@y.com", allowedCsv: "me@example.com", provider: "google.com", emailVerified: true })).toBe(false);
   });
 });

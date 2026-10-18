@@ -13,6 +13,7 @@ Updated: 2026-10-18 · Branch `feat/stage3-slice2-auth` (stacked on slice 1 and 
 - `src/lib/auth/config.ts` (mode, allowlist, same-origin, fresh sign-in; 7 tests), `src/lib/firebase/{client,admin}.ts`, `src/lib/auth/session.ts`, `src/app/api/session/route.ts`, `src/proxy.ts`, `src/app/login/*` (React Hook Form + Zod), sign-out button in the shell.
 - Routes moved into the `src/app/(app)/` group whose layout verifies the session; `/login` is outside it.
 - Verified by running a production build with dummy env: no cookie redirects to `/login`, forged cookie shows no app content, cross-origin POST is 403, garbage token is a generic 401, prototype mode (no env) still works. **Not verified against a real Firebase project: the owner must put real values in `.env.local` and test an actual sign-in.**
+- Google sign-in added (popup; same session cookie flow and allowlist). Needs the Google provider enabled in the Firebase console and the app's domain in Authorized domains (localhost is there by default). Not tested with a real Google account.
 - `ALLOWED_EMAILS` env var added (temporary allowlist until household membership in slice 3).
 
 ## Stage 3 slice 1 (done, not yet wired into the UI)

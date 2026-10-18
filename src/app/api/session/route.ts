@@ -1,7 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS, getAuthMode, isAllowedEmail, isRecentSignIn, isSameOrigin } from "@/lib/auth/config";
+import { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS, getAuthMode, isRecentSignIn, isSignInAllowed, isSameOrigin } from "@/lib/auth/config";
 import { getAdminAuth } from "@/lib/firebase/admin";
 
 const body = z.object({ idToken: z.string().min(20).max(4096) });
@@ -17,7 +17,8 @@ export async function POST(req: Request) {
   try {
     const auth = getAdminAuth();
     const decoded = await auth.verifyIdToken(parsed.data.idToken, true);
-    if (!isRecentSignIn(decoded.auth_time) || !isAllowedEmail(decoded.email, process.env.ALLOWED_EMAILS ?? "")) return FAIL;
+    const allowed = isSignInAllowed({ email: decoded.email, emailVerified: decoded.email_verified, provider: decoded.firebase?.sign_in_provider, allowedCsv: process.env.ALLOWED_EMAILS ?? "" });
+    if (!isRecentSignIn(decoded.auth_time) || !allowed) return FAIL;
     const cookie = await auth.createSessionCookie(parsed.data.idToken, { expiresIn: SESSION_MAX_AGE_SECONDS * 1000 });
     (await cookies()).set(SESSION_COOKIE, cookie, {
       httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: SESSION_MAX_AGE_SECONDS,

@@ -29,6 +29,17 @@ export function isAllowedEmail(email: string | undefined | null, allowedCsv: str
   return allowedCsv.split(",").some((a) => a.trim().toLowerCase() === e);
 }
 
+/**
+ * Who may get a session. The email must be on the allowlist, and the sign-in must come from a
+ * provider we expect: Google (email must be verified by Google) or email/password. Anything else
+ * (anonymous, custom tokens, other providers) is refused.
+ */
+export function isSignInAllowed(p: { email?: string | null; emailVerified?: boolean; provider?: string; allowedCsv: string }): boolean {
+  if (!isAllowedEmail(p.email, p.allowedCsv)) return false;
+  if (p.provider === "google.com") return p.emailVerified === true;
+  return p.provider === "password";
+}
+
 /** CSRF guard for the session route: the request must come from this site. */
 export function isSameOrigin(origin: string | null, host: string | null): boolean {
   if (!origin || !host) return false;
