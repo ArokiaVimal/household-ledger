@@ -7,6 +7,7 @@ The prototype merges raw transaction + expense into `ExpenseRecord`; shares are 
 
 Planned collections (Stage 3), all under `households/{householdId}/…`: members, participants, accounts, importBatches, rawTransactions (immutable), expenses, expenseShares, settlements (append-only with `voided`/correction links), categories, merchantRules, receipts, matches, auditEvents. Every doc: `id`, `createdAt`, `updatedAt`, `schemaVersion`.
 
+`ExpenseRecord.fundedBy` = bank account behind a UPI payment; `recurringId` links to a `RecurringItem` (monthly commitment with due day and expected paise).
 Kinds: purchase, refund, income, transfer, cc_payment, fee. Only purchase/fee/refund affect spending.
 Split: `personal | equal | percent(basis points) | custom(paise)`; equal-split remainder goes to earlier participants in list order.
 Migrations: versioned scripts in `migrations/` (not yet created).

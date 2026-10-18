@@ -1,5 +1,5 @@
 "use client";
-import { BarChart3, Bell, FileUp, Handshake, LayoutDashboard, List, Receipt, Search, Settings, Tags, Waves } from "lucide-react";
+import { BarChart3, Bell, FileUp, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags, Waves } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -10,6 +10,7 @@ import { Select } from "./ui";
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, mobile: true },
   { href: "/transactions", label: "Transactions", icon: List, mobile: true },
+  { href: "/recurring", label: "Recurring", icon: Repeat },
   { href: "/import", label: "Import", icon: FileUp, mobile: true },
   { href: "/settlements", label: "Settle", icon: Handshake, mobile: true },
   { href: "/receipts", label: "Receipts", icon: Receipt },

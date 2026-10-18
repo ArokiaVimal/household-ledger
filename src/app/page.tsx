@@ -67,7 +67,7 @@ export default function Dashboard() {
         <Card className="bg-accent-soft">
           <CardTitle>Accounts this month</CardTitle>
           <ul className="space-y-2">
-            {accounts.map((a) => {
+            {accounts.filter((a) => scoped.some((r) => r.accountId === a.id)).map((a) => {
               const I = acctIcon[a.type];
               return (
                 <li key={a.id}>

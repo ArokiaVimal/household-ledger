@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { accounts, categories, participants } from "@/data/mock";
+import { accounts, categories, participants, recurringItems } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import { validateSplit } from "@/domain/splits";
@@ -25,12 +25,15 @@ function Form({ record, onClose }: { record: ExpenseRecord; onClose: () => void 
   const [kind, setKind] = useState(record.kind);
   const [payerId, setPayerId] = useState(record.payerId);
   const [split, setSplit] = useState<SplitConfig>(record.split);
+  const [recurringId, setRecurringId] = useState(record.recurringId ?? "");
+  const [fundedBy, setFundedBy] = useState(record.fundedBy ?? "");
+  const isUpi = accounts.find((a) => a.id === record.accountId)?.type === "upi";
   const [notes, setNotes] = useState(record.notes ?? "");
   const [excluded, setExcluded] = useState(record.excluded);
   const bad = validateSplit(record.amountPaise, split);
 
   const save = () => {
-    updateRecord(record.id, { merchant, categoryId, kind, payerId, split, shared: split.mode !== "personal", notes: notes || undefined, excluded, status: "reviewed" });
+    updateRecord(record.id, { merchant, categoryId, kind, payerId, split, shared: split.mode !== "personal", notes: notes || undefined, excluded, recurringId: recurringId || undefined, fundedBy: isUpi ? fundedBy || undefined : record.fundedBy, status: "reviewed" });
     onClose();
   };
 
@@ -46,6 +49,10 @@ function Form({ record, onClose }: { record: ExpenseRecord; onClose: () => void 
         <Field label="Type"><Select value={kind} onChange={(e) => setKind(e.target.value as TxnKind)}>{kinds.map((k) => <option key={k}>{k}</option>)}</Select></Field>
         <Field label="Paid by"><Select value={payerId} onChange={(e) => setPayerId(e.target.value)}>{participants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
         <Field label="Account"><Input value={accounts.find((a) => a.id === record.accountId)?.name} readOnly /></Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Recurring commitment"><Select value={recurringId} onChange={(e) => setRecurringId(e.target.value)}><option value="">Not recurring</option>{recurringItems.map((i) => <option key={i.id} value={i.id}>{i.name}{i.place ? ` · ${i.place}` : ""}</option>)}</Select></Field>
+        {isUpi && <Field label="Paid from bank"><Select value={fundedBy} onChange={(e) => setFundedBy(e.target.value)}><option value="">Unknown</option>{accounts.filter((a) => a.type === "bank").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</Select></Field>}
       </div>
       <Field label="Who owes what"><SplitEditor total={record.amountPaise} value={split} onChange={setSplit} /></Field>
       <Field label="Notes"><Input value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>

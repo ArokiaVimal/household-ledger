@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { pairBalances } from "./balances";
+import { commitmentTotals, recurringStatuses } from "./recurring";
 import { detectDuplicate, suggestReceiptMatches } from "./dedupe";
 import { formatINR, parseRupees } from "./money";
 import { summarize } from "./reports";
@@ -111,5 +112,26 @@ describe("duplicates and receipt matching", () => {
     expect(suggestReceiptMatches(r, existing)[0].recordId).toBe("x");
     expect(suggestReceiptMatches({ ...r, amountPaise: 45001 }, existing)).toEqual([]);
     expect(suggestReceiptMatches({ ...r, merchant: "Uber" }, existing)).toEqual([]);
+  });
+});
+
+describe("recurring", () => {
+  const item = { id: "rent", name: "Rent", categoryId: "rent", dueDay: 5, expectedPaise: 100000, payerId: "me", split: { mode: "personal" as const, participantIds: ["me"] } };
+  const paid = rec({ id: "p", date: "2026-09-05", amountPaise: 100000, recurringId: "rent" });
+  it("paid, upcoming, overdue", () => {
+    expect(recurringStatuses([item], [paid], "2026-09", "2026-09-20")[0].state).toBe("paid");
+    expect(recurringStatuses([item], [], "2026-09", "2026-09-03")[0].state).toBe("upcoming");
+    expect(recurringStatuses([item], [], "2026-09", "2026-09-06")[0].state).toBe("overdue");
+    expect(recurringStatuses([item], [], "2026-08", "2026-09-01")[0].state).toBe("overdue");
+  });
+  it("variance and excluded/refunds", () => {
+    const more = rec({ id: "q", date: "2026-09-06", amountPaise: 5000, recurringId: "rent", kind: "fee" });
+    const refund = rec({ id: "r", date: "2026-09-07", amountPaise: 2000, recurringId: "rent", kind: "refund" });
+    const st = recurringStatuses([item], [paid, more, refund, rec({ id: "x", date: "2026-09-08", amountPaise: 9999, recurringId: "rent", excluded: true })], "2026-09", "2026-09-30")[0];
+    expect(st.actualPaise).toBe(103000);
+    expect(st.variancePaise).toBe(3000);
+  });
+  it("totals", () => {
+    expect(commitmentTotals([item, { ...item, id: "b", expectedPaise: 5050 }])).toEqual({ monthlyPaise: 105050, yearlyPaise: 1260600 });
   });
 });

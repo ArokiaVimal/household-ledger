@@ -40,7 +40,7 @@ export default function ImportCentre() {
           )}
           {step === 2 && (
             <div className="space-y-3">
-              <Field label="Source account"><Select defaultValue="cc1">{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</Select></Field>
+              <Field label="Source account"><Select defaultValue="cc_hdfc">{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</Select></Field>
               <Field label="Statement type"><Select><option>Credit-card statement</option><option>Bank statement</option><option>UPI export</option></Select></Field>
               <div className="flex gap-2"><Button onClick={() => setStep(1)}>Back</Button><Button variant="primary" onClick={() => setStep(3)}>Parse sample</Button></div>
             </div>

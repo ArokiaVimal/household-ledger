@@ -15,6 +15,8 @@ import type { ExpenseRecord } from "@/domain/types";
 const VIEWS = [
   { id: "all", label: "All" },
   { id: "account", label: "Payment methods" },
+  { id: "bank", label: "Bank accounts" },
+  { id: "recurring", label: "Recurring" },
   { id: "merchant", label: "Platforms & merchants" },
   { id: "category", label: "Categories" },
   { id: "payer", label: "Paid by" },
@@ -22,17 +24,19 @@ const VIEWS = [
 
 /** Grouped view. Group totals come from the domain groupNet (same rule as the dashboard). */
 function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: string; onEdit: (r: ExpenseRecord) => void }) {
-  const { nameOf, categoryName, accountName } = useStore();
+  const { nameOf, categoryName, accountName, recurringName } = useStore();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const keyOf = (r: ExpenseRecord) => (view === "account" ? r.accountId : view === "merchant" ? r.merchant : view === "category" ? r.categoryId : r.payerId);
-  const label = (k: string) => (view === "account" ? accountName(k) : view === "category" ? categoryName(k) : view === "payer" ? nameOf(k) : k);
-  const totals = groupNet(rows, keyOf);
-  const keys = [...new Set(rows.map(keyOf))].sort((a, b) => (totals[b] ?? 0) - (totals[a] ?? 0));
+  const bankOf = (r: ExpenseRecord) => r.fundedBy ?? (accounts.find((a) => a.id === r.accountId)?.type === "bank" ? r.accountId : "");
+  const keyOf = (r: ExpenseRecord) => (view === "account" ? r.accountId : view === "bank" ? bankOf(r) : view === "recurring" ? (r.recurringId ?? "") : view === "merchant" ? r.merchant : view === "category" ? r.categoryId : r.payerId);
+  const label = (k: string) => (view === "account" || view === "bank" ? accountName(k) : view === "recurring" ? recurringName(k) : view === "category" ? categoryName(k) : view === "payer" ? nameOf(k) : k);
+  const scope = view === "bank" ? rows.filter((r) => bankOf(r)) : view === "recurring" ? rows.filter((r) => r.recurringId) : rows;
+  const totals = groupNet(scope, keyOf);
+  const keys = [...new Set(scope.map(keyOf))].sort((a, b) => (totals[b] ?? 0) - (totals[a] ?? 0));
   const toggle = (k: string) => setCollapsed((c) => { const n = new Set(c); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   return (
     <div className="space-y-4">
       {keys.map((k) => {
-        const items = rows.filter((r) => keyOf(r) === k);
+        const items = scope.filter((r) => keyOf(r) === k);
         const shut = collapsed.has(k);
         return (
           <section key={k} aria-label={label(k)} className="overflow-hidden rounded-[var(--radius-card)] bg-surface">
@@ -53,7 +57,7 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
                       <MerchantAvatar name={r.merchant} size={32} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{r.merchant}</div>
-                        <div className="flex flex-wrap items-center gap-1 text-xs text-muted">{r.date.slice(5)} · {view === "category" ? accountName(r.accountId) : categoryName(r.categoryId)}<TxnBadges r={r} /></div>
+                        <div className="flex flex-wrap items-center gap-1 text-xs text-muted">{r.date.slice(5)} · {view === "category" ? accountName(r.accountId) : categoryName(r.categoryId)}{r.fundedBy && view !== "bank" ? ` · via ${accountName(r.fundedBy)}` : ""}{r.fundedBy && view === "bank" ? ` · paid with ${accountName(r.accountId)}` : ""}<TxnBadges r={r} /></div>
                       </div>
                       <Amount r={r} />
                     </button>
@@ -69,7 +73,7 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
 }
 
 function TransactionsView() {
-  const { records, scoped, month, nameOf, categoryName, accountName } = useStore();
+  const { records, scoped, month, nameOf, categoryName, accountName, recurringName } = useStore();
   const params = useSearchParams();
   const router = useRouter();
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
@@ -91,6 +95,7 @@ function TransactionsView() {
       .filter((r) => !get("status") || r.status === get("status"))
       .filter((r) => !get("kind") || r.kind === get("kind"))
       .filter((r) => !get("account") || r.accountId === get("account"))
+      .filter((r) => !get("recurring") || (get("recurring") === "1" ? !!r.recurringId : r.recurringId === get("recurring")))
       .filter((r) => !get("shared") || r.shared === (get("shared") === "1"))
       .filter((r) => !text || `${r.merchant} ${r.originalDescription} ${r.notes ?? ""}`.toLowerCase().includes(text))
       .sort((a, b) => b.date.localeCompare(a.date));
@@ -99,7 +104,7 @@ function TransactionsView() {
 
   const total = summarize(rows, ME);
   const view = get("view") || "all";
-  const active = ["q", "category", "merchant", "status", "kind", "account", "shared"].filter((k) => get(k));
+  const active = ["recurring", "q", "category", "merchant", "status", "kind", "account", "shared"].filter((k) => get(k));
 
   return (
     <>
@@ -121,7 +126,7 @@ function TransactionsView() {
       </div>
       {active.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5 text-xs">
-          {active.map((k) => <Badge key={k} tone="good">{k}: {k === "category" ? categoryName(get(k)) : get(k)}</Badge>)}
+          {active.map((k) => <Badge key={k} tone="good">{k}: {k === "category" ? categoryName(get(k)) : k === "account" ? accountName(get(k)) : k === "recurring" && get(k) !== "1" ? recurringName(get(k)) : get(k)}</Badge>)}
           <button className="text-muted underline" onClick={() => router.replace(`/transactions${get("month") ? `?month=${get("month")}` : ""}`)}>Clear filters</button>
         </div>
       )}

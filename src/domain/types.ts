@@ -73,6 +73,25 @@ export interface ExpenseRecord {
   duplicateOf?: string;
   /** Receipt linked to this expense (reversible match). */
   receiptId?: string;
+  /** For UPI-app payments: the bank account the money left from. */
+  fundedBy?: string;
+  /** Recurring commitment this payment fulfils (rent, EMI, insurance...). */
+  recurringId?: string;
+}
+
+/** A commitment that repeats every month. Records link to it via `recurringId`. */
+export interface RecurringItem {
+  id: string;
+  name: string;
+  categoryId: string;
+  /** Day of month the payment is due (1-28). */
+  dueDay: number;
+  /** Expected amount per month, in paise. */
+  expectedPaise: Paise;
+  payerId: string;
+  split: SplitConfig;
+  /** Where it applies, e.g. the apartment or parents' house. */
+  place?: string;
 }
 
 export interface Settlement {
