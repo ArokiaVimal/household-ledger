@@ -1,7 +1,8 @@
 "use client";
 import { CreditCard, Landmark, Smartphone, TrendingDown, TrendingUp, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { useMemo, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useMemo, type ReactNode } from "react";
 import { DonutChart, TrendChart } from "@/components/charts";
 import { Onboarding } from "@/components/onboarding";
 import { MerchantAvatar, TxnBadges, Amount } from "@/components/txn-row";
@@ -28,6 +29,17 @@ function Kpi({ icon: I, label, value, sub, pill, href }: { icon: LucideIcon; lab
 
 function Pill({ tone, children }: { tone: "good" | "bad"; children: ReactNode }) {
   return <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium", tone === "good" ? "bg-good-soft text-good" : "bg-danger/10 text-danger")}>{children}</span>;
+}
+
+/** Shown once after the first review is finished (the review page links here with ?reviewed=1). */
+function ReviewedNotice() {
+  if (!useSearchParams().get("reviewed")) return null;
+  return (
+    <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-good-soft px-4 py-3 text-sm text-good">
+      <span className="min-w-0 flex-1"><b>All caught up.</b> Everything you approved now counts, and this is your dashboard.</span>
+      <Link href="/" className="shrink-0 rounded-full bg-good px-3.5 py-1.5 text-xs font-medium text-white">Dismiss</Link>
+    </div>
+  );
 }
 
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet } as const;
@@ -65,6 +77,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4">
+      <Suspense fallback={null}><ReviewedNotice /></Suspense>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Kpi icon={Wallet} label="Net spending" value={formatINR(summary.net)} sub="after refunds" href={`/transactions?${q}`}
           pill={delta !== null && <Pill tone={delta > 0 ? "bad" : "good"}>{delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{Math.abs(delta)}% vs {prevName}{live ? "" : " (mock)"}</Pill>} />

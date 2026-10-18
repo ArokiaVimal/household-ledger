@@ -1,19 +1,29 @@
 "use client";
 import { ClipboardCheck, Sparkles, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { MerchantAvatar, Amount } from "@/components/txn-row";
 import { TxnReviewDialog } from "@/components/txn-edit-dialog";
 import { AiBadge, AiFeatureCard, Badge, Button, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import type { ExpenseRecord } from "@/domain/types";
 
+/** Set the first time the owner clears the review queue, so the jump to the dashboard happens only once on this device. */
+const FIRST_REVIEW_KEY = "pf:first-review-done";
+
 export default function Review() {
+  return <Suspense fallback={null}><ReviewQueue /></Suspense>;
+}
+
+function ReviewQueue() {
   const router = useRouter();
+  const params = useSearchParams();
+  const imported = Number(params.get("imported") || 0);
+  const skipped = Number(params.get("skipped") || 0);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const { live, aiEnabled, staged, nameOf, categoryName, accountName, approveStaged, deleteRecords } = useStore();
+  const { live, aiEnabled, records, staged, nameOf, categoryName, accountName, approveStaged, deleteRecords } = useStore();
   const [open, setOpen] = useState<ExpenseRecord | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState(false);
@@ -39,11 +49,40 @@ export default function Review() {
   };
   const flagged = chosen.filter((r) => r.duplicateOf).length;
 
+  // The queue just went from "has rows" to empty. The first time this happens with something approved, show the dashboard.
+  const waiting = useRef(staged.length);
+  useEffect(() => {
+    const was = waiting.current;
+    waiting.current = staged.length;
+    if (was === 0 || staged.length > 0) return;
+    let done = false;
+    try { done = localStorage.getItem(FIRST_REVIEW_KEY) === "1"; } catch { /* storage unavailable: treat as not done */ }
+    if (!done && records.length > 0) {
+      try { localStorage.setItem(FIRST_REVIEW_KEY, "1"); } catch { /* ignore */ }
+      router.push("/?reviewed=1");
+    } else if (imported > 0) router.replace("/review"); // the confirmation has done its job
+  }, [staged.length, records.length, imported, router]);
+
+  // Right after an import the rows are still arriving from the server; do not flash "nothing waiting". Give up after a few seconds.
+  const arriving = imported > 0 && staged.length === 0;
+  useEffect(() => {
+    if (!arriving) return;
+    const t = setTimeout(() => router.replace("/review"), 8000);
+    return () => clearTimeout(t);
+  }, [arriving, router]);
+
   return (
     <>
       <PageHeader title="Review queue" sub="Imported rows stay here until you approve them. Only approved rows count in reports, balances and the dashboard."
         actions={<Link href="/import" className="rounded-full border border-border bg-surface px-3 py-2 text-sm">Import</Link>} />
-      {staged.length === 0 ? (
+      {imported > 0 && staged.length > 0 && (
+        <div role="status" className="mb-3 rounded-2xl bg-good-soft p-3 text-sm text-good">
+          <b>{imported}</b> transaction{imported === 1 ? "" : "s"} imported{skipped > 0 ? `, ${skipped} already-imported row${skipped === 1 ? "" : "s"} skipped` : ""}. Check each one and approve it. Once you approve the last one you will land on your dashboard.
+        </div>
+      )}
+      {arriving ? (
+        <p role="status" className="rounded-[var(--radius-card)] bg-surface p-6 text-sm text-muted">Loading your {imported} imported transaction{imported === 1 ? "" : "s"}…</p>
+      ) : staged.length === 0 ? (
         <EmptyState title="Nothing waiting for review" hint="Imported statements will appear here before they are added." />
       ) : (
         <>

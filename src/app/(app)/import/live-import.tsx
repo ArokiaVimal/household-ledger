@@ -74,6 +74,8 @@ export function LiveImport() {
     setPreview(null); setFile(null);
     if (input.current) input.current.value = "";
     router.refresh();
+    // Straight to the review queue: that is the next thing to do. The queue shows a short confirmation.
+    if (c.staged > 0) router.push(`/review?imported=${c.staged}&skipped=${c.duplicate}`);
   };
 
   const toStage = preview ? preview.counts.new + preview.counts.possible : 0;

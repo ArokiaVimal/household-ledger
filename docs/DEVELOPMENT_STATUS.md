@@ -28,6 +28,11 @@ Updated: 2026-10-18 · Branch `feat/slice5-persistence` · Stage 3 slices 1–5 
 - Tests: service tests (previous import reported, refusal without consent, rejected rows come back once, nothing added when all present) and a real-Firestore test. A bug found while checking it in the browser: the dialog's own "closed" event was cancelling the import after Yes; fixed.
 - Not checked in the live app (needs sign-in); checked in the browser with a faked server reply at desktop and phone width.
 
+## Import → review → dashboard flow (added)
+- After a successful import (at least one row staged) the Import screen sends you straight to `/review?imported=N&skipped=M`, which shows a one-line confirmation and, while the rows are still arriving from the server, a "Loading your N imported transactions…" state (it gives up after 8 seconds and shows the normal queue). The query string is removed once the queue has been cleared.
+- **First time only:** when the review queue goes from having rows to empty and something has been approved, you are taken to `/?reviewed=1` (the dashboard shows an "All caught up" strip with Dismiss). The once-only flag is stored in this browser (`localStorage` key `pf:first-review-done`), so a different device or a cleared browser will do it once more. Clearing the queue again later just shows the empty queue.
+- Verified in a browser (demo mode): approving all waiting rows redirected to the dashboard the first time and stayed on the review page the second time; the confirmation strip renders. **Not exercised end to end on the live site:** the Import → Review jump after a real upload.
+
 ## After the first import: preview, not an empty screen (added)
 - The welcome guide (`Onboarding`) now shows only when **nothing exists yet** (no approved rows, no waiting rows, no import history). It no longer lingers until the first approval.
 - Imported rows wait in the review queue, so right after an import the ledger is still empty. In exactly that situation (`previewing` in `src/data/store.tsx`: live mode, zero approved, some waiting) every screen is built from the waiting rows and a **"Preview"** banner in the app shell says so ("nothing counts until you approve it", with a Review now button). The moment one row is approved the preview ends and only approved rows count, as before. Demo mode is unaffected.
