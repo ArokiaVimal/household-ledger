@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Finance", statusBarStyle: "default" },
 };
 
-export const viewport: Viewport = { themeColor: "#5b3fd1", viewportFit: "cover" };
+export const viewport: Viewport = { themeColor: "#f3f2f8", viewportFit: "cover" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

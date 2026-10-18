@@ -144,12 +144,12 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 <ScopeSwitch className="min-w-0 flex-1" />
               </div>
             </header>
-            <main className="px-4 pb-[calc(var(--sab)+8.5rem)] md:px-0 md:pb-4">{children}</main>
+            <main className="px-4 pb-[calc(var(--sab)+9rem)] md:px-0 md:pb-4">{children}</main>
           </div>
         </div>
       </div>
       <button onClick={() => setAdding(true)} aria-label="Add transaction"
-        className="fixed bottom-[calc(var(--sab)+5.25rem)] right-4 z-30 flex items-center gap-1.5 rounded-full bg-accent px-4 py-3 text-sm font-medium text-white shadow-lg hover:bg-accent/90 md:bottom-8 md:right-8">
+        className="fixed bottom-[calc(var(--sab)+4.75rem)] right-4 z-30 flex items-center gap-1.5 rounded-full bg-accent px-4 py-3 text-sm font-medium text-white shadow-lg hover:bg-accent/90 md:bottom-8 md:right-8">
         <Plus size={18} aria-hidden /> Add
       </button>
       <TxnAddDialog open={adding} round={round} onClose={() => setAdding(false)} onAnother={() => setRound((r) => r + 1)}
@@ -161,7 +161,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
         </div>
       )}
       {toast && <div role="status" className="fixed inset-x-0 bottom-[calc(var(--sab)+9rem)] z-40 mx-auto w-fit rounded-full bg-foreground px-4 py-2 text-sm text-white shadow-lg md:bottom-24">{toast}</div>}
-      <nav aria-label="Primary" className="fixed inset-x-3 bottom-[calc(var(--sab)+0.5rem)] z-20 grid grid-cols-5 rounded-2xl bg-surface shadow-lg ring-1 ring-border/60 md:hidden">
+      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-surface pb-[var(--sab)] md:hidden">
         {nav.filter((n) => n.mobile).map(({ href, label, icon: I }) => (
           <Link key={href} href={href} aria-current={active(href) ? "page" : undefined}
             className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", active(href) ? "font-medium text-accent" : "text-muted")}>

@@ -42,7 +42,12 @@ body {
   background: var(--canvas);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
-  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* On phones the app fills the screen, so the page colour runs edge to edge (status bar included).
+   The lavender backdrop only frames the app on larger screens. */
+@media (max-width: 767px) {
+  body { background: var(--background); }
 }
 
 .num { font-variant-numeric: tabular-nums; }
