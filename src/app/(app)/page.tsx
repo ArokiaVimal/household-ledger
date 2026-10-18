@@ -45,7 +45,8 @@ function ReviewedNotice() {
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet } as const;
 
 export default function Dashboard() {
-  const { live, householdReady, meId, accounts, trendHistory, records, shown, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView } = useStore();
+  const { live, householdReady, meId, accounts, trendHistory, records, shown, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView, partner } = useStore();
+  const withPartner = !live || !!partner;
   const household = useMemo(() => summarize(shown.filter((r) => r.date.startsWith(month)), meId), [shown, month, meId]);
   const cats = useMemo(() => Object.entries(byCategory(scoped)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [scoped, categoryName]);
   const perAccount = useMemo(() => groupNet(scoped, (r) => r.accountId), [scoped]);
@@ -134,16 +135,16 @@ export default function Dashboard() {
             ))}
           </ul>
         </Card>
-        <Card>
+        {withPartner && <Card>
           <CardTitle action={<Link href="/settlements" className="text-xs text-accent">Details</Link>}>Settlements</CardTitle>
           <ul className="space-y-3">
             {iOwe.map((b) => <li key={b.to} className="flex items-center gap-3 text-sm"><MerchantAvatar name={nameOf(b.to)} /><span className="flex-1">I owe {nameOf(b.to)}</span><span className="num font-semibold text-danger">{formatINR(b.outstanding)}</span></li>)}
             {owedToMe.map((b) => <li key={b.from} className="flex items-center gap-3 text-sm"><MerchantAvatar name={nameOf(b.from)} /><span className="flex-1">{nameOf(b.from)} owes me</span><span className="num font-semibold text-good">{formatINR(b.outstanding)}</span></li>)}
           </ul>
           {iOwe.length + owedToMe.length === 0 && <p className="text-sm text-muted">All settled up.</p>}
-        </Card>
+        </Card>}
       </div>
-      {view === "personal" && <button className="text-xs text-muted underline" onClick={() => setView("household")}>Show everything</button>}
+      {withPartner && view === "personal" && <button className="text-xs text-muted underline" onClick={() => setView("household")}>{live ? "Show what we share" : "Show everything"}</button>}
     </div>
   );
 }

@@ -41,10 +41,11 @@ function MonthStepper({ className }: { className?: string }) {
 }
 
 function ScopeSwitch({ className }: { className?: string }) {
-  const { view, setView } = useStore();
+  const { view, setView, live, partner } = useStore();
+  if (live && !partner) return null; // solo: nothing to switch between
   return (
     <div className={cn("[&>div]:bg-surface", className)}>
-      <ChipGroup tabs label="Show" value={view === "household" ? "all" : "mine"} onChange={(v) => setView(v === "all" ? "household" : "personal")} options={[{ id: "mine", label: "Mine" }, { id: "all", label: "Everything" }]} />
+      <ChipGroup tabs label="Show" value={view === "household" ? "all" : "mine"} onChange={(v) => setView(v === "all" ? "household" : "personal")} options={[{ id: "mine", label: "Mine" }, { id: "all", label: live ? "Together" : "Everything" }]} />
     </div>
   );
 }
@@ -83,7 +84,9 @@ function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
 export function AppShell({ children, user }: { children: ReactNode; user: { email: string } | null }) {
   const path = usePathname();
   const router = useRouter();
-  const { live, previewing, staged, syncError, dismissSyncError } = useStore();
+  const { live, partner, previewing, staged, syncError, dismissSyncError } = useStore();
+  // Solo use is complete on its own: settle-up and the Mine/Together switch appear once a partner is linked.
+  const visibleNav = nav.filter((n) => n.href !== "/settlements" || !live || !!partner);
   const [q, setQ] = useState("");
   const { profile } = useProfile();
   const [adding, setAdding] = useState(false);
@@ -108,7 +111,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
         <div className="md:grid md:grid-cols-[4.25rem_1fr] md:gap-5">
           <aside className="sticky top-5 hidden h-[calc(100vh-5.5rem)] flex-col items-center gap-2 rounded-2xl bg-surface py-4 md:flex">
             <Link href="/" aria-label="Personal Finance App home" className="mb-2"><LogoMark size={40} /></Link>
-            {nav.map(({ href, label, icon: I }) => (
+            {visibleNav.map(({ href, label, icon: I }) => (
               <Link key={href} href={href} title={label} aria-label={label} aria-current={active(href) ? "page" : undefined}
                 className={cn("grid size-10 place-items-center rounded-full transition-colors", active(href) ? "bg-foreground text-white" : "text-muted hover:bg-background")}>
                 <I size={18} aria-hidden />
@@ -167,8 +170,8 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
         </div>
       )}
       {toast && <div role="status" className="fixed inset-x-0 bottom-[calc(var(--sab)+9rem)] z-40 mx-auto w-fit rounded-full bg-foreground px-4 py-2 text-sm text-white shadow-lg md:bottom-24">{toast}</div>}
-      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-surface pb-[var(--sab)] md:hidden">
-        {nav.filter((n) => n.mobile).map(({ href, label, icon: I }) => (
+      <nav aria-label="Primary" style={{ gridTemplateColumns: `repeat(${visibleNav.filter((n) => n.mobile).length}, minmax(0, 1fr))` }} className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-surface pb-[var(--sab)] md:hidden">
+        {visibleNav.filter((n) => n.mobile).map(({ href, label, icon: I }) => (
           <Link key={href} href={href} aria-current={active(href) ? "page" : undefined}
             className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", active(href) ? "font-medium text-accent" : "text-muted")}>
             <I size={20} aria-hidden /> {label}

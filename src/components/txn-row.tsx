@@ -27,7 +27,7 @@ export function TxnBadges({ r }: { r: ExpenseRecord }) {
       {r.receiptId && <Badge tone="good">Receipt linked</Badge>}
       {r.excluded && <Badge>Excluded</Badge>}
       {r.kind !== "purchase" && <Badge>{r.kind === "cc_payment" ? "Card bill payment" : r.kind}</Badge>}
-      {r.shared && <Badge tone="good">Shared</Badge>}
+      {r.shared && <Badge tone="good">{r.sharedWithPartner ? "Shared with partner" : "Shared"}</Badge>}
     </>
   );
 }

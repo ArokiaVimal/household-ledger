@@ -168,7 +168,8 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const [syncError, setSyncError] = useState<string | null>(null);
   const meId = live?.meId ?? ME;
   const couple = live?.couple;
-  const partnerId = couple?.partner.participantId ?? participants.find((p) => p.id !== meId && p.userId)?.id ?? participants.find((p) => p.id !== meId)?.id ?? null;
+  // In live mode a partner exists only once linked: friends in the list are not a "usual split" partner.
+  const partnerId = couple?.partner.participantId ?? (live ? null : participants.find((p) => p.id !== meId && p.userId)?.id ?? participants.find((p) => p.id !== meId)?.id ?? null);
   const splitRatio = useMemo(() => (live ? (couple ? { leaderId: couple.ratio.leaderId, leaderBps: couple.ratio.leaderBps } : { leaderId: meId, leaderBps: 5000 }) : { leaderId: ME, leaderBps: OWNER_SHARE_BPS }), [live, couple, meId]);
   const trendHistory = live ? {} : mockTrend;
 
