@@ -1,17 +1,18 @@
 "use client";
-import { BarChart3, Bell, ClipboardCheck, FileUp, LogOut, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags } from "lucide-react";
+import { BarChart3, Bell, ChevronLeft, ChevronRight, ClipboardCheck, FileUp, LogOut, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useStore } from "@/data/store";
 import { cn } from "@/lib/cn";
+import { isAfterMonth, monthLabel, shiftMonth } from "@/domain/months";
 import { greetingName } from "@/lib/profile/profile";
 import { Avatar } from "./avatar";
 import { LogoMark } from "./logo";
 import { useProfile } from "./profile-context";
 import { OPEN_ADD_EVENT } from "./onboarding";
 import { TxnAddDialog } from "./txn-edit-dialog";
-import { Select } from "./ui";
+import { ChipGroup } from "./ui";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, mobile: true },
@@ -26,10 +27,63 @@ const nav = [
   { href: "/settings", label: "Settings", icon: Settings, mobile: true },
 ];
 
+/** Previous / next month. The next month is disabled once you reach the current month. */
+function MonthStepper({ className }: { className?: string }) {
+  const { month, setMonth, today } = useStore();
+  const btn = "grid size-9 place-items-center rounded-full text-muted hover:bg-background disabled:opacity-30 disabled:hover:bg-transparent";
+  return (
+    <div className={cn("flex items-center rounded-full bg-surface p-0.5", className)} role="group" aria-label="Month">
+      <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className={btn}><ChevronLeft size={18} aria-hidden /></button>
+      <span className="num min-w-[5.75rem] flex-1 text-center text-sm font-medium" aria-live="polite">{monthLabel(month)}</span>
+      <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} disabled={isAfterMonth(shiftMonth(month, 1), today)} aria-label="Next month" className={btn}><ChevronRight size={18} aria-hidden /></button>
+    </div>
+  );
+}
+
+function ScopeSwitch({ className }: { className?: string }) {
+  const { view, setView } = useStore();
+  return (
+    <div className={cn("[&>div]:bg-surface", className)}>
+      <ChipGroup tabs label="Show" value={view === "household" ? "all" : "mine"} onChange={(v) => setView(v === "all" ? "household" : "personal")} options={[{ id: "mine", label: "Mine" }, { id: "all", label: "Everything" }]} />
+    </div>
+  );
+}
+
+/** Profile picture that opens a small menu: profile, settings, sign out. */
+function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
+  const { profile } = useProfile();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  const item = "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-background";
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open} aria-label="Account menu" className="block rounded-full">
+        <Avatar profile={profile ?? { displayName: "", email: "", avatarDataUrl: null, providerPhotoUrl: null }} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-12 z-40 w-56 rounded-2xl bg-surface p-1.5 shadow-xl ring-1 ring-border">
+          {profile && <div className="px-3 py-2"><div className="truncate text-sm font-semibold">{profile.displayName}</div><div className="truncate text-xs text-muted">{profile.email}</div></div>}
+          <Link href="/profile" role="menuitem" onClick={() => setOpen(false)} className={item}><UserRound size={16} aria-hidden />Your profile</Link>
+          <Link href="/settings" role="menuitem" onClick={() => setOpen(false)} className={item}><Settings size={16} aria-hidden />Settings</Link>
+          <button type="button" role="menuitem" onClick={onSignOut} className={cn(item, "text-danger")}><LogOut size={16} aria-hidden />Sign out</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AppShell({ children, user }: { children: ReactNode; user: { email: string } | null }) {
   const path = usePathname();
   const router = useRouter();
-  const { month, setMonth, view, setView, staged, syncError, dismissSyncError } = useStore();
+  const { live, staged, syncError, dismissSyncError } = useStore();
   const [q, setQ] = useState("");
   const { profile } = useProfile();
   const [adding, setAdding] = useState(false);
@@ -62,51 +116,52 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
             ))}
           </aside>
           <div className="min-w-0">
-            <div className="mx-4 mt-3 rounded-full bg-warn-soft px-4 py-1 text-center text-xs text-warn md:mx-0 md:mt-0" role="status">
-              PROTOTYPE · fictional September 2026 data · nothing is saved, synced, or uploaded
-            </div>
-            <header className="flex flex-wrap items-center gap-3 px-4 py-4 md:px-0">
-              <div className="order-1 mr-auto">
-                <p className="text-xl font-semibold tracking-tight">{path === "/" ? <>Hi {profile ? greetingName(profile) : "there"} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
-                <p className="hidden text-sm text-muted xl:block">{path === "/" ? "Here's where your money went this month" : "Where your money went, and who owes what"}</p>
+            {!live && (
+              <div className="mx-4 mt-3 rounded-full bg-warn-soft px-4 py-1 text-center text-xs text-warn md:mx-0 md:mt-0" role="status">
+                Demo mode · fictional data · nothing is saved
               </div>
-              <form onSubmit={go} role="search" className="order-6 flex w-full items-center gap-2 rounded-full bg-surface px-4 md:order-3 md:w-72">
-                <Search size={16} className="text-muted" aria-hidden />
-                <input aria-label="Search transactions" placeholder="Search transactions…" value={q} onChange={(e) => setQ(e.target.value)} className="min-h-10 w-full bg-transparent text-sm outline-none" />
-              </form>
-              <Select aria-label="Month" value={month} onChange={(e) => setMonth(e.target.value)} className="order-4 w-auto flex-1 md:w-44 md:flex-none">
-                <option value="2026-09">September 2026</option>
-                <option value="2026-08">August 2026</option>
-              </Select>
-              <Select aria-label="View" value={view} onChange={(e) => setView(e.target.value as "household" | "personal")} className="order-5 w-auto flex-1 md:w-32 md:flex-none">
-                <option value="personal">Mine</option>
-                <option value="household">Everything</option>
-              </Select>
-              <Link href="/review" aria-label={`${staged.length} transactions awaiting review`} className="relative order-2 grid size-10 place-items-center rounded-full bg-surface md:order-6">
-                <Bell size={18} aria-hidden />
-                {staged.length > 0 && <span className="absolute right-1.5 top-1.5 size-2.5 rounded-full bg-danger" />}
-              </Link>
-              <Link href="/profile" title="Your profile" aria-label="Your profile" className="order-3 rounded-full md:order-7"><Avatar profile={profile ?? (user ? { displayName: "", email: user.email, avatarDataUrl: null, providerPhotoUrl: null } : null)} /></Link>
-              {user && <button onClick={signOut} aria-label="Sign out" title="Sign out" className="order-3 grid size-10 place-items-center rounded-full bg-surface text-muted md:order-8"><LogOut size={16} aria-hidden /></button>}
+            )}
+            <header className="px-4 pb-3 pt-4 md:px-0 md:pb-4">
+              <div className="flex items-center gap-3">
+                <div className="mr-auto min-w-0">
+                  <p className="truncate text-xl font-semibold tracking-tight">{path === "/" ? <>Hi {profile ? greetingName(profile) : "there"} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
+                  <p className="hidden text-sm text-muted xl:block">{path === "/" ? "Here's where your money went this month" : "Where your money went, and who owes what"}</p>
+                </div>
+                <form onSubmit={go} role="search" className="hidden w-64 items-center gap-2 rounded-full bg-surface px-4 lg:flex">
+                  <Search size={16} className="text-muted" aria-hidden />
+                  <input aria-label="Search transactions" placeholder="Search transactions…" value={q} onChange={(e) => setQ(e.target.value)} className="min-h-10 w-full bg-transparent text-sm outline-none" />
+                </form>
+                <MonthStepper className="hidden md:flex" />
+                <ScopeSwitch className="hidden w-52 md:block" />
+                <Link href="/review" aria-label={`${staged.length} transactions awaiting review`} className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
+                  <Bell size={18} aria-hidden />
+                  {staged.length > 0 && <span className="absolute right-1.5 top-1.5 size-2.5 rounded-full bg-danger" />}
+                </Link>
+                {user && <AccountMenu onSignOut={signOut} />}
+              </div>
+              <div className="mt-3 flex items-center gap-2 md:hidden">
+                <MonthStepper />
+                <ScopeSwitch className="min-w-0 flex-1" />
+              </div>
             </header>
-            <main className="px-4 pb-24 md:px-0 md:pb-4">{children}</main>
+            <main className="px-4 pb-[calc(var(--sab)+8.5rem)] md:px-0 md:pb-4">{children}</main>
           </div>
         </div>
       </div>
       <button onClick={() => setAdding(true)} aria-label="Add transaction"
-        className="fixed bottom-24 right-4 z-20 flex items-center gap-1.5 rounded-full bg-accent px-4 py-3 text-sm font-medium text-white shadow-lg hover:bg-accent/90 md:bottom-8 md:right-8">
+        className="fixed bottom-[calc(var(--sab)+5.25rem)] right-4 z-30 flex items-center gap-1.5 rounded-full bg-accent px-4 py-3 text-sm font-medium text-white shadow-lg hover:bg-accent/90 md:bottom-8 md:right-8">
         <Plus size={18} aria-hidden /> Add
       </button>
       <TxnAddDialog open={adding} round={round} onClose={() => setAdding(false)} onAnother={() => setRound((r) => r + 1)}
         onAdded={(m) => { setToast(m); setTimeout(() => setToast(""), 3000); }} />
       {syncError && (
-        <div role="alert" className="fixed inset-x-3 bottom-40 z-30 mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-danger px-4 py-3 text-sm text-white shadow-lg md:bottom-24">
+        <div role="alert" className="fixed inset-x-3 bottom-[calc(var(--sab)+9rem)] z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-danger px-4 py-3 text-sm text-white shadow-lg md:bottom-24">
           <span className="flex-1">{syncError} Your screen was refreshed from the server.</span>
           <button onClick={dismissSyncError} className="rounded-full bg-white/20 px-3 py-1 text-xs font-medium">Dismiss</button>
         </div>
       )}
-      {toast && <div role="status" className="fixed inset-x-0 bottom-40 z-30 mx-auto w-fit rounded-full bg-foreground px-4 py-2 text-sm text-white shadow-lg md:bottom-24">{toast}</div>}
-      <nav aria-label="Primary" className="fixed inset-x-3 bottom-3 z-20 grid grid-cols-5 rounded-2xl bg-surface pb-[env(safe-area-inset-bottom)] shadow-lg md:hidden">
+      {toast && <div role="status" className="fixed inset-x-0 bottom-[calc(var(--sab)+9rem)] z-40 mx-auto w-fit rounded-full bg-foreground px-4 py-2 text-sm text-white shadow-lg md:bottom-24">{toast}</div>}
+      <nav aria-label="Primary" className="fixed inset-x-3 bottom-[calc(var(--sab)+0.5rem)] z-20 grid grid-cols-5 rounded-2xl bg-surface shadow-lg ring-1 ring-border/60 md:hidden">
         {nav.filter((n) => n.mobile).map(({ href, label, icon: I }) => (
           <Link key={href} href={href} aria-current={active(href) ? "page" : undefined}
             className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", active(href) ? "font-medium text-accent" : "text-muted")}>

@@ -15,6 +15,8 @@
   --warn-soft: #fbf0d9;
   --good: #1f9d63;
   --good-soft: #e0f5ea;
+  /* iPhone safe-area insets (0 on desktop). Bars and floating buttons are positioned from these. */
+  --sab: env(safe-area-inset-bottom, 0px);
 }
 
 @theme inline {

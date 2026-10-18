@@ -16,19 +16,18 @@ const openAdd = () => window.dispatchEvent(new Event(OPEN_ADD_EVENT));
 
 function Step({ n, done, active, optional, title, children }: { n: number; done: boolean; active: boolean; optional?: boolean; title: string; children: ReactNode }) {
   return (
-    <li className={cn("flex gap-4 rounded-[var(--radius-card)] bg-surface p-4 sm:p-5", active && "ring-2 ring-accent/60")}>
+    <li className={cn("grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 gap-y-3 rounded-[var(--radius-card)] bg-surface p-4 sm:gap-x-4 sm:p-5", active && "ring-2 ring-accent/60")}>
       {/* One status marker per step: a green check when done, otherwise the step number. */}
       {done
-        ? <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-good text-white"><Check size={18} strokeWidth={3} /></span>
-        : <span aria-hidden className={cn("grid size-9 shrink-0 place-items-center rounded-full text-sm font-semibold", active ? "bg-accent text-white" : "bg-background text-muted")}>{n}</span>}
-      <div className="min-w-0 flex-1 space-y-3">
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-1.5">
-          <h3 className="font-semibold leading-tight">{title}</h3>
-          {optional && <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted">Optional</span>}
-          {done && <span className="rounded-full bg-good-soft px-2 py-0.5 text-xs font-medium text-good">Done</span>}
-        </div>
-        {children}
+        ? <span aria-hidden className="grid size-9 place-items-center rounded-full bg-good text-white"><Check size={18} strokeWidth={3} /></span>
+        : <span aria-hidden className={cn("grid size-9 place-items-center rounded-full text-sm font-semibold", active ? "bg-accent text-white" : "bg-background text-muted")}>{n}</span>}
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+        <h3 className="font-semibold leading-tight">{title}</h3>
+        {optional && <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted">Optional</span>}
+        {done && <span className="rounded-full bg-good-soft px-2 py-0.5 text-xs font-medium text-good">Done</span>}
       </div>
+      {/* Full card width on phones; lined up under the title from the sm breakpoint. */}
+      <div className="col-span-2 min-w-0 space-y-3 sm:col-span-1 sm:col-start-2">{children}</div>
     </li>
   );
 }
@@ -48,14 +47,14 @@ export function Onboarding() {
 
   return (
     <div className="space-y-5">
-      <section className="relative isolate overflow-hidden rounded-[var(--radius-card)] bg-gradient-to-br from-[#6d52e0] to-[#3a2399] p-6 text-white sm:p-8">
+      <section className="relative isolate overflow-hidden rounded-[var(--radius-card)] bg-gradient-to-br from-[#6d52e0] to-[#3a2399] p-5 text-white sm:p-8">
         <span aria-hidden className="absolute -right-16 -top-16 -z-10 size-56 rounded-full bg-white/10" />
         <span aria-hidden className="absolute -bottom-20 right-24 -z-10 size-44 rounded-full bg-white/10" />
-        <div className="flex items-center gap-4">
-          <LogoMark size={52} />
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <LogoMark size={44} />
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight">Welcome, {name}</h2>
-            <p className="text-white/80">Let&apos;s set up your own finance tracker. It takes about two minutes.</p>
+            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Welcome, {name}</h2>
+            <p className="text-sm text-white/80 sm:text-base">Let&apos;s set up your own finance tracker. It takes about two minutes.</p>
           </div>
         </div>
         <div className="mt-6 max-w-md" role="group" aria-label={`Setup progress: ${doneCount} of ${essentials.length} essential steps done`}>

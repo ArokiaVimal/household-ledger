@@ -16,6 +16,13 @@ Updated: 2026-10-18 · Branch `feat/slice5-persistence` · Stage 3 slices 1–5 
 - Google sign-in added (popup; same session cookie flow and allowlist). Needs the Google provider enabled in the Firebase console and the app's domain in Authorized domains (localhost is there by default). Not tested with a real Google account.
 - `ALLOWED_EMAILS` env var added (temporary allowlist until household membership in slice 3).
 
+## Mobile shell polish (added after the first iPhone PWA screenshot)
+- **Bug fixed:** the orange "PROTOTYPE / fictional data" banner showed for real signed-in users. It now appears only in demo mode (short "Demo mode" text).
+- **Header** is compact on phones: greeting + bell + profile menu on one row; a month **stepper** (‹ Oct 2026 ›, next disabled at the current month; replaces the hard-coded Sep/Aug dropdown, which was wrong for real use) and a **Mine / Everything** switch on the next row. Search moved out of the phone header (Transactions has its own; the desktop header keeps it from the lg breakpoint). The stray sign-out icon is now inside a **profile menu** (profile, settings, sign out). `src/domain/months.ts` holds the tested month helpers.
+- **Bottom bar and Add button** are positioned from the iPhone safe-area inset (`--sab` in `globals.css`), the Add button sits above the bar (z-30), and page content gets enough bottom padding to scroll clear. Verified at 375 px with a simulated 34 px inset; not yet seen on the owner's real iPhone.
+- **Dashboard summary cards:** two per row on phones, compact. **Onboarding:** hero stacks on phones; step text uses the full card width.
+- iOS caches installed web apps: close and reopen the Home Screen app (or remove and re-add it) to see changes.
+
 ## Personal first (added; supersedes the earlier household-first framing)
 - **Product order (owner's direction): 1) track my own expenses and categories, 2) split with my partner (Varru), 3) split with friends.** The app no longer starts with a "household".
 - **No "create a household" step.** On first sign-in a private space ("<first name>'s finances") is created automatically (`firstRun` in `src/lib/households/service.ts`; creation is atomic in Firestore so parallel loads cannot create two). Internally the space is still a `households/{id}` document; "household" is now only an implementation word.

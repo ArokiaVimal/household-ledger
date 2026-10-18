@@ -14,15 +14,13 @@ import { logoFor } from "@/lib/logos";
 
 function Kpi({ icon: I, label, value, sub, pill, href }: { icon: LucideIcon; label: string; value: string; sub: string; pill?: ReactNode; href?: string }) {
   const body = (
-    <Card className="h-full">
-      <div className="text-sm font-medium">{label}</div>
-      <div className="mt-5 flex items-center gap-3">
-        <span className="grid size-11 place-items-center rounded-full bg-background" aria-hidden><I size={18} /></span>
-        <div className="min-w-0">
-          <div className="num truncate text-xl font-semibold tracking-tight">{value}</div>
-          <div className="flex items-center gap-2 text-xs text-muted">{sub}{pill}</div>
-        </div>
+    <Card className="h-full p-3.5 sm:p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-xs font-medium text-muted sm:text-sm sm:text-foreground">{label}</div>
+        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-background sm:size-10" aria-hidden><I size={16} /></span>
       </div>
+      <div className="num mt-2 truncate text-lg font-semibold tracking-tight sm:mt-3 sm:text-xl">{value}</div>
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">{sub}{pill}</div>
     </Card>
   );
   return href ? <Link href={href} className="block rounded-[var(--radius-card)] transition-shadow hover:shadow-md">{body}</Link> : body;
@@ -66,7 +64,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Kpi icon={Wallet} label="Net spending" value={formatINR(summary.net)} sub="after refunds" href={`/transactions?${q}`}
           pill={delta !== null && <Pill tone={delta > 0 ? "bad" : "good"}>{delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{Math.abs(delta)}% vs {prevName}{live ? "" : " (mock)"}</Pill>} />
         <Kpi icon={UserRound} label="My share" value={formatINR(summary.myShare)} sub="what I ultimately bear" />
