@@ -32,7 +32,7 @@ describe("preview", () => {
     const repo = await setup();
     const p = await previewImport(repo, file(bankCsv), deps);
     expect(p.counts).toEqual({ rows: 3, new: 3, duplicate: 0, possible: 0, unreadable: 0 });
-    expect(p.rows.map((r) => [r.kind, r.categoryId, r.merchant])).toEqual([["purchase", "food_delivery", "Swiggy"], ["income", "income", "Neft Cr-Acme Ltd-Salary Sep"], ["cc_payment", "transfers", "Credit Card Payment Hdfc 4471"]]);
+    expect(p.rows.map((r) => [r.kind, r.categoryId, r.merchant])).toEqual([["purchase", "food_delivery", "Swiggy"], ["income", "income", "Neft Cr-Acme Ltd-Salary Sep"], ["cc_payment", "transfers", "Payment to HDFC Credit Card"]]);
     expect(p.totals).toMatchObject({ debitPaise: 61200 + 1850000, creditPaise: 18500000 });
     expect(await repo.records.list()).toEqual([]);
     expect(await repo.importBatches.list()).toEqual([]);
@@ -170,5 +170,26 @@ describe("commit", () => {
     const r = (await repo.records.list())[0];
     await expect(repo.records.put({ ...r, amountPaise: r.amountPaise + 1 })).rejects.toThrow();
     await expect(repo.records.put({ ...r, categoryId: "shopping", status: "reviewed" })).resolves.toBeTruthy();
+  });
+});
+
+describe("smart routing and text input", () => {
+  const text = (rows: { description: string; amountPaise: number; direction?: "debit" | "credit" }[], over: Record<string, unknown> = {}) => ({
+    accountId: "bank_hdfc", filename: "pasted text", fileHash: "e".repeat(64), format: "text" as const, readBy: "parser" as const,
+    rows: rows.map((r, i) => ({ line: i + 1, date: "2026-09-10", description: r.description, amountPaise: r.amountPaise, direction: r.direction ?? "debit", raw: [r.description] })), ...over,
+  });
+  it("files a GPay payment inside a bank statement under GPay, funded by the bank", async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "gpay", name: "GPay", type: "upi" });
+    const p = await previewImport(repo, text([{ description: "UPI-GPAY-ZEPTO-9988", amountPaise: 45000 }]), deps);
+    expect(p.rows[0]).toMatchObject({ accountId: "gpay", fundedBy: "bank_hdfc" });
+  });
+  it("stages text rows as unreviewed and records who read them", async () => {
+    const repo = await setup();
+    const actor = { uid: "u1", participantId: "p1" };
+    await commitImport(repo, actor, text([{ description: "Swiggy order", amountPaise: 45000 }], { readBy: "ai", unverified: ["Fake 999"] }), deps);
+    const [rec] = await repo.records.list();
+    expect(rec).toMatchObject({ status: "unreviewed", amountPaise: 45000 });
+    expect((await repo.importBatches.list())[0]).toMatchObject({ format: "text", readBy: "ai" });
   });
 });

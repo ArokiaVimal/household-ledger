@@ -155,7 +155,9 @@ export interface ImportBatch {
   accountId: string;
   filename: string;
   fileHash: string;
-  format: "csv" | "xlsx" | "pdf";
+  format: "csv" | "xlsx" | "pdf" | "text";
+  /** Who turned the file or text into rows: the deterministic parser, or Claude (every such row needs a careful look). */
+  readBy?: "parser" | "ai";
   uploadedAt: string;
   uploadedBy: string;
   counts: { rows: number; staged: number; skippedDuplicate: number; flaggedDuplicate: number; unreadable: number };

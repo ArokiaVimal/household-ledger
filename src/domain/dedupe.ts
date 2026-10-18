@@ -21,6 +21,8 @@ export interface IncomingTxn {
   referenceId?: string;
   /** Money in or out. A refund of a purchase has the same merchant, date and amount but is NOT a duplicate of it. */
   direction?: Dir;
+  /** The bank behind a UPI-app payment. The same money can appear in the app's record and in the bank's statement. */
+  fundedBy?: string;
 }
 
 export type DupResult =
@@ -33,7 +35,10 @@ export type DupResult =
  * Possible: same account, date and amount with alike merchant. Only flagged
  * for review; amount alone never matches, and nothing is merged automatically.
  */
-type Existing = Pick<ExpenseRecord, "id" | "accountId" | "date" | "amountPaise" | "merchant" | "referenceId"> & { kind?: TxnKind; direction?: Dir };
+type Existing = Pick<ExpenseRecord, "id" | "accountId" | "date" | "amountPaise" | "merchant" | "referenceId"> & { kind?: TxnKind; direction?: Dir; fundedBy?: string };
+
+/** Same account, or a UPI-app payment and the bank that funded it: one movement of money seen from two statements. */
+const sameMoneyTrail = (e: Existing, t: IncomingTxn) => e.accountId === t.accountId || (!!e.fundedBy && e.fundedBy === t.accountId) || (!!t.fundedBy && t.fundedBy === e.accountId);
 
 export function detectDuplicate(t: IncomingTxn, existing: Existing[]): DupResult {
   if (t.referenceId) {
@@ -41,7 +46,7 @@ export function detectDuplicate(t: IncomingTxn, existing: Existing[]): DupResult
     if (hit) return { status: "exact", matchId: hit.id };
   }
   const poss = existing.find(
-    (e) => e.accountId === t.accountId && e.date === t.date && e.amountPaise === t.amountPaise && merchantsAlike(e.merchant, t.merchant) && sameDirection(t.direction, e.direction ?? dirOfKind(e.kind)),
+    (e) => sameMoneyTrail(e, t) && e.date === t.date && e.amountPaise === t.amountPaise && merchantsAlike(e.merchant, t.merchant) && sameDirection(t.direction, e.direction ?? dirOfKind(e.kind)),
   );
   return poss ? { status: "possible", matchId: poss.id } : { status: "none" };
 }
@@ -96,7 +101,7 @@ export function planImport<T extends IncomingTxn>(rows: T[], existing: Existing[
   const seen = [...existing];
   return rows.map((row, i) => {
     const dup = detectDuplicate(row, seen);
-    if (dup.status !== "exact") seen.push({ id: `incoming-${i}`, accountId: row.accountId, date: row.date, amountPaise: row.amountPaise, merchant: row.merchant, referenceId: row.referenceId, direction: row.direction });
+    if (dup.status !== "exact") seen.push({ id: `incoming-${i}`, accountId: row.accountId, date: row.date, amountPaise: row.amountPaise, merchant: row.merchant, referenceId: row.referenceId, direction: row.direction, fundedBy: row.fundedBy });
     return { row, dup };
   });
 }

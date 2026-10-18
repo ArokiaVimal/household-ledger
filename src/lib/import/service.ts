@@ -6,6 +6,8 @@ import { classifyRow } from "@/domain/import/classify";
 import { extractRows, type ParsedRow } from "@/domain/import/rows";
 import type { PdfParseResult, StatementCheck, StatementSummary } from "@/domain/import/pdf";
 import { planImport } from "@/domain/dedupe";
+import { resolveChannel } from "@/domain/import/channel";
+import type { Sensed } from "@/domain/import/sense";
 import { isConfident, kindFits, lookupMemory, memoryKey, rememberSuggestion, seedMemory } from "@/domain/memory";
 import type { AiItem, AiUsage, Suggest } from "./ai";
 import { suggestCategory } from "@/domain/rules";
@@ -38,6 +40,10 @@ export interface PreviewRow {
   suggested?: Suggestion;
   /** Id of the record this looks like (possible) or is (duplicate). */
   matchId?: string;
+  /** The payment method this row is filed under. Can differ from the statement's (a GPay payment inside a bank statement). */
+  accountId: string;
+  /** The bank that paid, when the row went through a UPI app. */
+  fundedBy?: string;
 }
 
 export interface Preview {
@@ -48,7 +54,13 @@ export interface Preview {
   /** True when the file has one signed Amount column (so the sign convention matters and may need flipping). */
   singleAmountColumn: boolean;
   columns: string[];
-  format: "csv" | "xlsx" | "pdf";
+  format: "csv" | "xlsx" | "pdf" | "text";
+  /** Who turned the file/text into rows. "ai" rows are checked against the source text but still need a careful look. */
+  readBy: "parser" | "ai";
+  /** How the payment method was chosen: by you, or sensed from the statement's own wording. */
+  detected?: Pick<Sensed, "confidence" | "reason"> & { chosen: boolean };
+  /** Lines the AI offered that could not be found in the source text, so they were left out. */
+  unverified: string[];
   /** PDF statements: what the statement says about itself, and whether our reading agrees with it. */
   summary?: StatementSummary;
   checks: StatementCheck[];
@@ -91,8 +103,15 @@ interface ImportBase {
   acceptMismatch?: boolean;
   /** The person confirmed they want to read a file that was already imported. Without it a repeat import is refused. */
   allowReimport?: boolean;
+  /** How the payment method was decided (for the preview). */
+  detected?: Preview["detected"];
 }
-export type ImportInput = ImportBase & ({ format: "csv" | "xlsx"; table: string[][] } | { format: "pdf"; pdf: PdfParseResult });
+export type ImportInput = ImportBase & (
+  | { format: "csv" | "xlsx"; table: string[][] }
+  | { format: "pdf"; pdf: PdfParseResult }
+  /** Rows already read from pasted text or by Claude. `unverified` are lines Claude offered that the source did not support. */
+  | { format: "text"; rows: ParsedRow[]; readBy: "parser" | "ai"; unverified?: string[]; warnings?: string[] }
+);
 
 const KIND_CATEGORY: Partial<Record<TxnKind, string>> = { income: "income", cc_payment: "transfers", transfer: "transfers", refund: "refunds", fee: "fees" };
 
@@ -174,7 +193,10 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
   let summary: StatementSummary | undefined;
   const checks: StatementCheck[] = [];
   const warnings: string[] = [];
-  if (input.format === "pdf") {
+  if (input.format === "text") {
+    rows = input.rows;
+    warnings.push(...(input.warnings ?? []));
+  } else if (input.format === "pdf") {
     if (!input.pdf.ok) throw new ImportError("invalid", input.pdf.error);
     summary = input.pdf.summary;
     checks.push(...input.pdf.checks);
@@ -206,15 +228,20 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
     seen.set(base, occurrence);
     return { r, ...resolved.items[i], occurrence };
   });
-  const withRef = prepared.map((p) => ({ ...p, referenceId: dedupeKey(d.sha256, input.accountId, p.r, p.occurrence) }));
-  const plan = planImport(withRef.map((p) => ({ accountId: input.accountId, date: p.r.date, amountPaise: p.r.amountPaise, merchant: p.merchant, referenceId: p.referenceId, direction: p.r.direction })), records);
+  // Per-row routing: a bank row naming GPay is filed under GPay (funded by the bank); a card-bill payment names the card.
+  const accounts = await repo.accounts.list();
+  const withRef = prepared.map((p) => {
+    const ch = resolveChannel(p.r.description, p.kind, account, accounts);
+    return { ...p, accountId: ch.accountId, fundedBy: ch.fundedBy, merchant: ch.merchant ?? p.merchant, referenceId: dedupeKey(d.sha256, input.accountId, p.r, p.occurrence) };
+  });
+  const plan = planImport(withRef.map((p) => ({ accountId: p.accountId, fundedBy: p.fundedBy, date: p.r.date, amountPaise: p.r.amountPaise, merchant: p.merchant, referenceId: p.referenceId, direction: p.r.direction })), records);
 
   const out = withRef.map((p, i) => {
     const dup = plan[i].dup;
     const status: PreviewRow["status"] = dup.status === "exact" ? "duplicate" : dup.status === "possible" ? "possible" : "new";
     return {
       line: p.r.line, date: p.r.date, description: p.r.description, merchant: p.merchant, amountPaise: p.r.amountPaise, direction: p.r.direction,
-      kind: p.kind, categoryId: p.categoryId, suggested: p.suggested, status, matchId: dup.status === "none" ? undefined : dup.matchId, referenceId: p.referenceId, parsed: p.r,
+      kind: p.kind, categoryId: p.categoryId, suggested: p.suggested, status, accountId: p.accountId, fundedBy: p.fundedBy, matchId: dup.status === "none" ? undefined : dup.matchId, referenceId: p.referenceId, parsed: p.r,
     };
   });
   const counts = { rows: out.length, new: out.filter((x) => x.status === "new").length, duplicate: out.filter((x) => x.status === "duplicate").length, possible: out.filter((x) => x.status === "possible").length, unreadable: skipped.length };
@@ -226,7 +253,7 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
   };
   const preview: Preview = {
     accountId: input.accountId, filename: input.filename, fileHash: input.fileHash, positiveIsDebit,
-    singleAmountColumn, format: input.format, summary, checks, warnings,
+    singleAmountColumn, format: input.format, readBy: input.format === "text" ? input.readBy : "parser", detected: input.detected, unverified: input.format === "text" ? input.unverified ?? [] : [], summary, checks, warnings,
     columns: headers, rows: out.map(({ referenceId: _r, parsed: _p, ...row }) => { void _r; void _p; return row; }), skipped, totals, counts, smart,
     ...(prior ? { previousImport: { batchId: prior.id, filename: prior.filename, uploadedAt: prior.uploadedAt, staged: prior.counts.staged } } : {}),
   };
@@ -256,7 +283,7 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
   const batchId = d.newId();
   const stage = rows.filter((r) => r.status !== "duplicate");
   const batch: ImportBatch = {
-    id: batchId, accountId: input.accountId, filename: input.filename.slice(0, 200), fileHash: input.fileHash, format: input.format,
+    id: batchId, accountId: input.accountId, filename: input.filename.slice(0, 200), fileHash: input.fileHash, format: input.format, readBy: preview.readBy,
     uploadedAt: new Date(d.now()).toISOString(), uploadedBy: actor.uid,
     counts: { rows: preview.counts.rows, staged: stage.length, skippedDuplicate: preview.counts.duplicate, flaggedDuplicate: preview.counts.possible, unreadable: preview.counts.unreadable },
     totals: { debitPaise: preview.totals.debitPaise, creditPaise: preview.totals.creditPaise },
@@ -270,7 +297,7 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
   for (const r of stage) {
     const rec: ExpenseRecord = {
       id: d.newId(), date: r.date, postedDate: r.parsed.postedDate, merchant: r.merchant, originalDescription: r.description.slice(0, 500), amountPaise: r.amountPaise, currency: "INR",
-      accountId: input.accountId, categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
+      accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
       excluded: false, status: "unreviewed", suggested: r.suggested, importSource: `${input.filename.slice(0, 150)} (import ${batchId.slice(0, 8)})`, referenceId: r.referenceId, duplicateOf: r.status === "possible" ? r.matchId : undefined,
     };
     await repo.records.put(JSON.parse(JSON.stringify(rec)) as ExpenseRecord);

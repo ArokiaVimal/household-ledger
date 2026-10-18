@@ -28,3 +28,6 @@ All household data changes go through `POST /api/data`: same-origin check, verif
 - Rules tests with the Firebase emulator (cross-household reads denied).
 - Never ask for bank passwords, UPI PINs, full card numbers. Password-protected PDFs: ask user to upload an unlocked copy.
 - Never commit real statements or production env files.
+
+## AI import (added)
+Claude receives statement or typed text only after an explicit click (the server refuses AI without `ai=1`), with digit runs of 8+ characters, emails and phone numbers masked first. The file is never stored or sent whole. The text is treated as untrusted: the prompt forbids following instructions inside it, the answer is validated, and statement rows must be found in the text Claude saw. AI-read rows are still unreviewed until a person approves them.

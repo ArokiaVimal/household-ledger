@@ -1,9 +1,9 @@
 "use client";
-import { CheckCircle2, FileUp, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardPaste, FileUp, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { AiBadge, AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, Dialog, EmptyState, FormRow, PageHeader } from "@/components/ui";
+import { AiBadge, AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, Dialog, EmptyState, PageHeader } from "@/components/ui";
 import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -12,33 +12,57 @@ import type { Preview } from "@/lib/import/service";
 const MAX_BYTES = 4 * 1024 * 1024;
 const kindLabel: Record<string, string> = { purchase: "Purchase", refund: "Refund", fee: "Fee", income: "Income", transfer: "Transfer", cc_payment: "Card bill" };
 
-type Reply = { ok: boolean; error?: string; preview?: Preview; result?: { counts: { staged: number; duplicate: number; possible: number; unreadable: number } } };
+/** What is being read. Kept so a choice (payment method, sign, "yes read it again") can re-read the same input without a new upload. */
+type Src = { kind: "file"; file: File; ai: boolean; accountId?: string } | { kind: "text"; text: string; mode: "table" | "ai"; accountId?: string };
+type Extraction = { calls: number; inputTokens: number; outputTokens: number; error?: string };
+type Reply = {
+  ok: boolean; error?: string; preview?: Preview; extraction?: Extraction;
+  needAccount?: { reason: string; candidates: { id: string; name: string; score: number }[] };
+  result?: { counts: { staged: number; duplicate: number; possible: number; unreadable: number } };
+};
 
 export function LiveImport() {
   const { accounts, accountName, categoryName, importBatches, aiEnabled } = useStore();
   const router = useRouter();
   const usable = accounts.filter((a) => a.type !== "cash");
-  const [accountId, setAccountId] = useState(usable[0]?.id ?? "");
-  const [file, setFile] = useState<File | null>(null);
+  const [src, setSrc] = useState<Src | null>(null);
   const [sign, setSign] = useState<"auto" | "out" | "in">("auto");
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [extraction, setExtraction] = useState<Extraction | null>(null);
+  const [need, setNeed] = useState<Reply["needAccount"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [accept, setAccept] = useState(false);
   const [reimportOk, setReimportOk] = useState(false); // the owner said yes to reading a file that was imported before
-  const input = useRef<HTMLInputElement>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualAccount, setManualAccount] = useState(usable[0]?.id ?? "");
+  const [manualFile, setManualFile] = useState<File | null>(null);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const aiInput = useRef<HTMLInputElement>(null);
+  const manualInput = useRef<HTMLInputElement>(null);
 
-  const send = async (mode: "preview" | "commit", signOverride = sign): Promise<Reply> => {
-    const form = new FormData();
-    form.set("file", file!);
-    form.set("accountId", accountId);
-    form.set("mode", mode);
-    if (signOverride !== "auto") form.set("positiveIsDebit", signOverride === "out" ? "true" : "false");
-    if (mode === "commit" && accept) form.set("acceptMismatch", "1");
-    if (mode === "commit" && reimportOk) form.set("reimport", "1");
+  const send = async (s: Src, mode: "preview" | "commit", signOverride = sign): Promise<Reply> => {
+    const flip = signOverride === "auto" ? undefined : signOverride === "out";
     try {
-      const res = await fetch("/api/import", { method: "POST", body: form });
+      let res: Response;
+      if (s.kind === "file") {
+        const form = new FormData();
+        form.set("file", s.file);
+        form.set("mode", mode);
+        if (s.accountId) form.set("accountId", s.accountId);
+        if (s.ai) form.set("ai", "1");
+        if (flip !== undefined) form.set("positiveIsDebit", String(flip));
+        if (mode === "commit" && accept) form.set("acceptMismatch", "1");
+        if (mode === "commit" && reimportOk) form.set("reimport", "1");
+        res = await fetch("/api/import", { method: "POST", body: form });
+      } else {
+        res = await fetch("/api/import/text", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ text: s.text, mode: s.mode, ai: s.mode === "ai", accountId: s.accountId, action: mode, reimport: mode === "commit" && reimportOk, positiveIsDebit: flip }),
+        });
+      }
       const data = (await res.json().catch(() => ({}))) as Reply;
       return res.ok ? { ...data, ok: true } : { ok: false, error: data.error ?? "Something went wrong." };
     } catch {
@@ -46,33 +70,37 @@ export function LiveImport() {
     }
   };
 
-  const pick = (f: File | undefined) => {
-    setPreview(null); setError(null); setDone(null); setSign("auto"); setAccept(false); setReimportOk(false);
-    if (!f) return setFile(null);
-    if (f.size > MAX_BYTES) { setFile(null); return setError("That file is larger than 4 MB. Export a shorter date range."); }
-    if (!/\.(csv|txt|xlsx|pdf)$/i.test(f.name)) { setFile(null); return setError("Upload a .csv, .xlsx or .pdf statement."); }
-    setFile(f);
-  };
+  const reset = () => { setPreview(null); setNeed(null); setError(null); setDone(null); setSign("auto"); setAccept(false); setReimportOk(false); setExtraction(null); };
 
-  const read = async (s = sign) => {
-    if (!file || !accountId) return;
-    setBusy(true); setError(null); setDone(null);
-    const r = await send("preview", s);
+  const read = async (s: Src, signOverride = sign) => {
+    setSrc(s); setBusy(true); setError(null); setDone(null); setNeed(null);
+    const r = await send(s, "preview", signOverride);
     setBusy(false);
-    if (!r.ok) { setPreview(null); return setError(r.error ?? "Could not read that file."); }
+    setExtraction(r.extraction ?? null);
+    if (!r.ok) { setPreview(null); return setError(r.error ?? "Could not read that."); }
     setAccept(false);
+    if (r.needAccount) { setPreview(null); return setNeed(r.needAccount); }
     setPreview(r.preview ?? null);
   };
 
+  const pickFile = (f: File | undefined, ai: boolean, accountId?: string) => {
+    reset();
+    if (!f) return;
+    if (f.size > MAX_BYTES) return setError("That file is larger than 4 MB. Export a shorter date range.");
+    if (!/\.(csv|txt|xlsx|pdf)$/i.test(f.name)) return setError("Upload a .csv, .xlsx or .pdf statement.");
+    void read({ kind: "file", file: f, ai, accountId });
+  };
+
   const commit = async () => {
+    if (!src) return;
     setBusy(true); setError(null);
-    const r = await send("commit");
+    const r = await send(src, "commit");
     setBusy(false);
     if (!r.ok) return setError(r.error ?? "Could not save the import.");
     const c = r.result!.counts;
     setDone(`${c.staged} transaction${c.staged === 1 ? "" : "s"} sent to the review queue. ${c.duplicate} duplicate${c.duplicate === 1 ? "" : "s"} skipped.`);
-    setPreview(null); setFile(null);
-    if (input.current) input.current.value = "";
+    setPreview(null); setSrc(null);
+    if (aiInput.current) aiInput.current.value = "";
     router.refresh();
     // Straight to the review queue: that is the next thing to do. The queue shows a short confirmation.
     if (c.staged > 0) router.push(`/review?imported=${c.staged}&skipped=${c.duplicate}`);
@@ -84,47 +112,62 @@ export function LiveImport() {
   // The same file again: ask first. Nothing is shown or saved until the owner answers.
   const askReimport = !!preview?.previousImport && !reimportOk;
   // Note: the dialog also reports "closed" when it is closed on purpose after a Yes, so cancelling only counts while the question is open.
-  const cancelReimport = () => { setPreview(null); setFile(null); setReimportOk(false); if (input.current) input.current.value = ""; };
+  const cancelReimport = () => { setPreview(null); setSrc(null); setReimportOk(false); if (aiInput.current) aiInput.current.value = ""; };
 
   return (
     <>
-      <PageHeader title="Import a statement" sub="CSV, Excel or an American Express (India) PDF. Nothing counts until you approve it in the review queue, and the file itself is not stored." />
-      <AiFeatureCard enabled={aiEnabled} title="AI-powered import" className="mb-4">
-        <p>{aiEnabled ? "Claude reads the merchants on your statement, names them properly, picks a category and tells cards, fees and transfers apart. " : "Turn on AI to have Claude name and categorise new merchants for you. "}It remembers what you approve, so each month needs less review.</p>
-        <p className="text-xs">{aiEnabled ? "Only merchant text, amount and debit/credit are sent, with long numbers hidden. You approve everything." : "Until then the app still uses everything it has learned from your approvals. Add ANTHROPIC_API_KEY on the server to switch it on."}</p>
-      </AiFeatureCard>
+      <PageHeader title="Import transactions" sub="Bring in a statement, or paste or describe transactions. Nothing counts until you approve it in the review queue, and the file itself is not stored." />
       {usable.length === 0 ? (
-        <EmptyState title="Add a payment method first" hint="Open Settings and add the card or account this statement belongs to." />
+        <EmptyState title="Add a payment method first" hint="Open Settings and add the card or account this belongs to." />
       ) : (
         <div className="grid gap-4 lg:grid-cols-3">
-          <Card className="space-y-3 lg:col-span-2">
-            <FormRow label="Statement for">
-              <CompactChips label="Payment method" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={(id) => { setAccountId(id); setPreview(null); setDone(null); }} />
-            </FormRow>
-            <FormRow label="File">
-              <div className="flex flex-wrap items-center gap-2">
-                <input ref={input} type="file" accept=".csv,.txt,.xlsx,.pdf" className="sr-only" aria-label="Choose statement file" onChange={(e) => pick(e.target.files?.[0])} />
-                <Button onClick={() => input.current?.click()}><FileUp size={16} aria-hidden />{file ? "Change file" : "Choose .csv, .xlsx or .pdf"}</Button>
-                {file && <span className="text-sm text-muted">{file.name} · {(file.size / 1024).toFixed(0)} KB</span>}
-              </div>
-            </FormRow>
-            <div className="flex flex-wrap gap-2 pl-0 sm:pl-[4.75rem]"><Button variant="primary" disabled={!file || !accountId || busy} onClick={() => read()}>{busy && !preview ? "Reading…" : "Read statement"}</Button></div>
-            {error && <p role="alert" className="rounded-xl bg-danger/10 p-3 text-sm text-danger">{error}</p>}
-            {done && (
-              <p role="status" className="rounded-xl bg-good-soft p-3 text-sm text-good">
-                {done} <Link href="/review" className="font-medium underline">Review them now</Link>
-              </p>
-            )}
-          </Card>
+          <div className="grid gap-4 md:grid-cols-3 lg:col-span-3">
+            <AiFeatureCard enabled={aiEnabled} title="Import with AI">
+              <p>Choose any statement file. The app works out which bank or card it is, and files UPI-app payments and card-bill payments in the right place.</p>
+              <p className="text-xs">{aiEnabled ? "Claude only sees the text of the statement when your own parser cannot read it, with account numbers, emails and phone numbers hidden. You review every row." : "Off: add ANTHROPIC_API_KEY on the server to switch it on. Payment-method sensing still works without it."}</p>
+              <input ref={aiInput} type="file" accept=".csv,.txt,.xlsx,.pdf" className="sr-only" aria-label="Choose statement file for AI import" onChange={(e) => { pickFile(e.target.files?.[0], true); e.target.value = ""; }} />
+              <Button variant="primary" disabled={busy} onClick={() => aiInput.current?.click()}><FileUp size={16} aria-hidden />{busy && src?.kind === "file" && src.ai ? "Reading…" : "Choose statement"}</Button>
+            </AiFeatureCard>
+            <Card className="space-y-3">
+              <CardTitle>Import a statement file</CardTitle>
+              <p className="text-sm text-muted">Pick the bank or payment method yourself, then upload its CSV, Excel or PDF. Nothing is sent to AI.</p>
+              <Button disabled={busy} onClick={() => { setManualFile(null); setManualOpen(true); }}><FileUp size={16} aria-hidden />Choose method and file</Button>
+            </Card>
+            <Card className="space-y-3">
+              <CardTitle>Paste or describe</CardTitle>
+              <p className="text-sm text-muted">Paste rows copied from a statement or app, or just write it: &ldquo;paid 450 at Swiggy yesterday via GPay&rdquo;.</p>
+              <Button disabled={busy} onClick={() => setPasteOpen(true)}><ClipboardPaste size={16} aria-hidden />Paste or type</Button>
+            </Card>
+          </div>
 
-          <Card>
+          {(error || done || busy) && (
+            <div className="space-y-2 lg:col-span-3">
+              {busy && !preview && <p role="status" className="rounded-xl bg-background p-3 text-sm text-muted">Reading…</p>}
+              {error && <p role="alert" className="rounded-xl bg-danger/10 p-3 text-sm text-danger">{error}</p>}
+              {done && (
+                <p role="status" className="rounded-xl bg-good-soft p-3 text-sm text-good">
+                  {done} <Link href="/review" className="font-medium underline">Review them now</Link>
+                </p>
+              )}
+            </div>
+          )}
+
+          {need && src && (
+            <Card className="space-y-3 lg:col-span-3">
+              <CardTitle>Which payment method is this?</CardTitle>
+              <p className="text-sm text-muted">{need.reason}. Pick one and it will be read straight away.</p>
+              <CompactChips label="Payment method" options={[...usable].sort((x, y) => (need.candidates.find((c) => c.id === y.id)?.score ?? 0) - (need.candidates.find((c) => c.id === x.id)?.score ?? 0)).map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[]} onPick={(id) => void read({ ...src, accountId: id })} />
+            </Card>
+          )}
+
+          <Card className="lg:col-span-3">
             <CardTitle>Import history</CardTitle>
-            {importBatches.length === 0 ? <p className="text-sm text-muted">No statements imported yet.</p> : (
-              <ul className="space-y-3 text-sm">
+            {importBatches.length === 0 ? <p className="text-sm text-muted">Nothing imported yet.</p> : (
+              <ul className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
                 {importBatches.slice(0, 12).map((b) => (
                   <li key={b.id}>
                     <div className="truncate font-medium">{b.filename}</div>
-                    <div className="text-xs text-muted">{accountName(b.accountId)} · {b.uploadedAt.slice(0, 10)}</div>
+                    <div className="text-xs text-muted">{accountName(b.accountId)} · {b.uploadedAt.slice(0, 10)}{b.readBy === "ai" ? " · read by AI" : ""}</div>
                     <div className="text-xs text-muted">{b.reimportOf ? "Read again · " : ""}{b.counts.staged} sent to review · {b.counts.skippedDuplicate} duplicates skipped{b.counts.unreadable ? ` · ${b.counts.unreadable} unreadable` : ""}</div>
                   </li>
                 ))}
@@ -134,7 +177,21 @@ export function LiveImport() {
 
           {preview && !askReimport && (
             <Card className="space-y-4 lg:col-span-3">
-              <CardTitle>What the file contains</CardTitle>
+              <CardTitle>{preview.format === "text" ? "What was read" : "What the file contains"}</CardTitle>
+              <div className="space-y-2 rounded-xl bg-background p-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2"><MerchantAvatar name={accountName(preview.accountId)} size={24} /><b>{accountName(preview.accountId)}</b>
+                  <span className="text-muted">{preview.detected?.chosen ? "you chose this" : preview.detected ? `picked automatically: ${preview.detected.reason}` : ""}</span>
+                  {preview.readBy === "ai" && <AiBadge tone="unsure" title="Claude read these rows. Each one was found in the text, but check every amount.">Read by AI</AiBadge>}
+                </div>
+                {src && <CompactChips label="Change payment method" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[preview.accountId]} onPick={(id) => { if (id !== preview.accountId) void read({ ...src, accountId: id }); }} />}
+                {extraction && extraction.calls > 0 && <p className="text-xs text-muted">Claude read this text ({(extraction.inputTokens + extraction.outputTokens).toLocaleString("en-IN")} tokens). Account numbers, emails and phone numbers were hidden first.</p>}
+              </div>
+              {preview.unverified.length > 0 && (
+                <details className="rounded-xl bg-warn-soft p-3 text-sm text-warn">
+                  <summary className="cursor-pointer font-medium">{preview.unverified.length} line{preview.unverified.length === 1 ? "" : "s"} Claude offered could not be found in the text and were left out</summary>
+                  <ul className="mt-2 space-y-1 text-xs">{preview.unverified.slice(0, 20).map((u) => <li key={u}>{u}</li>)}</ul>
+                </details>
+              )}
               {preview.summary && (
                 <p className="text-sm text-muted">{preview.summary.issuer} statement{preview.summary.periodStart && preview.summary.periodEnd ? `, ${preview.summary.periodStart} to ${preview.summary.periodEnd}` : ""}{preview.summary.closingPaise !== undefined ? `. Closing balance ${formatINR(preview.summary.closingPaise)}.` : "."}</p>
               )}
@@ -181,7 +238,7 @@ export function LiveImport() {
               {preview.singleAmountColumn && (
                 <div className="space-y-1.5 rounded-xl bg-warn-soft p-3 text-sm text-warn">
                   <div>This file has one Amount column, so the sign decides direction. Currently a positive amount means <b>{preview.positiveIsDebit ? "money out" : "money in"}</b>. If purchases look like refunds, switch it.</div>
-                  <ChipGroup label="Sign of amounts" value={preview.positiveIsDebit ? "out" : "in"} options={[{ id: "out", label: "Positive = money out" }, { id: "in", label: "Positive = money in" }]} onChange={(v) => { setSign(v); void read(v); }} />
+                  <ChipGroup label="Sign of amounts" value={preview.positiveIsDebit ? "out" : "in"} options={[{ id: "out", label: "Positive = money out" }, { id: "in", label: "Positive = money in" }]} onChange={(v) => { setSign(v); if (src) void read(src, v); }} />
                 </div>
               )}
               <ul className="divide-y divide-border rounded-xl border border-border">
@@ -189,6 +246,7 @@ export function LiveImport() {
                   <li key={r.line} className="flex flex-wrap items-center gap-2 p-2.5 text-sm">
                     <span className="num w-20 shrink-0 text-xs text-muted">{r.date.slice(2)}</span>
                     <div className="min-w-0 flex-1"><div className="truncate font-medium">{r.merchant}</div><div className="truncate text-xs text-muted">{r.description}</div></div>
+                    {r.accountId !== preview.accountId && <span title={r.fundedBy ? `Paid from ${accountName(r.fundedBy)}` : undefined}><Badge>via {accountName(r.accountId)}</Badge></span>}
                     <Badge>{kindLabel[r.kind]}</Badge><span className="hidden text-xs text-muted sm:inline">{categoryName(r.categoryId)}</span>
                     {r.status === "duplicate" && <Badge tone="bad">Already imported</Badge>}
                     {r.status === "possible" && <Badge tone="warn">Possible duplicate</Badge>}
@@ -212,6 +270,40 @@ export function LiveImport() {
           )}
         </div>
       )}
+
+      <Dialog open={manualOpen} onClose={() => setManualOpen(false)} title="Import a statement file">
+        <div className="space-y-4 pb-1 text-sm">
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted">Which bank or payment method is this statement from?</div>
+            <CompactChips label="Payment method" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[manualAccount]} onPick={setManualAccount} />
+          </div>
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted">Statement file</div>
+            <input ref={manualInput} type="file" accept=".csv,.txt,.xlsx,.pdf" className="sr-only" aria-label="Choose statement file" onChange={(e) => setManualFile(e.target.files?.[0] ?? null)} />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => manualInput.current?.click()}><FileUp size={16} aria-hidden />{manualFile ? "Change file" : "Choose .csv, .xlsx or .pdf"}</Button>
+              {manualFile && <span className="text-muted">{manualFile.name} · {(manualFile.size / 1024).toFixed(0)} KB</span>}
+            </div>
+          </div>
+          <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3">
+            <Button onClick={() => setManualOpen(false)}>Cancel</Button>
+            <Button variant="primary" disabled={!manualFile || !manualAccount} onClick={() => { const f = manualFile; setManualOpen(false); pickFile(f ?? undefined, false, manualAccount); }}>Read statement</Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog open={pasteOpen} onClose={() => setPasteOpen(false)} title="Paste or describe transactions">
+        <div className="space-y-3 pb-1 text-sm">
+          <textarea aria-label="Transactions to import" value={pasteText} onChange={(e) => setPasteText(e.target.value)} rows={8} maxLength={100000}
+            placeholder={"Paste rows from a statement or app (include the header line), or write it:\npaid 450 at Swiggy yesterday via GPay\nrent 25000 on the 1st from HDFC"}
+            className="w-full resize-y rounded-xl border border-border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-accent/40" />
+          <p className="text-xs text-muted">Pasted rows with a header (Date, Description, Amount) are read without AI. Free text is read by Claude: it sees only what you type here, with long numbers hidden. Everything goes to the review queue first.</p>
+          <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3">
+            <Button disabled={!pasteText.trim()} onClick={() => { setPasteOpen(false); reset(); void read({ kind: "text", text: pasteText, mode: "table" }); }}>Read as table</Button>
+            <Button variant="primary" disabled={!pasteText.trim() || !aiEnabled} title={aiEnabled ? undefined : "AI is off: no API key on the server"} onClick={() => { setPasteOpen(false); reset(); void read({ kind: "text", text: pasteText, mode: "ai" }); }}>{aiEnabled ? "Read with AI" : "Read with AI (off)"}</Button>
+          </div>
+        </div>
+      </Dialog>
 
       <Dialog open={askReimport} onClose={() => { if (askReimport) cancelReimport(); }} title="Read this file again?">
         {preview?.previousImport && (

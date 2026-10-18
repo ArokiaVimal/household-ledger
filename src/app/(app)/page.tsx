@@ -45,7 +45,7 @@ function ReviewedNotice() {
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet } as const;
 
 export default function Dashboard() {
-  const { live, householdReady, meId, accounts, trendHistory, records, shown, staged, importBatches, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView } = useStore();
+  const { live, householdReady, meId, accounts, trendHistory, records, shown, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView } = useStore();
   const household = useMemo(() => summarize(shown.filter((r) => r.date.startsWith(month)), meId), [shown, month, meId]);
   const cats = useMemo(() => Object.entries(byCategory(scoped)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [scoped, categoryName]);
   const perAccount = useMemo(() => groupNet(scoped, (r) => r.accountId), [scoped]);
@@ -62,8 +62,9 @@ export default function Dashboard() {
   const delta = prev && prev > 0 ? Math.round(((household.net - prev) / prev) * 1000) / 10 : null;
   const prevName = new Date(`${prevKey}-01T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" });
 
-  // The welcome guide is only for someone with nothing yet. Once anything is imported or added it gives way to the dashboard.
-  if (live && householdReady && records.length + staged.length + importBatches.length === 0) return <Onboarding />;
+  // The welcome guide is only for someone with no transactions at all (also after deleting everything, even if import history
+  // remains). Once any transaction exists it gives way to the dashboard.
+  if (live && householdReady && records.length + staged.length === 0) return <Onboarding />;
   if (scoped.length === 0) {
     return (
       <div className="space-y-4">
