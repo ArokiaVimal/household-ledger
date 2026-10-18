@@ -103,6 +103,8 @@ function TransactionsView() {
   }, [records, scoped, params]);
 
   const total = summarize(rows, ME);
+  const pending = rows.filter((r) => r.status === "unreviewed" && r.id !== editing?.id);
+  const nextUnreviewed = editing ? { remaining: pending.length, open: () => setEditing(pending[0] ?? null) } : undefined;
   const view = get("view") || "all";
   const active = ["recurring", "q", "category", "merchant", "status", "kind", "account", "shared"].filter((k) => get(k));
 
@@ -165,7 +167,7 @@ function TransactionsView() {
           </div>
         </>
       )}
-      <TxnEditDialog record={editing} onClose={() => setEditing(null)} />
+      <TxnEditDialog record={editing} onClose={() => setEditing(null)} next={nextUnreviewed} />
     </>
   );
 }

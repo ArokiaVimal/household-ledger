@@ -90,14 +90,47 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
       ref={ref}
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
-      className="m-auto w-[min(32rem,calc(100vw-1.5rem))] rounded-xl border border-border bg-surface p-0 backdrop:bg-black/30"
+      className="m-auto w-[min(36rem,calc(100vw-1.5rem))] rounded-2xl bg-surface p-0 backdrop:bg-black/30 max-sm:mb-0 max-sm:mt-auto max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none"
     >
       {open && (
-        <div className="max-h-[85vh] overflow-y-auto p-4">
+        <div className="max-h-[88vh] overflow-y-auto px-4 pt-4">
           <h2 className="mb-3 text-base font-semibold">{title}</h2>
           {children}
         </div>
       )}
     </dialog>
+  );
+}
+
+export interface ChipOption<T extends string> { id: T; label: string; hint?: string }
+
+/** One-tap single choice. Replaces dropdowns for short, frequently used lists. */
+export function ChipGroup<T extends string>({ label, options, value, onChange, tabs }: { label: string; options: ChipOption<T>[]; value: T; onChange: (v: T) => void; tabs?: boolean }) {
+  return (
+    <div role="radiogroup" aria-label={label} className={cn("flex gap-1.5", tabs ? "rounded-full bg-background p-1" : "flex-wrap")}>
+      {options.map((o) => {
+        const on = o.id === value;
+        return (
+          <button key={o.id} type="button" role="radio" aria-checked={on} onClick={() => onChange(o.id)}
+            className={cn(
+              "min-h-9 rounded-full px-3.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-accent",
+              tabs && "flex-1",
+              on ? "bg-accent font-medium text-white" : tabs ? "text-muted hover:bg-surface" : "border border-border bg-surface hover:bg-background",
+            )}>
+            {o.label}{o.hint && <span className={cn("ml-1 text-xs", on ? "text-white/80" : "text-muted")}>{o.hint}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Small section label for forms built from chips. */
+export function FormRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-xs font-medium text-muted">{label}</div>
+      {children}
+    </div>
   );
 }

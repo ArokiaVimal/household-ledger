@@ -6,20 +6,29 @@ import { formatINR } from "@/domain/money";
 import { validateSplit } from "@/domain/splits";
 import type { ExpenseRecord, SplitConfig, TxnKind } from "@/domain/types";
 import { SplitEditor } from "./split-editor";
-import { Button, Dialog, Field, Input, Select } from "./ui";
+import { Button, ChipGroup, Dialog, FormRow, Input } from "./ui";
 
-const kinds: TxnKind[] = ["purchase", "refund", "income", "transfer", "cc_payment", "fee"];
+const kinds: { id: TxnKind; label: string }[] = [
+  { id: "purchase", label: "Purchase" },
+  { id: "refund", label: "Refund" },
+  { id: "fee", label: "Fee" },
+  { id: "income", label: "Income" },
+  { id: "transfer", label: "Transfer" },
+  { id: "cc_payment", label: "Card bill" },
+];
 
-export function TxnEditDialog({ record, onClose }: { record: ExpenseRecord | null; onClose: () => void }) {
+interface Props { record: ExpenseRecord | null; onClose: () => void; /** Open the next unreviewed record, with how many remain. */ next?: { remaining: number; open: () => void } }
+
+export function TxnEditDialog({ record, onClose, next }: Props) {
   return (
     <Dialog open={!!record} onClose={onClose} title="Edit transaction">
-      {record && <Form key={record.id} record={record} onClose={onClose} />}
+      {record && <Form key={record.id} record={record} onClose={onClose} next={next} />}
     </Dialog>
   );
 }
 
-function Form({ record, onClose }: { record: ExpenseRecord; onClose: () => void }) {
-  const { updateRecord } = useStore();
+function Form({ record, onClose, next }: { record: ExpenseRecord; onClose: () => void; next?: Props["next"] }) {
+  const { updateRecord, accountName } = useStore();
   const [merchant, setMerchant] = useState(record.merchant);
   const [categoryId, setCategoryId] = useState(record.categoryId);
   const [kind, setKind] = useState(record.kind);
@@ -27,42 +36,50 @@ function Form({ record, onClose }: { record: ExpenseRecord; onClose: () => void 
   const [split, setSplit] = useState<SplitConfig>(record.split);
   const [recurringId, setRecurringId] = useState(record.recurringId ?? "");
   const [fundedBy, setFundedBy] = useState(record.fundedBy ?? "");
-  const isUpi = accounts.find((a) => a.id === record.accountId)?.type === "upi";
   const [notes, setNotes] = useState(record.notes ?? "");
   const [excluded, setExcluded] = useState(record.excluded);
+  const isUpi = accounts.find((a) => a.id === record.accountId)?.type === "upi";
   const bad = validateSplit(record.amountPaise, split);
 
-  const save = () => {
-    updateRecord(record.id, { merchant, categoryId, kind, payerId, split, shared: split.mode !== "personal", notes: notes || undefined, excluded, recurringId: recurringId || undefined, fundedBy: isUpi ? fundedBy || undefined : record.fundedBy, status: "reviewed" });
-    onClose();
+  const save = (andNext: boolean) => {
+    updateRecord(record.id, {
+      merchant, categoryId, kind, payerId, split, shared: split.mode !== "personal", notes: notes || undefined, excluded,
+      recurringId: recurringId || undefined, fundedBy: isUpi ? fundedBy || undefined : record.fundedBy, status: "reviewed",
+    });
+    if (andNext && next) next.open(); else onClose();
   };
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-md bg-background p-2.5 text-xs text-muted">
-        <div>Original (read-only): <span className="font-mono">{record.originalDescription}</span></div>
-        <div className="num">{record.date} · {formatINR(record.amountPaise)} · {record.importSource}</div>
+    <div className="space-y-4">
+      <div className="rounded-xl bg-background p-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="num text-lg font-semibold">{formatINR(record.amountPaise)}</span>
+          <span className="text-xs text-muted">{record.date} · {accountName(record.accountId)}{record.fundedBy ? ` via ${accountName(record.fundedBy)}` : ""}</span>
+        </div>
+        <div className="mt-1 truncate font-mono text-xs text-muted" title="Original bank text, never edited">{record.originalDescription}</div>
       </div>
-      <Field label="Merchant"><Input value={merchant} onChange={(e) => setMerchant(e.target.value)} /></Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Category"><Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field>
-        <Field label="Type"><Select value={kind} onChange={(e) => setKind(e.target.value as TxnKind)}>{kinds.map((k) => <option key={k}>{k}</option>)}</Select></Field>
-        <Field label="Paid by"><Select value={payerId} onChange={(e) => setPayerId(e.target.value)}>{participants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
-        <Field label="Account"><Input value={accounts.find((a) => a.id === record.accountId)?.name} readOnly /></Field>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Recurring commitment"><Select value={recurringId} onChange={(e) => setRecurringId(e.target.value)}><option value="">Not recurring</option>{recurringItems.map((i) => <option key={i.id} value={i.id}>{i.name}{i.place ? ` · ${i.place}` : ""}</option>)}</Select></Field>
-        {isUpi && <Field label="Paid from bank"><Select value={fundedBy} onChange={(e) => setFundedBy(e.target.value)}><option value="">Unknown</option>{accounts.filter((a) => a.type === "bank").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</Select></Field>}
-      </div>
-      <Field label="Who owes what"><SplitEditor total={record.amountPaise} value={split} onChange={setSplit} /></Field>
-      <Field label="Notes"><Input value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
+
+      <FormRow label="Merchant"><Input value={merchant} onChange={(e) => setMerchant(e.target.value)} /></FormRow>
+      <FormRow label="Category"><ChipGroup label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} value={categoryId} onChange={setCategoryId} /></FormRow>
+      <FormRow label="Type"><ChipGroup label="Type" options={kinds} value={kind} onChange={setKind} /></FormRow>
+      <FormRow label="Paid by"><ChipGroup label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} value={payerId} onChange={setPayerId} /></FormRow>
+      {isUpi && (
+        <FormRow label="Paid from bank"><ChipGroup label="Paid from bank" options={[{ id: "", label: "Unknown" }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name }))]} value={fundedBy} onChange={setFundedBy} /></FormRow>
+      )}
+      <FormRow label="Who owes what"><SplitEditor total={record.amountPaise} value={split} onChange={setSplit} /></FormRow>
+      <FormRow label="Recurring">
+        <ChipGroup label="Recurring commitment" options={[{ id: "", label: "Not recurring" }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name }))]} value={recurringId} onChange={setRecurringId} />
+      </FormRow>
+      <FormRow label="Notes"><Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" /></FormRow>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={excluded} onChange={(e) => setExcluded(e.target.checked)} className="size-4 accent-[var(--accent)]" />
         Exclude from reports (original record is kept)
       </label>
-      <div className="flex justify-end gap-2">
+
+      <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" onClick={save} disabled={!!bad}>Save</Button>
+        {next && next.remaining > 0 && <Button onClick={() => save(true)} disabled={!!bad}>Save & next ({next.remaining} left)</Button>}
+        <Button variant="primary" onClick={() => save(false)} disabled={!!bad}>Save</Button>
       </div>
     </div>
   );
