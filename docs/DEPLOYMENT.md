@@ -7,8 +7,8 @@ Status: deployable today, **mock data only**. Real statement import, file storag
 - A Vercel account (free Hobby plan is enough for personal use).
 - The Firebase dev project (`pfst-9ee33`) already created. A separate production project is recommended before real data (see below).
 
-## Node version
-`package.json` pins `engines.node` to `22.x`. Vercel otherwise picks Node 24, where the Firebase Admin SDK fails to load (`ERR_REQUIRE_ESM` from `jose`), which broke the first deploy (login stuck on "Loading", `/api/session` 500). Re-test before ever unpinning.
+## Node and Firebase Admin versions
+`package.json` pins `engines.node` to `22.x`, and `firebase-admin` is pinned to **13.10.x**. Version 14 pulls `jwks-rsa@4` which `require()`s the ESM-only `jose@6`; Vercel's runtime refuses that (`ERR_REQUIRE_ESM`), which broke the first deploy (login stuck on "Loading", `/api/session` 500). It works on a Mac, so only a real deploy shows it: check `/api/health` after any Firebase dependency upgrade.
 
 ## Environment variables (Vercel → Project → Settings → Environment Variables)
 Set for **Production** (and Preview if you want previews to sign in). Names are in `.env.example`:

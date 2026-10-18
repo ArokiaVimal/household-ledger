@@ -5,3 +5,5 @@
 4. **Percent splits in basis points**; largest-remainder rounding; equal remainder to earlier participants.
 5. **Pairwise balances** (not global simplification) so "who owes whom" is traceable to expenses.
 6. **Prototype state in React context**, not localStorage, to avoid implying persistence.
+
+7. **firebase-admin pinned to 13.10.x (not 14).** v14 requires `jwks-rsa@4` -> `jose@6` (ESM-only), which fails to load on Vercel's Node runtime. v13 uses `jwks-rsa@3` -> `jose@4` (CommonJS-compatible). Revisit when a v14 release fixes this; verify on a real deploy.

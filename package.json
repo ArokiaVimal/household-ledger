@@ -16,7 +16,7 @@
     "@hookform/resolvers": "^5.9.2",
     "clsx": "^2.1.1",
     "firebase": "^13.0.0",
-    "firebase-admin": "^14.5.0",
+    "firebase-admin": "^13.10.0",
     "lucide-react": "^1.59.0",
     "next": "16.4.2",
     "react": "19.3.0",
