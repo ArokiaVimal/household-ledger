@@ -1,6 +1,6 @@
 "use client";
 import { ChevronDown, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 import { equalSplit, validateSplit } from "@/domain/splits";
@@ -53,7 +53,7 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 }
 
 function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName } = useStore();
+  const { meId, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName } = useStore();
   const [deleting, setDeleting] = useState(false);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";
@@ -71,6 +71,19 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [excluded, setExcluded] = useState(record.excluded);
   const [more, setMore] = useState(!!record.recurringId || record.excluded || record.kind !== "purchase");
   const amountPaise = adding ? (parseRupees(amountText) ?? 0) : record.amountPaise;
+  // Quick picks for manual entry: the places you pay most often, with the category you used last time.
+  const quick = useMemo(() => {
+    if (!adding) return [];
+    const seen = new Map<string, { merchant: string; categoryId: string; n: number }>();
+    for (const r of [...records].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 300)) {
+      if (r.kind !== "purchase" || !r.merchant.trim()) continue;
+      const k = r.merchant.toLowerCase();
+      const cur = seen.get(k);
+      if (cur) cur.n++; else seen.set(k, { merchant: r.merchant, categoryId: r.categoryId, n: 1 });
+    }
+    return [...seen.values()].sort((a, b) => b.n - a.n).slice(0, 5);
+  }, [adding, records]);
+  const sharing = split.mode !== "personal" || payerId !== meId;
   const isUpi = accounts.find((a) => a.id === accountId)?.type === "upi";
   const splitError = validateSplit(amountPaise, split);
   const missing = adding ? (!accountId ? "Add a payment method first (Settings)" : amountPaise <= 0 ? "Enter an amount" : !merchant.trim() ? "Enter a merchant" : !/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Pick a date" : null) : null;
@@ -128,10 +141,17 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Approve only if this is a separate purchase; otherwise reject it.</p>
       )}
       {adding && <FormRow label="Paid with"><CompactChips label="Payment method" options={accounts.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={setAccountId} /></FormRow>}
-      <FormRow label="Merchant"><Input value={merchant} onChange={(e) => setMerchant(e.target.value)} /></FormRow>
+      <FormRow label="Merchant">
+        <Input value={merchant} onChange={(e) => setMerchant(e.target.value)} placeholder="Where did you pay?" />
+        {adding && !merchant && quick.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5" aria-label="Places you pay often">
+            {quick.map((q) => <button key={q.merchant} type="button" onClick={() => { setMerchant(q.merchant); setCategoryId(q.categoryId); }} className="rounded-full bg-background px-2.5 py-1 text-xs text-muted hover:text-foreground">{q.merchant}</button>)}
+          </div>
+        )}
+      </FormRow>
       <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[categoryId]} onPick={setCategoryId} /></FormRow>
-      <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} selected={[payerId]} onPick={setPayerId} /></FormRow>
       <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>
+      {(sharing || !adding) && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
       <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="flex w-full items-center gap-1.5 border-t border-border pt-3 text-sm font-medium text-muted hover:text-foreground">
         <ChevronDown size={16} aria-hidden className={more ? "" : "-rotate-90"} /> More options <span className="text-xs font-normal">type, recurring, notes</span>
       </button>
