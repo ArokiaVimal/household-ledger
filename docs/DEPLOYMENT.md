@@ -32,5 +32,8 @@ Set for **Production** (and Preview if you want previews to sign in). Names are 
 ## Backup and recovery (plan)
 Scheduled Firestore export to a private bucket, plus the app's own JSON/CSV export (slice 7). Restore is rehearsed with the export/restore round-trip test before real data is loaded.
 
+## Adding CI on GitHub (kept out of Git history on purpose)
+The pipeline is saved as `docs/ci.yml.example` (lint, typecheck, tests, build, and the Firebase rules tests with Java 21). It is not active yet because pushing a workflow file needs a token with the `workflow` permission. To turn it on without any token: on github.com open the repo, **Add file → Create new file**, name it `.github/workflows/ci.yml`, paste the contents of `docs/ci.yml.example`, and commit to `main`. Then run `git pull` locally so your copy has it. Pull requests will then be checked automatically.
+
 ## Known gaps
 No CSP header yet (needs a tested allowlist for Google sign-in). Home Screen icon is an SVG; iOS prefers a 180px PNG `apple-touch-icon` (to add). Google popup sign-in can be unreliable inside the installed Home Screen app; sign in via Safari first.
