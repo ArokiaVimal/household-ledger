@@ -1,0 +1,108 @@
+// FICTIONAL DATA for the prototype only. Nothing here is real or persisted.
+import type { Account, Category, ExpenseRecord, Participant, Receipt, Settlement, SplitConfig, TxnKind } from "@/domain/types";
+
+export const ME = "me";
+export const MOCK_MONTH = "2026-09";
+
+export const participants: Participant[] = [
+  { id: "me", name: "Arokia", userId: "u_me" },
+  { id: "wife", name: "Wife", userId: "u_wife" },
+  { id: "karthik", name: "Karthik", userId: null },
+  { id: "priya", name: "Priya", userId: null },
+];
+
+export const accounts: Account[] = [
+  { id: "cc1", name: "HDFC Credit Card", type: "credit_card" },
+  { id: "bank1", name: "SBI Savings", type: "bank" },
+  { id: "upi1", name: "UPI (SBI)", type: "upi" },
+];
+
+export const categories: Category[] = [
+  ["groceries", "Groceries"], ["food_delivery", "Food delivery"], ["restaurants", "Restaurants & cafes"],
+  ["transport", "Transport"], ["fuel", "Fuel"], ["shopping", "Shopping"], ["utilities", "Utilities"],
+  ["rent", "Rent & household"], ["travel", "Travel"], ["entertainment", "Entertainment"], ["health", "Health"],
+  ["subscriptions", "Subscriptions"], ["fees", "Fees & charges"], ["income", "Income"], ["transfers", "Transfers"],
+  ["refunds", "Refunds"], ["uncategorized", "Uncategorized"],
+].map(([id, name]) => ({ id, name }));
+
+const r = (rupees: number) => Math.round(rupees * 100);
+const personal = (id = "me"): SplitConfig => ({ mode: "personal", participantIds: [id] });
+const equal = (...ids: string[]): SplitConfig => ({ mode: "equal", participantIds: ids });
+const HOUSE = ["me", "wife"];
+
+interface Opts { kind?: TxnKind; payer?: string; split?: SplitConfig; shared?: boolean; status?: "reviewed" | "unreviewed"; ref?: string; dupOf?: string; excluded?: boolean; notes?: string; receiptId?: string }
+let n = 0;
+function t(date: string, merchant: string, desc: string, rupees: number, accountId: string, categoryId: string, o: Opts = {}): ExpenseRecord {
+  const split = o.split ?? personal(o.payer ?? "me");
+  return {
+    id: `t${String(++n).padStart(2, "0")}`, date, merchant, originalDescription: desc, amountPaise: r(rupees), currency: "INR",
+    accountId, categoryId, kind: o.kind ?? "purchase", payerId: o.payer ?? "me",
+    shared: o.shared ?? split.mode !== "personal", split, excluded: o.excluded ?? false, status: o.status ?? "reviewed",
+    importSource: accountId === "cc1" ? "HDFC_Sep2026.csv (mock)" : "SBI_Sep2026.csv (mock)", referenceId: o.ref, notes: o.notes,
+    duplicateOf: o.dupOf, receiptId: o.receiptId,
+  };
+}
+
+export const initialRecords: ExpenseRecord[] = [
+  t("2026-09-01", "Landlord", "UPI/LANDLORD RENT SEP/6129", 35000, "upi1", "rent", { split: equal(...HOUSE), notes: "September rent", ref: "UPI6129" }),
+  t("2026-09-01", "Employer Ltd", "NEFT CR SALARY SEP", 185000, "bank1", "income", { kind: "income", ref: "NEFT7781" }),
+  t("2026-09-02", "BigBasket", "BIGBASKET BANGALORE IN", 2840.5, "cc1", "groceries", { split: equal(...HOUSE), ref: "CC0902A" }),
+  t("2026-09-02", "Swiggy", "SWIGGY BANGALORE IN", 612, "cc1", "food_delivery", { split: equal(...HOUSE), ref: "CC0902B" }),
+  t("2026-09-03", "Uber", "UBER INDIA SYSTEMS", 348, "cc1", "transport", { ref: "CC0903A" }),
+  t("2026-09-03", "Indian Oil", "IOCL PETROL PUMP KORAMANGALA", 2500, "cc1", "fuel", { ref: "CC0903B" }),
+  t("2026-09-04", "Netflix", "NETFLIX.COM MUMBAI", 649, "cc1", "subscriptions", { split: equal(...HOUSE), ref: "CC0904A" }),
+  t("2026-09-04", "Spotify", "SPOTIFY INDIA", 119, "cc1", "subscriptions", { ref: "CC0904B" }),
+  t("2026-09-05", "Zepto", "ZEPTO MARKETPLACE BLR", 642, "cc1", "groceries", { split: equal(...HOUSE), ref: "CC0905A", status: "unreviewed" }),
+  t("2026-09-05", "Zepto", "ZEPTO MARKETPLACE BLR", 642, "cc1", "groceries", { split: equal(...HOUSE), status: "unreviewed", dupOf: "t09", notes: "Possible duplicate of the Zepto entry above" }),
+  t("2026-09-06", "Amazon", "AMAZON PAY INDIA PVT LTD", 1299, "cc1", "shopping", { ref: "CC0906A" }),
+  t("2026-09-06", "Cafe Coffee Day", "CCD KORAMANGALA", 420, "cc1", "restaurants", { payer: "wife", split: equal(...HOUSE) }),
+  t("2026-09-07", "BESCOM", "BESCOM ELECTRICITY BILL", 1860, "upi1", "utilities", { split: equal(...HOUSE), ref: "UPI7001" }),
+  t("2026-09-07", "ACT Fibernet", "ACT BROADBAND SEP", 1180, "upi1", "utilities", { split: equal(...HOUSE), ref: "UPI7002" }),
+  t("2026-09-08", "Truffles", "TRUFFLES ICE AND SPICE", 3600, "cc1", "restaurants", { split: equal("me", "wife", "karthik", "priya"), notes: "Dinner with Karthik & Priya", ref: "CC0908A" }),
+  t("2026-09-08", "Wife (self transfer)", "UPI/TO WIFE/FAMILY", 10000, "upi1", "transfers", { kind: "transfer", ref: "UPI8001" }),
+  t("2026-09-09", "Apollo Pharmacy", "APOLLO PHARMACY 412", 860, "cc1", "health", { split: personal("wife"), payer: "me", notes: "Paid by me, wife's expense" }),
+  t("2026-09-10", "Blinkit", "BLINKIT GROFERS INDIA", 1175, "cc1", "groceries", { split: { mode: "percent", participantIds: HOUSE, values: { me: 6000, wife: 4000 } }, ref: "CC0910A" }),
+  t("2026-09-10", "Ola", "ANI TECHNOLOGIES OLA", 275, "cc1", "transport", { payer: "wife", split: personal("wife") }),
+  t("2026-09-11", "Swiggy", "SWIGGY BANGALORE IN", 450, "cc1", "food_delivery", { split: equal(...HOUSE), ref: "CC0911A", status: "unreviewed" }),
+  t("2026-09-12", "IRCTC", "IRCTC E-TICKET BKG", 2340, "cc1", "travel", { split: { mode: "custom", participantIds: ["me", "karthik"], values: { me: r(1170), karthik: r(1170) } }, notes: "Train to Mysuru, Karthik's ticket too" }),
+  t("2026-09-12", "BookMyShow", "BOOKMYSHOW MUMBAI", 900, "cc1", "entertainment", { split: equal(...HOUSE), ref: "CC0912A" }),
+  t("2026-09-13", "Amazon", "AMAZON REFUND CR", 1299, "cc1", "refunds", { kind: "refund", ref: "CC0913R" }),
+  t("2026-09-13", "Reliance Fresh", "RELIANCE FRESH KORAMANGALA", 1980.75, "cc1", "groceries", { split: equal(...HOUSE), ref: "CC0913A" }),
+  t("2026-09-14", "Swiggy", "SWIGGY BANGALORE IN", 1180, "cc1", "food_delivery", { split: equal(...HOUSE), ref: "CC0914A", status: "unreviewed" }),
+  t("2026-09-14", "Blinkit", "BLINKIT GROFERS INDIA", 455.5, "cc1", "groceries", { split: equal(...HOUSE), status: "unreviewed" }),
+  t("2026-09-15", "HDFC Bank", "CC ANNUAL FEE + GST", 590, "cc1", "fees", { kind: "fee", ref: "CC0915F" }),
+  t("2026-09-15", "Uber", "UBER INDIA SYSTEMS", 512, "cc1", "transport", { split: { mode: "custom", participantIds: ["me", "priya"], values: { me: r(256), priya: r(256) } }, notes: "Shared cab with Priya" }),
+  t("2026-09-16", "Indian Oil", "IOCL PETROL PUMP KORAMANGALA", 2000, "cc1", "fuel", { payer: "wife", split: equal(...HOUSE) }),
+  t("2026-09-17", "Starbucks", "STARBUCKS COFFEE BLR", 780, "cc1", "restaurants", { status: "unreviewed" }),
+  t("2026-09-18", "Swiggy", "SWIGGY REFUND CR", 180, "cc1", "refunds", { kind: "refund", split: equal(...HOUSE), ref: "CC0918R" }),
+  t("2026-09-19", "Decathlon", "DECATHLON SPORTS INDIA", 3499, "cc1", "shopping", { split: personal("wife"), payer: "wife", status: "unreviewed" }),
+  t("2026-09-20", "HDFC Credit Card", "CC BILL PAYMENT AUG", 48210, "bank1", "transfers", { kind: "cc_payment", ref: "NEFT9910", notes: "Not a purchase" }),
+  t("2026-09-21", "BigBasket", "BIGBASKET BANGALORE IN", 3120, "cc1", "groceries", { split: equal(...HOUSE), ref: "CC0921A" }),
+  t("2026-09-22", "Rapido", "RAPIDO BIKE TAXI", 96, "upi1", "transport", { ref: "UPI9922" }),
+  t("2026-09-23", "Truffles", "TRUFFLES ICE AND SPICE", 1240, "cc1", "restaurants", { split: equal("me", "wife", "karthik"), ref: "CC0923A" }),
+  t("2026-09-24", "Apollo Pharmacy", "APOLLO PHARMACY 412", 340, "cc1", "health", { ref: "CC0924A" }),
+  t("2026-09-25", "Zepto", "ZEPTO MARKETPLACE BLR", 899, "cc1", "groceries", { split: equal(...HOUSE), ref: "CC0925A" }),
+  t("2026-09-26", "Unknown merchant", "POS 4821 MISC PURCHASE", 1450, "cc1", "uncategorized", { status: "unreviewed" }),
+  t("2026-09-27", "Swiggy", "SWIGGY BANGALORE IN", 735, "cc1", "food_delivery", { ref: "CC0927A" }),
+  t("2026-09-28", "Cult.fit", "CULTFIT HEALTH", 2499, "cc1", "health", { ref: "CC0928A" }),
+  t("2026-09-29", "Amazon", "AMAZON PAY INDIA PVT LTD", 4799, "cc1", "shopping", { split: personal("me"), excluded: true, notes: "Gift for office, reimbursed — excluded from reports" }),
+];
+
+export const initialSettlements: Settlement[] = [
+  { id: "s1", date: "2026-09-18", fromId: "karthik", toId: "me", amountPaise: r(1000), note: "Part payment for dinner (UPI)" },
+];
+
+export const initialReceipts: Receipt[] = [
+  { id: "rc1", merchant: "Swiggy", date: "2026-09-14", amountPaise: r(1180), orderId: "SW-48211093", filename: "swiggy-48211093.pdf" },
+  { id: "rc2", merchant: "Blinkit", date: "2026-09-14", amountPaise: r(455.5), orderId: "BL-77120", filename: "blinkit-77120.pdf" },
+  { id: "rc3", merchant: "Zepto", date: "2026-09-27", amountPaise: r(310), filename: "zepto-sep27.pdf" },
+];
+
+/** Simulated import preview rows (no file is actually parsed in the prototype). */
+export const mockImportRows = [
+  { date: "2026-09-30", merchant: "BigBasket", description: "BIGBASKET BANGALORE IN", amountPaise: r(2210), referenceId: "CC0930A", accountId: "cc1" },
+  { date: "2026-09-21", merchant: "BigBasket", description: "BIGBASKET BANGALORE IN", amountPaise: r(3120), referenceId: "CC0921A", accountId: "cc1" },
+  { date: "2026-09-17", merchant: "Starbucks", description: "STARBUCKS COFFEE BLR", amountPaise: r(780), referenceId: undefined, accountId: "cc1" },
+  { date: "2026-09-30", merchant: "Uber", description: "UBER INDIA SYSTEMS", amountPaise: r(405), referenceId: "CC0930B", accountId: "cc1" },
+  { date: "2026-09-30", merchant: "Indian Oil", description: "IOCL PETROL PUMP", amountPaise: r(1800), referenceId: "CC0930C", accountId: "cc1" },
+];
