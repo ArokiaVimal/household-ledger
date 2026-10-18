@@ -15,6 +15,7 @@ import type { MerchantRule } from "@/domain/rules";
 import type { Account, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
 import type { HouseholdData } from "@/lib/data/load";
 import { pickMonth } from "@/domain/months";
+import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, participants as mockParticipants, recurringItems as mockRecurring, trendHistory as mockTrend } from "./mock";
 
 export type View = "household" | "personal";
@@ -86,6 +87,8 @@ interface Store {
   addAccount: (name: string, type: Account["type"]) => string | null;
   addSuggestedAccounts: () => void;
   addParticipant: (name: string) => string | null;
+  /** Removes a friend (no account) that nothing refers to. Returns an error message, or null when removed. */
+  deleteParticipant: (id: string) => string | null;
   updateRecord: (id: string, patch: Partial<ExpenseRecord>) => void;
   /** Manual entry. In live mode the id is generated here and the server forces the trusted fields. */
   addRecord: (r: ExpenseRecord) => void;
@@ -295,6 +298,14 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     return null;
   }, [participants, send]);
 
+  const deleteParticipant = useCallback((id: string) => {
+    const check = checkFriendDelete(participants.find((p) => p.id === id), meId, friendUsage(id, { records: [...records, ...staged], settlements, recurring: recurringItems }));
+    if (!check.ok) return check.reason;
+    setParticipants((ps) => ps.filter((p) => p.id !== id));
+    void send({ type: "participant.delete", id });
+    return null;
+  }, [participants, meId, records, staged, settlements, recurringItems, send]);
+
   const addSettlement = useCallback((s: Omit<Settlement, "id">) => {
     const id = live ? uuid() : `s${Date.now().toString(36)}`;
     setSettlements((x) => [...x, { ...s, id }]);
@@ -313,7 +324,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const value: Store = {
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, ownerParticipantId: live ? live.ownerId || meId : ME, partnerId, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant, deleteParticipant,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,

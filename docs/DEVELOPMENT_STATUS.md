@@ -175,3 +175,7 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - Claude is a fallback and only after the person clicks the AI button or "Read with AI" (`ai=1` is required by the server, no key means the buttons say Off). It sees redacted text only (`redactStatement`). For statements a row is kept only if its amount and the start of its description appear in the text; the rest are listed as "could not be found". Batches record `readBy: "parser" | "ai"` and `format: "text"` for pasted text.
 - Tests: sense, channel, dedupe, service routing/text input, ai-extract (redaction, grounding, injection prompt, fake fetch), intake.
 - **Not verified:** a real Claude call (the key is on Vercel only), upload through the new routes on Vercel, the screens in a browser.
+
+## Add and remove friends (added)
+- Settings > People in splits: add a friend by name (existing) and remove one with a trash icon. Removal always asks first ("Keep it" / "Remove friend"). A friend who appears in any transaction (approved or waiting), split, settlement or recurring item cannot be removed: the dialog says where they are used, because deleting them would change who owes what (settlements are never deleted). People with an account are not removable here. Server action `participant.delete` enforces the same rule (`src/domain/friends.ts`), with an audit entry. Checked in the browser (demo data); not yet on the live site.
+
