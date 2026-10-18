@@ -1,4 +1,4 @@
-# Household Ledger
+# Personal Finance App
 
 Private, mobile-first personal finance and expense-splitting app (PWA) for one household plus friends who need no account.
 

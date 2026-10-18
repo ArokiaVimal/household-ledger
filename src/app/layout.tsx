@@ -6,9 +6,9 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Household Ledger",
+  title: "Personal Finance App",
   description: "Private household spending, splits and settlements",
-  appleWebApp: { capable: true, title: "Ledger", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Finance", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = { themeColor: "#5b3fd1", viewportFit: "cover" };

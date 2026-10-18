@@ -85,3 +85,17 @@ export function validateSplit(total: Paise, split: SplitConfig): string | null {
     throw e;
   }
 }
+
+/** The household's usual two-way ratio: `leaderId` bears `leaderBps` (6400 = 64%), the other person the rest. */
+export function ratioSplit(leaderId: string, otherId: string, leaderBps: number): SplitConfig {
+  if (!Number.isInteger(leaderBps) || leaderBps <= 0 || leaderBps >= 10000) throw new SplitError("Ratio must be between 0% and 100%");
+  return { mode: "percent", participantIds: [leaderId, otherId], values: { [leaderId]: leaderBps, [otherId]: 10000 - leaderBps } };
+}
+
+/** True when two configs mean the same split (order of people does not matter). */
+export function sameSplit(a: SplitConfig, b: SplitConfig): boolean {
+  if (a.mode !== b.mode || a.participantIds.length !== b.participantIds.length) return false;
+  if (!a.participantIds.every((id) => b.participantIds.includes(id))) return false;
+  if (a.mode === "percent" || a.mode === "custom") return a.participantIds.every((id) => (a.values?.[id] ?? 0) === (b.values?.[id] ?? 0));
+  return true;
+}

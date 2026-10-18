@@ -26,6 +26,8 @@ export interface LiveInit {
   today: string;
   /** False when the signed-in user has no household yet (the data is empty and changes cannot be saved). */
   ready: boolean;
+  /** Participant id of the household owner: the person who bears the larger share in the usual 64/36 split. */
+  ownerId: string;
 }
 
 interface Store {
@@ -35,6 +37,8 @@ interface Store {
   householdReady: boolean;
   /** Participant id of the signed-in user, and the first other household participant (for presets). */
   meId: string;
+  /** The household owner's participant id (gets the 64% in the usual 64/36 split). */
+  ownerParticipantId: string;
   partnerId: string | null;
   today: string;
   participants: Participant[];
@@ -280,7 +284,7 @@ export function StoreProvider({ children, initialView = "household", live }: { c
   }, []);
 
   const value: Store = {
-    live: !!live, householdReady: live ? live.ready : true, meId, partnerId, today, participants, accounts, recurringItems, trendHistory,
+    live: !!live, householdReady: live ? live.ready : true, meId, ownerParticipantId: live ? live.ownerId || meId : ME, partnerId, today, participants, accounts, recurringItems, trendHistory,
     records, staged, settlements, receipts, month, setMonth, view, setView, scoped, summary, balances, recurring,
     categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, addSettlement, voidSettlement, linkReceipt,

@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { Suspense, type ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { StoreProvider, type LiveInit } from "@/data/store";
@@ -14,6 +15,7 @@ import { getProfile } from "@/lib/profile/store";
 /** Reads the session on every request, so it must stream inside <Suspense> (Cache Components). */
 async function AuthedShell({ children }: { children: ReactNode }) {
   const session = await requireSession();
+  await connection(); // the date below changes per request, so opt into request-time rendering (also in demo mode)
   let profile: Awaited<ReturnType<typeof getProfile>> | null = null;
   let status: "ok" | "off" | "error" = "off";
   if (session.mode === "on") {
@@ -44,19 +46,23 @@ async function AuthedShell({ children }: { children: ReactNode }) {
   let dataError = false;
   if (session.mode === "on") {
     if (hStatus === "error") dataError = true;
-    if (!dataError && !membership) live = { data: empty, meId: "", today, ready: false };
+    if (!dataError && !membership) live = { data: empty, meId: "", today, ready: false, ownerId: "" };
     if (!dataError && membership) {
       try {
         const repo = createFirestoreRepository(membership.household.id);
         await ensureHouseholdReady(repo, membership.members);
         const data = await loadHouseholdData(repo);
-        live = { data, meId: data.participants.find((p) => p.userId === session.uid)?.id ?? participantIdFor(session.uid), today, ready: true };
+        live = {
+          data, today, ready: true,
+          meId: data.participants.find((p) => p.userId === session.uid)?.id ?? participantIdFor(session.uid),
+          ownerId: data.participants.find((p) => p.userId === membership.household.ownerUid)?.id ?? participantIdFor(membership.household.ownerUid),
+        };
       } catch (e) {
         console.error("data load failed:", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 200));
         dataError = true;
       }
     }
-    if (dataError) live = { data: empty, meId: "", today, ready: false };
+    if (dataError) live = { data: empty, meId: "", today, ready: false, ownerId: "" };
   }
   return (
     <ProfileProvider initial={profile} status={status}>

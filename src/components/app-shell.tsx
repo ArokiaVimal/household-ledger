@@ -47,7 +47,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
       <div className="mx-auto min-h-screen max-w-[1280px] bg-background md:min-h-[calc(100vh-3rem)] md:rounded-[32px] md:p-5">
         <div className="md:grid md:grid-cols-[4.25rem_1fr] md:gap-5">
           <aside className="sticky top-5 hidden h-[calc(100vh-5.5rem)] flex-col items-center gap-2 rounded-2xl bg-surface py-4 md:flex">
-            <Link href="/" aria-label="Household Ledger home" className="mb-2"><LogoMark size={40} /></Link>
+            <Link href="/" aria-label="Personal Finance App home" className="mb-2"><LogoMark size={40} /></Link>
             {nav.map(({ href, label, icon: I }) => (
               <Link key={href} href={href} title={label} aria-label={label} aria-current={active(href) ? "page" : undefined}
                 className={cn("grid size-10 place-items-center rounded-full transition-colors", active(href) ? "bg-foreground text-white" : "text-muted hover:bg-background")}>
@@ -61,7 +61,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
             </div>
             <header className="flex flex-wrap items-center gap-3 px-4 py-4 md:px-0">
               <div className="order-1 mr-auto">
-                <p className="text-xl font-semibold tracking-tight">{path === "/" ? <>Hi {profile ? greetingName(profile) : "there"} <span aria-hidden>👋</span></> : "Household Ledger"}</p>
+                <p className="text-xl font-semibold tracking-tight">{path === "/" ? <>Hi {profile ? greetingName(profile) : "there"} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
                 <p className="hidden text-sm text-muted xl:block">{path === "/" ? "Here's where your money went this month" : "Where your money went, and who owes what"}</p>
               </div>
               <form onSubmit={go} role="search" className="order-6 flex w-full items-center gap-2 rounded-full bg-surface px-4 md:order-3 md:w-72">

@@ -5,7 +5,7 @@ import { detectDuplicate, planImport, suggestReceiptMatches } from "./dedupe";
 import { suggestCategory } from "./rules";
 import { formatINR, parseRupees } from "./money";
 import { summarize } from "./reports";
-import { computeShares, customSplit, equalSplit, percentSplit, validateSplit } from "./splits";
+import { computeShares, customSplit, equalSplit, percentSplit, ratioSplit, sameSplit, validateSplit } from "./splits";
 import type { ExpenseRecord, Settlement } from "./types";
 
 const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + b, 0);
@@ -152,5 +152,33 @@ describe("import planning and rules", () => {
     const rules = [{ merchant: "Swiggy", categoryId: "food_delivery" }];
     expect(suggestCategory(rules, " swiggy ")).toBe("food_delivery");
     expect(suggestCategory(rules, "Unknown")).toBe("uncategorized");
+  });
+});
+
+describe("household 64/36 ratio", () => {
+  const cfg = ratioSplit("owner", "partner", 6400);
+  it("builds a percent split that sums to 100%", () => {
+    expect(cfg).toEqual({ mode: "percent", participantIds: ["owner", "partner"], values: { owner: 6400, partner: 3600 } });
+    expect(() => ratioSplit("a", "b", 0)).toThrow();
+    expect(() => ratioSplit("a", "b", 10000)).toThrow();
+    expect(() => ratioSplit("a", "b", 64.5)).toThrow();
+  });
+  it("is exact to the paise for known amounts", () => {
+    expect(computeShares(10000, cfg)).toEqual({ owner: 6400, partner: 3600 });
+    expect(computeShares(10001, cfg)).toEqual({ owner: 6401, partner: 3600 }); // the odd paisa goes to the larger remainder, deterministically
+  });
+  it("never loses or invents a paisa, for every amount up to Rs 2000", () => {
+    for (let paise = 1; paise <= 200000; paise += 7) {
+      const s = computeShares(paise, cfg);
+      expect(s.owner + s.partner).toBe(paise);
+      expect(Math.abs(s.owner - (paise * 64) / 100)).toBeLessThan(1);
+    }
+  });
+  it("sameSplit recognises presets regardless of order", () => {
+    expect(sameSplit(cfg, ratioSplit("owner", "partner", 6400))).toBe(true);
+    expect(sameSplit(cfg, { mode: "percent", participantIds: ["partner", "owner"], values: { owner: 6400, partner: 3600 } })).toBe(true);
+    expect(sameSplit(cfg, ratioSplit("owner", "partner", 5000))).toBe(false);
+    expect(sameSplit({ mode: "equal", participantIds: ["a", "b"] }, { mode: "equal", participantIds: ["b", "a"] })).toBe(true);
+    expect(sameSplit({ mode: "equal", participantIds: ["a", "b"] }, cfg)).toBe(false);
   });
 });

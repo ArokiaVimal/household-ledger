@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
-import { computeShares, equalSplit, validateSplit } from "@/domain/splits";
+import { OWNER_SHARE_BPS } from "@/domain/defaults";
+import { computeShares, equalSplit, ratioSplit, sameSplit, validateSplit } from "@/domain/splits";
 import type { Paise, SplitConfig, SplitMode } from "@/domain/types";
 import { ChipGroup, CompactChips, FormRow, Input } from "./ui";
 
@@ -21,24 +22,32 @@ const evenBps = (ids: string[]) => {
 
 /** Controlled editor. Amounts shown come from computeShares, never recomputed here. */
 export function SplitEditor({ total, value, onChange }: { total: Paise; value: SplitConfig; onChange: (v: SplitConfig) => void }) {
-  const { nameOf, participants, meId, partnerId } = useStore();
-  const presets: { label: string; ids: string[] }[] = [
-    { label: "Just me", ids: [meId] },
-    ...(partnerId ? [{ label: `Me + ${nameOf(partnerId)}`, ids: [meId, partnerId] }] : []),
-    ...(participants.length > 2 ? [{ label: "Everyone", ids: participants.map((p) => p.id) }] : []),
+  const { nameOf, participants, meId, ownerParticipantId, partnerId } = useStore();
+  // The usual two-way split: the household owner bears 64%, the partner 36%. Anchored to the owner (not to whoever is
+  // signed in) so the same expense is split the same way on both phones.
+  const ownerId = participants.some((p) => p.id === ownerParticipantId) ? ownerParticipantId : meId;
+  const otherId = ownerId === meId ? partnerId : meId;
+  const presets: { label: string; config: SplitConfig }[] = [
+    { label: "Just me", config: { mode: "personal", participantIds: [meId] } },
+    ...(otherId
+      ? [
+          { label: `${nameOf(ownerId)} 64 · ${nameOf(otherId)} 36`, config: ratioSplit(ownerId, otherId, OWNER_SHARE_BPS) },
+          { label: "50 / 50", config: { mode: "equal" as const, participantIds: [ownerId, otherId] } },
+        ]
+      : []),
+    ...(participants.length > 2 ? [{ label: "Everyone", config: { mode: "equal" as const, participantIds: participants.map((p) => p.id) } }] : []),
   ];
   const error = validateSplit(total, value);
   const ids = value.participantIds;
   const shares = error ? {} : computeShares(total, value);
+  const isPair = (who: string[]) => !!otherId && who.length === 2 && who.includes(ownerId) && who.includes(otherId);
 
   const build = (mode: SplitMode, who: string[]): SplitConfig => {
     const keep = mode === "personal" ? who.slice(0, 1) : who;
-    if (mode === "percent") return { mode, participantIds: keep, values: evenBps(keep) };
+    if (mode === "percent") return isPair(keep) ? ratioSplit(ownerId, otherId!, OWNER_SHARE_BPS) : { mode, participantIds: keep, values: evenBps(keep) };
     if (mode === "custom") return { mode, participantIds: keep, values: keep.length ? equalSplit(total, keep) : {} };
     return { mode, participantIds: keep };
   };
-
-  const applyPreset = (who: string[]) => onChange(build(who.length === 1 ? "personal" : value.mode === "personal" ? "equal" : value.mode, who));
 
   const toggle = (id: string) => {
     if (value.mode === "personal") return onChange(build("personal", [id]));
@@ -47,9 +56,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
     onChange(build(value.mode, next));
   };
 
-  const presetOn = (who: string[]) => who.length === ids.length && who.every((w) => ids.includes(w));
-
-  const presetId = value.mode === "personal" || value.mode === "equal" ? presets.find((p) => presetOn(p.ids))?.label ?? "" : "";
+  const presetId = presets.find((p) => sameSplit(p.config, value))?.label ?? "";
   const [advanced, setAdvanced] = useState(!presetId);
   const showAdvanced = advanced || !presetId;
   const whoOptions = participants.map((p) => ({ id: p.id, label: p.userId === null ? `${nameOf(p.id)} (friend)` : nameOf(p.id) }));
@@ -57,7 +64,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
   const pickPreset = (label: string) => {
     if (label === CUSTOM) return setAdvanced(true);
     setAdvanced(false);
-    applyPreset(presets.find((p) => p.label === label)!.ids);
+    onChange(structuredClone(presets.find((p) => p.label === label)!.config));
   };
 
   return (

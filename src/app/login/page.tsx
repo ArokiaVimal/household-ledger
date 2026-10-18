@@ -7,7 +7,7 @@ import { getAuthMode } from "@/lib/auth/config";
 import { getSession } from "@/lib/auth/session";
 import { LoginForm } from "./login-form";
 
-export const metadata = { title: "Sign in · Household Ledger" };
+export const metadata = { title: "Sign in · Personal Finance App" };
 
 const points = [
   { icon: FileUp, title: "Bring in every statement", text: "Cards, UPI and bank accounts in one place, reviewed before they count." },
@@ -39,7 +39,7 @@ export default function LoginPage() {
           <span aria-hidden className="absolute bottom-10 right-8 -z-10 size-28 rounded-full bg-[#d9d3f5]/20" />
           <div className="flex items-center gap-3">
             <LogoMark size={44} />
-            <span className="text-lg font-semibold tracking-tight">Household Ledger</span>
+            <span className="text-lg font-semibold tracking-tight">Personal Finance App</span>
           </div>
           <h1 className="mt-8 max-w-sm text-2xl font-semibold leading-tight tracking-tight sm:text-3xl md:mt-14">Where your money went, and who owes what.</h1>
           <ul className="mt-8 hidden space-y-5 md:block">

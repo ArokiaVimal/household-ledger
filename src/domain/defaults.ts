@@ -21,3 +21,6 @@ export const SUGGESTED_ACCOUNTS: Account[] = [
   { id: "bank_hdfc", name: "HDFC Bank", type: "bank" },
   { id: "bank_icici", name: "ICICI Bank", type: "bank" },
 ];
+
+/** The usual split between the two partners: the household owner bears 64%, the partner 36% (basis points). */
+export const OWNER_SHARE_BPS = 6400;

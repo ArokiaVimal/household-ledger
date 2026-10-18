@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Household Ledger",
-    short_name: "Ledger",
+    name: "Personal Finance App",
+    short_name: "Finance",
     description: "Private household spending, splits and settlements",
     start_url: "/",
     display: "standalone",
