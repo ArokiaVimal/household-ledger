@@ -187,3 +187,78 @@ describe("learning and deleting", () => {
     await fails(applyAction(repo, actor, { type: "record.delete", id: "imp1" }), "not_found");
   });
 });
+
+describe("sharing with a partner", () => {
+  const split = { mode: "equal" as const, participantIds: ["me", "wife"] };
+  const personal = { mode: "personal" as const, participantIds: ["me"] };
+  async function linked(active = true) {
+    const repo = await setup();
+    const couple = createMemoryRepository("c1");
+    return { repo, couple, ctx: { repo: couple, meId: "me", partnerId: "wife", active } };
+  }
+  it("approving with a split that includes the partner writes a redacted copy to the couple space only", async () => {
+    const { repo, couple, ctx } = await linked();
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { shared: true, split } }, ctx);
+    const copy = (await couple.sharedExpenses.get("imp1"))!;
+    expect(copy).toMatchObject({ ownerUid: "u1", merchant: "Zepto", amountPaise: 64200, categoryName: "Groceries", kind: "purchase" });
+    expect(JSON.stringify(copy)).not.toContain("ZEPTO MARKETPLACE");
+    expect(JSON.stringify(copy)).not.toContain("cc_hdfc");
+    expect((await repo.records.get("imp1"))!.sharedWithPartner).toBe(true);
+    expect(await couple.records.list()).toEqual([]); // the private record never leaves the personal space
+    expect((await couple.audit.list()).map((e) => e.summary)).toEqual([expect.stringContaining("Shared Zepto")]);
+  });
+  it("private approvals share nothing", async () => {
+    const { repo, couple, ctx } = await linked();
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { categoryId: "shopping" } }, ctx);
+    expect(await couple.sharedExpenses.list()).toEqual([]);
+  });
+  it("changing the split back to personal, excluding, or deleting withdraws the copy (voided, kept as history)", async () => {
+    for (const how of ["personal", "exclude", "delete"] as const) {
+      const { repo, couple, ctx } = await linked();
+      await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { shared: true, split } }, ctx);
+      if (how === "personal") await applyAction(repo, actor, { type: "record.update", id: "imp1", patch: { shared: false, split: personal } }, ctx);
+      if (how === "exclude") await applyAction(repo, actor, { type: "record.update", id: "imp1", patch: { excluded: true } }, ctx);
+      if (how === "delete") await applyAction(repo, actor, { type: "record.delete", id: "imp1" }, ctx);
+      expect((await couple.sharedExpenses.get("imp1"))!.voided).toBe(true);
+    }
+  });
+  it("editing a shared expense updates the same copy (retry-safe id)", async () => {
+    const { repo, couple, ctx } = await linked();
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { shared: true, split } }, ctx);
+    await applyAction(repo, actor, { type: "record.update", id: "imp1", patch: { categoryId: "shopping" } }, ctx);
+    expect((await couple.sharedExpenses.list())).toHaveLength(1);
+    expect((await couple.sharedExpenses.get("imp1"))!.categoryName).toBe("Shopping");
+  });
+  it("the note is shared only on request", async () => {
+    const { repo, couple, ctx } = await linked();
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { shared: true, split, notes: "birthday" } }, ctx);
+    expect((await couple.sharedExpenses.get("imp1"))!.note).toBeUndefined();
+    await applyAction(repo, actor, { type: "record.update", id: "imp1", patch: { shareNote: true } }, ctx);
+    expect((await couple.sharedExpenses.get("imp1"))!.note).toBe("birthday");
+  });
+  it("refuses what cannot be shared, with the record left unchanged", async () => {
+    const { repo, ctx } = await linked();
+    await fails(applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { shared: true, split, kind: "transfer" } }, ctx), "invalid");
+    await fails(applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { shared: true, split: { mode: "equal", participantIds: ["me", "wife", "friend"] } } }, ctx), "invalid");
+    expect((await repo.records.get("imp1"))!.status).toBe("unreviewed");
+  });
+  it("after unlinking, nothing new is shared and old copies stay", async () => {
+    const { repo, couple, ctx } = await linked();
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { shared: true, split } }, ctx);
+    await repo.records.put(imported({ id: "imp2", referenceId: "REF2" }));
+    const ended = { ...ctx, active: false };
+    await applyAction(repo, actor, { type: "record.approve", id: "imp2", patch: { shared: true, split } }, ended);
+    expect((await couple.sharedExpenses.list()).map((x) => x.id)).toEqual(["imp1"]);
+    expect((await couple.sharedExpenses.get("imp1"))!.voided).toBeUndefined();
+  });
+  it("settlements live in the couple space and need a linked partner", async () => {
+    const { repo, couple, ctx } = await linked();
+    const s = { id: "s9", date: "2026-10-01", fromId: "wife", toId: "me", amountPaise: 5000 };
+    await applyAction(repo, actor, { type: "settlement.create", settlement: s }, ctx);
+    expect((await couple.settlements.list()).map((x) => x.id)).toEqual(["s9"]);
+    expect(await repo.settlements.list()).toEqual([]);
+    await fails(applyAction(repo, actor, { type: "settlement.create", settlement: { ...s, id: "s10", fromId: "stranger" } }, ctx), "invalid");
+    await fails(applyAction(repo, actor, { type: "settlement.create", settlement: { ...s, id: "s11" } }, null), "invalid");
+    await fails(applyAction(repo, actor, { type: "settlement.create", settlement: { ...s, id: "s12" } }, { ...ctx, active: false }), "invalid");
+  });
+});

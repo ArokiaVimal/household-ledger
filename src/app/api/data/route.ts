@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth/session";
 import { ActionError, applyAction } from "@/lib/data/actions";
 import { createFirestoreHouseholdStore } from "@/lib/households/firestore-store";
 import { getMembership } from "@/lib/households/service";
+import { coupleContextFor } from "@/lib/data/couple";
 
 const status = { invalid: 400, not_found: 404, conflict: 409 } as const;
 
@@ -24,7 +25,9 @@ export async function POST(req: Request) {
   try {
     const membership = await getMembership(createFirestoreHouseholdStore(), session.uid);
     if (!membership) return NextResponse.json({ error: "Create or join a household first." }, { status: 403 });
-    await applyAction(createFirestoreRepository(membership.household.id), { uid: session.uid }, json);
+    const hStore = createFirestoreHouseholdStore();
+    const couple = await coupleContextFor(hStore, session.uid, (id) => createFirestoreRepository(id));
+    await applyAction(createFirestoreRepository(membership.household.id), { uid: session.uid }, json, couple);
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ActionError) return NextResponse.json({ error: e.message }, { status: status[e.code] });

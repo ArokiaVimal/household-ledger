@@ -168,7 +168,7 @@ describe("settlements, audit trail and raw data", () => {
 it("sanity: the rules file is non-empty", () => expect(true).toBe(true));
 
 describe("couple space privacy", () => {
-  const shared = { ownerUid: OWNER, payerId: "me", date: "2026-09-05", merchant: "Zepto", amountPaise: 64200, categoryId: "groceries", split: { mode: "equal", participantIds: ["me", "wife"] }, createdAt: "2026-09-05T00:00:00.000Z", updatedAt: "2026-09-05T00:00:00.000Z" };
+  const shared = { ownerUid: OWNER, payerId: "me", date: "2026-09-05", merchant: "Zepto", amountPaise: 64200, kind: "purchase", categoryId: "groceries", categoryName: "Groceries", split: { mode: "equal", participantIds: ["me", "wife"] }, createdAt: "2026-09-05T00:00:00.000Z", updatedAt: "2026-09-05T00:00:00.000Z" };
   beforeEach(async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();

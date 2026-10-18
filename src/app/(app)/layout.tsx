@@ -4,6 +4,8 @@ import { AppShell } from "@/components/app-shell";
 import { StoreProvider, type LiveInit } from "@/data/store";
 import { createFirestoreRepository } from "@/data/firestore-repository";
 import { loadReadyHouseholdData, participantIdFor, type HouseholdData } from "@/lib/data/load";
+import { loadCoupleData } from "@/lib/data/couple";
+import { getCouple } from "@/lib/households/couple";
 import { ProfileProvider } from "@/components/profile-context";
 import { requireSession } from "@/lib/auth/session";
 import { HouseholdProvider, type HouseholdStatus } from "@/components/household-context";
@@ -59,23 +61,29 @@ async function AuthedShell({ children }: { children: ReactNode }) {
   let dataError = false;
   if (session.mode === "on") {
     if (hStatus === "error") dataError = true;
-    if (!dataError && !membership) live = { data: empty, meId: "", today, ready: false, ownerId: "" };
+    if (!dataError && !membership) live = { data: empty, meId: "", today, ready: false };
     if (!dataError && membership) {
       try {
         const repo = createFirestoreRepository(membership.household.id);
-        const data = await loadReadyHouseholdData(repo, membership.members);
+        const [data, couple] = await Promise.all([
+          loadReadyHouseholdData(repo, membership.members),
+          // A problem with the couple side must not hide the person's own private data.
+          getCouple(createFirestoreHouseholdStore(), session.uid)
+            .then((c) => (c ? loadCoupleData(createFirestoreRepository(c.household.id), c) : null))
+            .catch((e) => { console.error("couple load failed:", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 200)); return null; }),
+        ]);
         live = {
+          couple: couple ?? undefined,
           data, today, ready: true,
           aiEnabled: !!process.env.ANTHROPIC_API_KEY?.trim(),
           meId: data.participants.find((p) => p.userId === session.uid)?.id ?? participantIdFor(session.uid),
-          ownerId: data.participants.find((p) => p.userId === membership.household.ownerUid)?.id ?? participantIdFor(membership.household.ownerUid),
         };
       } catch (e) {
         console.error("data load failed:", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 200));
         dataError = true;
       }
     }
-    if (dataError) live = { data: empty, meId: "", today, ready: false, ownerId: "" };
+    if (dataError) live = { data: empty, meId: "", today, ready: false };
   }
   return (
     <ProfileProvider initial={profile} status={status}>

@@ -50,7 +50,7 @@ export function describeRepositoryContract(label: string, make: Factory, opts: {
     it("shared expenses are validated, voided instead of deleted, and need a split with someone", async () => {
       const repo = await fresh();
       expect("remove" in repo.sharedExpenses).toBe(false);
-      const x = { id: "r1", ownerUid: "u1", payerId: "me", date: "2026-10-01", merchant: "Zepto", amountPaise: 10000, categoryId: "groceries", split: { mode: "equal" as const, participantIds: ["me", "wife"] }, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z" };
+      const x = { id: "r1", ownerUid: "u1", payerId: "me", date: "2026-10-01", merchant: "Zepto", amountPaise: 10000, kind: "purchase" as const, categoryId: "groceries", categoryName: "Groceries", split: { mode: "equal" as const, participantIds: ["me", "wife"] }, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z" };
       await repo.sharedExpenses.put(x);
       await repo.sharedExpenses.put({ ...x, voided: true });
       expect((await repo.sharedExpenses.get("r1"))?.voided).toBe(true);

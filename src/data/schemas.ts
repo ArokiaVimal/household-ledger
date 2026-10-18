@@ -47,6 +47,7 @@ export const ExpenseRecordSchema = z
     recurringId: id.optional(),
     suggested: z.enum(["memory", "ai", "ai_unsure"]).optional(),
     sharedWithPartner: z.boolean().optional(),
+    shareNote: z.boolean().optional(),
   })
   .superRefine((r, ctx) => {
     // Business rule lives in the domain: shares must add up to the amount, to the paise.
@@ -61,7 +62,7 @@ export const SettlementSchema = z
 
 export const SharedExpenseSchema = z
   .object({
-    id, ownerUid: id, payerId: id, date, merchant: z.string().min(1).max(120), amountPaise: paise.positive("Amount must be greater than zero"), categoryId: id,
+    id, ownerUid: id, payerId: id, date, merchant: z.string().min(1).max(120), amountPaise: paise.positive("Amount must be greater than zero"), kind: z.enum(["purchase", "refund", "fee"]), categoryId: id, categoryName: z.string().min(1).max(60),
     split: SplitConfigSchema, note: z.string().max(500).optional(), voided: z.boolean().optional(), createdAt: z.string().datetime(), updatedAt: z.string().datetime(),
   })
   .superRefine((r, ctx) => {

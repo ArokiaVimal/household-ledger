@@ -12,7 +12,10 @@ import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { recurringStatuses } from "@/domain/recurring";
 import { signedShare, summarize } from "@/domain/reports";
 import type { MerchantRule } from "@/domain/rules";
-import type { Account, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
+import { sharedToRecord } from "@/domain/sharing";
+import { OWNER_SHARE_BPS } from "@/domain/defaults";
+import type { Account, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
+import type { CoupleData } from "@/lib/data/couple";
 import type { HouseholdData } from "@/lib/data/load";
 import { pickMonth } from "@/domain/months";
 import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, participants as mockParticipants, recurringItems as mockRecurring, trendHistory as mockTrend } from "./mock";
@@ -27,8 +30,8 @@ export interface LiveInit {
   today: string;
   /** False when the signed-in user has no household yet (the data is empty and changes cannot be saved). */
   ready: boolean;
-  /** Participant id of the household owner: the person who bears the larger share in the usual 64/36 split. */
-  ownerId: string;
+  /** Set when the user is linked (or was linked) with a partner: the shared expenses and settlements live here. */
+  couple?: CoupleData;
   /** The server has an AI key, so import suggestions use Claude (merchant memory works either way). */
   aiEnabled?: boolean;
 }
@@ -42,9 +45,13 @@ interface Store {
   householdReady: boolean;
   /** Participant id of the signed-in user, and the first other household participant (for presets). */
   meId: string;
-  /** The household owner's participant id (gets the 64% in the usual 64/36 split). */
-  ownerParticipantId: string;
+  /** The couple's usual split: `leaderId` bears `leaderBps` (6400 = 64%), the partner the rest. 50/50 until a couple sets it. */
+  splitRatio: { leaderId: string; leaderBps: number };
   partnerId: string | null;
+  /** Live mode: the linked partner, if any. `active` is false after unlinking (history only). */
+  partner: { name: string; participantId: string; active: boolean; endedAt?: string } | null;
+  /** Expenses shared between the partners (both people's), as ledger rows. Empty without a partner. */
+  sharedRecords: ExpenseRecord[];
   today: string;
   participants: Participant[];
   accounts: Account[];
@@ -127,14 +134,18 @@ const slug = (s: string) => s.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "
 function seed(live?: LiveInit) {
   if (live) {
     const d = live.data;
+    const c = live.couple;
+    // Names of both partners are needed to show a split, whichever space they were first stored in.
+    const people = [...d.participants, ...(c?.participants ?? []).filter((p) => !d.participants.some((x) => x.id === p.id))];
     return {
-      records: d.records.filter((r) => r.status === "reviewed"), staged: d.records.filter((r) => r.status === "unreviewed"), categories: d.categories, rules: d.rules, settlements: d.settlements,
-      receipts: d.receipts, participants: d.participants, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches,
+      records: d.records.filter((r) => r.status === "reviewed"), staged: d.records.filter((r) => r.status === "unreviewed"), categories: d.categories, rules: d.rules, settlements: c?.settlements ?? [],
+      shared: c?.shared ?? ([] as SharedExpense[]),
+      receipts: d.receipts, participants: people, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches,
     };
   }
   return {
     records: initialRecords.filter((r) => r.status === "reviewed"), staged: initialRecords.filter((r) => r.status === "unreviewed"), categories: mockCategories, rules: merchantRules,
-    settlements: initialSettlements, receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[],
+    settlements: initialSettlements, shared: [] as SharedExpense[], receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[],
   };
 }
 
@@ -146,6 +157,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const [categories, setCategories] = useState<Category[]>(init.categories);
   const [rules, setRules] = useState<MerchantRule[]>(init.rules);
   const [settlements, setSettlements] = useState(init.settlements);
+  const [shared, setShared] = useState(init.shared);
   const [receipts, setReceipts] = useState(init.receipts);
   const [participants, setParticipants] = useState<Participant[]>(init.participants);
   const [accounts, setAccounts] = useState<Account[]>(init.accounts);
@@ -155,14 +167,16 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const [view, setView] = useState<View>(initialView);
   const [syncError, setSyncError] = useState<string | null>(null);
   const meId = live?.meId ?? ME;
-  const partnerId = participants.find((p) => p.id !== meId && p.userId)?.id ?? participants.find((p) => p.id !== meId)?.id ?? null;
+  const couple = live?.couple;
+  const partnerId = couple?.partner.participantId ?? participants.find((p) => p.id !== meId && p.userId)?.id ?? participants.find((p) => p.id !== meId)?.id ?? null;
+  const splitRatio = useMemo(() => (live ? (couple ? { leaderId: couple.ratio.leaderId, leaderBps: couple.ratio.leaderBps } : { leaderId: meId, leaderBps: 5000 }) : { leaderId: ME, leaderBps: OWNER_SHARE_BPS }), [live, couple, meId]);
   const trendHistory = live ? {} : mockTrend;
 
   // After a failed save the server re-sends the household's data; adopt it (React's "adjust state on prop change" pattern).
   const [prevInit, setPrevInit] = useState(init);
   if (prevInit !== init) {
     setPrevInit(init);
-    setRecords(init.records); setStaged(init.staged); setCategories(init.categories); setRules(init.rules); setSettlements(init.settlements);
+    setRecords(init.records); setStaged(init.staged); setCategories(init.categories); setRules(init.rules); setSettlements(init.settlements); setShared(init.shared);
     setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems);
     // New data may live in a month other than the one on screen (e.g. an older statement): keep the month if it has data, else move to one that does.
     const dates = [...init.records, ...init.staged].map((r) => r.date);
@@ -185,18 +199,26 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   // one situation they show the waiting rows as a clearly labelled preview (see the banner in the app shell).
   const previewing = !!live && records.length === 0 && staged.length > 0;
   const shown = previewing ? staged : records;
-  const scoped = useMemo(
-    () => shown.filter((r) => r.date.startsWith(month) && (view === "household" || r.payerId === meId || signedShare(r, meId) !== 0 || (!r.shared && r.split.participantIds.includes(meId)))),
-    [shown, month, view, meId],
-  );
+  // Live with a partner: shared expenses (both people's) as ledger rows. Mine = my own records plus my share of what my
+  // partner paid; Together = only what is shared. My own shared expenses appear once, from my records.
+  const sharedRecords = useMemo(() => shared.map(sharedToRecord), [shared]);
+  const together = !!live && !!couple;
+  const scoped = useMemo(() => {
+    const mine = (r: ExpenseRecord) => r.payerId === meId || signedShare(r, meId) !== 0 || (!r.shared && r.split.participantIds.includes(meId));
+    const inMonth = (r: ExpenseRecord) => r.date.startsWith(month);
+    if (together && view === "household") return sharedRecords.filter(inMonth);
+    if (together) return [...shown, ...sharedRecords.filter((r) => r.payerId !== meId)].filter((r) => inMonth(r) && mine(r));
+    return shown.filter((r) => inMonth(r) && (view === "household" || mine(r)));
+  }, [shown, sharedRecords, together, month, view, meId]);
   const summary = useMemo(() => summarize(scoped, meId), [scoped, meId]);
   const recurring = useMemo(() => recurringStatuses(recurringItems, records, month, today), [recurringItems, records, month, today]);
-  const balances = useMemo(() => pairBalances(records, settlements), [records, settlements]);
+  const balances = useMemo(() => pairBalances(live ? sharedRecords : records, settlements), [live, sharedRecords, records, settlements]);
 
   const updateRecord = useCallback((id: string, patch: Partial<ExpenseRecord>) => {
+    if (live && !records.some((r) => r.id === id)) { setSyncError("Only the person who shared this expense can change it."); return; }
     setRecords((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     void send({ type: "record.update", id, patch: toWirePatch(patch) });
-  }, [send]);
+  }, [live, records, send]);
   const addRecord = useCallback((r: ExpenseRecord) => {
     const rec = { ...r, id: live ? uuid() : `m${Date.now().toString(36)}` };
     setRecords((rs) => [...rs, rec]);
@@ -226,11 +248,12 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   }, [send]);
 
   const deleteRecords = useCallback((ids: string[]) => {
+    if (live && ids.some((id) => !records.some((r) => r.id === id) && !staged.some((r) => r.id === id))) { setSyncError("Only the person who shared this expense can remove it."); return; }
     const gone = new Set(ids);
     setRecords((rs) => rs.filter((r) => !gone.has(r.id)));
     setStaged((xs) => xs.filter((r) => !gone.has(r.id)));
     for (const id of ids) void send({ type: "record.delete", id });
-  }, [send]);
+  }, [live, records, staged, send]);
 
   const addCategory = useCallback((name: string) => {
     const err = validateCategoryName(name, categories);
@@ -311,14 +334,15 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   }, []);
 
   const value: Store = {
-    aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, ownerParticipantId: live ? live.ownerId || meId : ME, partnerId, today, participants, accounts, recurringItems, trendHistory,
+    aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, sharedRecords: live ? sharedRecords : [],
+    partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, recurring,
     categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,
     categoryName: (id) => categories.find((c) => c.id === id)?.name ?? id,
-    accountName: (id) => accounts.find((a) => a.id === id)?.name ?? id,
+    accountName: (id) => (id === "shared" ? "Shared" : accounts.find((a) => a.id === id)?.name ?? id),
     syncError, dismissSyncError: () => setSyncError(null),
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

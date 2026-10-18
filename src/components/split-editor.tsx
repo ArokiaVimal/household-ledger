@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
-import { OWNER_SHARE_BPS } from "@/domain/defaults";
 import { computeShares, equalSplit, ratioSplit, sameSplit, validateSplit } from "@/domain/splits";
 import type { Paise, SplitConfig, SplitMode } from "@/domain/types";
 import { ChipGroup, CompactChips, FormRow, Input } from "./ui";
@@ -22,16 +21,17 @@ const evenBps = (ids: string[]) => {
 
 /** Controlled editor. Amounts shown come from computeShares, never recomputed here. */
 export function SplitEditor({ total, value, onChange }: { total: Paise; value: SplitConfig; onChange: (v: SplitConfig) => void }) {
-  const { nameOf, participants, meId, ownerParticipantId, partnerId } = useStore();
-  // The usual two-way split: the household owner bears 64%, the partner 36%. Anchored to the owner (not to whoever is
-  // signed in) so the same expense is split the same way on both phones.
-  const ownerId = participants.some((p) => p.id === ownerParticipantId) ? ownerParticipantId : meId;
+  const { nameOf, participants, meId, splitRatio, partnerId } = useStore();
+  // The couple's usual two-way split (set in Settings). Anchored to the person it names, not to whoever is signed in,
+  // so the same expense is split the same way on both phones.
+  const ownerId = participants.some((p) => p.id === splitRatio.leaderId) ? splitRatio.leaderId : meId;
+  const pct = (bps: number) => `${Number.isInteger(bps / 100) ? bps / 100 : (bps / 100).toFixed(1)}`;
   const otherId = ownerId === meId ? partnerId : meId;
   const presets: { label: string; config: SplitConfig }[] = [
     { label: "Just me", config: { mode: "personal", participantIds: [meId] } },
     ...(otherId
       ? [
-          { label: `${nameOf(ownerId)} 64 · ${nameOf(otherId)} 36`, config: ratioSplit(ownerId, otherId, OWNER_SHARE_BPS) },
+          ...(splitRatio.leaderBps !== 5000 ? [{ label: `${nameOf(ownerId)} ${pct(splitRatio.leaderBps)} · ${nameOf(otherId)} ${pct(10000 - splitRatio.leaderBps)}`, config: ratioSplit(ownerId, otherId, splitRatio.leaderBps) }] : []),
           { label: "50 / 50", config: { mode: "equal" as const, participantIds: [ownerId, otherId] } },
         ]
       : []),
@@ -44,7 +44,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
 
   const build = (mode: SplitMode, who: string[]): SplitConfig => {
     const keep = mode === "personal" ? who.slice(0, 1) : who;
-    if (mode === "percent") return isPair(keep) ? ratioSplit(ownerId, otherId!, OWNER_SHARE_BPS) : { mode, participantIds: keep, values: evenBps(keep) };
+    if (mode === "percent") return isPair(keep) ? ratioSplit(ownerId, otherId!, splitRatio.leaderBps) : { mode, participantIds: keep, values: evenBps(keep) };
     if (mode === "custom") return { mode, participantIds: keep, values: keep.length ? equalSplit(total, keep) : {} };
     return { mode, participantIds: keep };
   };

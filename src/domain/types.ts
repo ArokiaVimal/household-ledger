@@ -79,6 +79,8 @@ export interface ExpenseRecord {
   recurringId?: string;
   /** Set when a redacted copy of this expense was shared with the partner (see SharedExpense). */
   sharedWithPartner?: boolean;
+  /** The owner chose to show this record's note on the shared copy. Off by default. */
+  shareNote?: boolean;
   /** Where the import's guess for merchant/category came from. Only set while the row waits in the review queue. */
   suggested?: Suggestion;
 }
@@ -194,7 +196,11 @@ export interface SharedExpense {
   date: string;
   merchant: string;
   amountPaise: Paise;
+  /** Only spending-like kinds can be shared: income, transfers and card-bill payments never are. */
+  kind: "purchase" | "refund" | "fee";
   categoryId: string;
+  /** The category's name when it was shared, so the partner sees it even if their space has no such category. */
+  categoryName: string;
   split: SplitConfig;
   /** Only present when the owner chose to show their note. */
   note?: string;

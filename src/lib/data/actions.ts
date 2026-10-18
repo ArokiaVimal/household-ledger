@@ -8,6 +8,7 @@ import { ConflictError } from "@/data/repository";
 import { ExpenseRecordSchema, SplitConfigSchema, ruleId } from "@/data/schemas";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
+import { buildShared, planShare, SharingError } from "@/domain/sharing";
 import type { AuditEvent, ExpenseRecord } from "@/domain/types";
 
 const id = z.string().min(1).max(128);
@@ -17,7 +18,7 @@ const money = z.number().int().safe();
 const editable = z.object({
   merchant: z.string().min(1).max(120), categoryId: id, kind: z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]),
   payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).nullable(),
-  recurringId: id.nullable(), fundedBy: id.nullable(), receiptId: id.nullable(),
+  recurringId: id.nullable(), fundedBy: id.nullable(), receiptId: id.nullable(), shareNote: z.boolean(),
 }).partial();
 
 const manualRecord = z.object({
@@ -50,6 +51,16 @@ export class ActionError extends Error {
 
 export interface ActionActor { uid: string }
 
+/** The signed-in person's couple space, when they are linked. Sharing and settlements go there; everything else stays private. */
+export interface CoupleContext {
+  /** Repository of the couple space. */
+  repo: Repository;
+  meId: string;
+  partnerId: string;
+  /** False once either partner unlinked: the space is history only. */
+  active: boolean;
+}
+
 const strip = <T extends object>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 const applyPatch = (r: ExpenseRecord, patch: z.infer<typeof editable>): ExpenseRecord => {
   const next: Record<string, unknown> = { ...r };
@@ -60,7 +71,7 @@ const applyPatch = (r: ExpenseRecord, patch: z.infer<typeof editable>): ExpenseR
   return next as unknown as ExpenseRecord;
 };
 
-async function run(repo: Repository, actor: ActionActor, raw: unknown): Promise<void> {
+async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: CoupleContext | null): Promise<void> {
   const parsed = ActionSchema.safeParse(raw);
   if (!parsed.success) throw new ActionError("invalid", "Invalid request.");
   const a = parsed.data;
@@ -68,13 +79,48 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown): Promise<
     repo.audit.append({ actorId: actor.uid, action, entity, entityId, summary: summary.slice(0, 480) });
   const money = (p: number) => `₹${(p / 100).toFixed(2)}`;
 
+  /**
+   * Keeps the partner's copy in step with a private record (sharing = a split that includes the partner). The copy is
+   * written first and has the record's id, so if the private write fails the same action can simply be retried.
+   * Returns the record with its `sharedWithPartner` flag set to match.
+   */
+  const syncShare = async (rec: ExpenseRecord): Promise<ExpenseRecord> => {
+    if (!couple || !couple.active) return rec;
+    let plan;
+    try { plan = planShare(rec, { meId: couple.meId, partnerId: couple.partnerId, coupleActive: couple.active }); }
+    catch (e) { if (e instanceof SharingError) throw new ActionError("invalid", e.message); throw e; }
+    const existing = await couple.repo.sharedExpenses.get(rec.id);
+    const now = new Date().toISOString();
+    if (plan.action === "share") {
+      const categoryName = (await repo.categories.get(rec.categoryId))?.name ?? rec.categoryId;
+      await couple.repo.sharedExpenses.put(buildShared(rec, { ownerUid: actor.uid, categoryName, now, createdAt: existing?.createdAt }));
+      if (!existing || existing.voided) await couple.repo.audit.append({ actorId: actor.uid, action: "create", entity: "record", entityId: rec.id, summary: `Shared ${rec.merchant} ${money(rec.amountPaise)}` });
+      return { ...rec, sharedWithPartner: true };
+    }
+    if (plan.action === "withdraw") {
+      if (existing && !existing.voided) {
+        await couple.repo.sharedExpenses.put({ ...existing, voided: true, updatedAt: now });
+        await couple.repo.audit.append({ actorId: actor.uid, action: "delete", entity: "record", entityId: rec.id, summary: `Withdrew ${rec.merchant} ${money(rec.amountPaise)}` });
+      }
+      const { sharedWithPartner: _s, ...rest } = rec; void _s;
+      return rest;
+    }
+    return rec;
+  };
+  /** The couple space for settlements. `undefined` (tests, no couple wiring) keeps them in the given repository. */
+  const settlementRepo = (): Repository => {
+    if (couple === undefined) return repo;
+    if (!couple || !couple.active) throw new ActionError("invalid", "Link with a partner in Settings to settle up.");
+    return couple.repo;
+  };
+
   switch (a.type) {
     case "record.create": {
       if (await repo.records.get(a.record.id)) throw new ActionError("conflict", "That record already exists.");
       const rec = ExpenseRecordSchema.parse({
         ...strip(a.record), currency: "INR", status: "reviewed", importSource: "Manual entry", originalDescription: "Entered manually",
       });
-      await repo.records.put(rec as ExpenseRecord);
+      await repo.records.put(await syncShare(rec as ExpenseRecord));
       await log("create", "record", a.record.id, `Added ${a.record.merchant} ${money(a.record.amountPaise)} on ${a.record.date}`);
       return;
     }
@@ -85,7 +131,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown): Promise<
       if (a.type === "record.approve" && cur.status !== "unreviewed") throw new ActionError("conflict", "That record is already reviewed.");
       const next = applyPatch(cur, a.patch ?? {});
       if (a.type === "record.approve") { next.status = "reviewed"; delete next.suggested; }
-      await repo.records.put(next);
+      await repo.records.put(await syncShare(next));
       // What you decide here is what the import will suggest next month.
       const decided = a.type === "record.approve" || !!(a.patch && ("categoryId" in a.patch || "merchant" in a.patch || "kind" in a.patch));
       if (decided && next.status === "reviewed") {
@@ -106,22 +152,26 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown): Promise<
     case "record.delete": {
       const cur = await repo.records.get(a.id);
       if (!cur) throw new ActionError("not_found", "Record not found.");
+      if (cur.sharedWithPartner) await syncShare({ ...cur, excluded: true }); // deleting withdraws the partner's copy first
       await repo.records.remove(a.id);
       await log("delete", "record", a.id, `Deleted ${cur.merchant} ${money(cur.amountPaise)} on ${cur.date} (${cur.status}) from ${cur.importSource}`);
       return;
     }
     case "settlement.create": {
-      if (await repo.settlements.get(a.settlement.id)) throw new ActionError("conflict", "That settlement already exists.");
-      await repo.settlements.put(a.settlement);
-      await log("settle", "settlement", a.settlement.id, `${a.settlement.fromId} paid ${a.settlement.toId} ${money(a.settlement.amountPaise)}`);
+      const target = settlementRepo();
+      if (couple && ![a.settlement.fromId, a.settlement.toId].every((p) => p === couple.meId || p === couple.partnerId)) throw new ActionError("invalid", "A settlement is between you and your partner.");
+      if (await target.settlements.get(a.settlement.id)) throw new ActionError("conflict", "That settlement already exists.");
+      await target.settlements.put(a.settlement);
+      await target.audit.append({ actorId: actor.uid, action: "settle", entity: "settlement", entityId: a.settlement.id, summary: `${a.settlement.fromId} paid ${a.settlement.toId} ${money(a.settlement.amountPaise)}` });
       return;
     }
     case "settlement.void": {
-      const cur = await repo.settlements.get(a.id);
+      const target = settlementRepo();
+      const cur = await target.settlements.get(a.id);
       if (!cur) throw new ActionError("not_found", "Settlement not found.");
       if (cur.voided) return;
-      await repo.settlements.put({ ...cur, voided: true });
-      await log("void_settlement", "settlement", a.id, `Voided settlement of ${money(cur.amountPaise)}`);
+      await target.settlements.put({ ...cur, voided: true });
+      await target.audit.append({ actorId: actor.uid, action: "void_settlement", entity: "settlement", entityId: a.id, summary: `Voided settlement of ${money(cur.amountPaise)}` });
       return;
     }
     case "category.add": {
@@ -196,9 +246,9 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown): Promise<
 }
 
 /** Entry point. Maps validation and invariant failures from the repository to ActionError so callers show a clean message. */
-export async function applyAction(repo: Repository, actor: ActionActor, raw: unknown): Promise<void> {
+export async function applyAction(repo: Repository, actor: ActionActor, raw: unknown, couple?: CoupleContext | null): Promise<void> {
   try {
-    await run(repo, actor, raw);
+    await run(repo, actor, raw, couple);
   } catch (e) {
     if (e instanceof ActionError) throw e;
     if (e instanceof z.ZodError) throw new ActionError("invalid", e.issues[0]?.message ?? "Invalid data.");
