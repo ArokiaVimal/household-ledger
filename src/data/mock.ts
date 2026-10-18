@@ -90,6 +90,7 @@ export const initialRecords: ExpenseRecord[] = [
 
 export const initialSettlements: Settlement[] = [
   { id: "s1", date: "2026-09-18", fromId: "karthik", toId: "me", amountPaise: r(1000), note: "Part payment for dinner (UPI)" },
+  { id: "s2", date: "2026-09-25", fromId: "wife", toId: "me", amountPaise: r(15000), note: "Towards shared expenses (UPI)" },
 ];
 
 export const initialReceipts: Receipt[] = [
@@ -106,3 +107,8 @@ export const mockImportRows = [
   { date: "2026-09-30", merchant: "Uber", description: "UBER INDIA SYSTEMS", amountPaise: r(405), referenceId: "CC0930B", accountId: "cc1" },
   { date: "2026-09-30", merchant: "Indian Oil", description: "IOCL PETROL PUMP", amountPaise: r(1800), referenceId: "CC0930C", accountId: "cc1" },
 ];
+
+/** Static prior-month net spend (paise) for the trend chart. MOCK; only Sept is computed from records. */
+export const trendHistory: Record<string, number> = {
+  "2026-04": r(78400), "2026-05": r(84150), "2026-06": r(91230), "2026-07": r(70610), "2026-08": r(88900),
+};
