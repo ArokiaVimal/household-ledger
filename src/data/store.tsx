@@ -48,13 +48,13 @@ interface Store {
 
 const Ctx = createContext<Store | null>(null);
 
-export function StoreProvider({ children }: { children: ReactNode }) {
+export function StoreProvider({ children, initialView = "household" }: { children: ReactNode; initialView?: View }) {
   const [records, setRecords] = useState(() => initialRecords.filter((r) => r.status === "reviewed"));
   const [staged, setStaged] = useState(() => initialRecords.filter((r) => r.status === "unreviewed"));
   const [settlements, setSettlements] = useState(initialSettlements);
   const [receipts] = useState(initialReceipts);
   const [month, setMonth] = useState("2026-09");
-  const [view, setView] = useState<View>("household");
+  const [view, setView] = useState<View>(initialView);
 
   const scoped = useMemo(
     () =>

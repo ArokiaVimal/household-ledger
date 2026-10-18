@@ -16,6 +16,13 @@ Updated: 2026-10-18 · Branch `feat/stage3-slice2-auth` (stacked on slice 1 and 
 - Google sign-in added (popup; same session cookie flow and allowlist). Needs the Google provider enabled in the Firebase console and the app's domain in Authorized domains (localhost is there by default). Not tested with a real Google account.
 - `ALLOWED_EMAILS` env var added (temporary allowlist until household membership in slice 3).
 
+## Profile page (added after slice 2)
+- `/profile`: full name, greeting name (header says "Hi <greeting name>"), phone, default view (Household/Personal), photo upload. Email is read-only (from the sign-in). Header avatar links here and shows the custom photo, else the Google photo, else initials.
+- Data: Firestore `users/{uid}` written only by `PUT /api/profile` (Admin SDK; uid comes from the verified session cookie; same-origin check; 200 KB body cap). Photo is centre-cropped to 256 px and re-encoded as a JPEG data URL in the browser; the server accepts only base64 JPEG ≤100 KB whose bytes start with the JPEG signature (SVG/PNG/other refused). No Cloud Storage needed.
+- Tests: 7 new (validation, name helpers). Verified: unauthenticated and forged-cookie requests are refused (307/401/403); the page and route build.
+- **Not verified end to end:** saving needs the Firestore database. As of this commit the Firestore API is not enabled in the dev project (Admin probe returned PERMISSION_DENIED "API has not been used"), so a real save will fail until the owner creates the database. Without it the layout falls back to the Google name and the app still works.
+- Firestore rules (slice 4) must deny all client access to `users/*` except the owner reading their own document.
+
 ## Stage 3 slice 1 (done, not yet wired into the UI)
 - `src/data/schemas.ts`: Zod schemas for every entity; `ExpenseRecordSchema` enforces integer positive paise, valid dates, split sums (via domain `validateSplit`) and `shared` consistency. `satisfies z.ZodType<…>` keeps them in sync with `src/domain/types.ts`.
 - `src/data/repository.ts`: the data-access interface (household-scoped collections; settlements and audit are append-only). `src/data/memory-repository.ts`: in-memory implementation that validates on write and refuses to change raw imported fields (the same rules the Firestore rules must enforce).

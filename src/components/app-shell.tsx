@@ -5,6 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { useStore } from "@/data/store";
 import { cn } from "@/lib/cn";
+import { greetingName } from "@/lib/profile/profile";
+import { Avatar } from "./avatar";
+import { useProfile } from "./profile-context";
 import { TxnAddDialog } from "./txn-edit-dialog";
 import { Select } from "./ui";
 
@@ -26,6 +29,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const router = useRouter();
   const { month, setMonth, view, setView, staged } = useStore();
   const [q, setQ] = useState("");
+  const { profile } = useProfile();
   const [adding, setAdding] = useState(false);
   const [round, setRound] = useState(0);
   const [toast, setToast] = useState("");
@@ -56,7 +60,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
             </div>
             <header className="flex flex-wrap items-center gap-3 px-4 py-4 md:px-0">
               <div className="order-1 mr-auto">
-                <p className="text-xl font-semibold tracking-tight">{path === "/" ? <>Hi Vimal <span aria-hidden>👋</span></> : "Household Ledger"}</p>
+                <p className="text-xl font-semibold tracking-tight">{path === "/" ? <>Hi {profile ? greetingName(profile) : "there"} <span aria-hidden>👋</span></> : "Household Ledger"}</p>
                 <p className="hidden text-sm text-muted xl:block">{path === "/" ? "Here's where your money went this month" : "Where your money went, and who owes what"}</p>
               </div>
               <form onSubmit={go} role="search" className="order-6 flex w-full items-center gap-2 rounded-full bg-surface px-4 md:order-3 md:w-72">
@@ -75,7 +79,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 <Bell size={18} aria-hidden />
                 {staged.length > 0 && <span className="absolute right-1.5 top-1.5 size-2.5 rounded-full bg-danger" />}
               </Link>
-              <div aria-hidden title={user?.email} className="order-3 grid size-10 place-items-center rounded-full bg-accent text-sm font-medium text-white md:order-7">{(user?.email[0] ?? "V").toUpperCase()}</div>
+              <Link href="/profile" title="Your profile" aria-label="Your profile" className="order-3 rounded-full md:order-7"><Avatar profile={profile ?? (user ? { displayName: "", email: user.email, avatarDataUrl: null, providerPhotoUrl: null } : null)} /></Link>
               {user && <button onClick={signOut} aria-label="Sign out" title="Sign out" className="order-3 grid size-10 place-items-center rounded-full bg-surface text-muted md:order-8"><LogOut size={16} aria-hidden /></button>}
             </header>
             <main className="px-4 pb-24 md:px-0 md:pb-4">{children}</main>

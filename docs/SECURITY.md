@@ -5,6 +5,7 @@
 - `/api/session` checks same-origin, sign-in within 5 minutes, revocation, and an `ALLOWED_EMAILS` allowlist; failures return one generic message.
 - `src/proxy.ts` redirects requests without a cookie to `/login`; the `(app)` layout verifies the cookie with Firebase on every request (including revocation) inside `<Suspense>` (Cache Components requirement).
 - Fails closed: if `APP_ENV=production` and Firebase is not configured the app errors instead of serving; partial config is an error. With no config outside production the app runs in prototype mode (mock data only).
+- Profiles: `users/{uid}` is written only by server code (`/api/profile`); photos are validated JPEG data URLs (see DEVELOPMENT_STATUS).
 - Not yet: household membership checks, Firestore/Storage rules, MFA, rate limiting beyond Firebase's own.
 
 Console hardening to do by hand (required while Email/Password is enabled, because self-registered password accounts have unverified emails): in Firebase Authentication settings disable user sign-up (create accounts for the two of you manually) and keep the project's API key restricted to your domains. Once Google sign-in works, consider disabling the Email/Password provider entirely. Known limit: Google popup sign-in can be unreliable inside an iPhone Home Screen (standalone PWA); use Safari for first sign-in.
