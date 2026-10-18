@@ -16,6 +16,10 @@ Updated: 2026-10-18 · Branch `feat/stage3-slice4-rules` (stacked on earlier sli
 - Google sign-in added (popup; same session cookie flow and allowlist). Needs the Google provider enabled in the Firebase console and the app's domain in Authorized domains (localhost is there by default). Not tested with a real Google account.
 - `ALLOWED_EMAILS` env var added (temporary allowlist until household membership in slice 3).
 
+## Branding (added)
+- Logo: two overlapping circles (two people; the overlap is what is shared) on a violet rounded square. Sources: `src/app/icon.svg` (favicon), `src/app/icon.png` (96 px, for Safari/older browsers), `src/app/apple-icon.png` (180 px, iPhone Home Screen), `public/icon-192.png`, `icon-512.png`, `icon-maskable-512.png` (PWA manifest), `src/components/logo.tsx` (in-app mark, used in the sidebar and login page). The default Next favicon was removed. The PNGs were rendered once from the SVG with a throwaway script (not a project dependency); to change the logo, edit `icon.svg`/`logo.tsx` and re-render the PNGs.
+- Login page redesigned: brand panel (logo, headline, three benefits) and sign-in card, responsive. The proxy gate now lets `icon*`/`apple-icon*` through so the icons load before sign-in. After deploying, iPhone users must remove and re-add the Home Screen icon to pick up the new icon.
+
 ## Live deployment (done)
 - Live at `https://personal-finance-tracker-283.vercel.app` (Vercel project `household-ledger`, auto-deploys from `main` on GitHub `ArokiaVimal/household-ledger`). Google sign-in confirmed working by the owner. Mock data only.
 - First deploy failed because `firebase-admin@14` loads ESM-only `jose@6` via `jwks-rsa@4`, which Vercel's runtime refuses (`ERR_REQUIRE_ESM`); fixed by pinning `firebase-admin@13.10` (see DECISIONS #7) and Node `22.x`. A temporary names-only `/api/health` route was used to diagnose and has been removed.

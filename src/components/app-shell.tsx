@@ -1,5 +1,5 @@
 "use client";
-import { BarChart3, Bell, ClipboardCheck, FileUp, LogOut, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags, Waves } from "lucide-react";
+import { BarChart3, Bell, ClipboardCheck, FileUp, LogOut, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -7,6 +7,7 @@ import { useStore } from "@/data/store";
 import { cn } from "@/lib/cn";
 import { greetingName } from "@/lib/profile/profile";
 import { Avatar } from "./avatar";
+import { LogoMark } from "./logo";
 import { useProfile } from "./profile-context";
 import { TxnAddDialog } from "./txn-edit-dialog";
 import { Select } from "./ui";
@@ -46,7 +47,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
       <div className="mx-auto min-h-screen max-w-[1280px] bg-background md:min-h-[calc(100vh-3rem)] md:rounded-[32px] md:p-5">
         <div className="md:grid md:grid-cols-[4.25rem_1fr] md:gap-5">
           <aside className="sticky top-5 hidden h-[calc(100vh-5.5rem)] flex-col items-center gap-2 rounded-2xl bg-surface py-4 md:flex">
-            <div className="mb-2 grid size-10 place-items-center rounded-full bg-accent text-white" aria-hidden><Waves size={20} /></div>
+            <Link href="/" aria-label="Household Ledger home" className="mb-2"><LogoMark size={40} /></Link>
             {nav.map(({ href, label, icon: I }) => (
               <Link key={href} href={href} title={label} aria-label={label} aria-current={active(href) ? "page" : undefined}
                 className={cn("grid size-10 place-items-center rounded-full transition-colors", active(href) ? "bg-foreground text-white" : "text-muted hover:bg-background")}>
