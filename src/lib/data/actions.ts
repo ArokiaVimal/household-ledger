@@ -4,7 +4,9 @@
 import { z } from "zod";
 import { categoryUsage, checkDelete, cleanCategoryName, validateCategoryName } from "@/domain/categories";
 import type { Repository } from "@/data/repository";
+import { ConflictError } from "@/data/repository";
 import { ExpenseRecordSchema, SplitConfigSchema, ruleId } from "@/data/schemas";
+import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import type { AuditEvent, ExpenseRecord } from "@/domain/types";
 
 const id = z.string().min(1).max(128);
@@ -35,6 +37,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("rule.put"), merchant: z.string().max(100), categoryId: id }),
   z.object({ type: z.literal("rule.remove"), merchant: z.string().max(100) }),
   z.object({ type: z.literal("account.add"), id, name: z.string().min(1).max(60), accountType: z.enum(["credit_card", "bank", "upi", "cash"]) }),
+  z.object({ type: z.literal("accounts.addSuggested") }),
   z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60) }),
 ]);
 export type Action = z.infer<typeof ActionSchema>;
@@ -55,7 +58,7 @@ const applyPatch = (r: ExpenseRecord, patch: z.infer<typeof editable>): ExpenseR
   return next as unknown as ExpenseRecord;
 };
 
-export async function applyAction(repo: Repository, actor: ActionActor, raw: unknown): Promise<void> {
+async function run(repo: Repository, actor: ActionActor, raw: unknown): Promise<void> {
   const parsed = ActionSchema.safeParse(raw);
   if (!parsed.success) throw new ActionError("invalid", "Invalid request.");
   const a = parsed.data;
@@ -161,11 +164,30 @@ export async function applyAction(repo: Repository, actor: ActionActor, raw: unk
       await log("create", "household", a.id, `Added payment method ${a.name.trim()}`);
       return;
     }
+    case "accounts.addSuggested": {
+      const have = new Set((await repo.accounts.list()).map((x) => x.id));
+      const add = SUGGESTED_ACCOUNTS.filter((x) => !have.has(x.id));
+      for (const acc of add) await repo.accounts.put(acc);
+      await log("create", "household", "accounts", `Added ${add.length} suggested payment methods`);
+      return;
+    }
     case "participant.add": {
       if (await repo.participants.get(a.id)) throw new ActionError("conflict", "That person already exists.");
       await repo.participants.put({ id: a.id, name: a.name.trim(), userId: null });
       await log("create", "household", a.id, `Added participant ${a.name.trim()}`);
       return;
     }
+  }
+}
+
+/** Entry point. Maps validation and invariant failures from the repository to ActionError so callers show a clean message. */
+export async function applyAction(repo: Repository, actor: ActionActor, raw: unknown): Promise<void> {
+  try {
+    await run(repo, actor, raw);
+  } catch (e) {
+    if (e instanceof ActionError) throw e;
+    if (e instanceof z.ZodError) throw new ActionError("invalid", e.issues[0]?.message ?? "Invalid data.");
+    if (e instanceof ConflictError) throw new ActionError("conflict", e.message);
+    throw e;
   }
 }
