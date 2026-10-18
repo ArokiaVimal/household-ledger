@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "test:domain": "vitest run src/domain"
+    "test:domain": "vitest run src/domain",
+    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-ledger-test \"vitest run --config vitest.rules.config.mts\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.2",
@@ -27,12 +28,14 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "firebase-tools": "^15.34.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^5.0.5"

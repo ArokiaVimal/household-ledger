@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// Statements and receipts. Only household members may read or upload; the app also
+// serves short-lived signed URLs from the server, so these rules are the backstop.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isMember(hid) {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/households/$(hid)/members/$(request.auth.uid));
+    }
+    function isOwner(hid) {
+      return isMember(hid)
+        && firestore.get(/databases/(default)/documents/households/$(hid)/members/$(request.auth.uid)).data.role == 'owner';
+    }
+    function allowedType() {
+      return request.resource.contentType.matches('application/pdf')
+        || request.resource.contentType.matches('text/csv')
+        || request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        || request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    match /households/{hid}/files/{fileId} {
+      allow read: if isMember(hid);
+      allow create: if isMember(hid) && request.resource.size > 0 && request.resource.size <= 15 * 1024 * 1024 && allowedType();
+      allow update: if false;            // uploads are write-once
+      allow delete: if isOwner(hid);
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
