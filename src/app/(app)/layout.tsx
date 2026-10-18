@@ -6,15 +6,15 @@ import { createFirestoreRepository } from "@/data/firestore-repository";
 import { loadReadyHouseholdData, participantIdFor, type HouseholdData } from "@/lib/data/load";
 import { loadCoupleData } from "@/lib/data/couple";
 import { getCouple } from "@/lib/households/couple";
+import type { PartnerInfo } from "@/components/household-context";
 import { ProfileProvider } from "@/components/profile-context";
 import { requireSession } from "@/lib/auth/session";
 import { HouseholdProvider, type HouseholdStatus } from "@/components/household-context";
 import { createFirestoreHouseholdStore } from "@/lib/households/firestore-store";
-import { firstRun, getMembership } from "@/lib/households/service";
-import { Invitation } from "@/components/invitation";
+import { firstRun, getMembership, pendingInvitesFor } from "@/lib/households/service";
 import { serverDeps } from "@/lib/households/firestore-store";
-import { defaultDisplayName, firstName } from "@/lib/profile/profile";
-import type { InviteOffer, Membership } from "@/lib/households/types";
+import { defaultDisplayName } from "@/lib/profile/profile";
+import type { CoupleMembership, InviteOffer, Membership } from "@/lib/households/types";
 import { getProfile } from "@/lib/profile/store";
 
 /** Reads the session on every request, so it must stream inside <Suspense> (Cache Components). */
@@ -24,7 +24,8 @@ async function AuthedShell({ children }: { children: ReactNode }) {
   let profile: Awaited<ReturnType<typeof getProfile>> | null = null;
   let status: "ok" | "off" | "error" = "off";
   let membership: Membership | null = null;
-  let invited: { offers: InviteOffer[]; firstName: string } | null = null;
+  let coupleMembership: CoupleMembership | null = null;
+  let offers: InviteOffer[] = [];
   let hStatus: HouseholdStatus = "off";
   if (session.mode === "on") {
     // The profile and the membership do not depend on each other, so read them at the same time.
@@ -42,17 +43,20 @@ async function AuthedShell({ children }: { children: ReactNode }) {
       if (!membership && session.email) {
         // Personal first: with no invitation waiting, a private space is created automatically.
         const name = profile?.displayName ?? defaultDisplayName(session.name, session.email);
-        const first = await firstRun(hStore, { uid: session.uid, email: session.email, name }, serverDeps);
-        if (first.kind === "invited") invited = { offers: first.offers, firstName: firstName(name) };
-        else membership = await getMembership(hStore, session.uid);
+        await firstRun(hStore, { uid: session.uid, email: session.email, name }, serverDeps);
+        membership = await getMembership(hStore, session.uid);
       }
+      // The partner link (if any) and any invitation waiting for this email. A problem here must not hide private data.
+      try {
+        coupleMembership = await getCouple(hStore, session.uid);
+        if (!coupleMembership?.active && session.email) offers = await pendingInvitesFor(hStore, session.email, serverDeps);
+      } catch (e) { console.error("partner load failed:", (e as { code?: string }).code); }
       hStatus = "ok";
     } catch (e) {
       console.error("household load failed:", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 200));
       hStatus = "error";
     }
   }
-  if (invited) return <Invitation offers={invited.offers} firstName={invited.firstName} />;
 
   // Real data for signed-in users. A signed-in user must never see the demo data, even when loading fails.
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
@@ -68,7 +72,7 @@ async function AuthedShell({ children }: { children: ReactNode }) {
         const [data, couple] = await Promise.all([
           loadReadyHouseholdData(repo, membership.members),
           // A problem with the couple side must not hide the person's own private data.
-          getCouple(createFirestoreHouseholdStore(), session.uid)
+          Promise.resolve(coupleMembership)
             .then((c) => (c ? loadCoupleData(createFirestoreRepository(c.household.id), c) : null))
             .catch((e) => { console.error("couple load failed:", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 200)); return null; }),
         ]);
@@ -85,9 +89,12 @@ async function AuthedShell({ children }: { children: ReactNode }) {
     }
     if (dataError) live = { data: empty, meId: "", today, ready: false };
   }
+  const partnerInfo: PartnerInfo | null = coupleMembership
+    ? { active: coupleMembership.active, endedAt: coupleMembership.household.endedAt, partner: coupleMembership.partner ? { uid: coupleMembership.partner.uid, name: coupleMembership.partner.displayName || "Partner", email: coupleMembership.partner.email } : null, ratio: coupleMembership.household.splitRatio ?? null }
+    : null;
   return (
     <ProfileProvider initial={profile} status={status}>
-      <HouseholdProvider membership={membership} status={hStatus} uid={session.mode === "on" ? session.uid : null}>
+      <HouseholdProvider membership={membership} status={hStatus} uid={session.mode === "on" ? session.uid : null} partner={partnerInfo} offers={offers} myName={profile?.displayName ?? ""}>
         <StoreProvider initialView={profile?.defaultView} live={live}>
           <AppShell user={session.mode === "on" ? { email: session.email ?? "" } : null}>
             {dataError ? (

@@ -30,7 +30,7 @@ describe("linking partners", () => {
     expect(a?.household.id).toBe(b?.household.id);
     expect(a?.household.kind).toBe("couple");
     expect(a?.partner?.uid).toBe(wife.uid);
-    expect(a?.household.splitRatio).toEqual({ leaderUid: me.uid, leaderBps: 5000 });
+    expect(a?.household.splitRatio).toBeUndefined(); // not chosen yet: the app asks once
     for (const u of [me.uid, wife.uid]) {
       const own = await store.getUserHouseholdId(u);
       expect(own).not.toBe(a?.household.id);

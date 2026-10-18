@@ -41,8 +41,6 @@ export interface HouseholdStore {
   getInvite(hash: string): Promise<Invite | null>;
   putInvite(i: Invite): Promise<void>;
   deleteInvite(hash: string): Promise<void>;
-  /** Atomically marks the invite used (only if still unused) and adds the member + link. Returns false if already used. */
-  acceptInvite(hash: string, member: Member, usedAt: string): Promise<boolean>;
   removeMember(householdId: string, uid: string): Promise<void>;
   /** The couple space this user is (or was) part of. */
   getUserCoupleId(uid: string): Promise<string | null>;

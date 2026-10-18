@@ -83,18 +83,6 @@ export function createFirestoreHouseholdStore(): HouseholdStore {
       await db.collection("invites").doc(hash).set(rest);
     },
     async deleteInvite(hash) { await db.collection("invites").doc(hash).delete(); },
-    async acceptInvite(hash, member, usedAt) {
-      return db.runTransaction(async (tx) => {
-        const ref = db.collection("invites").doc(hash);
-        const snap = await tx.get(ref);
-        if (!snap.exists || snap.data()?.usedAt) return false;
-        const hid = snap.data()!.householdId as string;
-        tx.update(ref, { usedAt });
-        tx.set(members(hid).doc(member.uid), { email: member.email, displayName: member.displayName, role: member.role, joinedAt: member.joinedAt });
-        tx.set(user(member.uid), { householdId: hid }, { merge: true });
-        return true;
-      });
-    },
     async deleteHousehold(hid) {
       const batch = db.batch();
       for (const m of (await members(hid).get()).docs) { batch.delete(m.ref); batch.set(user(m.id), { householdId: FieldValue.delete() }, { merge: true }); }

@@ -4,6 +4,7 @@ import { checkInvite, isValidEmail } from "./logic";
 import { createInvite, getMembership, type Deps } from "./service";
 import { HouseholdError, type Actor, type CoupleMembership, type HouseholdStore, type Member, type SplitRatio } from "./types";
 
+/** Until a couple chooses, shared expenses default to an even split and the app asks once. */
 export const DEFAULT_RATIO_BPS = 5000;
 /** A ratio must leave both people a real share. */
 export const isValidRatio = (bps: number) => Number.isInteger(bps) && bps >= 500 && bps <= 9500;
@@ -45,7 +46,7 @@ export async function acceptPartnerInvite(store: HouseholdStore, actor: Actor, h
   const at = new Date(d.now()).toISOString();
   const me: Member = { uid: actor.uid, email: actor.email, displayName: actor.name, role: "member", joinedAt: at };
   const them: Member = { ...inviter, role: "owner" };
-  const couple = { id: d.newId(), name: `${inviter.displayName} & ${actor.name}`.slice(0, 60), ownerUid: inviter.uid, createdAt: at, kind: "couple" as const, splitRatio: { leaderUid: inviter.uid, leaderBps: DEFAULT_RATIO_BPS } };
+  const couple = { id: d.newId(), name: `${inviter.displayName} & ${actor.name}`.slice(0, 60), ownerUid: inviter.uid, createdAt: at, kind: "couple" as const };
   if (!(await store.createCoupleFromInvite(hash, at, couple, [them, me]))) throw new HouseholdError("conflict", "That invitation could not be used. Ask for a new one.");
 }
 

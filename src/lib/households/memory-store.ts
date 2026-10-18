@@ -17,14 +17,6 @@ export function createMemoryHouseholdStore(): HouseholdStore & { dump(): { house
     async getInvite(hash) { return invites.get(hash) ?? null; },
     async putInvite(i) { invites.set(i.hash, i); },
     async deleteInvite(hash) { invites.delete(hash); },
-    async acceptInvite(hash, member, usedAt) {
-      const inv = invites.get(hash);
-      if (!inv || inv.usedAt) return false;
-      invites.set(hash, { ...inv, usedAt });
-      members.get(inv.householdId)!.set(member.uid, member);
-      userHousehold.set(member.uid, inv.householdId);
-      return true;
-    },
     async removeMember(hid, uid) { members.get(hid)?.delete(uid); userHousehold.delete(uid); },
     async deleteHousehold(hid) {
       for (const uid of members.get(hid)?.keys() ?? []) userHousehold.delete(uid);

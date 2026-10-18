@@ -4,20 +4,18 @@ import { z } from "zod";
 import { getAuthMode, isSameOrigin } from "@/lib/auth/config";
 import { getSession } from "@/lib/auth/session";
 import { createFirestoreHouseholdStore, serverDeps } from "@/lib/households/firestore-store";
-import { acceptInviteByEmail, createHousehold, createInvite, getMembership, joinHousehold, removeMember, revokeInvite, startPersonalSpace } from "@/lib/households/service";
-import { createFirestoreRepository, deleteHouseholdData } from "@/data/firestore-repository";
+import { acceptPartnerInvite, invitePartner, setSplitRatio, unlinkPartner } from "@/lib/households/couple";
+import { revokeInvite } from "@/lib/households/service";
 import { HouseholdError } from "@/lib/households/types";
 import { defaultDisplayName } from "@/lib/profile/profile";
 import { getProfile } from "@/lib/profile/store";
 
 const body = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("create"), name: z.string().max(100) }),
   z.object({ action: z.literal("invite"), email: z.string().max(200) }),
   z.object({ action: z.literal("revoke"), hash: z.string().regex(/^[a-f0-9]{64}$/) }),
-  z.object({ action: z.literal("join"), code: z.string().max(40) }),
-  z.object({ action: z.literal("remove"), uid: z.string().min(1).max(128) }),
   z.object({ action: z.literal("accept"), hash: z.string().regex(/^[a-f0-9]{64}$/) }),
-  z.object({ action: z.literal("start") }),
+  z.object({ action: z.literal("ratio"), leaderUid: z.string().min(1).max(128), leaderBps: z.number().int() }),
+  z.object({ action: z.literal("unlink") }),
 ]);
 
 const status = { forbidden: 403, invalid: 400, conflict: 409, limit: 409 } as const;
@@ -42,25 +40,11 @@ export async function POST(req: Request) {
     const store = createFirestoreHouseholdStore();
     const a = parsed.data;
     switch (a.action) {
-      case "create": await createHousehold(store, actor, a.name, serverDeps); return NextResponse.json({ ok: true });
-      case "invite": return NextResponse.json({ ok: true, ...(await createInvite(store, actor, a.email, serverDeps)) });
+      case "invite": return NextResponse.json({ ok: true, ...(await invitePartner(store, actor, a.email, serverDeps)) });
       case "revoke": await revokeInvite(store, actor, a.hash); return NextResponse.json({ ok: true });
-      case "join": await joinHousehold(store, actor, a.code, serverDeps); return NextResponse.json({ ok: true });
-      case "remove": await removeMember(store, actor, a.uid); return NextResponse.json({ ok: true });
-      case "start": await startPersonalSpace(store, actor, serverDeps); return NextResponse.json({ ok: true });
-      case "accept": {
-        // If the user already has a private space, it may only be dropped when it holds no data at all.
-        const own = await getMembership(store, actor.uid);
-        let ownSpace: { householdId: string; isEmpty: boolean } | null = null;
-        if (own) {
-          const repo = createFirestoreRepository(own.household.id);
-          const [records, settlements, batches] = await Promise.all([repo.records.list(), repo.settlements.list(), repo.importBatches.list()]);
-          ownSpace = { householdId: own.household.id, isEmpty: records.length + settlements.length + batches.length === 0 };
-        }
-        await acceptInviteByEmail(store, actor, a.hash, serverDeps, ownSpace);
-        if (ownSpace) await deleteHouseholdData(ownSpace.householdId); // tidy the default categories of the dropped space
-        return NextResponse.json({ ok: true });
-      }
+      case "accept": await acceptPartnerInvite(store, actor, a.hash, serverDeps); return NextResponse.json({ ok: true });
+      case "ratio": await setSplitRatio(store, actor, { leaderUid: a.leaderUid, leaderBps: a.leaderBps }); return NextResponse.json({ ok: true });
+      case "unlink": await unlinkPartner(store, actor, serverDeps); return NextResponse.json({ ok: true });
     }
   } catch (e) {
     if (e instanceof HouseholdError) return NextResponse.json({ error: e.message }, { status: status[e.code] });

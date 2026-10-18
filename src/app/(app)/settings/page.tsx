@@ -6,7 +6,7 @@ import { useStore } from "@/data/store";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import type { Account } from "@/domain/types";
 import { MerchantAvatar } from "@/components/txn-row";
-import { SharingCard } from "./sharing-card";
+import { PartnerCard } from "./partner-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash" };
 
@@ -34,7 +34,7 @@ export default function Settings() {
     <>
       <PageHeader title="Settings" actions={!live ? <Badge tone="warn">Prototype</Badge> : undefined} />
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="md:col-span-2"><SharingCard /></div>
+        <div className="md:col-span-2"><PartnerCard /></div>
 
         {live && (
           <AiFeatureCard enabled={aiEnabled} title="AI assistant" className="md:col-span-2">

@@ -1,6 +1,6 @@
 // Server-side glue for the couple space: who the partner is, and the data both partners see.
 import type { Repository } from "@/data/repository";
-import { getCouple } from "@/lib/households/couple";
+import { DEFAULT_RATIO_BPS, getCouple } from "@/lib/households/couple";
 import type { CoupleMembership, HouseholdStore } from "@/lib/households/types";
 import type { Participant, Settlement, SharedExpense } from "@/domain/types";
 import type { CoupleContext } from "./actions";
@@ -12,6 +12,8 @@ export interface CoupleData {
   active: boolean;
   endedAt?: string;
   partner: { uid: string; name: string; email: string; participantId: string };
+  /** False until the couple chooses their usual split (the app then asks once). */
+  ratioSet: boolean;
   /** Usual split: `leaderId` bears `leaderBps` (6400 = 64%), the partner the rest. */
   ratio: { leaderId: string; leaderBps: number };
   /** Shared expenses that still count (withdrawn ones are left out). */
@@ -35,10 +37,11 @@ export async function loadCoupleData(repo: Repository, c: CoupleMembership): Pro
     await ensureHouseholdReady(repo, c.members);
     participants = await repo.participants.list();
   }
-  const ratio = c.household.splitRatio ?? { leaderUid: c.household.ownerUid, leaderBps: 5000 };
+  const ratio = c.household.splitRatio ?? { leaderUid: c.household.ownerUid, leaderBps: DEFAULT_RATIO_BPS };
   return {
     active: c.active, endedAt: c.household.endedAt,
     partner: { uid: c.partner.uid, name: c.partner.displayName || "Partner", email: c.partner.email, participantId: participantIdFor(c.partner.uid) },
+    ratioSet: !!c.household.splitRatio,
     ratio: { leaderId: participantIdFor(ratio.leaderUid), leaderBps: ratio.leaderBps },
     shared: shared.filter((s) => !s.voided).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id)),
     settlements: settlements.sort((a, b) => a.date.localeCompare(b.date)),
