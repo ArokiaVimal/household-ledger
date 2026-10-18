@@ -29,6 +29,18 @@ const values = {
 };
 
 let lines = existsSync(envPath) ? readFileSync(envPath, "utf8").split("\n") : [];
+
+// A hand-pasted private key spans many lines. Drop the old FIREBASE_ADMIN_PRIVATE_KEY line and any
+// continuation lines up to the END marker so no stray key material is left behind.
+const keyStart = lines.findIndex((l) => l.startsWith("FIREBASE_ADMIN_PRIVATE_KEY="));
+if (keyStart >= 0) {
+  let end = keyStart;
+  if (!/END PRIVATE KEY/.test(lines[keyStart])) {
+    while (end + 1 < lines.length && !/END PRIVATE KEY/.test(lines[end])) end++;
+  }
+  // also swallow a trailing closing quote line if present
+  lines.splice(keyStart, end - keyStart + 1);
+}
 for (const [name, value] of Object.entries(values)) {
   const i = lines.findIndex((l) => l.startsWith(`${name}=`));
   if (i >= 0) lines[i] = `${name}=${value}`;
