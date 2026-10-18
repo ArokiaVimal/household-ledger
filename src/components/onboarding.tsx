@@ -1,5 +1,5 @@
 "use client";
-import { CheckCircle2, FileUp, PlusCircle, Tags, UserPlus, Users } from "lucide-react";
+import { Check, PlusCircle, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useProfile } from "@/components/profile-context";
@@ -14,18 +14,16 @@ import { cn } from "@/lib/cn";
 export const OPEN_ADD_EVENT = "pf:add-transaction";
 const openAdd = () => window.dispatchEvent(new Event(OPEN_ADD_EVENT));
 
-function Step({ n, done, active, optional, icon, title, children }: { n: number; done: boolean; active: boolean; optional?: boolean; icon: ReactNode; title: string; children: ReactNode }) {
+function Step({ n, done, active, optional, title, children }: { n: number; done: boolean; active: boolean; optional?: boolean; title: string; children: ReactNode }) {
   return (
     <li className={cn("flex gap-4 rounded-[var(--radius-card)] bg-surface p-4 sm:p-5", active && "ring-2 ring-accent/60")}>
-      <div className="flex flex-col items-center">
-        {done
-          ? <CheckCircle2 className="size-9 text-good" aria-label="Done" />
-          : <span aria-hidden className={cn("grid size-9 place-items-center rounded-full text-sm font-semibold", active ? "bg-accent text-white" : "bg-background text-muted")}>{n}</span>}
-      </div>
+      {/* One status marker per step: a green check when done, otherwise the step number. */}
+      {done
+        ? <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-good text-white"><Check size={18} strokeWidth={3} /></span>
+        : <span aria-hidden className={cn("grid size-9 shrink-0 place-items-center rounded-full text-sm font-semibold", active ? "bg-accent text-white" : "bg-background text-muted")}>{n}</span>}
       <div className="min-w-0 flex-1 space-y-3">
-        <div className="flex items-center gap-2">
-          <span aria-hidden className="text-accent">{icon}</span>
-          <h3 className="font-semibold">{title}</h3>
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-1.5">
+          <h3 className="font-semibold leading-tight">{title}</h3>
           {optional && <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted">Optional</span>}
           {done && <span className="rounded-full bg-good-soft px-2 py-0.5 text-xs font-medium text-good">Done</span>}
         </div>
@@ -67,7 +65,7 @@ export function Onboarding() {
       </section>
 
       <ol className="space-y-3">
-        <Step n={1} done={hasMethods} active={activeStep === 1} icon={<PlusCircle size={18} />} title="Add your payment methods">
+        <Step n={1} done={hasMethods} active={activeStep === 1} title="Add your payment methods">
           <p className="text-sm text-muted">The cards, UPI apps and bank accounts you spend from, so every transaction knows where it came from.</p>
           {hasMethods && <div className="flex flex-wrap gap-1.5">{accounts.map((a) => <span key={a.id} title={a.name} className="rounded-full ring-1 ring-border"><MerchantAvatar name={a.name} size={32} /></span>)}</div>}
           <div className="flex flex-wrap items-center gap-2">
@@ -76,7 +74,7 @@ export function Onboarding() {
           </div>
         </Step>
 
-        <Step n={2} done={hasSpending} active={activeStep === 2} icon={<FileUp size={18} />} title="Add your spending">
+        <Step n={2} done={hasSpending} active={activeStep === 2} title="Add your spending">
           <p className="text-sm text-muted">Type a transaction in a few taps, or import a bank statement. Imported rows wait in a review queue until you approve them.</p>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant={hasMethods ? "primary" : "ghost"} onClick={openAdd}><PlusCircle size={16} aria-hidden />Add a transaction</Button>
@@ -84,7 +82,7 @@ export function Onboarding() {
           </div>
         </Step>
 
-        <Step n={3} done={false} active={false} optional icon={<Tags size={18} />} title="Make the categories yours">
+        <Step n={3} done={false} active={false} optional title="Make the categories yours">
           <p className="text-sm text-muted">{categories.length} categories are ready (Groceries, Fuel, Rent and more). Rename them, add your own, or set merchant rules that categorise automatically.</p>
           <Link href="/categories" className="inline-block rounded-full border border-border bg-surface px-3.5 py-2 text-sm hover:bg-background">Open categories</Link>
         </Step>
