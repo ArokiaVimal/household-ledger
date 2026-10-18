@@ -19,6 +19,7 @@ export type FriendDeleteCheck = { ok: true } | { ok: false; reason: string };
  */
 export function checkFriendDelete(p: Participant | undefined, meId: string, use: FriendUse): FriendDeleteCheck {
   if (!p) return { ok: false, reason: "That person was not found." };
+  if (p.pendingEmail) return { ok: false, reason: `${p.name} is an invited partner. Cancel the invitation under Share with a partner to remove them.` };
   if (p.id === meId || p.userId) return { ok: false, reason: "People with an account are managed under Sharing, not here." };
   const parts = [
     use.transactions > 0 ? `${use.transactions} transaction${use.transactions === 1 ? "" : "s"}` : "",

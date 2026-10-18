@@ -22,7 +22,7 @@ const evenBps = (ids: string[]) => {
 
 /** Controlled editor. Amounts shown come from computeShares, never recomputed here. */
 export function SplitEditor({ total, value, onChange }: { total: Paise; value: SplitConfig; onChange: (v: SplitConfig) => void }) {
-  const { nameOf, participants, meId, splitRatio, partnerId, live, partner } = useStore();
+  const { nameOf, participants, meId, splitRatio, partnerId, pendingPartner, live, partner } = useStore();
   // The couple's usual two-way split (set in Settings). Anchored to the person it names, not to whoever is signed in,
   // so the same expense is split the same way on both phones.
   const ownerId = participants.some((p) => p.id === splitRatio.leaderId) ? splitRatio.leaderId : meId;
@@ -60,7 +60,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
   const presetId = presets.find((p) => sameSplit(p.config, value))?.label ?? "";
   const [advanced, setAdvanced] = useState(!presetId);
   const showAdvanced = advanced || !presetId;
-  const whoOptions = participants.map((p) => ({ id: p.id, label: p.userId === null ? `${nameOf(p.id)} (friend)` : nameOf(p.id) }));
+  const whoOptions = participants.map((p) => ({ id: p.id, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : p.userId === null ? `${nameOf(p.id)} (friend)` : nameOf(p.id) }));
   const summary = ids.map((id) => `${nameOf(id)} ${formatINR(shares[id] ?? 0)}`).join(" · ");
   const pickPreset = (label: string) => {
     if (label === CUSTOM) return setAdvanced(true);
@@ -73,7 +73,8 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
       <FormRow label="Split">
         <CompactChips label="Split" options={[...presets.map((p) => ({ id: p.label, label: p.label })), { id: CUSTOM, label: "Custom…" }]} selected={showAdvanced ? [CUSTOM] : [presetId]} onPick={pickPreset} />
         {!showAdvanced && !error && ids.length > 1 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
-        {live && !partner && <p className="mt-1.5 text-xs text-muted">Splitting with a partner? <Link href="/settings" className="text-accent underline">Link them in Settings</Link>. Until then everything stays private.</p>}
+        {live && !partner && pendingPartner && <p className="mt-1.5 text-xs text-muted">{pendingPartner.name} has not accepted your invitation yet. You can split with them now; it is saved on your side and becomes shared once they join.</p>}
+        {live && !partner && !pendingPartner && <p className="mt-1.5 text-xs text-muted">Splitting with a partner? <Link href="/settings" className="text-accent underline">Link them in Settings</Link>. Until then everything stays private.</p>}
         {live && partner && !partner.active && <p className="mt-1.5 text-xs text-muted">You unlinked from {partner.name}, so nothing new can be shared with them.</p>}
       </FormRow>
       {showAdvanced && (

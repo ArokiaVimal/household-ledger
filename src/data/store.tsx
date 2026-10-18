@@ -49,6 +49,8 @@ interface Store {
   /** The couple's usual split: `leaderId` bears `leaderBps` (6400 = 64%), the partner the rest. 50/50 until a couple sets it. */
   splitRatio: { leaderId: string; leaderBps: number };
   partnerId: string | null;
+  /** An invited partner who has not accepted yet (usable in splits under the name typed at invite time). */
+  pendingPartner: Participant | null;
   /** Live mode: the linked partner, if any. `active` is false after unlinking (history only). */
   partner: { name: string; participantId: string; active: boolean; endedAt?: string } | null;
   /** Expenses shared between the partners (both people's), as ledger rows. Empty without a partner. */
@@ -172,7 +174,9 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const meId = live?.meId ?? ME;
   const couple = live?.couple;
   // In live mode a partner exists only once linked: friends in the list are not a "usual split" partner.
-  const partnerId = couple?.partner.participantId ?? (live ? null : participants.find((p) => p.id !== meId && p.userId)?.id ?? participants.find((p) => p.id !== meId)?.id ?? null);
+  // An invited partner who has not accepted yet is already usable in splits, under the name typed at invite time.
+  const pendingPartner = participants.find((p) => p.pendingEmail) ?? null;
+  const partnerId = couple?.partner.participantId ?? (live ? pendingPartner?.id ?? null : participants.find((p) => p.id !== meId && p.userId)?.id ?? participants.find((p) => p.id !== meId)?.id ?? null);
   const splitRatio = useMemo(() => (live ? (couple ? { leaderId: couple.ratio.leaderId, leaderBps: couple.ratio.leaderBps } : { leaderId: meId, leaderBps: 5000 }) : { leaderId: ME, leaderBps: OWNER_SHARE_BPS }), [live, couple, meId]);
   const trendHistory = live ? {} : mockTrend;
 
@@ -340,7 +344,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   }, []);
 
   const value: Store = {
-    aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, sharedRecords: live ? sharedRecords : [],
+    aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, recurring,
     categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant, deleteParticipant,

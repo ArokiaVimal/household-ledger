@@ -32,6 +32,8 @@ export interface Participant {
   name: string;
   /** Registered household member, or null for friends without an account. */
   userId: string | null;
+  /** Set while this person is an invited partner who has not accepted yet. Their id is temporary. */
+  pendingEmail?: string;
 }
 
 export interface Account {

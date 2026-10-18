@@ -62,7 +62,7 @@ export default function Settings() {
   };
 
   const usedBy = (id: string) => [...records, ...staged].filter((r) => r.accountId === id).length;
-  const friends = participants.filter((p) => !p.userId);
+  const friends = participants.filter((p) => !p.userId && !p.pendingEmail);
 
   return (
     <>
@@ -112,7 +112,7 @@ export default function Settings() {
                   <li key={p.id} className="flex items-center justify-between gap-2 py-2.5">
                     <span className="font-medium">{p.name}{p.id === meId && <span className="font-normal text-muted"> (you)</span>}</span>
                     <span className="flex items-center gap-2">
-                      {p.userId ? <Badge tone="good">Has an account</Badge> : <><Badge>Friend</Badge><button type="button" aria-label={`Remove ${p.name}`} title="Remove friend" onClick={() => { setRemoving(p.id); setRemoveError(null); }} className="grid size-8 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={14} aria-hidden /></button></>}
+                      {p.userId ? <Badge tone="good">Has an account</Badge> : p.pendingEmail ? <Badge tone="warn">Invited</Badge> : <><Badge>Friend</Badge><button type="button" aria-label={`Remove ${p.name}`} title="Remove friend" onClick={() => { setRemoving(p.id); setRemoveError(null); }} className="grid size-8 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={14} aria-hidden /></button></>}
                     </span>
                   </li>
                 ))}

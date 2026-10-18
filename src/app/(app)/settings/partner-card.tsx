@@ -25,6 +25,7 @@ export function PartnerCard() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
+  const [theirName, setTheirName] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [unlinking, setUnlinking] = useState(false);
   const [custom, setCustom] = useState("");
@@ -47,9 +48,10 @@ export function PartnerCard() {
   const feedback = msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "text-sm text-good" : "text-sm text-danger"}>{msg.text}</p>;
 
   const inviteForm = (
-    <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); run({ action: "invite", email }, `Invitation saved for ${email}. Ask them to sign in with that email and accept it in Settings.`).then((ok) => { if (ok) setEmail(""); }); }}>
-      <Field label="Your partner's Google email"><Input type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="partner@example.com" /></Field>
-      <Button type="submit" variant="primary" disabled={busy || !email.includes("@")}>Send invitation</Button>
+    <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); run({ action: "invite", email, name: theirName.trim() }, `Invitation saved for ${email}. ${theirName.trim() || "They"} can already be picked in splits. Ask them to sign in with that email and accept in Settings.`).then((ok) => { if (ok) { setEmail(""); setTheirName(""); } }); }}>
+      <Field label="Their name (shown in your splits straight away)"><Input value={theirName} onChange={(e) => setTheirName(e.target.value)} placeholder="e.g. Varru" maxLength={60} autoComplete="off" /></Field>
+      <Field label="Their Google email"><Input type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="partner@example.com" /></Field>
+      <Button type="submit" variant="primary" disabled={busy || !email.includes("@") || !theirName.trim()}>Send invitation</Button>
     </form>
   );
 
