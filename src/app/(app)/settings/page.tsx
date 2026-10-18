@@ -24,7 +24,7 @@ const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }
 
 function Section({ id, icon, title, tagline, children }: { id: string; icon: ReactNode; title: string; tagline: string; children: ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-h`} className="scroll-mt-4 space-y-4">
+    <section id={id} aria-labelledby={`${id}-h`} className="min-w-0 scroll-mt-4 space-y-4">
       <div className="flex items-start gap-3">
         <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/10 text-accent">{icon}</span>
         <div className="min-w-0">
@@ -67,13 +67,13 @@ export default function Settings() {
   return (
     <>
       <PageHeader title="Settings" sub="Set up where your money lives, who you split with and how smart your imports are. Change any of it, any time." actions={!live ? <Badge tone="warn">Prototype</Badge> : undefined} />
-      <nav aria-label="Jump to a section" className="-mx-1 mb-5 flex gap-1.5 overflow-x-auto px-1 pb-1">
+      <nav aria-label="Jump to a section" className="mb-5 max-w-full flex gap-1.5 overflow-x-auto px-1 pb-1">
         {JUMP.map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm hover:bg-background">{label}</a>)}
       </nav>
 
-      <div className="space-y-10">
+      <div className="min-w-0 space-y-10">
         <Section id="methods" icon={<Wallet size={20} aria-hidden />} title="Payment methods" tagline="Know exactly where every rupee came from. Add the cards, UPI apps and bank accounts you spend with, and each transaction is filed under the right one.">
-          <div className="grid items-start gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2">
             <Card className="space-y-3">
               <CardTitle action={<span className="text-xs text-muted">{accounts.length} added</span>}>Your payment methods</CardTitle>
               <ul className="divide-y divide-border text-sm">
@@ -102,7 +102,7 @@ export default function Settings() {
         </Section>
 
         <Section id="sharing" icon={<Users size={20} aria-hidden />} title="Split with people" tagline="Rent with your partner, a dinner with friends, a trip with the gang. Split it fairly, see who owes whom, and settle up without the awkward maths.">
-          <div className="grid items-start gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2">
             <PartnerCard />
             <Card className="space-y-3">
               <CardTitle action={<span className="text-xs text-muted">{friends.length === 0 ? "None yet" : `${friends.length} added`}</span>}>Friends and family</CardTitle>
@@ -141,7 +141,7 @@ export default function Settings() {
         )}
 
         <Section id="shortcuts" icon={<LayoutGrid size={20} aria-hidden />} title="Make it yours" tagline="Rename categories, set up recurring bills, tune how the app greets you.">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {SHORTCUTS.map(({ href, label, hint, icon: I }) => (
               <Link key={href} href={href} className="group flex items-start gap-3 rounded-[var(--radius-card)] bg-surface p-4 transition-shadow hover:shadow-md">
                 <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-background text-accent"><I size={18} /></span>

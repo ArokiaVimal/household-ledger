@@ -11,10 +11,12 @@ const id = z.string().min(1).max(128);
 const paise = z.number().int().safe();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD").refine((d) => !Number.isNaN(Date.parse(d)), "Invalid date");
 
+const SplitItemSchema = z.object({ id, name: z.string().max(80), amountPaise: z.number().int().safe().positive(), participantIds: z.array(id).min(1).max(50) });
 export const SplitConfigSchema = z.object({
-  mode: z.enum(["personal", "equal", "percent", "custom"]),
+  mode: z.enum(["personal", "equal", "percent", "custom", "shares", "adjust", "items"]),
   participantIds: z.array(id),
   values: z.record(z.string(), z.number().int().safe()).optional(),
+  items: z.array(SplitItemSchema).max(100).optional(),
 }) satisfies z.ZodType<SplitConfig>;
 
 export const ParticipantSchema = z.object({ id, name: z.string().min(1).max(80), userId: z.string().min(1).nullable(), pendingEmail: z.string().max(200).optional(), inviterShareBps: z.number().int().min(500).max(9500).optional() }) satisfies z.ZodType<Participant>;

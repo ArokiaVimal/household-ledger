@@ -189,3 +189,9 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 ## Usual split chosen at invite time (added)
 - The invite form has "Your usual share" chips (50/50, 60/40, 64/36, 70/30), pre-set to 64/36 (you carry 64%). It is stored on the pending partner (`inviterShareBps`), so the split presets show "You 64 · Them 36" before they accept; on acceptance it becomes the couple's usual split (inviter as leader) via `setSplitRatio`. Either partner can still change it under Partner. Invitations sent before this have no share and stay 50/50 until you cancel and re-send, or link and set it.
 
+## Every Splitwise way to split, plus item-wise (added)
+- New split modes in the domain (`src/domain/splits.ts`, tested in `splits-modes.test.ts`): **Shares** (2 shares pay twice 1 share; 0 shares pays nothing, which also gives the "X owes all" / "I owe all" presets), **Adjustments** (split equally after taking each person's +/- adjustment out), **By item** (items with who shared each; tax, tip, fees or a discount = bill total minus items, shared in proportion to each person's items; BigInt maths so nothing overflows). Existing: equally, exact amounts, percentages, one person. `SplitConfig` gained `items`; the Zod schema validates it and rejects items that do not fit.
+- The split editor (`src/components/split-editor.tsx`) has a "More ways to split" panel: a type picker with a one-line explanation for each, a row per person with the right input (%, amount, +/- stepper, adjustment), live "adds up / left to assign" feedback, and for items an itemised list with person chips, a tax/tip line and each person's total. Checked in the browser (demo, phone width): a ₹1,180 bill with ₹800 and ₹200 items splits 944 / 236 and saves.
+- Mobile fix: Settings no longer overflows sideways on a phone (grid columns now `minmax(0,1fr)`).
+- Not done: Splitwise's "repeat expense" and group simplify-debts; receipts/photo scan for items.
+

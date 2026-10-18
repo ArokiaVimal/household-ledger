@@ -11,7 +11,7 @@ export type TxnKind =
 
 export type ReviewStatus = "unreviewed" | "reviewed";
 
-export type SplitMode = "personal" | "equal" | "percent" | "custom";
+export type SplitMode = "personal" | "equal" | "percent" | "custom" | "shares" | "adjust" | "items";
 
 /**
  * Split configuration. Shares are always derived from this + amount via
@@ -19,12 +19,26 @@ export type SplitMode = "personal" | "equal" | "percent" | "custom";
  * - personal: participantIds has exactly one id
  * - equal:    participantIds
  * - percent:  values[participantId] in basis points (10000 = 100%)
- * - custom:   values[participantId] in paise
+ * - custom:   values[participantId] in paise (exact amounts)
+ * - shares:   values[participantId] = number of shares (2 shares pay twice what 1 share pays; 0 pays nothing)
+ * - adjust:   values[participantId] = signed paise added to (or taken off) that person's share after the rest is split equally
+ * - items:    `items` lists what was bought and who shared each; tax, tip and fees (the bill total minus the items) are
+ *             shared in proportion to what each person's items came to
  */
 export interface SplitConfig {
   mode: SplitMode;
   participantIds: string[];
   values?: Record<string, number>;
+  items?: SplitItem[];
+}
+
+export interface SplitItem {
+  id: string;
+  name: string;
+  /** Always positive. */
+  amountPaise: Paise;
+  /** Who shared this item; its cost is divided equally between them. */
+  participantIds: string[];
 }
 
 export interface Participant {
