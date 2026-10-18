@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MerchantAvatar, Amount } from "@/components/txn-row";
 import { TxnReviewDialog } from "@/components/txn-edit-dialog";
-import { AiBadge, Badge, Button, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
+import { AiBadge, AiFeatureCard, Badge, Button, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import type { ExpenseRecord } from "@/domain/types";
 
@@ -13,7 +13,7 @@ export default function Review() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const { live, staged, nameOf, categoryName, accountName, approveStaged, deleteRecords } = useStore();
+  const { live, aiEnabled, staged, nameOf, categoryName, accountName, approveStaged, deleteRecords } = useStore();
   const [open, setOpen] = useState<ExpenseRecord | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState(false);
@@ -47,6 +47,11 @@ export default function Review() {
         <EmptyState title="Nothing waiting for review" hint="Imported statements will appear here before they are added." />
       ) : (
         <>
+          {live && (
+            <AiFeatureCard enabled={aiEnabled} title="AI-powered review assist" className="mb-3">
+              <p>{aiEnabled ? "Rows marked AI were named and categorised by Claude; Remembered rows come from what you approved before. Approve the confident ones in one go and fix the rest." : "AI is off, so only your own memory fills rows in. Add an AI key on the server to switch it on."}</p>
+            </AiFeatureCard>
+          )}
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <Badge tone="warn">{staged.length} awaiting review</Badge>
             <Button onClick={() => setOpen(staged[0])} variant="primary"><ClipboardCheck size={16} aria-hidden />Start reviewing</Button>

@@ -28,9 +28,13 @@ export interface LiveInit {
   ready: boolean;
   /** Participant id of the household owner: the person who bears the larger share in the usual 64/36 split. */
   ownerId: string;
+  /** The server has an AI key, so import suggestions use Claude (merchant memory works either way). */
+  aiEnabled?: boolean;
 }
 
 interface Store {
+  /** True when AI-powered suggestions are switched on for this app. */
+  aiEnabled: boolean;
   /** True when connected to the household's saved data; false in demo mode. */
   live: boolean;
   /** Live mode only: whether the user belongs to a household. Always true in demo mode. */
@@ -295,7 +299,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   }, []);
 
   const value: Store = {
-    live: !!live, householdReady: live ? live.ready : true, meId, ownerParticipantId: live ? live.ownerId || meId : ME, partnerId, today, participants, accounts, recurringItems, trendHistory,
+    aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, ownerParticipantId: live ? live.ownerId || meId : ME, partnerId, today, participants, accounts, recurringItems, trendHistory,
     records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, recurring,
     categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,

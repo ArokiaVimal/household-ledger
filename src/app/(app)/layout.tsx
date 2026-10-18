@@ -66,6 +66,7 @@ async function AuthedShell({ children }: { children: ReactNode }) {
         const data = await loadReadyHouseholdData(repo, membership.members);
         live = {
           data, today, ready: true,
+          aiEnabled: !!process.env.ANTHROPIC_API_KEY?.trim(),
           meId: data.participants.find((p) => p.userId === session.uid)?.id ?? participantIdFor(session.uid),
           ownerId: data.participants.find((p) => p.userId === membership.household.ownerUid)?.id ?? participantIdFor(membership.household.ownerUid),
         };

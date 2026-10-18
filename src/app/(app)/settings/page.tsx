@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { Badge, Button, Card, CardTitle, ChipGroup, Dialog, Field, Input, PageHeader } from "@/components/ui";
+import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, Dialog, Field, Input, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import type { Account } from "@/domain/types";
@@ -11,7 +11,7 @@ import { SharingCard } from "./sharing-card";
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash" };
 
 export default function Settings() {
-  const { live, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, addAccount, addSuggestedAccounts, addParticipant } = useStore();
+  const { live, aiEnabled, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, addAccount, addSuggestedAccounts, addParticipant } = useStore();
   const [confirm, setConfirm] = useState(false);
   const [accName, setAccName] = useState("");
   const [accType, setAccType] = useState<Account["type"]>("credit_card");
@@ -35,6 +35,13 @@ export default function Settings() {
       <PageHeader title="Settings" actions={!live ? <Badge tone="warn">Prototype</Badge> : undefined} />
       <div className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2"><SharingCard /></div>
+
+        {live && (
+          <AiFeatureCard enabled={aiEnabled} title="AI assistant" className="md:col-span-2">
+            <p>{aiEnabled ? "AI is on. When you import a statement, Claude names and categorises merchants the app has not seen before, and the app remembers your choices so the AI is asked less every month." : "AI is off. Import still works and learns from your approvals; add an Anthropic API key on the server to have Claude name and categorise new merchants."}</p>
+            <p className="text-xs">Sent to Claude: merchant text, amount and debit or credit, with long numbers hidden. Never your name, the file, or account numbers. Nothing is approved without you.</p>
+          </AiFeatureCard>
+        )}
 
         <Card className="space-y-3">
           <CardTitle>Payment methods</CardTitle>

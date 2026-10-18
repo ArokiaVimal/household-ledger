@@ -247,3 +247,17 @@ export function AiBadge({ children = "AI", tone = "ai", title = "Suggested by AI
     </span>
   );
 }
+
+/** Positions an AI feature as such: what it does, whether it is on, and what it costs you (nothing is sent without the key). */
+export function AiFeatureCard({ enabled, title, children, className }: { enabled: boolean; title: string; children: ReactNode; className?: string }) {
+  return (
+    <section aria-label={title} className={cn("relative overflow-hidden rounded-[var(--radius-card)] bg-gradient-to-br from-accent/10 via-surface to-surface p-4 ring-1 ring-accent/20", className)}>
+      <div className="flex flex-wrap items-center gap-2">
+        <AiBadge>AI-powered</AiBadge>
+        <h2 className="text-sm font-semibold">{title}</h2>
+        <span className={cn("ml-auto rounded-full px-2 py-0.5 text-xs font-medium", enabled ? "bg-good-soft text-good" : "bg-background text-muted")}>{enabled ? "On" : "Off"}</span>
+      </div>
+      <div className="mt-2 space-y-1.5 text-sm text-muted">{children}</div>
+    </section>
+  );
+}

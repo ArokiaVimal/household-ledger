@@ -3,7 +3,7 @@ import { CheckCircle2, FileUp, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { AiBadge, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, EmptyState, FormRow, PageHeader } from "@/components/ui";
+import { AiBadge, AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, EmptyState, FormRow, PageHeader } from "@/components/ui";
 import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -15,7 +15,7 @@ const kindLabel: Record<string, string> = { purchase: "Purchase", refund: "Refun
 type Reply = { ok: boolean; error?: string; preview?: Preview; result?: { counts: { staged: number; duplicate: number; possible: number; unreadable: number } } };
 
 export function LiveImport() {
-  const { accounts, accountName, categoryName, importBatches } = useStore();
+  const { accounts, accountName, categoryName, importBatches, aiEnabled } = useStore();
   const router = useRouter();
   const usable = accounts.filter((a) => a.type !== "cash");
   const [accountId, setAccountId] = useState(usable[0]?.id ?? "");
@@ -81,6 +81,10 @@ export function LiveImport() {
   return (
     <>
       <PageHeader title="Import a statement" sub="CSV, Excel or an American Express (India) PDF. Nothing counts until you approve it in the review queue, and the file itself is not stored." />
+      <AiFeatureCard enabled={aiEnabled} title="AI-powered import" className="mb-4">
+        <p>{aiEnabled ? "Claude reads the merchants on your statement, names them properly, picks a category and tells cards, fees and transfers apart. " : "Turn on AI to have Claude name and categorise new merchants for you. "}It remembers what you approve, so each month needs less review.</p>
+        <p className="text-xs">{aiEnabled ? "Only merchant text, amount and debit/credit are sent, with long numbers hidden. You approve everything." : "Until then the app still uses everything it has learned from your approvals. Add ANTHROPIC_API_KEY on the server to switch it on."}</p>
+      </AiFeatureCard>
       {usable.length === 0 ? (
         <EmptyState title="Add a payment method first" hint="Open Settings and add the card or account this statement belongs to." />
       ) : (
