@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import { DonutChart, TrendChart } from "@/components/charts";
 import { MerchantAvatar, TxnBadges, Amount } from "@/components/txn-row";
-import { Badge, Card, CardTitle, EmptyState } from "@/components/ui";
-import { ME, accounts, trendHistory } from "@/data/mock";
+import { Badge, Button, Card, CardTitle, EmptyState } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import { byCategory, byMerchant, byMonth, groupNet, summarize } from "@/domain/reports";
@@ -35,28 +34,51 @@ function Pill({ tone, children }: { tone: "good" | "bad"; children: ReactNode })
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet } as const;
 
 export default function Dashboard() {
-  const { records, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView } = useStore();
-  const household = useMemo(() => summarize(records.filter((r) => r.date.startsWith(month)), ME), [records, month]);
+  const { live, householdReady, meId, accounts, trendHistory, records, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView, addSuggestedAccounts } = useStore();
+  const household = useMemo(() => summarize(records.filter((r) => r.date.startsWith(month)), meId), [records, month, meId]);
   const cats = useMemo(() => Object.entries(byCategory(scoped)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [scoped, categoryName]);
   const perAccount = useMemo(() => groupNet(scoped, (r) => r.accountId), [scoped]);
   const trend = useMemo(() => {
     const all = { ...trendHistory, ...byMonth(records) };
     return Object.keys(all).sort().map((m) => ({ key: m, label: new Date(m + "-01").toLocaleString("en", { month: "short" }), value: all[m] }));
-  }, [records]);
+  }, [records, trendHistory]);
   const topMerchant = Object.entries(byMerchant(scoped)).sort((a, b) => b[1] - a[1])[0];
-  const iOwe = balances.filter((b) => b.from === ME && b.outstanding > 0);
-  const owedToMe = balances.filter((b) => b.to === ME && b.outstanding > 0);
+  const iOwe = balances.filter((b) => b.from === meId && b.outstanding > 0);
+  const owedToMe = balances.filter((b) => b.to === meId && b.outstanding > 0);
   const q = `month=${month}`;
-  const prev = trendHistory["2026-08"];
-  const delta = month === "2026-09" && prev ? Math.round(((household.net - prev) / prev) * 1000) / 10 : null;
+  const prevKey = (() => { const [y, m] = month.split("-").map(Number); return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7); })();
+  const prev = byMonth(records)[prevKey] ?? trendHistory[prevKey];
+  const delta = prev && prev > 0 ? Math.round(((household.net - prev) / prev) * 1000) / 10 : null;
+  const prevName = new Date(`${prevKey}-01T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" });
 
-  if (scoped.length === 0) return <EmptyState title="No transactions this month" hint="Pick September 2026 or import a statement." />;
+  if (scoped.length === 0) {
+    return (
+      <div className="space-y-4">
+        {live && !householdReady && (
+          <Card className="space-y-2 text-sm"><CardTitle>Create your household first</CardTitle><p>Your data is saved per household. Create one, or join with a code from your partner, in <Link href="/settings" className="text-accent underline-offset-2 hover:underline">Settings → Household</Link>.</p></Card>
+        )}
+        {live && householdReady && records.length === 0 && (
+          <Card className="space-y-3">
+            <CardTitle>Let&apos;s set up your household</CardTitle>
+            <ol className="space-y-3 text-sm">
+              <li className="flex flex-wrap items-center gap-2"><b>1.</b> Add your payment methods{accounts.length > 0 ? ` (${accounts.length} added)` : ""}.
+                {accounts.length === 0 && <Button variant="primary" onClick={addSuggestedAccounts}>Add my usual cards, UPI apps and banks</Button>}
+                <Link href="/settings" className="text-accent underline-offset-2 hover:underline">Edit in Settings</Link></li>
+              <li><b>2.</b> Add your first transaction with the <b>Add</b> button (bottom right). Statement import arrives with the file parsers.</li>
+              <li><b>3.</b> Invite your partner in <Link href="/settings" className="text-accent underline-offset-2 hover:underline">Settings → Household</Link>.</li>
+            </ol>
+          </Card>
+        )}
+        <EmptyState title="No transactions this month" hint={live ? "Add a transaction, or pick another month." : "Pick September 2026 or import a statement."} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi icon={Wallet} label="Net spending" value={formatINR(summary.net)} sub="after refunds" href={`/transactions?${q}`}
-          pill={delta !== null && <Pill tone={delta > 0 ? "bad" : "good"}>{delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{Math.abs(delta)}% vs Aug (mock)</Pill>} />
+          pill={delta !== null && <Pill tone={delta > 0 ? "bad" : "good"}>{delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{Math.abs(delta)}% vs {prevName}{live ? "" : " (mock)"}</Pill>} />
         <Kpi icon={UserRound} label="My share" value={formatINR(summary.myShare)} sub="what I ultimately bear" />
         <Kpi icon={Users} label="Household spending" value={formatINR(household.net)} sub={`Shared ${formatINR(summary.sharedNet)}`} href={`/transactions?${q}&shared=1`} />
         <Kpi icon={TrendingDown} label="Refunds & review" value={`−${formatINR(summary.refunds)}`} sub={`${staged.length} awaiting review`} href="/review"
@@ -83,7 +105,7 @@ export default function Dashboard() {
           <p className="mt-3 text-xs text-muted">Spending only. Card bill payments, transfers and income are excluded. {topMerchant && <>Top merchant: <b>{topMerchant[0]}</b>.</>}</p>
         </Card>
         <Card className="lg:col-span-2">
-          <CardTitle action={<Badge>Apr–Aug mock</Badge>}>Net spending trend</CardTitle>
+          <CardTitle action={!live ? <Badge>Apr–Aug mock</Badge> : undefined}>Net spending trend</CardTitle>
           <TrendChart data={trend} href={(k) => `/transactions?month=${k}`} />
         </Card>
       </div>

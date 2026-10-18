@@ -1,20 +1,47 @@
 "use client";
-// Prototype store: in-memory only, resets on reload. Replaced by a Firebase
-// adapter in Stage 3. All calculations live in src/domain.
+// Client store with two modes.
+// - Demo (no `live` prop): fictional data in memory, nothing is saved.
+// - Live: starts from the household's data loaded on the server and sends every change to /api/data.
+//   The screen updates immediately; if the server rejects a change the message is shown and the data is re-synced.
+// All calculations live in src/domain.
+import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { pairBalances } from "@/domain/balances";
-import { summarize } from "@/domain/reports";
-import type { ExpenseRecord, Receipt, Settlement } from "@/domain/types";
-import { signedShare } from "@/domain/reports";
+import { categoryUsage, checkDelete, cleanCategoryName, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
+import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { recurringStatuses } from "@/domain/recurring";
-import { cleanCategoryName, categoryUsage, checkDelete, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
+import { signedShare, summarize } from "@/domain/reports";
 import type { MerchantRule } from "@/domain/rules";
-import type { Category } from "@/domain/types";
-import { MOCK_TODAY, ME, accounts, categories as seedCategories, initialReceipts, merchantRules, recurringItems, initialRecords, initialSettlements, participants } from "./mock";
+import type { Account, Category, ExpenseRecord, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
+import type { HouseholdData } from "@/lib/data/load";
+import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, participants as mockParticipants, recurringItems as mockRecurring, trendHistory as mockTrend } from "./mock";
 
 export type View = "household" | "personal";
 
+export interface LiveInit {
+  data: HouseholdData;
+  /** Participant id of the signed-in user. */
+  meId: string;
+  /** Today's date (YYYY-MM-DD) from the server, so server and client agree. */
+  today: string;
+  /** False when the signed-in user has no household yet (the data is empty and changes cannot be saved). */
+  ready: boolean;
+}
+
 interface Store {
+  /** True when connected to the household's saved data; false in demo mode. */
+  live: boolean;
+  /** Live mode only: whether the user belongs to a household. Always true in demo mode. */
+  householdReady: boolean;
+  /** Participant id of the signed-in user, and the first other household participant (for presets). */
+  meId: string;
+  partnerId: string | null;
+  today: string;
+  participants: Participant[];
+  accounts: Account[];
+  recurringItems: RecurringItem[];
+  /** Static prior-month totals for the demo trend chart (empty in live mode). */
+  trendHistory: Record<string, number>;
   /** The ledger: only approved records. Everything in reports, balances and recurring comes from here. */
   records: ExpenseRecord[];
   /** Review queue: imported rows waiting for manual approval. Never counted in reports until approved. */
@@ -41,9 +68,13 @@ interface Store {
   deleteCategory: (id: string, moveTo?: string) => string | null;
   addRule: (r: MerchantRule) => void;
   removeRule: (merchant: string) => void;
+  addAccount: (name: string, type: Account["type"]) => string | null;
+  addSuggestedAccounts: () => void;
+  addParticipant: (name: string) => string | null;
   updateRecord: (id: string, patch: Partial<ExpenseRecord>) => void;
-  /** Manual entry. Id is generated here; `importSource` marks it as not imported. */
+  /** Manual entry. In live mode the id is generated here and the server forces the trusted fields. */
   addRecord: (r: ExpenseRecord) => void;
+  /** Demo only: real imports arrive with the statement parsers. */
   stageRecords: (rs: ExpenseRecord[]) => void;
   /** Save edits to a queued row without approving it. */
   updateStaged: (id: string, patch: Partial<ExpenseRecord>) => void;
@@ -57,54 +88,134 @@ interface Store {
   recurringName: (id: string) => string;
   categoryName: (id: string) => string;
   accountName: (id: string) => string;
+  /** Last save problem, shown once. */
+  syncError: string | null;
+  dismissSyncError: () => void;
 }
 
 const Ctx = createContext<Store | null>(null);
 
-export function StoreProvider({ children, initialView = "household" }: { children: ReactNode; initialView?: View }) {
-  const [records, setRecords] = useState(() => initialRecords.filter((r) => r.status === "reviewed"));
-  const [staged, setStaged] = useState(() => initialRecords.filter((r) => r.status === "unreviewed"));
-  const [categories, setCategories] = useState<Category[]>(seedCategories);
-  const [rules, setRules] = useState<MerchantRule[]>(merchantRules);
-  const [settlements, setSettlements] = useState(initialSettlements);
-  const [receipts] = useState(initialReceipts);
-  const [month, setMonth] = useState("2026-09");
+const uuid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
+
+/** Fields a person can change on an existing record; undefined means "clear it" on the wire. */
+const EDITABLE = ["merchant", "categoryId", "kind", "payerId", "shared", "split", "excluded", "notes", "recurringId", "fundedBy", "receiptId"] as const;
+function toWirePatch(patch: Partial<ExpenseRecord>) {
+  const out: Record<string, unknown> = {};
+  for (const k of EDITABLE) if (k in patch) out[k] = patch[k] === undefined ? null : patch[k];
+  return out;
+}
+
+const slug = (s: string) => s.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 30) || "item";
+
+function seed(live?: LiveInit) {
+  if (live) {
+    const d = live.data;
+    return {
+      records: d.records.filter((r) => r.status === "reviewed"), staged: d.records.filter((r) => r.status === "unreviewed"), categories: d.categories, rules: d.rules, settlements: d.settlements,
+      receipts: d.receipts, participants: d.participants, accounts: d.accounts, recurringItems: d.recurring,
+    };
+  }
+  return {
+    records: initialRecords.filter((r) => r.status === "reviewed"), staged: initialRecords.filter((r) => r.status === "unreviewed"), categories: mockCategories, rules: merchantRules,
+    settlements: initialSettlements, receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring,
+  };
+}
+
+export function StoreProvider({ children, initialView = "household", live }: { children: ReactNode; initialView?: View; live?: LiveInit }) {
+  const router = useRouter();
+  const init = useMemo(() => seed(live), [live]);
+  const [records, setRecords] = useState(init.records);
+  const [staged, setStaged] = useState(init.staged);
+  const [categories, setCategories] = useState<Category[]>(init.categories);
+  const [rules, setRules] = useState<MerchantRule[]>(init.rules);
+  const [settlements, setSettlements] = useState(init.settlements);
+  const [receipts, setReceipts] = useState(init.receipts);
+  const [participants, setParticipants] = useState<Participant[]>(init.participants);
+  const [accounts, setAccounts] = useState<Account[]>(init.accounts);
+  const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(init.recurringItems);
+  const today = live?.today ?? MOCK_TODAY;
+  const [month, setMonth] = useState(today.slice(0, 7));
   const [view, setView] = useState<View>(initialView);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const meId = live?.meId ?? ME;
+  const partnerId = participants.find((p) => p.id !== meId && p.userId)?.id ?? participants.find((p) => p.id !== meId)?.id ?? null;
+  const trendHistory = live ? {} : mockTrend;
+
+  // After a failed save the server re-sends the household's data; adopt it (React's "adjust state on prop change" pattern).
+  const [prevInit, setPrevInit] = useState(init);
+  if (prevInit !== init) {
+    setPrevInit(init);
+    setRecords(init.records); setStaged(init.staged); setCategories(init.categories); setRules(init.rules); setSettlements(init.settlements);
+    setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems);
+  }
+
+  /** Sends a change to the server (live mode only). On failure, shows why and re-syncs from the server. */
+  const send = useCallback(async (action: object) => {
+    if (!live) return;
+    try {
+      const res = await fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action) });
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Could not save that change.");
+    } catch (e) {
+      setSyncError((e as Error).message || "Could not save that change.");
+      router.refresh();
+    }
+  }, [live, router]);
 
   const scoped = useMemo(
-    () =>
-      records.filter(
-        (r) => r.date.startsWith(month) && (view === "household" || r.payerId === ME || signedShare(r, ME) !== 0 || !r.shared && r.split.participantIds.includes(ME)),
-      ),
-    [records, month, view],
+    () => records.filter((r) => r.date.startsWith(month) && (view === "household" || r.payerId === meId || signedShare(r, meId) !== 0 || (!r.shared && r.split.participantIds.includes(meId)))),
+    [records, month, view, meId],
   );
-  const summary = useMemo(() => summarize(scoped, ME), [scoped]);
-  const recurring = useMemo(() => recurringStatuses(recurringItems, records, month, MOCK_TODAY), [records, month]);
+  const summary = useMemo(() => summarize(scoped, meId), [scoped, meId]);
+  const recurring = useMemo(() => recurringStatuses(recurringItems, records, month, today), [recurringItems, records, month, today]);
   const balances = useMemo(() => pairBalances(records, settlements), [records, settlements]);
 
-  const updateRecord = useCallback((id: string, patch: Partial<ExpenseRecord>) => setRecords((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r))), []);
-  const addRecord = useCallback((r: ExpenseRecord) => setRecords((rs) => [...rs, { ...r, id: `m${rs.length + 1}-${Date.now().toString(36)}` }]), []);
-  const stageRecords = useCallback((rs: ExpenseRecord[]) => setStaged((x) => [...x, ...rs.map((r, i) => ({ ...r, id: `q${Date.now().toString(36)}-${x.length + i}`, status: "unreviewed" as const }))]), []);
-  const updateStaged = useCallback((id: string, patch: Partial<ExpenseRecord>) => setStaged((xs) => xs.map((r) => (r.id === id ? { ...r, ...patch, status: "unreviewed" as const } : r))), []);
+  const updateRecord = useCallback((id: string, patch: Partial<ExpenseRecord>) => {
+    setRecords((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    void send({ type: "record.update", id, patch: toWirePatch(patch) });
+  }, [send]);
+  const addRecord = useCallback((r: ExpenseRecord) => {
+    const rec = { ...r, id: live ? uuid() : `m${Date.now().toString(36)}` };
+    setRecords((rs) => [...rs, rec]);
+    void send({
+      type: "record.create",
+      record: { id: rec.id, date: rec.date, merchant: rec.merchant, amountPaise: rec.amountPaise, accountId: rec.accountId, categoryId: rec.categoryId, kind: rec.kind, payerId: rec.payerId, shared: rec.shared, split: rec.split, excluded: rec.excluded, notes: rec.notes, recurringId: rec.recurringId, fundedBy: rec.fundedBy },
+    });
+  }, [live, send]);
+  const stageRecords = useCallback((rs: ExpenseRecord[]) => {
+    if (live) return; // real imports need the statement parsers
+    setStaged((x) => [...x, ...rs.map((r, i) => ({ ...r, id: `q${Date.now().toString(36)}-${x.length + i}`, status: "unreviewed" as const }))]);
+  }, [live]);
+  const updateStaged = useCallback((id: string, patch: Partial<ExpenseRecord>) => {
+    setStaged((xs) => xs.map((r) => (r.id === id ? { ...r, ...patch, status: "unreviewed" as const } : r)));
+    void send({ type: "record.update", id, patch: toWirePatch(patch) });
+  }, [send]);
   const approveStaged = useCallback((id: string, patch: Partial<ExpenseRecord> = {}) => {
     const r = staged.find((x) => x.id === id);
     if (!r) return;
     setRecords((rs) => (rs.some((x) => x.id === id) ? rs : [...rs, { ...r, ...patch, status: "reviewed" }]));
     setStaged((xs) => xs.filter((x) => x.id !== id));
-  }, [staged]);
-  const rejectStaged = useCallback((id: string) => setStaged((xs) => xs.filter((x) => x.id !== id)), []);
+    void send({ type: "record.approve", id, patch: toWirePatch(patch) });
+  }, [staged, send]);
+  const rejectStaged = useCallback((id: string) => {
+    setStaged((xs) => xs.filter((x) => x.id !== id));
+    void send({ type: "record.reject", id });
+  }, [send]);
+
   const addCategory = useCallback((name: string) => {
     const err = validateCategoryName(name, categories);
     if (err) return err;
-    setCategories((cs) => [...cs, { id: makeCategoryId(name, cs.map((c) => c.id)), name: cleanCategoryName(name) }]);
+    const id = makeCategoryId(name, categories.map((c) => c.id));
+    setCategories((cs) => [...cs, { id, name: cleanCategoryName(name) }]);
+    void send({ type: "category.add", id, name });
     return null;
-  }, [categories]);
+  }, [categories, send]);
   const renameCategory = useCallback((id: string, name: string) => {
     const err = validateCategoryName(name, categories, id);
     if (err) return err;
     setCategories((cs) => cs.map((c) => (c.id === id ? { ...c, name: cleanCategoryName(name) } : c)));
+    void send({ type: "category.rename", id, name });
     return null;
-  }, [categories]);
+  }, [categories, send]);
   const deleteCategory = useCallback((id: string, moveTo?: string) => {
     const used = categoryUsage(records, id) + categoryUsage(staged, id);
     const check = checkDelete(id, { records: used, recurringItems: recurringItems.filter((i) => i.categoryId === id).map((i) => i.name) });
@@ -117,23 +228,67 @@ export function StoreProvider({ children, initialView = "household" }: { childre
     // Rules never point at a missing category: move them with the records, or drop them if nothing to move to.
     setRules((rs) => (moveTo ? reassign(rs, id, moveTo) : rs.filter((r) => r.categoryId !== id)));
     setCategories((cs) => cs.filter((c) => c.id !== id));
+    void send({ type: "category.delete", id, moveTo: check.needsMove ? moveTo : undefined });
     return null;
-  }, [categories, records, staged]);
-  const addRule = useCallback((r: MerchantRule) => setRules((rs) => [...rs.filter((x) => x.merchant.toLowerCase() !== r.merchant.toLowerCase()), r]), []);
-  const removeRule = useCallback((merchant: string) => setRules((rs) => rs.filter((r) => r.merchant !== merchant)), []);
-  const addSettlement = useCallback((s: Omit<Settlement, "id">) => setSettlements((x) => [...x, { ...s, id: `s${x.length + 1}` }]), []);
-  const voidSettlement = useCallback((id: string) => setSettlements((x) => x.map((s) => (s.id === id ? { ...s, voided: true } : s))), []);
+  }, [categories, records, staged, recurringItems, send]);
+  const addRule = useCallback((r: MerchantRule) => {
+    setRules((rs) => [...rs.filter((x) => x.merchant.toLowerCase() !== r.merchant.toLowerCase()), r]);
+    void send({ type: "rule.put", merchant: r.merchant, categoryId: r.categoryId });
+  }, [send]);
+  const removeRule = useCallback((merchant: string) => {
+    setRules((rs) => rs.filter((r) => r.merchant !== merchant));
+    void send({ type: "rule.remove", merchant });
+  }, [send]);
+
+  const addAccount = useCallback((name: string, type: Account["type"]) => {
+    const n = name.trim();
+    if (!n || n.length > 60) return "Enter a name (up to 60 characters).";
+    if (accounts.some((a) => a.name.toLowerCase() === n.toLowerCase())) return "You already have a payment method with that name.";
+    let id = `${type === "credit_card" ? "cc" : type}_${slug(n)}`;
+    for (let i = 2; accounts.some((a) => a.id === id); i++) id = `${id.replace(/-\d+$/, "")}-${i}`;
+    setAccounts((as) => [...as, { id, name: n, type }]);
+    void send({ type: "account.add", id, name: n, accountType: type });
+    return null;
+  }, [accounts, send]);
+  const addSuggestedAccounts = useCallback(() => {
+    setAccounts((as) => [...as, ...SUGGESTED_ACCOUNTS.filter((s) => !as.some((a) => a.id === s.id))]);
+    void send({ type: "accounts.addSuggested" });
+  }, [send]);
+  const addParticipant = useCallback((name: string) => {
+    const n = name.trim();
+    if (!n || n.length > 60) return "Enter a name (up to 60 characters).";
+    if (participants.some((p) => p.name.toLowerCase() === n.toLowerCase())) return "Someone with that name already exists.";
+    const id = `p_${slug(n)}-${uuid().slice(0, 6)}`;
+    setParticipants((ps) => [...ps, { id, name: n, userId: null }]);
+    void send({ type: "participant.add", id, name: n });
+    return null;
+  }, [participants, send]);
+
+  const addSettlement = useCallback((s: Omit<Settlement, "id">) => {
+    const id = live ? uuid() : `s${Date.now().toString(36)}`;
+    setSettlements((x) => [...x, { ...s, id }]);
+    void send({ type: "settlement.create", settlement: { id, date: s.date, fromId: s.fromId, toId: s.toId, amountPaise: s.amountPaise, note: s.note } });
+  }, [live, send]);
+  const voidSettlement = useCallback((id: string) => {
+    setSettlements((x) => x.map((s) => (s.id === id ? { ...s, voided: true } : s)));
+    void send({ type: "settlement.void", id });
+  }, [send]);
   const linkReceipt = useCallback((receiptId: string, recordId: string | null) => {
+    // Receipts are matched in demo mode only until real receipt upload exists (slice 6).
+    setReceipts((x) => x);
     setRecords((rs) => rs.map((r) => (r.receiptId === receiptId ? { ...r, receiptId: undefined } : r)).map((r) => (r.id === recordId ? { ...r, receiptId } : r)));
   }, []);
 
   const value: Store = {
+    live: !!live, householdReady: live ? live.ready : true, meId, partnerId, today, participants, accounts, recurringItems, trendHistory,
     records, staged, settlements, receipts, month, setMonth, view, setView, scoped, summary, balances, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, addSettlement, voidSettlement, linkReceipt,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant,
+    updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,
     categoryName: (id) => categories.find((c) => c.id === id)?.name ?? id,
     accountName: (id) => accounts.find((a) => a.id === id)?.name ?? id,
+    syncError, dismissSyncError: () => setSyncError(null),
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

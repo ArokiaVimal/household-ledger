@@ -3,7 +3,6 @@ import { CalendarClock } from "lucide-react";
 import Link from "next/link";
 import { MerchantAvatar } from "@/components/txn-row";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
-import { recurringItems } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { commitmentTotals } from "@/domain/recurring";
 import { formatINR } from "@/domain/money";
@@ -13,7 +12,7 @@ const tone: Record<RecurringState, "good" | "warn" | "bad"> = { paid: "good", up
 const text: Record<RecurringState, string> = { paid: "Paid", upcoming: "Upcoming", overdue: "Overdue" };
 
 export default function Recurring() {
-  const { recurring, scoped, month, nameOf, categoryName, accountName } = useStore();
+  const { recurring, scoped, month, nameOf, categoryName, accountName, recurringItems, meId } = useStore();
   const totals = commitmentTotals(recurringItems);
   const paid = recurring.filter((r) => r.state === "paid").reduce((s, r) => s + r.actualPaise, 0);
   const left = recurring.filter((r) => r.state !== "paid").reduce((s, r) => s + r.item.expectedPaise, 0);
@@ -27,7 +26,7 @@ export default function Recurring() {
         <Card><div className="text-xs text-muted">Paid this month</div><div className="num text-xl font-semibold text-good">{formatINR(paid)}</div></Card>
         <Card><div className="text-xs text-muted">Still to pay</div><div className="num text-xl font-semibold">{formatINR(left)}</div><div className="text-xs text-muted">based on expected amounts</div></Card>
       </div>
-      {scoped.length === 0 ? <EmptyState title="No data for this month" hint="Statuses need imported transactions for the month." /> : (
+      {recurringItems.length === 0 ? <EmptyState title="No recurring items yet" hint="Rent, EMIs, insurance and bills will be tracked here. Adding and editing them is coming; this screen is ready for them." /> : scoped.length === 0 ? <EmptyState title="No data for this month" hint="Statuses need transactions for the month." /> : (
         <div className="space-y-4">
           {groups.map((place) => (
             <section key={place} aria-label={place}>
@@ -44,7 +43,7 @@ export default function Recurring() {
                           <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
                             <span className="inline-flex items-center gap-1"><CalendarClock size={12} aria-hidden />Due on {r.item.dueDay}</span>
                             <span>{categoryName(r.item.categoryId)}</span>
-                            <span>{r.item.split.mode === "personal" ? `Mine` : `Split with ${r.item.split.participantIds.filter((i) => i !== "me").map(nameOf).join(", ")}`}</span>
+                            <span>{r.item.split.mode === "personal" ? `Mine` : `Split with ${r.item.split.participantIds.filter((i) => i !== meId).map(nameOf).join(", ")}`}</span>
                             {rec && <span>{accountName(rec.accountId)}{rec.fundedBy ? ` via ${accountName(rec.fundedBy)}` : ""}</span>}
                           </div>
                         </div>

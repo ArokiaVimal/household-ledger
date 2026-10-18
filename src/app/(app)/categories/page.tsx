@@ -2,13 +2,12 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Badge, Button, Card, CardTitle, CompactChips, Dialog, Field, Input, PageHeader } from "@/components/ui";
-import { recurringItems } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { categoryUsage, checkDelete, MAX_CATEGORY_NAME } from "@/domain/categories";
 import { PROTECTED_CATEGORY_IDS } from "@/domain/categories";
 
 export default function Categories() {
-  const { categories, rules, records, staged, updateStaged, categoryName, addCategory, renameCategory, deleteCategory, addRule, removeRule } = useStore();
+  const { recurringItems, categories, rules, records, staged, updateStaged, categoryName, addCategory, renameCategory, deleteCategory, addRule, removeRule } = useStore();
   const [name, setName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);

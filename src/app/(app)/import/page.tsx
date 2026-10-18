@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Badge, Button, Card, CardTitle, Field, PageHeader, Select } from "@/components/ui";
 import Link from "next/link";
-import { mockImportRows, accounts, ME } from "@/data/mock";
+import { mockImportRows } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { planImport } from "@/domain/dedupe";
 import { suggestCategory } from "@/domain/rules";
@@ -15,7 +15,7 @@ const history = [
 ];
 
 export default function ImportCentre() {
-  const { accountName, records, staged, stageRecords, rules } = useStore();
+  const { live, meId, accounts, accountName, records, staged, stageRecords, rules } = useStore();
   const [step, setStep] = useState(1);
   const [done, setDone] = useState<{ sent: number; skipped: number } | null>(null);
   const plan = planImport(mockImportRows, [...records, ...staged]);
@@ -27,11 +27,24 @@ export default function ImportCentre() {
     const file = "HDFC_Sep2026_sample.csv (simulated)";
     stageRecords(toStage.map((r): ExpenseRecord => ({
       id: "", date: r.date, merchant: r.merchant, originalDescription: r.description, amountPaise: r.amountPaise, currency: "INR", accountId: r.accountId,
-      categoryId: suggestCategory(rules, r.merchant), kind: "purchase", payerId: ME, shared: false, split: { mode: "personal", participantIds: [ME] },
+      categoryId: suggestCategory(rules, r.merchant), kind: "purchase", payerId: meId, shared: false, split: { mode: "personal", participantIds: [meId] },
       excluded: false, status: "unreviewed", importSource: file, referenceId: r.referenceId, duplicateOf: r.dup.status === "possible" ? r.dup.matchId : undefined,
     })));
     setDone({ sent: toStage.length, skipped: rows.length - toStage.length });
   };
+
+  if (live) {
+    return (
+      <>
+        <PageHeader title="Import centre" sub="Statement import is not available yet." />
+        <Card className="space-y-3 text-sm">
+          <p><b>Not built yet.</b> Reading statements (CSV, Excel, PDF and screenshots) arrives with the file parsers in the next stage, together with private file storage. Until then nothing can be imported, and nothing you type here is uploaded.</p>
+          <p>For now, add transactions with the <b>Add</b> button (bottom right). Every entry is saved to your household and can be edited from Transactions.</p>
+          <p className="text-muted">Please don&apos;t upload real statements anywhere in the app yet.</p>
+        </Card>
+      </>
+    );
+  }
 
   return (
     <>

@@ -1,6 +1,8 @@
 import { Suspense, type ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
-import { StoreProvider } from "@/data/store";
+import { StoreProvider, type LiveInit } from "@/data/store";
+import { createFirestoreRepository } from "@/data/firestore-repository";
+import { ensureHouseholdReady, loadHouseholdData, participantIdFor, type HouseholdData } from "@/lib/data/load";
 import { ProfileProvider } from "@/components/profile-context";
 import { requireSession } from "@/lib/auth/session";
 import { HouseholdProvider, type HouseholdStatus } from "@/components/household-context";
@@ -35,11 +37,39 @@ async function AuthedShell({ children }: { children: ReactNode }) {
       hStatus = "error";
     }
   }
+  // Real data for signed-in users. A signed-in user must never see the demo data, even when loading fails.
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const empty: HouseholdData = { records: [], settlements: [], receipts: [], recurring: [], participants: [], accounts: [], categories: [], rules: [] };
+  let live: LiveInit | undefined;
+  let dataError = false;
+  if (session.mode === "on") {
+    if (hStatus === "error") dataError = true;
+    if (!dataError && !membership) live = { data: empty, meId: "", today, ready: false };
+    if (!dataError && membership) {
+      try {
+        const repo = createFirestoreRepository(membership.household.id);
+        await ensureHouseholdReady(repo, membership.members);
+        const data = await loadHouseholdData(repo);
+        live = { data, meId: data.participants.find((p) => p.userId === session.uid)?.id ?? participantIdFor(session.uid), today, ready: true };
+      } catch (e) {
+        console.error("data load failed:", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 200));
+        dataError = true;
+      }
+    }
+    if (dataError) live = { data: empty, meId: "", today, ready: false };
+  }
   return (
     <ProfileProvider initial={profile} status={status}>
       <HouseholdProvider membership={membership} status={hStatus} uid={session.mode === "on" ? session.uid : null}>
-        <StoreProvider initialView={profile?.defaultView}>
-          <AppShell user={session.mode === "on" ? { email: session.email ?? "" } : null}>{children}</AppShell>
+        <StoreProvider initialView={profile?.defaultView} live={live}>
+          <AppShell user={session.mode === "on" ? { email: session.email ?? "" } : null}>
+            {dataError ? (
+              <div role="alert" className="rounded-[var(--radius-card)] bg-surface p-6">
+                <h1 className="text-lg font-semibold">We couldn&apos;t load your household data</h1>
+                <p className="mt-1 text-sm text-muted">The server could not reach the database. Nothing was lost. Reload to try again; if it keeps happening, check the server log.</p>
+              </div>
+            ) : children}
+          </AppShell>
         </StoreProvider>
       </HouseholdProvider>
     </ProfileProvider>

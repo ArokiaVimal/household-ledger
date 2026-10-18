@@ -1,6 +1,6 @@
 # Development status
 
-Updated: 2026-10-18 · Branch `feat/stage3-slice4-rules` (stacked on earlier slice branches) · Stages 1–2 complete (prototype). Stage 3 slices 1–4 built and tested locally; slices 5–8 not started (see `STAGE3_PLAN.md`).
+Updated: 2026-10-18 · Branch `feat/slice5-persistence` · Stage 3 slices 1–5 built and tested; slices 6–8 not started (see `STAGE3_PLAN.md`). Signed-in users now see and save REAL household data; demo mode (no Firebase configured) still shows fictional September 2026 data.
 
 ## Implemented and verified
 - Domain (`src/domain`): integer-paise money, equal/percent/custom splits (deterministic remainder), spending rules (refunds subtract; cc payments, transfers, income, excluded ignored), pairwise balances with settlements/voids, duplicate detection (reference id exact; date+amount+merchant possible), receipt match suggestions.
@@ -15,6 +15,15 @@ Updated: 2026-10-18 · Branch `feat/stage3-slice4-rules` (stacked on earlier sli
 - Verified by running a production build with dummy env: no cookie redirects to `/login`, forged cookie shows no app content, cross-origin POST is 403, garbage token is a generic 401, prototype mode (no env) still works. **Not verified against a real Firebase project: the owner must put real values in `.env.local` and test an actual sign-in.**
 - Google sign-in added (popup; same session cookie flow and allowlist). Needs the Google provider enabled in the Firebase console and the app's domain in Authorized domains (localhost is there by default). Not tested with a real Google account.
 - `ALLOWED_EMAILS` env var added (temporary allowlist until household membership in slice 3).
+
+## Stage 3 slice 5: real data (built; real-database tests pass; not yet exercised by the owner in the live app)
+- **Two modes.** Signed in with Firebase configured = live: the `(app)` layout loads the household's data (`loadHouseholdData`) and passes it to `StoreProvider` (`live` prop). No Firebase config = demo mode with the fictional data. A signed-in user never sees demo data: no household shows an empty state with a prompt; a load failure shows an error card.
+- **One write path.** Every change is optimistic in the browser and sent to `POST /api/data`, which verifies the session cookie, finds the household from membership (never from the request), validates with Zod, applies it via `applyAction` (`src/lib/data/actions.ts`) and writes an audit event. Actions: record create/update/approve/reject, settlement create/void, category add/rename/delete(+move), rule put/remove, account add/suggested, participant add. A failed save shows the server's message and re-syncs.
+- **Storage:** Firestore under `households/{id}/` (`records`, `settlements`, `receipts`, `recurring`, `participants`, `accounts`, `categories`, `merchantRules`, `auditEvents`), each doc with `schemaVersion: 1`. `src/data/firestore-repository.ts` implements the same `Repository` contract as the memory version (shared contract tests). Imported bank fields are protected in code and rules; `merchantRules` and the audit collection are server-only (rules deny clients).
+- **First run:** `ensureHouseholdReady` (idempotent, runs on load) seeds default categories and a participant per member linked to their account (`u_<uid>`). The Dashboard shows a setup card; Settings lets you add payment methods (one-click "my usual" list) and friends. "Me" in splits is the participant linked to the signed-in user.
+- **Rules of the road:** manual entries (Add button) are saved immediately as reviewed. Reject deletes a queued row and records an audit event (the raw bank row will be kept once real imports exist).
+- **Not in live mode yet:** statement import (Import screen says so; needs parsers + file storage), receipts (no upload yet), recurring items (screen exists but no way to create them yet), data export/restore (a basic JSON download exists), "delete household data". Concurrent edits by two people show after a reload (no live sync).
+- Tests: +14 action tests, +4 loader tests, repository contract (memory always; real Firestore opt-in), real-database end-to-end test (`tests/integration/firestore-actions.test.ts`). 100 unit tests, 24 rules tests pass.
 
 ## Branding (added)
 - Logo: two overlapping circles (two people; the overlap is what is shared) on a violet rounded square. Sources: `src/app/icon.svg` (favicon), `src/app/icon.png` (96 px, for Safari/older browsers), `src/app/apple-icon.png` (180 px, iPhone Home Screen), `public/icon-192.png`, `icon-512.png`, `icon-maskable-512.png` (PWA manifest), `src/components/logo.tsx` (in-app mark, used in the sidebar and login page). The default Next favicon was removed. The PNGs were rendered once from the SVG with a throwaway script (not a project dependency); to change the logo, edit `icon.svg`/`logo.tsx` and re-render the PNGs.
@@ -103,6 +112,7 @@ Firebase project (Auth, Firestore, Storage), Firestore/Storage rules + emulator 
 
 ## Next recommended tasks
 1. Merge branches to `main` after review (no remote configured yet; create the GitHub repo and push).
-2. Owner: create the household in Settings and invite the spouse (their Google email must also be in `ALLOWED_EMAILS`). Then slice 4 (rules + emulator tests; needs Java 21+, firebase-tools).
+2. Owner: sign in to the live app, add payment methods in Settings, add a transaction, and tell me if anything saves wrong or loads empty. Invite Varru (her Google email must be in `ALLOWED_EMAILS`).
+3. Add UI to create/edit recurring items; then slice 6 (private file storage; needs Blaze) and the statement parsers.
 3. Split raw transactions from expenses in the data model; add export/restore round-trip test.
 4. Stage 4: CSV parser with real file-hash dedupe, then XLSX, then PDF.

@@ -28,7 +28,7 @@ const nav = [
 export function AppShell({ children, user }: { children: ReactNode; user: { email: string } | null }) {
   const path = usePathname();
   const router = useRouter();
-  const { month, setMonth, view, setView, staged } = useStore();
+  const { month, setMonth, view, setView, staged, syncError, dismissSyncError } = useStore();
   const [q, setQ] = useState("");
   const { profile } = useProfile();
   const [adding, setAdding] = useState(false);
@@ -93,6 +93,12 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
       </button>
       <TxnAddDialog open={adding} round={round} onClose={() => setAdding(false)} onAnother={() => setRound((r) => r + 1)}
         onAdded={(m) => { setToast(m); setTimeout(() => setToast(""), 3000); }} />
+      {syncError && (
+        <div role="alert" className="fixed inset-x-3 bottom-40 z-30 mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-danger px-4 py-3 text-sm text-white shadow-lg md:bottom-24">
+          <span className="flex-1">{syncError} Your screen was refreshed from the server.</span>
+          <button onClick={dismissSyncError} className="rounded-full bg-white/20 px-3 py-1 text-xs font-medium">Dismiss</button>
+        </div>
+      )}
       {toast && <div role="status" className="fixed inset-x-0 bottom-40 z-30 mx-auto w-fit rounded-full bg-foreground px-4 py-2 text-sm text-white shadow-lg md:bottom-24">{toast}</div>}
       <nav aria-label="Primary" className="fixed inset-x-3 bottom-3 z-20 grid grid-cols-5 rounded-2xl bg-surface pb-[env(safe-area-inset-bottom)] shadow-lg md:hidden">
         {nav.filter((n) => n.mobile).map(({ href, label, icon: I }) => (

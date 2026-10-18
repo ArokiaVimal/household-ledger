@@ -1,15 +1,14 @@
 "use client";
 import { useState } from "react";
 import { Badge, Button, Card, CardTitle, Dialog, EmptyState, Field, Input, PageHeader, Select } from "@/components/ui";
-import { participants } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 
 export default function Settlements() {
-  const { balances, settlements, addSettlement, voidSettlement, nameOf } = useStore();
+  const { balances, settlements, addSettlement, voidSettlement, nameOf, participants, meId, today } = useStore();
   const [open, setOpen] = useState(false);
-  const [from, setFrom] = useState("karthik");
-  const [to, setTo] = useState("me");
+  const [from, setFrom] = useState(participants.find((p) => p.id !== meId)?.id ?? meId);
+  const [to, setTo] = useState(meId);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const paise = parseRupees(amount);
@@ -67,7 +66,7 @@ export default function Settlements() {
           <Field label="Note"><Input value={note} onChange={(e) => setNote(e.target.value)} /></Field>
           <div className="flex justify-end gap-2">
             <Button onClick={() => setOpen(false)}>Cancel</Button>
-            <Button variant="primary" disabled={!!err} onClick={() => { addSettlement({ date: "2026-09-30", fromId: from, toId: to, amountPaise: paise!, note: note || undefined }); setOpen(false); }}>Save</Button>
+            <Button variant="primary" disabled={!!err} onClick={() => { addSettlement({ date: today, fromId: from, toId: to, amountPaise: paise!, note: note || undefined }); setOpen(false); }}>Save</Button>
           </div>
         </div>
       </Dialog>

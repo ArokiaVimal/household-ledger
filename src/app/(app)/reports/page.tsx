@@ -3,23 +3,22 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { BarsChart } from "@/components/charts";
 import { Card, CardTitle, EmptyState, PageHeader, Select } from "@/components/ui";
-import { accounts, ME, trendHistory } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import { byCategory, byMerchant, byMonth, summarize } from "@/domain/reports";
 
 export default function Reports() {
-  const { scoped, records, month, categoryName } = useStore();
+  const { scoped, records, month, categoryName, meId, accounts, trendHistory, live } = useStore();
   const router = useRouter();
   const [acct, setAcct] = useState("");
   const rows = useMemo(() => scoped.filter((r) => !acct || r.accountId === acct), [scoped, acct]);
-  const s = summarize(rows, ME);
+  const s = summarize(rows, meId);
   const cats = Object.entries(byCategory(rows)).sort((a, b) => b[1] - a[1]);
   const merchants = Object.entries(byMerchant(rows)).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const year = useMemo(() => {
     const all = { ...trendHistory, ...byMonth(records) };
     return Object.keys(all).sort().map((m) => ({ key: m, label: m.slice(5), value: all[m] }));
-  }, [records]);
+  }, [records, trendHistory]);
   const link = (extra: string) => router.push(`/transactions?month=${month}${acct ? `&account=${acct}` : ""}${extra}`);
 
   return (
@@ -46,7 +45,7 @@ export default function Reports() {
             </tbody></table>
           </Card>
           <Card className="md:col-span-2">
-            <CardTitle>Year to date, net (earlier months are mock values)</CardTitle>
+            <CardTitle>{live ? "Net spending by month" : "Year to date, net (earlier months are mock values)"}</CardTitle>
             <BarsChart data={year} href={(k) => `/transactions?month=${k}`} height={180} />
           </Card>
         </div>

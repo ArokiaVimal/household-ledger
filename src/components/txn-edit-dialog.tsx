@@ -1,7 +1,6 @@
 "use client";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
-import { MOCK_TODAY, ME, accounts, participants, recurringItems } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 import { equalSplit, validateSplit } from "@/domain/splits";
@@ -39,10 +38,10 @@ export function TxnReviewDialog({ record, onClose, next }: Props) {
 
 /** Manual entry. `round` changes after "Add another" so the form resets. */
 export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { open: boolean; round: number; onClose: () => void; onAnother: () => void; onAdded: (msg: string) => void }) {
-  const { month } = useStore();
+  const { month, today, meId, accounts } = useStore();
   const draft: ExpenseRecord = {
-    id: "", date: MOCK_TODAY.startsWith(month) ? MOCK_TODAY : `${month}-01`, merchant: "", originalDescription: "Entered manually", amountPaise: 0, currency: "INR",
-    accountId: accounts[0].id, categoryId: "uncategorized", kind: "purchase", payerId: ME, shared: false, split: { mode: "personal", participantIds: [ME] },
+    id: "", date: today.startsWith(month) ? today : `${month}-01`, merchant: "", originalDescription: "Entered manually", amountPaise: 0, currency: "INR",
+    accountId: accounts[0]?.id ?? "", categoryId: "uncategorized", kind: "purchase", payerId: meId, shared: false, split: { mode: "personal", participantIds: [meId] },
     excluded: false, status: "reviewed", importSource: "Manual entry",
   };
   return (
@@ -53,7 +52,7 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 }
 
 function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, rejectStaged, accountName } = useStore();
+  const { accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, rejectStaged, accountName } = useStore();
   const [rejecting, setRejecting] = useState(false);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";
@@ -73,7 +72,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const amountPaise = adding ? (parseRupees(amountText) ?? 0) : record.amountPaise;
   const isUpi = accounts.find((a) => a.id === accountId)?.type === "upi";
   const splitError = validateSplit(amountPaise, split);
-  const missing = adding ? (amountPaise <= 0 ? "Enter an amount" : !merchant.trim() ? "Enter a merchant" : !/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Pick a date" : null) : null;
+  const missing = adding ? (!accountId ? "Add a payment method first (Settings)" : amountPaise <= 0 ? "Enter an amount" : !merchant.trim() ? "Enter a merchant" : !/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Pick a date" : null) : null;
   const bad = splitError ?? missing;
 
   const onAmount = (v: string) => {

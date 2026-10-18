@@ -5,7 +5,6 @@ import { Suspense, useMemo, useState } from "react";
 import { Amount, MerchantAvatar, TxnBadges, TxnCard } from "@/components/txn-row";
 import { TxnEditDialog } from "@/components/txn-edit-dialog";
 import { Badge, EmptyState, Input, PageHeader, Select } from "@/components/ui";
-import { accounts, ME } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import { groupNet, summarize } from "@/domain/reports";
@@ -24,7 +23,7 @@ const VIEWS = [
 
 /** Grouped view. Group totals come from the domain groupNet (same rule as the dashboard). */
 function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: string; onEdit: (r: ExpenseRecord) => void }) {
-  const { nameOf, categoryName, accountName, recurringName } = useStore();
+  const { accounts, nameOf, categoryName, accountName, recurringName } = useStore();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const bankOf = (r: ExpenseRecord) => r.fundedBy ?? (accounts.find((a) => a.id === r.accountId)?.type === "bank" ? r.accountId : "");
   const keyOf = (r: ExpenseRecord) => (view === "account" ? r.accountId : view === "bank" ? bankOf(r) : view === "recurring" ? (r.recurringId ?? "") : view === "merchant" ? r.merchant : view === "category" ? r.categoryId : r.payerId);
@@ -73,7 +72,7 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
 }
 
 function TransactionsView() {
-  const { categories, records, scoped, month, nameOf, categoryName, accountName, recurringName } = useStore();
+  const { meId, accounts, categories, records, scoped, month, nameOf, categoryName, accountName, recurringName } = useStore();
   const params = useSearchParams();
   const router = useRouter();
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
@@ -102,7 +101,7 @@ function TransactionsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [records, scoped, params]);
 
-  const total = summarize(rows, ME);
+  const total = summarize(rows, meId);
   const view = get("view") || "all";
   const active = ["recurring", "q", "category", "merchant", "status", "kind", "account", "shared"].filter((k) => get(k));
 
@@ -150,7 +149,7 @@ function TransactionsView() {
                     <td><div className="flex items-center gap-2.5 py-1.5"><MerchantAvatar name={r.merchant} size={32} /><div><div className="font-medium">{r.merchant}</div><div className="mt-0.5 flex flex-wrap gap-1"><TxnBadges r={r} /></div></div></div></td>
                     <td>{categoryName(r.categoryId)}</td><td>{nameOf(r.payerId)}</td><td className="text-muted">{accountName(r.accountId)}</td>
                     <td className="text-right"><Amount r={r} /></td>
-                    <td className="num pr-2.5 text-right text-muted">{summarize([r], ME).myShare ? formatINR(summarize([r], ME).myShare) : "—"}</td>
+                    <td className="num pr-2.5 text-right text-muted">{summarize([r], meId).myShare ? formatINR(summarize([r], meId).myShare) : "—"}</td>
                   </tr>
                 ))}
               </tbody>

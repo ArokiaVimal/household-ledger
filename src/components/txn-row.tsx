@@ -49,8 +49,8 @@ export function MerchantAvatar({ name, size = 40 }: { name: string; size?: numbe
 }
 
 export function TxnCard({ r, onClick }: { r: ExpenseRecord; onClick?: () => void }) {
-  const { nameOf, categoryName } = useStore();
-  const mine = signedShare(r, "me");
+  const { nameOf, categoryName, meId } = useStore();
+  const mine = signedShare(r, meId);
   return (
     <button onClick={onClick} className="block w-full rounded-2xl bg-surface p-3 text-left active:bg-background">
       <div className="flex items-start justify-between gap-3">

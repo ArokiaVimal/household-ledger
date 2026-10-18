@@ -14,3 +14,6 @@ Migrations: versioned scripts in `migrations/` (not yet created).
 
 ## Auth-side collections (implemented)
 `users/{uid}`: profile fields + `householdId`. `households/{id}` {name, ownerUid, createdAt}; `households/{id}/members/{uid}` {email, displayName, role, joinedAt}; `invites/{sha256(code)}` {householdId, email, createdBy, createdAt, expiresAt, usedAt?}. Written only by server routes.
+
+## Household data (implemented in slice 5)
+Paths: `households/{id}/{records|settlements|receipts|recurring|participants|accounts|categories|merchantRules|auditEvents}/{docId}`. `records` holds both the ledger (`status: reviewed`) and the review queue (`status: unreviewed`). Participants of members are `u_<uid>` with `userId` set; friends are `p_<name>-<rand>` with `userId: null`. Merchant rule ids are `r_<slug(merchant)>` so a merchant has one rule. Not yet: `rawTransactions`, `importBatches` (written by the real importer).

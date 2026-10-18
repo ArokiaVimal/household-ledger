@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { participants } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 import { computeShares, equalSplit, validateSplit } from "@/domain/splits";
@@ -15,12 +14,6 @@ const modes = [
   { id: "custom", label: "Amounts" },
 ] as const;
 
-const presets: { label: string; ids: string[] }[] = [
-  { label: "Just me", ids: ["me"] },
-  { label: `Me + ${participants.find((p) => p.id === "wife")?.name ?? "partner"}`, ids: ["me", "wife"] },
-  { label: "Everyone", ids: participants.map((p) => p.id) },
-];
-
 const evenBps = (ids: string[]) => {
   const base = Math.floor(10000 / ids.length);
   return Object.fromEntries(ids.map((id, i) => [id, base + (i === 0 ? 10000 - base * ids.length : 0)]));
@@ -28,7 +21,12 @@ const evenBps = (ids: string[]) => {
 
 /** Controlled editor. Amounts shown come from computeShares, never recomputed here. */
 export function SplitEditor({ total, value, onChange }: { total: Paise; value: SplitConfig; onChange: (v: SplitConfig) => void }) {
-  const { nameOf } = useStore();
+  const { nameOf, participants, meId, partnerId } = useStore();
+  const presets: { label: string; ids: string[] }[] = [
+    { label: "Just me", ids: [meId] },
+    ...(partnerId ? [{ label: `Me + ${nameOf(partnerId)}`, ids: [meId, partnerId] }] : []),
+    ...(participants.length > 2 ? [{ label: "Everyone", ids: participants.map((p) => p.id) }] : []),
+  ];
   const error = validateSplit(total, value);
   const ids = value.participantIds;
   const shares = error ? {} : computeShares(total, value);
@@ -70,7 +68,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
       </FormRow>
       {showAdvanced && (
         <div className="space-y-2 rounded-xl bg-background p-3">
-          <ChipGroup tabs label="Split type" options={modes.map((m) => ({ id: m.id, label: m.label }))} value={value.mode} onChange={(m) => onChange(build(m, ids.length ? ids : ["me"]))} />
+          <ChipGroup tabs label="Split type" options={modes.map((m) => ({ id: m.id, label: m.label }))} value={value.mode} onChange={(m) => onChange(build(m, ids.length ? ids : [meId]))} />
           <CompactChips multi={value.mode !== "personal"} label="People" options={whoOptions} selected={ids} onPick={toggle} />
           {(value.mode === "percent" || value.mode === "custom" || ids.length > 1) && (
             <ul className="space-y-1.5">
