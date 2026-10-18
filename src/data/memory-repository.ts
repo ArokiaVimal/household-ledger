@@ -1,7 +1,7 @@
 import type { ZodType } from "zod";
-import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, type RuleDoc } from "./schemas";
+import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, type RuleDoc } from "./schemas";
 import { ConflictError, type AppendOnly, type Collection, type Repository } from "./repository";
-import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, Participant, RawTransaction, Receipt, RecurringItem, Settlement } from "@/domain/types";
+import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement } from "@/domain/types";
 
 export interface Seed {
   records?: ExpenseRecord[];
@@ -12,6 +12,7 @@ export interface Seed {
   accounts?: Account[];
   categories?: Category[];
   rules?: RuleDoc[];
+  merchantMemory?: MerchantMemory[];
 }
 
 function collection<T extends { id: string }>(schema: ZodType<T>, seed: T[] = [], opts: { appendOnly?: boolean; immutable?: boolean; guard?: (prev: T, next: T) => void } = {}): Collection<T> {
@@ -57,6 +58,7 @@ export function createMemoryRepository(householdId: string, seed: Seed = {}): Re
     accounts: collection(AccountSchema, seed.accounts),
     categories: collection(CategorySchema, seed.categories),
     rules: collection(RuleDocSchema, seed.rules),
+    merchantMemory: collection(MerchantMemorySchema, seed.merchantMemory),
     importBatches: noRemove(collection(ImportBatchSchema as unknown as ZodType<ImportBatch>, [], { appendOnly: true })),
     rawTransactions: noRemove(collection(RawTransactionSchema as unknown as ZodType<RawTransaction>, [], { appendOnly: true, immutable: true })),
     audit: {

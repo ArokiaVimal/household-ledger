@@ -1,7 +1,7 @@
 "use client";
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Card, CardTitle, CompactChips, Dialog, Field, Input, PageHeader } from "@/components/ui";
+import { Badge, Button, Card, CardTitle, CompactChips, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { categoryUsage, checkDelete, MAX_CATEGORY_NAME } from "@/domain/categories";
 import { PROTECTED_CATEGORY_IDS } from "@/domain/categories";
@@ -13,6 +13,7 @@ export default function Categories() {
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [removingRule, setRemovingRule] = useState<string | null>(null);
   const [moveTo, setMoveTo] = useState("");
   const [delError, setDelError] = useState<string | null>(null);
   const [m, setM] = useState("");
@@ -99,7 +100,7 @@ export default function Categories() {
             {rules.map((r) => (
               <li key={r.merchant} className="flex items-center justify-between py-2 text-sm">
                 <span>{r.merchant} → <b>{categoryName(r.categoryId)}</b></span>
-                <Button onClick={() => removeRule(r.merchant)}>Remove</Button>
+                <Button variant="danger" onClick={() => setRemovingRule(r.merchant)}>Remove</Button>
               </li>
             ))}
             {rules.length === 0 && <li className="py-2 text-sm text-muted">No rules yet.</li>}
@@ -134,6 +135,9 @@ export default function Categories() {
           </div>
         )}
       </Dialog>
+      <ConfirmDialog open={!!removingRule} onClose={() => setRemovingRule(null)} title="Remove this rule?" confirmLabel="Remove" onConfirm={() => removingRule && removeRule(removingRule)}>
+        <p>Future imports will no longer pre-fill the category for <strong>{removingRule}</strong>. Transactions you already have are not changed.</p>
+      </ConfirmDialog>
     </>
   );
 }

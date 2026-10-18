@@ -3,7 +3,7 @@
 // domain types, so a type change that is not mirrored here fails to compile.
 import { z } from "zod";
 import { validateSplit } from "@/domain/splits";
-import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SplitConfig } from "@/domain/types";
+import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SplitConfig } from "@/domain/types";
 
 export const SCHEMA_VERSION = 1;
 
@@ -45,6 +45,7 @@ export const ExpenseRecordSchema = z
     receiptId: id.optional(),
     fundedBy: id.optional(),
     recurringId: id.optional(),
+    suggested: z.enum(["memory", "ai", "ai_unsure"]).optional(),
   })
   .superRefine((r, ctx) => {
     // Business rule lives in the domain: shares must add up to the amount, to the paise.
@@ -86,3 +87,9 @@ export const ImportBatchSchema = z.object({
 export const RawTransactionSchema = z.object({
   id, batchId: id, line: z.number().int().min(1).max(1_000_000), cells: z.array(z.string().max(1000)).max(60),
 }) satisfies z.ZodType<RawTransaction>;
+
+const kindEnum = z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]);
+export const MerchantMemorySchema = z.object({
+  id, key: z.string().min(1).max(80), name: z.string().min(1).max(60), categoryId: id, kind: kindEnum,
+  source: z.enum(["user", "ai"]), confident: z.boolean(), confirmed: z.number().int().min(0).max(1_000_000), lastSeen: date,
+}) satisfies z.ZodType<MerchantMemory>;

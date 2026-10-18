@@ -10,10 +10,13 @@ import { createFirestoreHouseholdStore } from "@/lib/households/firestore-store"
 import { getMembership } from "@/lib/households/service";
 import { parseStatementPdf } from "@/domain/import/pdf";
 import { FileError, readTable, sniffKind } from "@/lib/import/files";
+import { suggesterFromEnv } from "@/lib/import/ai";
 import { readPdfPages } from "@/lib/import/pdf";
 import { commitImport, ImportError, MAX_FILE_BYTES, previewImport, type ImportDeps, type ImportInput } from "@/lib/import/service";
 
-const deps: ImportDeps = { sha256: (s) => createHash("sha256").update(s).digest("hex"), now: () => Date.now(), newId: () => randomUUID() };
+const deps = (): ImportDeps => ({ sha256: (s) => createHash("sha256").update(s).digest("hex"), now: () => Date.now(), newId: () => randomUUID(), suggest: suggesterFromEnv(process.env) });
+// Claude is asked about unknown merchants, which can take a few seconds on a long statement.
+export const maxDuration = 60;
 const status = { invalid: 400, not_found: 404, already_imported: 409, too_large: 413, check_failed: 422 } as const;
 const cleanName = (n: string) => n.replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 120) || "statement";
 
@@ -52,9 +55,9 @@ export async function POST(req: Request) {
       ? { ...base, format: "pdf", pdf: parseStatementPdf(await readPdfPages(bytes)) }
       : { ...base, format: kind, table: await readTable(kind, bytes) };
     const repo = createFirestoreRepository(membership.household.id);
-    if (mode === "preview") return NextResponse.json({ ok: true, preview: await previewImport(repo, input, deps) });
+    if (mode === "preview") return NextResponse.json({ ok: true, preview: await previewImport(repo, input, deps()) });
     await ensureHouseholdReady(repo, membership.members);
-    const result = await commitImport(repo, { uid: session.uid, participantId: participantIdFor(session.uid) }, input, deps);
+    const result = await commitImport(repo, { uid: session.uid, participantId: participantIdFor(session.uid) }, input, deps());
     return NextResponse.json({ ok: true, result });
   } catch (e) {
     if (e instanceof FileError) return NextResponse.json({ error: e.message }, { status: 400 });

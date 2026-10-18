@@ -224,3 +224,16 @@ export function CompactChips<T extends string>({ label, options, selected, onPic
     </div>
   );
 }
+
+/** Asks before anything is deleted. Nothing happens until the person presses the red button. */
+export function ConfirmDialog({ open, onClose, title, children, confirmLabel = "Delete", onConfirm }: { open: boolean; onClose: () => void; title: string; children: ReactNode; confirmLabel?: string; onConfirm: () => void }) {
+  return (
+    <Dialog open={open} onClose={onClose} title={title}>
+      <div className="space-y-2 text-sm">{children}</div>
+      <div className="sticky bottom-0 -mx-4 mt-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <Button onClick={onClose} autoFocus>Keep it</Button>
+        <Button variant="danger" onClick={() => { onConfirm(); onClose(); }}>{confirmLabel}</Button>
+      </div>
+    </Dialog>
+  );
+}

@@ -146,3 +146,9 @@ Firebase project (Auth, Firestore, Storage), Firestore/Storage rules + emulator 
 
 ## Next recommended tasks
 Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, then partner, then friends). The immediate ones: approve the first real Amex import; clean merchant names; automatic capture via iPhone Shortcuts (route 1) with forwarded alert emails as backup (route 2); more issuers' PDF parsers; the open question on hiding personal expenses from the partner. Keep this file for build and test status, not for planning.
+
+## Smart import, delete with confirmation, big-screen layout (October 2026)
+- **Smart import:** merchant memory + Claude for unknown merchants (see IMPORT_PIPELINE.md). Needs `ANTHROPIC_API_KEY` set in Vercel (Production) and a redeploy; until then the import uses memory and rules only. Not yet verified with the real API (tests use a fake Claude); verify with one real statement and check the token count shown in the preview.
+- **Delete:** new `record.delete` action (audited). Trash button per row and "Delete N" in the review queue, a Delete button in the transaction edit and review dialogs, and confirm pop-ups for voiding a settlement and removing a rule. Every delete asks first.
+- **Layout:** the app frame is wider (90rem) and the root font size steps up on 1700/2200/3000 px screens, so big monitors scale the whole app. The setup hero has a segmented progress panel; setup steps sit in two columns on wide screens.
+

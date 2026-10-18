@@ -10,3 +10,7 @@
 
 8. **Personal first, sharing second (owner's direction).** The primary use is one person tracking their own spending; splitting with a partner is second, friends third. Consequences: a private space is auto-created at first sign-in; "household" is internal only; invites are by verified email; the default scope is Mine. Not yet decided: whether personal records are hidden from the partner (see DEVELOPMENT_STATUS).
 9. **unpdf for PDF text (not pdfjs-dist directly).** unpdf ships a serverless-friendly pdf.js build (no worker/canvas), which suits Vercel functions; `pdfjs-dist` stays a dev dependency only for `scripts/describe-statement.mjs`. Parsers read text positions per issuer and refuse unknown layouts; every parser must self-check against the statement's own totals and block the import on mismatch.
+
+## 10. Import suggestions: memory first, Claude only for new merchants
+Statement lines are matched against a per-household merchant memory that grows from the user's own approvals; only merchants never seen are sent to Claude (Haiku tier, batched, one forced tool call, cached prefix, minimal fields, digits hidden). Results are cached into memory so each merchant is paid for once. User decisions always overwrite AI guesses; nothing is auto-approved. Chosen over sending every row (cost, privacy) and over rules only (no learning). The key is a server env var; the feature is off without it.
+

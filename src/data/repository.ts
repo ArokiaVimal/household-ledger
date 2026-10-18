@@ -1,7 +1,7 @@
 // Data-access contract. UI and server routes depend on this interface only.
 // Implementations: memory-repository.ts (prototype, tests) and, in a later slice,
 // a Firestore adapter under src/data/firebase/. Business rules stay in src/domain.
-import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, Participant, RawTransaction, Receipt, RecurringItem, Settlement } from "@/domain/types";
+import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement } from "@/domain/types";
 import type { RuleDoc } from "./schemas";
 
 export class NotFoundError extends Error {}
@@ -36,5 +36,7 @@ export interface Repository {
   rawTransactions: AppendOnly<RawTransaction>;
   /** Merchant -> category rules used to pre-fill the review queue. */
   rules: Collection<RuleDoc>;
+  /** What the import has learned about merchants (names, categories, payment types). Written by the server only. */
+  merchantMemory: Collection<MerchantMemory>;
   audit: Pick<AppendOnly<AuditEvent>, "list"> & { append(event: Omit<AuditEvent, "id" | "at"> & { at?: string }): Promise<AuditEvent> };
 }

@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
-import { Badge, Button, Card, CardTitle, Dialog, EmptyState, Field, Input, PageHeader, Select } from "@/components/ui";
+import { Badge, Button, Card, CardTitle, ConfirmDialog, Dialog, EmptyState, Field, Input, PageHeader, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 
 export default function Settlements() {
   const { balances, settlements, addSettlement, voidSettlement, nameOf, participants, meId, today } = useStore();
   const [open, setOpen] = useState(false);
+  const [voiding, setVoiding] = useState<string | null>(null);
   const [from, setFrom] = useState(participants.find((p) => p.id !== meId)?.id ?? meId);
   const [to, setTo] = useState(meId);
   const [amount, setAmount] = useState("");
@@ -49,13 +50,16 @@ export default function Settlements() {
                   {nameOf(s.fromId)} → {nameOf(s.toId)} <span className="num font-medium">{formatINR(s.amountPaise)}</span>
                   <div className="text-xs text-muted">{s.date}{s.note ? ` · ${s.note}` : ""}</div>
                 </div>
-                {s.voided ? <Badge>Voided</Badge> : <Button onClick={() => voidSettlement(s.id)}>Void</Button>}
+                {s.voided ? <Badge>Voided</Badge> : <Button variant="danger" onClick={() => setVoiding(s.id)}>Void</Button>}
               </li>
             ))}
           </ul>
           <p className="mt-2 text-xs text-muted">Voided entries stay in history (audit trail) but stop counting. Record a new one to correct an amount.</p>
         </Card>
       </div>
+      <ConfirmDialog open={!!voiding} onClose={() => setVoiding(null)} title="Void this settlement?" confirmLabel="Void it" onConfirm={() => voiding && voidSettlement(voiding)}>
+        <p>It will stop counting, so the amount owed goes back up. It stays in the history as voided.</p>
+      </ConfirmDialog>
       <Dialog open={open} onClose={() => setOpen(false)} title="Record settlement">
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">

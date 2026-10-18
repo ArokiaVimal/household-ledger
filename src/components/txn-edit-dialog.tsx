@@ -1,5 +1,5 @@
 "use client";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
@@ -7,7 +7,7 @@ import { equalSplit, validateSplit } from "@/domain/splits";
 import type { ExpenseRecord, SplitConfig, TxnKind } from "@/domain/types";
 import { SplitEditor } from "./split-editor";
 import { MerchantAvatar } from "./txn-row";
-import { Button, CompactChips, Dialog, FormRow, Input } from "./ui";
+import { Button, CompactChips, ConfirmDialog, Dialog, FormRow, Input } from "./ui";
 
 const kinds: { id: TxnKind; label: string }[] = [
   { id: "purchase", label: "Purchase" },
@@ -53,8 +53,8 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 }
 
 function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, rejectStaged, accountName } = useStore();
-  const [rejecting, setRejecting] = useState(false);
+  const { accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName } = useStore();
+  const [deleting, setDeleting] = useState(false);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";
   const [merchant, setMerchant] = useState(record.merchant);
@@ -151,24 +151,24 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       )}
 
       <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        {mode === "review" && !rejecting && (
+        {mode === "review" && (
           <div className="mr-auto flex gap-1">
-            <Button variant="danger" onClick={() => setRejecting(true)} className="border-0">Reject</Button>
+            <Button variant="danger" onClick={() => setDeleting(true)} className="border-0"><Trash2 size={15} aria-hidden />Delete</Button>
             <Button onClick={() => save("draft")} disabled={!!bad} className="border-0">Save draft</Button>
           </div>
         )}
-        {mode === "review" && rejecting && (
-          <>
-            <span className="mr-auto text-sm text-muted">Remove this row from the import?</span>
-            <Button onClick={() => setRejecting(false)}>Keep</Button>
-            <Button variant="danger" onClick={() => { rejectStaged(record.id); onClose(); }}>Confirm reject</Button>
-          </>
-        )}
-        {mode !== "review" && <Button onClick={onClose} className="mr-auto border-0">Cancel</Button>}
+        {mode === "edit" && <Button variant="danger" onClick={() => setDeleting(true)} className="border-0"><Trash2 size={15} aria-hidden />Delete</Button>}
+        {mode !== "review" && <Button onClick={onClose} className={mode === "edit" ? "border-0" : "mr-auto border-0"}>Cancel</Button>}
         {adding && <Button onClick={() => save("another")} disabled={!!bad}>Add another</Button>}
-        {mode === "review" && !rejecting && next && next.remaining > 0 && <Button onClick={() => save("next")} disabled={!!bad}>Approve & next ({next.remaining})</Button>}
+        {mode === "review" && next && next.remaining > 0 && <Button onClick={() => save("next")} disabled={!!bad}>Approve & next ({next.remaining})</Button>}
         {mode === "edit" && next && next.remaining > 0 && <Button onClick={() => save("next")} disabled={!!bad}>Save & next ({next.remaining})</Button>}
-        {!rejecting && <Button variant="primary" onClick={() => save("close")} disabled={!!bad}>{adding ? "Add" : mode === "review" ? "Approve" : "Save"}</Button>}
+        <Button variant="primary" onClick={() => save("close")} disabled={!!bad}>{adding ? "Add" : mode === "review" ? "Approve" : "Save"}</Button>
+        {mode !== "add" && (
+          <ConfirmDialog open={deleting} onClose={() => setDeleting(false)} title="Delete this transaction?" onConfirm={() => { deleteRecords([record.id]); onClose(); }}>
+            <p><strong>{record.merchant}</strong> · {formatINR(record.amountPaise)} · {record.date}</p>
+            <p className="text-muted">{record.status === "reviewed" ? "It will disappear from your reports, balances and dashboard. " : "It will be removed from the review queue. "}The original line stays in the import history, so you can tell what was removed. This cannot be undone.</p>
+          </ConfirmDialog>
+        )}
       </div>
     </div>
   );

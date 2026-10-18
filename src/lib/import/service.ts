@@ -6,8 +6,10 @@ import { classifyRow } from "@/domain/import/classify";
 import { extractRows, type ParsedRow } from "@/domain/import/rows";
 import type { PdfParseResult, StatementCheck, StatementSummary } from "@/domain/import/pdf";
 import { planImport } from "@/domain/dedupe";
+import { isConfident, kindFits, lookupMemory, memoryKey, rememberSuggestion, seedMemory } from "@/domain/memory";
+import type { AiItem, AiUsage, Suggest } from "./ai";
 import { suggestCategory } from "@/domain/rules";
-import type { Account, ExpenseRecord, ImportBatch, RawTransaction, TxnKind } from "@/domain/types";
+import type { Account, ExpenseRecord, ImportBatch, MerchantMemory, RawTransaction, Suggestion, TxnKind } from "@/domain/types";
 
 export const MAX_ROWS = 2000;
 // Vercel functions accept request bodies up to 4.5 MB, so stay under that.
@@ -18,6 +20,8 @@ export interface ImportDeps {
   sha256: (s: string) => string;
   now: () => number;
   newId: () => string;
+  /** Asks Claude about merchants missing from memory. Absent when no API key is set: memory and rules still work. */
+  suggest?: Suggest | null;
 }
 
 export interface PreviewRow {
@@ -30,6 +34,8 @@ export interface PreviewRow {
   kind: TxnKind;
   categoryId: string;
   status: "new" | "duplicate" | "possible";
+  /** Where the merchant/category guess came from; absent means nothing was known and it needs you. */
+  suggested?: Suggestion;
   /** Id of the record this looks like (possible) or is (duplicate). */
   matchId?: string;
 }
@@ -51,6 +57,21 @@ export interface Preview {
   skipped: { line: number; reason: string; text: string }[];
   totals: { debitPaise: number; creditPaise: number; debitCount: number; creditCount: number };
   counts: { rows: number; new: number; duplicate: number; possible: number; unreadable: number };
+  /** How the guesses were made, so the cost and the benefit are visible. */
+  smart: SmartReport;
+}
+
+export interface SmartReport {
+  /** An Anthropic key is configured on the server. */
+  aiEnabled: boolean;
+  /** Rows filled in from what you have approved before. */
+  fromMemory: number;
+  /** Rows filled in by Claude (sure + unsure). */
+  fromAi: number;
+  /** Rows nobody could fill in. */
+  needYou: number;
+  /** Distinct merchants sent to Claude this time (0 when memory knew them all), and tokens spent. */
+  ai: AiUsage;
 }
 
 export class ImportError extends Error {
@@ -113,33 +134,79 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
   for (const r of rows) { if (r.direction === "debit") { totals.debitPaise += r.amountPaise; totals.debitCount++; } else { totals.creditPaise += r.amountPaise; totals.creditCount++; } }
   if (rows.length > MAX_ROWS) throw new ImportError("too_large", `This file has ${rows.length} transactions; the limit is ${MAX_ROWS} per file. Split it by month.`);
 
-  const [rules, categories, records] = await Promise.all([repo.rules.list(), repo.categories.list(), repo.records.list()]);
+  const [rules, categories, records, storedMemory] = await Promise.all([repo.rules.list(), repo.categories.list(), repo.records.list(), repo.merchantMemory.list()]);
   const hasCategory = (id: string) => categories.some((c) => c.id === id);
+  const today = new Date(d.now()).toISOString().slice(0, 10);
+
+  // First use: learn from everything already approved, so the very first AI-assisted import has context.
+  let memory: MerchantMemory[] = storedMemory;
+  if (memory.length === 0) {
+    memory = seedMemory(records).filter((m) => hasCategory(m.categoryId));
+    for (const m of memory) await repo.merchantMemory.put(m);
+  }
+
   const seen = new Map<string, number>();
   const prepared = rows.map((r) => {
-    const { kind, merchant } = classifyRow(r.description, r.direction, account.type);
-    const wanted = KIND_CATEGORY[kind] ?? suggestCategory(rules, merchant);
-    const categoryId = hasCategory(wanted) ? wanted : "uncategorized";
     const base = `${input.accountId}|${r.date}|${r.amountPaise}|${r.direction}|${r.description.toLowerCase()}`;
     const occurrence = (seen.get(base) ?? 0) + 1;
     seen.set(base, occurrence);
-    return { r, kind, merchant, categoryId, referenceId: dedupeKey(d.sha256, input.accountId, r, occurrence) };
+    return { r, ...classifyRow(r.description, r.direction, account.type), key: memoryKey(r.description), occurrence, categoryId: "uncategorized", suggested: undefined as Suggestion | undefined };
   });
-  const plan = planImport(prepared.map((p) => ({ accountId: input.accountId, date: p.r.date, amountPaise: p.r.amountPaise, merchant: p.merchant, referenceId: p.referenceId, direction: p.r.direction })), records);
 
-  const out = prepared.map((p, i) => {
+  // Pass 1: your rules, then memory. Pass 2: Claude, only for merchants neither knows.
+  const unknown = new Map<string, AiItem>();
+  for (const p of prepared) {
+    const ruleHit = KIND_CATEGORY[p.kind] ? "" : suggestCategory(rules, p.merchant, "");
+    const mem = lookupMemory(memory, p.key);
+    if (ruleHit && hasCategory(ruleHit)) { p.categoryId = ruleHit; p.suggested = "memory"; continue; }
+    if (mem && kindFits(mem.kind, p.r.direction) && hasCategory(mem.categoryId)) {
+      p.merchant = mem.name; p.kind = mem.kind; p.categoryId = KIND_CATEGORY[mem.kind] ?? mem.categoryId;
+      p.suggested = mem.source === "user" ? "memory" : mem.confident ? "ai" : "ai_unsure";
+      continue;
+    }
+    const wanted = KIND_CATEGORY[p.kind];
+    if (wanted) { p.categoryId = hasCategory(wanted) ? wanted : "uncategorized"; if (p.kind !== "income" && p.kind !== "refund") continue; }
+    // A clearly classified fee, card payment or transfer needs no AI; vague purchases and credits do.
+    if (p.key && !unknown.has(p.key)) unknown.set(p.key, { key: p.key, description: p.r.description, amountPaise: p.r.amountPaise, direction: p.r.direction });
+  }
+  const ai: AiUsage = { asked: 0, calls: 0, inputTokens: 0, outputTokens: 0 };
+  if (d.suggest && unknown.size > 0) {
+    const res = await d.suggest([...unknown.values()], { categories, known: memory });
+    Object.assign(ai, res.usage);
+    for (const sug of res.suggestions) {
+      const entry = rememberSuggestion(lookupMemory(memory, sug.key), { ...sug, date: today });
+      if (entry) { memory = [...memory, entry]; await repo.merchantMemory.put(entry); }
+    }
+    for (const p of prepared) {
+      if (p.suggested || !p.key) continue;
+      const mem = lookupMemory(memory, p.key);
+      if (!mem || !kindFits(mem.kind, p.r.direction) || !hasCategory(mem.categoryId)) continue;
+      p.merchant = mem.name; p.kind = mem.kind; p.categoryId = KIND_CATEGORY[mem.kind] ?? mem.categoryId;
+      p.suggested = isConfident(mem) ? "ai" : "ai_unsure";
+    }
+  }
+  const withRef = prepared.map((p) => ({ ...p, referenceId: dedupeKey(d.sha256, input.accountId, p.r, p.occurrence) }));
+  const plan = planImport(withRef.map((p) => ({ accountId: input.accountId, date: p.r.date, amountPaise: p.r.amountPaise, merchant: p.merchant, referenceId: p.referenceId, direction: p.r.direction })), records);
+
+  const out = withRef.map((p, i) => {
     const dup = plan[i].dup;
     const status: PreviewRow["status"] = dup.status === "exact" ? "duplicate" : dup.status === "possible" ? "possible" : "new";
     return {
       line: p.r.line, date: p.r.date, description: p.r.description, merchant: p.merchant, amountPaise: p.r.amountPaise, direction: p.r.direction,
-      kind: p.kind, categoryId: p.categoryId, status, matchId: dup.status === "none" ? undefined : dup.matchId, referenceId: p.referenceId, parsed: p.r,
+      kind: p.kind, categoryId: p.categoryId, suggested: p.suggested, status, matchId: dup.status === "none" ? undefined : dup.matchId, referenceId: p.referenceId, parsed: p.r,
     };
   });
   const counts = { rows: out.length, new: out.filter((x) => x.status === "new").length, duplicate: out.filter((x) => x.status === "duplicate").length, possible: out.filter((x) => x.status === "possible").length, unreadable: skipped.length };
+  const smart: SmartReport = {
+    aiEnabled: !!d.suggest, ai,
+    fromMemory: out.filter((x) => x.suggested === "memory").length,
+    fromAi: out.filter((x) => x.suggested === "ai" || x.suggested === "ai_unsure").length,
+    needYou: out.filter((x) => !x.suggested && x.categoryId === "uncategorized").length,
+  };
   const preview: Preview = {
     accountId: input.accountId, filename: input.filename, fileHash: input.fileHash, positiveIsDebit,
     singleAmountColumn, format: input.format, summary, checks, warnings,
-    columns: headers, rows: out.map(({ referenceId: _r, parsed: _p, ...row }) => { void _r; void _p; return row; }), skipped, totals, counts,
+    columns: headers, rows: out.map(({ referenceId: _r, parsed: _p, ...row }) => { void _r; void _p; return row; }), skipped, totals, counts, smart,
   };
   return { preview, rows: out, account };
 }
@@ -178,7 +245,7 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
     const rec: ExpenseRecord = {
       id: d.newId(), date: r.date, postedDate: r.parsed.postedDate, merchant: r.merchant, originalDescription: r.description.slice(0, 500), amountPaise: r.amountPaise, currency: "INR",
       accountId: input.accountId, categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
-      excluded: false, status: "unreviewed", importSource: `${input.filename.slice(0, 150)} (import ${batchId.slice(0, 8)})`, referenceId: r.referenceId, duplicateOf: r.status === "possible" ? r.matchId : undefined,
+      excluded: false, status: "unreviewed", suggested: r.suggested, importSource: `${input.filename.slice(0, 150)} (import ${batchId.slice(0, 8)})`, referenceId: r.referenceId, duplicateOf: r.status === "possible" ? r.matchId : undefined,
     };
     await repo.records.put(JSON.parse(JSON.stringify(rec)) as ExpenseRecord);
   }

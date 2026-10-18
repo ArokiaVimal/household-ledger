@@ -77,6 +77,29 @@ export interface ExpenseRecord {
   fundedBy?: string;
   /** Recurring commitment this payment fulfils (rent, EMI, insurance...). */
   recurringId?: string;
+  /** Where the import's guess for merchant/category came from. Only set while the row waits in the review queue. */
+  suggested?: Suggestion;
+}
+
+/** memory = learned from your own earlier approvals; ai = Claude was fairly sure; ai_unsure = Claude guessed, look at it. */
+export type Suggestion = "memory" | "ai" | "ai_unsure";
+
+/** What the app has learned about one merchant: how you name it, where it belongs, what kind of payment it is. */
+export interface MerchantMemory {
+  id: string;
+  /** Normalised merchant text the statement lines are matched against (see memoryKey). */
+  key: string;
+  name: string;
+  categoryId: string;
+  kind: TxnKind;
+  /** user = you approved or corrected it (always wins); ai = Claude's suggestion, not yet confirmed. */
+  source: "user" | "ai";
+  /** AI entries only: Claude said it was sure. */
+  confident: boolean;
+  /** How many times you have confirmed it. */
+  confirmed: number;
+  /** Date (YYYY-MM-DD) of the last confirmation or suggestion. */
+  lastSeen: string;
 }
 
 /** A commitment that repeats every month. Records link to it via `recurringId`. */

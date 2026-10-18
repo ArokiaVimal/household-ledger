@@ -145,6 +145,18 @@ export function LiveImport() {
                   )}
                 </div>
               )}
+              {preview.smart && (
+                <div className="rounded-xl bg-accent/5 p-3 text-sm" role="status">
+                  <div className="font-medium">Smart suggestions</div>
+                  <p className="text-muted">
+                    {preview.smart.fromMemory} filled in from what you approved before, {preview.smart.fromAi} suggested by Claude, {preview.smart.needYou} need your category.
+                    {preview.smart.ai.calls > 0 && ` Claude looked at ${preview.smart.ai.asked} new merchant${preview.smart.ai.asked === 1 ? "" : "s"} (${(preview.smart.ai.inputTokens + preview.smart.ai.outputTokens).toLocaleString("en-IN")} tokens). Next time it will already know them.`}
+                    {!preview.smart.aiEnabled && " Claude is switched off (no API key on the server), so only your own memory is used."}
+                    {preview.smart.ai.error && ` ${preview.smart.ai.error}, so the rest were left for you.`}
+                  </p>
+                  {preview.smart.aiEnabled && <p className="mt-1 text-xs text-muted">Only the merchant text, the amount and debit or credit are sent, with long numbers hidden. Never your name, the file, or account numbers.</p>}
+                </div>
+              )}
               {preview.warnings.length > 0 && (
                 <ul className="space-y-1 rounded-xl bg-warn-soft p-3 text-sm text-warn">{preview.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
               )}

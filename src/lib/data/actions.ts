@@ -7,6 +7,7 @@ import type { Repository } from "@/data/repository";
 import { ConflictError } from "@/data/repository";
 import { ExpenseRecordSchema, SplitConfigSchema, ruleId } from "@/data/schemas";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
+import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
 import type { AuditEvent, ExpenseRecord } from "@/domain/types";
 
 const id = z.string().min(1).max(128);
@@ -29,6 +30,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("record.update"), id, patch: editable }),
   z.object({ type: z.literal("record.approve"), id, patch: editable.optional() }),
   z.object({ type: z.literal("record.reject"), id }),
+  z.object({ type: z.literal("record.delete"), id }),
   z.object({ type: z.literal("settlement.create"), settlement: z.object({ id, date: z.string(), fromId: id, toId: id, amountPaise: money, note: z.string().max(500).optional() }) }),
   z.object({ type: z.literal("settlement.void"), id }),
   z.object({ type: z.literal("category.add"), id, name: z.string().max(100) }),
@@ -82,8 +84,14 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown): Promise<
       if (!cur) throw new ActionError("not_found", "Record not found.");
       if (a.type === "record.approve" && cur.status !== "unreviewed") throw new ActionError("conflict", "That record is already reviewed.");
       const next = applyPatch(cur, a.patch ?? {});
-      if (a.type === "record.approve") next.status = "reviewed";
+      if (a.type === "record.approve") { next.status = "reviewed"; delete next.suggested; }
       await repo.records.put(next);
+      // What you decide here is what the import will suggest next month.
+      const decided = a.type === "record.approve" || !!(a.patch && ("categoryId" in a.patch || "merchant" in a.patch || "kind" in a.patch));
+      if (decided && next.status === "reviewed") {
+        const key = memoryKey(next.importSource === "Manual entry" ? next.merchant : next.originalDescription);
+        if (key) await repo.merchantMemory.put(learnFromUser(await repo.merchantMemory.get(memoryDocId(key)), { key, name: next.merchant.slice(0, 60), categoryId: next.categoryId, kind: next.kind, date: next.date }));
+      }
       await log(a.type === "record.approve" ? "approve" : "edit", "record", a.id, `${a.type === "record.approve" ? "Approved" : "Edited"} ${next.merchant} ${money(next.amountPaise)}${a.patch?.categoryId ? ` (category ${next.categoryId})` : ""}`);
       return;
     }
@@ -93,6 +101,13 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown): Promise<
       if (cur.status !== "unreviewed") throw new ActionError("conflict", "Only rows waiting for review can be rejected.");
       await repo.records.remove(a.id);
       await log("reject", "record", a.id, `Rejected ${cur.merchant} ${money(cur.amountPaise)} on ${cur.date} from ${cur.importSource}`);
+      return;
+    }
+    case "record.delete": {
+      const cur = await repo.records.get(a.id);
+      if (!cur) throw new ActionError("not_found", "Record not found.");
+      await repo.records.remove(a.id);
+      await log("delete", "record", a.id, `Deleted ${cur.merchant} ${money(cur.amountPaise)} on ${cur.date} (${cur.status}) from ${cur.importSource}`);
       return;
     }
     case "settlement.create": {

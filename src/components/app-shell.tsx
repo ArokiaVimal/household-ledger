@@ -103,8 +103,8 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const go = (e: React.FormEvent) => { e.preventDefault(); router.push(`/transactions?q=${encodeURIComponent(q)}`); };
 
   return (
-    <div className="min-h-screen md:p-6">
-      <div className="mx-auto min-h-screen max-w-[1280px] bg-background md:min-h-[calc(100vh-3rem)] md:rounded-[32px] md:p-5">
+    <div className="min-h-screen md:p-6 2xl:p-8">
+      <div className="mx-auto min-h-screen max-w-[90rem] bg-background md:min-h-[calc(100vh-3rem)] md:rounded-[32px] md:p-5">
         <div className="md:grid md:grid-cols-[4.25rem_1fr] md:gap-5">
           <aside className="sticky top-5 hidden h-[calc(100vh-5.5rem)] flex-col items-center gap-2 rounded-2xl bg-surface py-4 md:flex">
             <Link href="/" aria-label="Personal Finance App home" className="mb-2"><LogoMark size={40} /></Link>

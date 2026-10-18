@@ -13,7 +13,7 @@ service cloud.firestore {
     function isPaise(v) { return v is int && v > 0; }
     function str(v, max) { return v is string && v.size() > 0 && v.size() <= max; }
     function validRecord(d) {
-      return d.keys().hasOnly(['id','date','postedDate','merchant','originalDescription','amountPaise','currency','accountId','categoryId','kind','payerId','shared','split','excluded','status','importSource','referenceId','notes','duplicateOf','receiptId','fundedBy','recurringId','schemaVersion'])
+      return d.keys().hasOnly(['id','date','postedDate','merchant','originalDescription','amountPaise','currency','accountId','categoryId','kind','payerId','shared','split','excluded','status','importSource','referenceId','notes','duplicateOf','receiptId','fundedBy','recurringId','suggested','schemaVersion'])
         && d.keys().hasAll(['date','merchant','originalDescription','amountPaise','currency','accountId','categoryId','kind','payerId','shared','split','excluded','status','importSource'])
         && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && str(d.merchant, 120)
@@ -86,6 +86,12 @@ service cloud.firestore {
 
       // Statement upload history is written by the server only.
       match /importBatches/{id} {
+        allow read: if isMember(hid);
+        allow write: if false;
+      }
+
+      // What the import has learned about merchants: written by the server only.
+      match /merchantMemory/{id} {
         allow read: if isMember(hid);
         allow write: if false;
       }

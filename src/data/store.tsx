@@ -87,6 +87,8 @@ interface Store {
   /** Move a queued row into the ledger, marking it reviewed. */
   approveStaged: (id: string, patch?: Partial<ExpenseRecord>) => void;
   rejectStaged: (id: string) => void;
+  /** Permanently removes records (ledger or review queue). The original statement lines stay in the import history. */
+  deleteRecords: (ids: string[]) => void;
   addSettlement: (s: Omit<Settlement, "id">) => void;
   voidSettlement: (id: string) => void;
   linkReceipt: (receiptId: string, recordId: string | null) => void;
@@ -207,6 +209,13 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     void send({ type: "record.reject", id });
   }, [send]);
 
+  const deleteRecords = useCallback((ids: string[]) => {
+    const gone = new Set(ids);
+    setRecords((rs) => rs.filter((r) => !gone.has(r.id)));
+    setStaged((xs) => xs.filter((r) => !gone.has(r.id)));
+    for (const id of ids) void send({ type: "record.delete", id });
+  }, [send]);
+
   const addCategory = useCallback((name: string) => {
     const err = validateCategoryName(name, categories);
     if (err) return err;
@@ -289,7 +298,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     live: !!live, householdReady: live ? live.ready : true, meId, ownerParticipantId: live ? live.ownerId || meId : ME, partnerId, today, participants, accounts, recurringItems, trendHistory,
     records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, recurring,
     categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant,
-    updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, addSettlement, voidSettlement, linkReceipt,
+    updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,
     categoryName: (id) => categories.find((c) => c.id === id)?.name ?? id,

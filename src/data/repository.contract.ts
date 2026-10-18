@@ -55,6 +55,15 @@ export function describeRepositoryContract(label: string, make: Factory, opts: {
       expect("remove" in repo.audit).toBe(false);
     }, timeout);
 
+    it("merchantMemory: put, get, list, overwrite, validation", async () => {
+      const repo = await fresh();
+      const m = { id: "mm_swiggy", key: "swiggy", name: "Swiggy", categoryId: "c_food", kind: "purchase" as const, source: "ai" as const, confident: false, confirmed: 0, lastSeen: "2026-10-01" };
+      await repo.merchantMemory.put(m);
+      await repo.merchantMemory.put({ ...m, source: "user", confident: true, confirmed: 1 });
+      expect((await repo.merchantMemory.get("mm_swiggy"))).toMatchObject({ source: "user", confirmed: 1 });
+      expect((await repo.merchantMemory.list()).some((x) => x.id === "mm_swiggy")).toBe(true);
+      await expect(repo.merchantMemory.put({ ...m, id: "mm_bad", kind: "nonsense" as never })).rejects.toThrow();
+    }, timeout);
     it("rules, categories: put, get, list, remove", async () => {
       const repo = await fresh();
       await repo.categories.put({ id: "c_pets", name: "Pets" });

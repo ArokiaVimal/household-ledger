@@ -44,3 +44,16 @@ PDF (text-based statements):
 Screenshots (GPay, CRED, Paytm, BHIM): no reliable text layer, so extraction needs OCR or a vision model.
 - Preferred sources, in order of accuracy: bank/card statement (has UPI reference ids) > app export (e.g. Google Takeout for Google Pay) > screenshot.
 - Screenshot path (planned): vision-model extraction into a Zod-validated structure, shown side by side with the image in the review queue, every field editable, low-confidence fields highlighted, always `unreviewed`. Needs an Anthropic API key (server env var) and sends the image to that service, so it will be opt-in per upload.
+
+## Smart suggestions: memory first, Claude only for the unknown
+
+Goal: less manual review every month. Each statement line is resolved in this order, stopping at the first hit:
+
+1. **Your rules** (Categories page) and **kind by wording** (card payments, fees, transfers).
+2. **Merchant memory** (`merchantMemory`, one document per merchant key, see `src/domain/memory.ts`). Built from everything you approve or correct (`record.approve` / `record.update` teach it, your choice always replaces an AI guess), and seeded once from your already-approved history.
+3. **Claude** (`src/lib/import/ai.ts`), only for merchants memory has never seen. Distinct merchants are sent once each in a single batched call (40 per call, at most 3 calls per import), to a Haiku-class model (`claude-haiku-5-5`, override with `ANTHROPIC_MODEL`) with temperature 0, a forced tool call that returns compact JSON, and the instructions as a cached prefix. Answers are validated against the household's own category ids and direction rules, then **saved to memory** so a merchant costs tokens once, and the commit after a preview costs none.
+
+What is sent: the statement text with digit runs of 5+ hidden, the amount in whole rupees, and debit/credit. Not the file, names of account holders, dates, or account numbers. Statement text is treated as untrusted (the answer is validated; it cannot invent categories). Without `ANTHROPIC_API_KEY` the whole step is skipped and memory/rules still work.
+
+Rows carry `suggested` (`memory`, `ai`, `ai_unsure`) while in the review queue. The review page shows Remembered / Smart guess / Check this badges and a "Select N I'm sure about" button; approving always happens in your hands, and approving is what teaches the memory. Preview shows how many rows came from memory, from Claude, and need you, plus tokens used.
+

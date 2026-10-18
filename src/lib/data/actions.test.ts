@@ -159,3 +159,31 @@ describe("suggested accounts", () => {
     expect(await repo.accounts.list()).toHaveLength(10);
   });
 });
+
+describe("learning and deleting", () => {
+  it("approving teaches the merchant memory, and a correction replaces it", async () => {
+    const repo = await setup();
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { categoryId: "shopping", merchant: "Zepto" } });
+    const [m] = await repo.merchantMemory.list();
+    expect(m).toMatchObject({ key: "zepto marketplace", name: "Zepto", categoryId: "shopping", source: "user", confirmed: 1 });
+    await applyAction(repo, actor, { type: "record.update", id: "imp1", patch: { categoryId: "groceries" } });
+    expect((await repo.merchantMemory.list())[0]).toMatchObject({ categoryId: "groceries", confirmed: 1 });
+    await applyAction(repo, actor, { type: "record.update", id: "imp1", patch: { notes: "just a note" } });
+    expect((await repo.merchantMemory.list())[0].confirmed).toBe(1);
+  });
+  it("approving clears the suggestion marker", async () => {
+    const repo = await setup();
+    await repo.records.put(imported({ id: "s1", suggested: "ai_unsure" }));
+    await applyAction(repo, actor, { type: "record.approve", id: "s1" });
+    expect((await repo.records.get("s1"))!.suggested).toBeUndefined();
+  });
+  it("delete removes a row of either status, and leaves an audit trail", async () => {
+    const repo = await setup();
+    await repo.records.put(imported({ id: "done", status: "reviewed", referenceId: "REF2" }));
+    await applyAction(repo, actor, { type: "record.delete", id: "done" });
+    await applyAction(repo, actor, { type: "record.delete", id: "imp1" });
+    expect(await repo.records.list()).toEqual([]);
+    expect((await repo.audit.list()).map((e) => e.action)).toEqual(["delete", "delete"]);
+    await fails(applyAction(repo, actor, { type: "record.delete", id: "imp1" }), "not_found");
+  });
+});

@@ -50,20 +50,35 @@ export function Onboarding() {
       <section className="relative isolate overflow-hidden rounded-[var(--radius-card)] bg-gradient-to-br from-[#6d52e0] to-[#3a2399] p-5 text-white sm:p-8">
         <span aria-hidden className="absolute -right-16 -top-16 -z-10 size-56 rounded-full bg-white/10" />
         <span aria-hidden className="absolute -bottom-20 right-24 -z-10 size-44 rounded-full bg-white/10" />
-        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <LogoMark size={44} />
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Welcome, {name}</h2>
-            <p className="text-sm text-white/80 sm:text-base">Let&apos;s set up your own finance tracker. It takes about two minutes.</p>
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-center lg:gap-10">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <LogoMark size={44} />
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Welcome, {name}</h2>
+              <p className="text-sm text-white/80 sm:text-base">Let&apos;s set up your own finance tracker. It takes about two minutes.</p>
+            </div>
           </div>
+        <div className="mt-6 rounded-2xl bg-white/10 p-4 ring-1 ring-white/15 backdrop-blur-sm lg:mt-0" role="group" aria-label={`Setup progress: ${doneCount} of ${essentials.length} essential steps done`}>
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <span className="text-sm font-medium">{doneCount === essentials.length ? "You're all set" : "Your setup"}</span>
+            <span className="num text-xs text-white/80">{doneCount} of {essentials.length} done</span>
+          </div>
+          <ol className="grid grid-cols-2 gap-3">
+            {[["Payment methods", hasMethods], ["First spending", hasSpending]].map(([label, done]) => (
+              <li key={label as string}>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/20"><div className={`h-full rounded-full bg-white transition-[width] duration-500 ${done ? "w-full" : "w-0"}`} /></div>
+                <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${done ? "text-white" : "text-white/70"}`}>
+                  {done ? <Check size={13} aria-hidden /> : <span aria-hidden className="size-3 rounded-full border border-white/50" />}
+                  {label as string}<span className="sr-only">{done ? " done" : " not done yet"}</span>
+                </div>
+              </li>
+            ))}
+          </ol>
         </div>
-        <div className="mt-6 max-w-md" role="group" aria-label={`Setup progress: ${doneCount} of ${essentials.length} essential steps done`}>
-          <div className="mb-1.5 flex justify-between text-xs text-white/80"><span>Your setup</span><span>{doneCount} of {essentials.length} essentials</span></div>
-          <div className="h-2 overflow-hidden rounded-full bg-white/20"><div className="h-full rounded-full bg-white transition-all" style={{ width: `${(doneCount / essentials.length) * 100}%` }} /></div>
-        </div>
+      </div>
       </section>
 
-      <ol className="space-y-3">
+      <ol className="grid items-start gap-3 xl:grid-cols-2">
         <Step n={1} done={hasMethods} active={activeStep === 1} title="Add your payment methods">
           <p className="text-sm text-muted">The cards, UPI apps and bank accounts you spend from, so every transaction knows where it came from.</p>
           {hasMethods && <div className="flex flex-wrap gap-1.5">{accounts.map((a) => <span key={a.id} title={a.name} className="rounded-full ring-1 ring-border"><MerchantAvatar name={a.name} size={32} /></span>)}</div>}

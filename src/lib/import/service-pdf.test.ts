@@ -7,6 +7,7 @@ import { parseStatementPdf } from "@/domain/import/pdf";
 import { header, page, row, standard } from "@/domain/import/pdf/test-fixtures";
 import type { PdfPage } from "@/domain/import/pdf/types";
 import { commitImport, ImportError, previewImport, type ImportDeps, type ImportInput } from "./service";
+import type { Suggest } from "./ai";
 
 let n = 0;
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -116,5 +117,73 @@ describe("PDF statement import", () => {
     const repo = await setup();
     await expect(previewImport(repo, pdfInput([page(1, [])]), deps)).rejects.toBeInstanceOf(ImportError);
     await expect(previewImport(repo, pdfInput(standard().map((p) => ({ ...p, items: p.items.filter((i) => !/american express/i.test(i.text)) }))), deps)).rejects.toMatchObject({ code: "invalid" });
+  });
+});
+
+describe("smart suggestions (memory + Claude)", () => {
+  // A stand-in for Claude: knows only "Sample Cafe". Counts how many merchants it was asked about.
+  const fake = (): { suggest: Suggest; asked: string[][] } => {
+    const asked: string[][] = [];
+    return {
+      asked,
+      suggest: async (items) => {
+        asked.push(items.map((i) => i.key));
+        return {
+          suggestions: items.map((i) => (i.key.startsWith("sample cafe")
+            ? { key: i.key, name: "Sample Cafe", categoryId: "restaurants", kind: "purchase" as const, confident: true }
+            : { key: i.key, name: i.key, categoryId: "shopping", kind: i.direction === "credit" ? "refund" as const : "purchase" as const, confident: false })),
+          usage: { asked: items.length, calls: 1, inputTokens: 300, outputTokens: 40 },
+        };
+      },
+    };
+  };
+
+  it("asks only about merchants it does not know, and remembers the answers", async () => {
+    const repo = await setup();
+    const ai = fake();
+    const p = await previewImport(repo, pdfInput(withPayment()), { ...deps, suggest: ai.suggest });
+    // Test Mart is a rule, the card payment and refund are classified by wording; Demo Travel, Sample Cafe and the refund line are unknown.
+    expect(ai.asked[0]).not.toContain("test mart bangalore");
+    expect(p.rows.find((r) => r.merchant === "Sample Cafe")).toMatchObject({ categoryId: "restaurants", suggested: "ai" });
+    expect(p.rows.find((r) => r.merchant === "Test Mart Bangalore")?.suggested).toBe("memory");
+    expect(p.smart).toMatchObject({ aiEnabled: true, ai: { calls: 1, inputTokens: 300 } });
+    expect((await repo.merchantMemory.list()).some((m) => m.name === "Sample Cafe" && m.source === "ai")).toBe(true);
+  });
+
+  it("a second import (and the commit after a preview) costs no AI calls", async () => {
+    const repo = await setup();
+    const ai = fake();
+    await previewImport(repo, pdfInput(withPayment()), { ...deps, suggest: ai.suggest });
+    await commitImport(repo, actor, pdfInput(withPayment()), { ...deps, suggest: ai.suggest });
+    expect(ai.asked.length).toBe(1);
+    const staged = (await repo.records.list()).filter((r) => r.status === "unreviewed");
+    expect(staged.find((r) => r.merchant === "Sample Cafe")?.suggested).toBe("ai");
+  });
+
+  it("works with no API key: memory and rules only, nothing sent anywhere", async () => {
+    const repo = await setup();
+    const p = await previewImport(repo, pdfInput(withPayment()), deps);
+    expect(p.smart.aiEnabled).toBe(false);
+    expect(p.rows.find((r) => r.merchant === "Sample Cafe")?.suggested).toBeUndefined();
+  });
+
+  it("learns from approved history on first use, so known merchants are not sent", async () => {
+    const repo = await setup();
+    await repo.records.put({
+      id: "old", date: "2026-08-01", merchant: "Demo Travel", originalDescription: "DEMO TRAVEL", amountPaise: 100, currency: "INR", accountId: "cc_amex", categoryId: "travel", kind: "purchase",
+      payerId: "u_u1", shared: false, split: { mode: "personal", participantIds: ["u_u1"] }, excluded: false, status: "reviewed", importSource: "old.pdf",
+    });
+    const ai = fake();
+    const p = await previewImport(repo, pdfInput(withPayment()), { ...deps, suggest: ai.suggest });
+    expect(ai.asked[0]).not.toContain("demo travel");
+    expect(p.rows.find((r) => r.merchant === "Demo Travel")).toMatchObject({ categoryId: "travel", suggested: "memory" });
+  });
+
+  it("ignores an AI answer that does not fit (refund on a debit)", async () => {
+    const repo = await setup();
+    const bad: Suggest = async (items) => ({ suggestions: [], usage: { asked: items.length, calls: 1, inputTokens: 1, outputTokens: 1, error: "Could not reach Claude" } });
+    const p = await previewImport(repo, pdfInput(withPayment()), { ...deps, suggest: bad });
+    expect(p.smart.ai.error).toBe("Could not reach Claude");
+    expect(p.rows.every((r) => r.status === "new")).toBe(true);
   });
 });
