@@ -16,8 +16,10 @@ Updated: 2026-10-18 · Branch `feat/stage3-slice4-rules` (stacked on earlier sli
 - Google sign-in added (popup; same session cookie flow and allowlist). Needs the Google provider enabled in the Firebase console and the app's domain in Authorized domains (localhost is there by default). Not tested with a real Google account.
 - `ALLOWED_EMAILS` env var added (temporary allowlist until household membership in slice 3).
 
-## TEMPORARY: health check route (delete after the first Vercel deploy works)
-- `src/app/api/health/route.ts` (public, listed in the `src/proxy.ts` matcher) reports yes/no checks and variable names only, to diagnose the first Vercel deployment (login page stuck on "Loading", `/api/session` 500). Remove the route and the `api/health` entry in the proxy matcher once sign-in works.
+## Live deployment (done)
+- Live at `https://personal-finance-tracker-283.vercel.app` (Vercel project `household-ledger`, auto-deploys from `main` on GitHub `ArokiaVimal/household-ledger`). Google sign-in confirmed working by the owner. Mock data only.
+- First deploy failed because `firebase-admin@14` loads ESM-only `jose@6` via `jwks-rsa@4`, which Vercel's runtime refuses (`ERR_REQUIRE_ESM`); fixed by pinning `firebase-admin@13.10` (see DECISIONS #7) and Node `22.x`. A temporary names-only `/api/health` route was used to diagnose and has been removed.
+- Owner to-do: set `APP_ENV=production` in Vercel (production detection also uses `VERCEL_ENV`, so the app fails closed regardless).
 
 ## GitHub and CI (added)
 - Repo: `ArokiaVimal/household-ledger` (private). The push needed a token with the `workflow` permission because of `.github/workflows/ci.yml`; instead the workflow was removed from the pushed history and kept as `docs/ci.yml.example` (add it on github.com later, see DEPLOYMENT.md). Local backup branch `backup-before-ci-removal` has the original history; the old `feat/*` branches also still contain `ci.yml` and must not be pushed.
