@@ -1,6 +1,7 @@
 import "server-only";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { Session } from "@/lib/auth/session";
+import { syncDisplayName } from "./sync-name";
 import { defaultDisplayName, type Profile, type ProfileInput } from "./profile";
 
 // One document per user at users/{uid}. Written only by server code that has verified the session.
@@ -26,5 +27,7 @@ export async function saveProfile(session: Session, input: ProfileInput, avatarD
   const update: Record<string, unknown> = { ...input, updatedAt: new Date().toISOString() };
   if (avatarDataUrl !== undefined) update.avatarDataUrl = avatarDataUrl;
   await doc(session.uid).set(update, { merge: true });
+  // Keep the household's copies of your name in step. A failure here must not lose the profile save.
+  try { await syncDisplayName(session.uid, input.displayName); } catch (e) { console.error("name sync failed", (e as { code?: string }).code); }
   return getProfile(session);
 }

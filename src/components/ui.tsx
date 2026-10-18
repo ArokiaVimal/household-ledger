@@ -237,3 +237,13 @@ export function ConfirmDialog({ open, onClose, title, children, confirmLabel = "
     </Dialog>
   );
 }
+
+/** Marks anything produced by an AI model, so it is never mistaken for something you or the bank wrote. */
+export function AiBadge({ children = "AI", tone = "ai", title = "Suggested by AI (Claude). Check it before approving." }: { children?: ReactNode; tone?: "ai" | "unsure"; title?: string }) {
+  return (
+    <span title={title} className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium", tone === "ai" ? "bg-accent/10 text-accent" : "bg-warn-soft text-warn")}>
+      <svg aria-hidden viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M12 2l1.8 5.6L19.5 9.5l-5.7 1.9L12 17l-1.8-5.6L4.5 9.5l5.7-1.9L12 2zm7 12l.9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9L19 14z" /></svg>
+      {children}
+    </span>
+  );
+}

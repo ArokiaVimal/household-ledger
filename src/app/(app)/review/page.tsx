@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { MerchantAvatar, Amount } from "@/components/txn-row";
 import { TxnReviewDialog } from "@/components/txn-edit-dialog";
-import { Badge, Button, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
+import { AiBadge, Badge, Button, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import type { ExpenseRecord } from "@/domain/types";
 
@@ -35,7 +35,7 @@ export default function Review() {
             <Badge tone="warn">{staged.length} awaiting review</Badge>
             <Button onClick={() => setOpen(staged[0])} variant="primary"><ClipboardCheck size={16} aria-hidden />Start reviewing</Button>
             <Button onClick={() => setPicked(picked.size === staged.length ? new Set() : new Set(staged.map((r) => r.id)))}>{picked.size === staged.length ? "Clear selection" : "Select all"}</Button>
-            {confident.length > 0 && <Button onClick={() => setPicked(new Set(confident.map((r) => r.id)))}><Sparkles size={15} aria-hidden />Select {confident.length} I&apos;m sure about</Button>}
+            {confident.length > 0 && <Button onClick={() => setPicked(new Set(confident.map((r) => r.id)))}><Sparkles size={15} aria-hidden />Select {confident.length} confident ones</Button>}
             {picked.size > 0 && <Button onClick={() => setConfirm(true)}>Approve {picked.size} as they are…</Button>}
             {picked.size > 0 && <Button variant="danger" onClick={() => setDeleting(chosen)}><Trash2 size={15} aria-hidden />Delete {picked.size}…</Button>}
           </div>
@@ -52,8 +52,8 @@ export default function Review() {
                       {r.duplicateOf && <Badge tone="bad">Possible duplicate</Badge>}
                       {r.shared && <Badge tone="good">Shared</Badge>}
                       {r.suggested === "memory" && <Badge tone="good">Remembered</Badge>}
-                      {r.suggested === "ai" && <Badge tone="good">Smart guess</Badge>}
-                      {r.suggested === "ai_unsure" && <Badge tone="warn">Check this</Badge>}
+                      {r.suggested === "ai" && <AiBadge>AI guess</AiBadge>}
+                      {r.suggested === "ai_unsure" && <AiBadge tone="unsure">AI unsure, check</AiBadge>}
                       {!r.suggested && r.categoryId === "uncategorized" && <Badge tone="warn">Needs a category</Badge>}
                     </div>
                   </div>

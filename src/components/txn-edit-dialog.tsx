@@ -7,7 +7,7 @@ import { equalSplit, validateSplit } from "@/domain/splits";
 import type { ExpenseRecord, SplitConfig, TxnKind } from "@/domain/types";
 import { SplitEditor } from "./split-editor";
 import { MerchantAvatar } from "./txn-row";
-import { Button, CompactChips, ConfirmDialog, Dialog, FormRow, Input } from "./ui";
+import { AiBadge, Button, CompactChips, ConfirmDialog, Dialog, FormRow, Input } from "./ui";
 
 const kinds: { id: TxnKind; label: string }[] = [
   { id: "purchase", label: "Purchase" },
@@ -120,6 +120,10 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
           <div className="mt-1 truncate font-mono text-xs text-muted" title="Original bank text, never edited">{record.originalDescription}</div>
         </div>
       )}
+      {mode === "review" && (record.suggested === "ai" || record.suggested === "ai_unsure") && (
+        <p className="flex items-center gap-2 text-xs text-muted"><AiBadge tone={record.suggested === "ai" ? "ai" : "unsure"}>{record.suggested === "ai" ? "AI-powered" : "AI unsure"}</AiBadge>The merchant name and category were suggested by AI. Approving confirms them and teaches the app.</p>
+      )}
+      {mode === "review" && record.suggested === "memory" && <p className="text-xs text-muted">Filled in from what you approved before.</p>}
       {mode === "review" && dupOf && (
         <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Approve only if this is a separate purchase; otherwise reject it.</p>
       )}
@@ -150,19 +154,18 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         </div>
       )}
 
-      <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        {mode === "review" && (
-          <div className="mr-auto flex gap-1">
-            <Button variant="danger" onClick={() => setDeleting(true)} className="border-0"><Trash2 size={15} aria-hidden />Delete</Button>
-            <Button onClick={() => save("draft")} disabled={!!bad} className="border-0">Save draft</Button>
-          </div>
-        )}
-        {mode === "edit" && <Button variant="danger" onClick={() => setDeleting(true)} className="border-0"><Trash2 size={15} aria-hidden />Delete</Button>}
-        {mode !== "review" && <Button onClick={onClose} className={mode === "edit" ? "border-0" : "mr-auto border-0"}>Cancel</Button>}
-        {adding && <Button onClick={() => save("another")} disabled={!!bad}>Add another</Button>}
-        {mode === "review" && next && next.remaining > 0 && <Button onClick={() => save("next")} disabled={!!bad}>Approve & next ({next.remaining})</Button>}
-        {mode === "edit" && next && next.remaining > 0 && <Button onClick={() => save("next")} disabled={!!bad}>Save & next ({next.remaining})</Button>}
-        <Button variant="primary" onClick={() => save("close")} disabled={!!bad}>{adding ? "Add" : mode === "review" ? "Approve" : "Save"}</Button>
+      <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center">
+        {/* One clear main action; the rest sit quietly beside or below it. */}
+        <Button variant="primary" className="w-full sm:order-last sm:ml-auto sm:w-auto" onClick={() => save(mode !== "add" && next && next.remaining > 0 ? "next" : "close")} disabled={!!bad}>
+          {adding ? "Add" : mode === "review" ? (next && next.remaining > 0 ? `Approve & next (${next.remaining})` : "Approve") : next && next.remaining > 0 ? `Save & next (${next.remaining})` : "Save"}
+        </Button>
+        <div className="flex items-center justify-between gap-1 sm:justify-start">
+          {mode !== "add" && <Button variant="danger" onClick={() => setDeleting(true)} className="border-0" aria-label="Delete transaction"><Trash2 size={15} aria-hidden /><span>Delete</span></Button>}
+          {mode === "review" && <Button onClick={() => save("draft")} disabled={!!bad} className="border-0">Save draft</Button>}
+          {mode !== "review" && <Button onClick={onClose} className="border-0">Cancel</Button>}
+          {adding && <Button onClick={() => save("another")} disabled={!!bad} className="border-0">Add another</Button>}
+          {mode !== "add" && next && next.remaining > 0 && <Button onClick={() => save("close")} disabled={!!bad} className="border-0">{mode === "review" ? "Approve only" : "Save only"}</Button>}
+        </div>
         {mode !== "add" && (
           <ConfirmDialog open={deleting} onClose={() => setDeleting(false)} title="Delete this transaction?" onConfirm={() => { deleteRecords([record.id]); onClose(); }}>
             <p><strong>{record.merchant}</strong> · {formatINR(record.amountPaise)} · {record.date}</p>

@@ -9,7 +9,7 @@ import { ChipGroup, CompactChips, FormRow, Input } from "./ui";
 
 const CUSTOM = "__custom";
 const modes = [
-  { id: "personal", label: "One person" },
+  { id: "personal", label: "One" },
   { id: "equal", label: "Equal" },
   { id: "percent", label: "%" },
   { id: "custom", label: "Amounts" },

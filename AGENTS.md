@@ -20,6 +20,8 @@ Platform-neutral. Start here, then read `PROJECT.md` (what the app is), `ROADMAP
 - Small focused diffs; reuse existing components/utilities; update docs only where reality changed.
 - At the end of a session update `docs/DEVELOPMENT_STATUS.md` (done, files, tests run, limits, next tasks).
 - Never claim tests passed unless you ran them.
+- Build for other people too: no owner-specific names, banks or merchants in code; per-household data and settings instead; new issuers/sources go behind adapters; optional features (AI key, capture) must have a safe "off" state.
+- Anything produced by AI is labelled with `AiBadge`. Every delete or void asks first with `ConfirmDialog`. Check new UI on a phone (390px) and a very wide screen.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
