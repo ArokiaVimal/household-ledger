@@ -16,6 +16,9 @@ Updated: 2026-10-18 · Branch `feat/stage3-slice4-rules` (stacked on earlier sli
 - Google sign-in added (popup; same session cookie flow and allowlist). Needs the Google provider enabled in the Firebase console and the app's domain in Authorized domains (localhost is there by default). Not tested with a real Google account.
 - `ALLOWED_EMAILS` env var added (temporary allowlist until household membership in slice 3).
 
+## TEMPORARY: health check route (delete after the first Vercel deploy works)
+- `src/app/api/health/route.ts` (public, listed in the `src/proxy.ts` matcher) reports yes/no checks and variable names only, to diagnose the first Vercel deployment (login page stuck on "Loading", `/api/session` 500). Remove the route and the `api/health` entry in the proxy matcher once sign-in works.
+
 ## GitHub and CI (added)
 - Repo: `ArokiaVimal/household-ledger` (private). The push needed a token with the `workflow` permission because of `.github/workflows/ci.yml`; instead the workflow was removed from the pushed history and kept as `docs/ci.yml.example` (add it on github.com later, see DEPLOYMENT.md). Local backup branch `backup-before-ci-removal` has the original history; the old `feat/*` branches also still contain `ci.yml` and must not be pushed.
 
