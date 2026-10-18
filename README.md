@@ -2,7 +2,7 @@
 
 Private, mobile-first personal finance and expense-splitting app (PWA) for one household plus friends who need no account.
 
-**Status: live app with real saved data (Stage 3, slice 5).** Without Firebase configured it runs as a prototype on fictional data. All screens run on *fictional* September 2026 data held in memory. There is no login, no database, no file upload, and nothing is saved. See [docs/DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md) for exactly what works.
+**Status: live app with real saved data (Stage 3, slice 5).** Sign in with Google (Firebase), and your household's transactions, splits, settlements, categories and people are saved in Firestore and shared by its members. Without Firebase configured it runs as a prototype on fictional September 2026 data (nothing saved). See [docs/DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md) for exactly what works and what does not (statement import, receipts and file storage are not built yet).
 
 ## Quick start
 ```bash
