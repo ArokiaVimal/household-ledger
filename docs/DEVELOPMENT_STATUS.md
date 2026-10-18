@@ -1,6 +1,6 @@
 # Development status
 
-Updated: 2026-10-18 · Branch `feat/domain-core` · Stage 1–2 complete (prototype). Stage 3+ not started.
+Updated: 2026-10-18 · Branch `feat/stage3-slice1-repository` (on top of `feat/domain-core`) · Stages 1–2 complete (prototype). Stage 3 slice 1 done; slices 2–8 not started (see `STAGE3_PLAN.md`).
 
 ## Implemented and verified
 - Domain (`src/domain`): integer-paise money, equal/percent/custom splits (deterministic remainder), spending rules (refunds subtract; cc payments, transfers, income, excluded ignored), pairwise balances with settlements/voids, duplicate detection (reference id exact; date+amount+merchant possible), receipt match suggestions.
@@ -8,6 +8,13 @@ Updated: 2026-10-18 · Branch `feat/domain-core` · Stage 1–2 complete (protot
 - UI on 42 fictional Sept 2026 records: Dashboard (clickable charts → filtered Transactions), Transactions (compact edit dialog (one line per field; overflow chips open a "+N more" pop-up) with quick split presets and Save & next for unreviewed rows; search/filters, group tabs: All, Payment methods, Platforms & merchants, Categories, Paid by; table with logos + mobile cards, edit dialog with split editor), Settlements (record/void/partial), Receipts (suggest/link/unlink), Categories & rules (apply to unreviewed), Reports, Settings (members, participants, accounts, mock JSON export, delete-confirm dialog), Import centre (simulated), PWA manifest, mobile bottom nav.
 - Manual check: dashboard and mobile transactions/edit dialog viewed in browser at 375px and desktop. Other screens were built but only dashboard/transactions/import were eyeballed.
 - Docs, CI workflow (`.github/workflows/ci.yml`, not yet run on GitHub), `.env.example`.
+
+## Stage 3 slice 1 (done, not yet wired into the UI)
+- `src/data/schemas.ts`: Zod schemas for every entity; `ExpenseRecordSchema` enforces integer positive paise, valid dates, split sums (via domain `validateSplit`) and `shared` consistency. `satisfies z.ZodType<…>` keeps them in sync with `src/domain/types.ts`.
+- `src/data/repository.ts`: the data-access interface (household-scoped collections; settlements and audit are append-only). `src/data/memory-repository.ts`: in-memory implementation that validates on write and refuses to change raw imported fields (the same rules the Firestore rules must enforce).
+- `src/lib/env.ts`: `parseClientEnv` / `parseServerEnv` with readable errors that name variables, never values. Not called at startup yet.
+- `AuditEvent` type added. The prototype UI still uses `src/data/store.tsx` directly; it moves onto the repository in slice 5.
+- Tests: 40 passing (14 new: schemas, repository rules, env).
 
 ## Review queue (added)
 - Imports no longer go straight into the ledger. `store.staged` is the review queue; `store.records` is the ledger. Only approved rows (status `reviewed`) feed the dashboard, reports, balances, recurring and receipts. Imported rows start `unreviewed`.
@@ -44,7 +51,7 @@ Updated: 2026-10-18 · Branch `feat/domain-core` · Stage 1–2 complete (protot
 Firebase project (Auth, Firestore, Storage), Firestore/Storage rules + emulator tests, Vercel project, real CSV/XLSX/PDF parsing, export/restore round trip, migrations.
 
 ## Next recommended tasks
-1. Merge `feat/domain-core` to `main` after review (no remote configured yet; create the GitHub repo and push).
-2. Stage 3: Firebase dev project, `src/data` adapter interface + Firestore implementation, Zod schemas, rules + emulator tests (cross-household denial first).
+1. Merge branches to `main` after review (no remote configured yet; create the GitHub repo and push).
+2. Stage 3 slices 2–4: Firebase Auth, households/membership, rules + emulator tests (needs the owner's Firebase dev project, Java 21+, firebase-tools).
 3. Split raw transactions from expenses in the data model; add export/restore round-trip test.
 4. Stage 4: CSV parser with real file-hash dedupe, then XLSX, then PDF.

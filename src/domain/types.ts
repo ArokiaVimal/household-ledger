@@ -113,3 +113,15 @@ export interface Receipt {
   orderId?: string;
   filename: string;
 }
+
+/** Append-only record of who changed what. Written for imports, edits, matches, settlements. */
+export interface AuditEvent {
+  id: string;
+  /** ISO timestamp. */
+  at: string;
+  actorId: string;
+  action: "import" | "approve" | "reject" | "edit" | "create" | "match" | "unmatch" | "settle" | "void_settlement" | "delete";
+  entity: "record" | "settlement" | "receipt" | "recurring" | "household";
+  entityId: string;
+  summary: string;
+}
