@@ -105,6 +105,16 @@ describe("duplicates and receipt matching", () => {
   it("same date+amount+merchant is only possible", () => {
     expect(detectDuplicate({ accountId: "a1", date: "2026-09-05", amountPaise: 45000, merchant: "SWIGGY" }, existing).status).toBe("possible");
   });
+  it("a refund of a purchase (same merchant, date, amount) is not a duplicate of it, in either order", () => {
+    const purchase = [rec({ id: "p", merchant: "Shop", amountPaise: 999, kind: "purchase" })];
+    expect(detectDuplicate({ accountId: "a1", date: "2026-09-05", amountPaise: 999, merchant: "Shop", direction: "credit" }, purchase).status).toBe("none");
+    expect(detectDuplicate({ accountId: "a1", date: "2026-09-05", amountPaise: 999, merchant: "Shop", direction: "debit" }, purchase).status).toBe("possible");
+    const rows = [
+      { accountId: "a1", date: "2026-09-05", amountPaise: 999, merchant: "Shop", direction: "debit" as const },
+      { accountId: "a1", date: "2026-09-05", amountPaise: 999, merchant: "Shop", direction: "credit" as const },
+    ];
+    expect(planImport(rows, []).map((p) => p.dup.status)).toEqual(["none", "none"]);
+  });
   it("amount alone never matches", () => {
     expect(detectDuplicate({ accountId: "a1", date: "2026-09-05", amountPaise: 45000, merchant: "Uber" }, existing).status).toBe("none");
   });

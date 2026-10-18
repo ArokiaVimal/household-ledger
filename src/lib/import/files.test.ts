@@ -8,12 +8,12 @@ const enc = (s: string) => new TextEncoder().encode(s);
 describe("sniffKind", () => {
   it("accepts csv by content and name; refuses PDFs, old xls and binary junk with guidance", () => {
     expect(sniffKind("a.csv", enc("Date,Narration\n1,2"))).toBe("csv");
-    expect(() => sniffKind("a.pdf", enc("%PDF-1.7 ..."))).toThrow(/PDF/);
-    expect(() => sniffKind("renamed.csv", enc("%PDF-1.7 ..."))).toThrow(/PDF/);
+    expect(sniffKind("a.pdf", enc("%PDF-1.7 ..."))).toBe("pdf");
+    expect(() => sniffKind("renamed.csv", enc("%PDF-1.7 ..."))).toThrow(/does not end in .pdf/);
     expect(() => sniffKind("a.xls", enc("xx"))).toThrow(FileError);
     expect(() => sniffKind("a.csv", new Uint8Array([65, 0, 66]))).toThrow(/not a text CSV/);
     expect(() => sniffKind("a.csv", new Uint8Array(0))).toThrow(/empty/);
-    expect(() => sniffKind("a.exe", enc("hello"))).toThrow(/\.csv or \.xlsx/);
+    expect(() => sniffKind("a.exe", enc("hello"))).toThrow(/\.csv, \.xlsx or \.pdf/);
   });
   it("recognises xlsx by its zip signature", () => {
     expect(sniffKind("s.xlsx", new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2]))).toBe("xlsx");

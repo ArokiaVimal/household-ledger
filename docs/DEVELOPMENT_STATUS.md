@@ -25,11 +25,17 @@ Updated: 2026-10-18 · Branch `feat/slice5-persistence` · Stage 3 slices 1–5 
 - **Payment-method logos** now also appear on the payment-method chips (Add form, its "more" popup, Import) and in Settings.
 - **Open product question (not decided, not built): should your personal expenses be hidden from your partner?** Today every member of a space sees every record, because the data model was household-first. If personal must stay private, records need an owner and visibility (private by default; shared only when split), with matching Firestore rules and tests. Recommended: private by default.
 
+## Import: Amex India PDF (built; verified on one real statement locally; not yet on Vercel)
+- Details in `docs/IMPORT_PIPELINE.md`. New: `src/domain/import/pdf/*` (parser, shared invented test layouts), `src/lib/import/pdf.ts` (unpdf reader), PDF path in `src/lib/import/service.ts`, `acceptMismatch` in `/api/import`, checks panel + confirmation in the Import screen, `format: "pdf"` + `checksPassed`/`acceptedMismatch` on `ImportBatch`.
+- Fixed: the duplicate heuristic ignored direction, so a refund looked like a duplicate of its own purchase; it now compares direction (regression test added).
+- Tests: parser 8, PDF service 7, direction-aware dedupe 1, file sniffing updated; opt-in real-statement test (counts only). The real statement is never committed.
+- Unverified: unpdf inside Vercel's runtime (works in a local production build). If a PDF upload returns 500 on the live site, ask the owner for the Vercel runtime log line (see DECISIONS #7 for the previous Vercel surprise).
+
 ## Import: CSV and Excel (built; real-database test passes; not yet tried by the owner on a real statement)
 - Live Import screen (`/import`), upload route (`/api/import`), pure parsing library (`src/domain/import/`), service (`src/lib/import/service.ts`), file reader (`files.ts`), data model (`importBatches`, `rawTransactions`) in types, schemas, both repositories, rules and contract tests. Details and limits: `docs/IMPORT_PIPELINE.md`.
 - Tests: parsing (19), service (10), file reading incl. a real .xlsx round trip (8), repository contract (+1), rules (+1), real-Firestore end-to-end import (opt-in). Rule matching now also matches statement text containing a rule's merchant ("SWIGGY BANGALORE IN" matches "Swiggy").
 - Local helper `scripts/describe-statement.mjs` (masked structure of PDF/CSV/XLSX) tested on synthetic files with fake personal details. `pdfjs-dist` is a dev dependency used only by that script.
-- **Not built:** PDF statements (credit cards are mostly PDFs; each issuer needs its own parser with total checks), screenshots, keeping the original files (needs Cloud Storage/Blaze), receipts. The parsers need real layouts: run the masking script on your statements and share its output.
+- **Not built:** PDF statements for other issuers (HDFC, SBI, ICICI Coral cards and bank PDFs; each needs its own parser with total checks), screenshots, keeping the original files (needs Cloud Storage/Blaze), receipts. The parsers need real layouts: run the masking script on your statements and share its output.
 - Possible gaps to expect on first real use: header names a bank uses that are not in `columns.ts`, a date or amount style not yet seen, a bank CSV with a different sign convention. All of these show up as unreadable rows or wrong directions in the preview and are cheap to add once seen.
 
 ## App name and the 64/36 split (added)

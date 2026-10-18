@@ -1,5 +1,5 @@
 "use client";
-import { FileUp } from "lucide-react";
+import { CheckCircle2, FileUp, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -25,6 +25,7 @@ export function LiveImport() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [accept, setAccept] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
   const send = async (mode: "preview" | "commit", signOverride = sign): Promise<Reply> => {
@@ -33,6 +34,7 @@ export function LiveImport() {
     form.set("accountId", accountId);
     form.set("mode", mode);
     if (signOverride !== "auto") form.set("positiveIsDebit", signOverride === "out" ? "true" : "false");
+    if (mode === "commit" && accept) form.set("acceptMismatch", "1");
     try {
       const res = await fetch("/api/import", { method: "POST", body: form });
       const data = (await res.json().catch(() => ({}))) as Reply;
@@ -43,10 +45,10 @@ export function LiveImport() {
   };
 
   const pick = (f: File | undefined) => {
-    setPreview(null); setError(null); setDone(null); setSign("auto");
+    setPreview(null); setError(null); setDone(null); setSign("auto"); setAccept(false);
     if (!f) return setFile(null);
     if (f.size > MAX_BYTES) { setFile(null); return setError("That file is larger than 4 MB. Export a shorter date range."); }
-    if (!/\.(csv|txt|xlsx)$/i.test(f.name)) { setFile(null); return setError(/\.pdf$/i.test(f.name) ? "PDF statements can't be read yet. Download the CSV or Excel version from your bank if it offers one." : "Upload a .csv or .xlsx statement."); }
+    if (!/\.(csv|txt|xlsx|pdf)$/i.test(f.name)) { setFile(null); return setError("Upload a .csv, .xlsx or .pdf statement."); }
     setFile(f);
   };
 
@@ -56,6 +58,7 @@ export function LiveImport() {
     const r = await send("preview", s);
     setBusy(false);
     if (!r.ok) { setPreview(null); return setError(r.error ?? "Could not read that file."); }
+    setAccept(false);
     setPreview(r.preview ?? null);
   };
 
@@ -72,10 +75,12 @@ export function LiveImport() {
   };
 
   const toStage = preview ? preview.counts.new + preview.counts.possible : 0;
+  const failed = preview ? preview.checks.filter((c) => !c.ok) : [];
+  const blocked = failed.length > 0 && !accept;
 
   return (
     <>
-      <PageHeader title="Import a statement" sub="CSV or Excel. Nothing counts until you approve it in the review queue, and the file itself is not stored." />
+      <PageHeader title="Import a statement" sub="CSV, Excel or an American Express (India) PDF. Nothing counts until you approve it in the review queue, and the file itself is not stored." />
       {usable.length === 0 ? (
         <EmptyState title="Add a payment method first" hint="Open Settings and add the card or account this statement belongs to." />
       ) : (
@@ -86,8 +91,8 @@ export function LiveImport() {
             </FormRow>
             <FormRow label="File">
               <div className="flex flex-wrap items-center gap-2">
-                <input ref={input} type="file" accept=".csv,.txt,.xlsx" className="sr-only" aria-label="Choose statement file" onChange={(e) => pick(e.target.files?.[0])} />
-                <Button onClick={() => input.current?.click()}><FileUp size={16} aria-hidden />{file ? "Change file" : "Choose .csv or .xlsx"}</Button>
+                <input ref={input} type="file" accept=".csv,.txt,.xlsx,.pdf" className="sr-only" aria-label="Choose statement file" onChange={(e) => pick(e.target.files?.[0])} />
+                <Button onClick={() => input.current?.click()}><FileUp size={16} aria-hidden />{file ? "Change file" : "Choose .csv, .xlsx or .pdf"}</Button>
                 {file && <span className="text-sm text-muted">{file.name} · {(file.size / 1024).toFixed(0)} KB</span>}
               </div>
             </FormRow>
@@ -118,6 +123,31 @@ export function LiveImport() {
           {preview && (
             <Card className="space-y-4 lg:col-span-3">
               <CardTitle>What the file contains</CardTitle>
+              {preview.summary && (
+                <p className="text-sm text-muted">{preview.summary.issuer} statement{preview.summary.periodStart && preview.summary.periodEnd ? `, ${preview.summary.periodStart} to ${preview.summary.periodEnd}` : ""}{preview.summary.closingPaise !== undefined ? `. Closing balance ${formatINR(preview.summary.closingPaise)}.` : "."}</p>
+              )}
+              {preview.checks.length > 0 && (
+                <div role="group" aria-label="Checks against the statement's own totals" className={`rounded-xl p-3 text-sm ${failed.length ? "bg-danger/10" : "bg-good-soft"}`}>
+                  <div className={`mb-2 font-medium ${failed.length ? "text-danger" : "text-good"}`}>{failed.length ? "Some checks failed. Do not import until you have looked at the differences." : "Everything adds up to the statement's own totals."}</div>
+                  <ul className="space-y-1">
+                    {preview.checks.map((c) => (
+                      <li key={c.name} className="flex items-start gap-2">
+                        {c.ok ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-good" aria-label="Passed" /> : <XCircle size={16} className="mt-0.5 shrink-0 text-danger" aria-label="Failed" />}
+                        <span><b>{c.name}.</b> <span className="text-muted">{c.detail}</span></span>
+                      </li>
+                    ))}
+                  </ul>
+                  {failed.length > 0 && (
+                    <label className="mt-3 flex items-start gap-2 border-t border-danger/20 pt-3">
+                      <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" />
+                      <span>I have checked the differences and want to import anyway. This will be recorded in the audit trail.</span>
+                    </label>
+                  )}
+                </div>
+              )}
+              {preview.warnings.length > 0 && (
+                <ul className="space-y-1 rounded-xl bg-warn-soft p-3 text-sm text-warn">{preview.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
+              )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 {[["Rows read", preview.counts.rows, ""], ["New", preview.counts.new, "text-good"], ["Already imported", preview.counts.duplicate, ""], ["Possible duplicates", preview.counts.possible, "text-warn"], ["Unreadable", preview.counts.unreadable, preview.counts.unreadable ? "text-danger" : ""]].map(([l, v, c]) => (
                   <div key={String(l)} className="rounded-xl bg-background p-3"><div className="text-xs text-muted">{l}</div><div className={`num text-xl font-semibold ${c}`}>{v}</div></div>
@@ -151,8 +181,8 @@ export function LiveImport() {
                 </details>
               )}
               <div className="flex flex-wrap items-center gap-3">
-                <Button variant="primary" disabled={busy || toStage === 0} onClick={commit}>{busy ? "Saving…" : `Send ${toStage} to review queue`}</Button>
-                <span className="text-xs text-muted">{preview.counts.duplicate > 0 ? `${preview.counts.duplicate} already-imported rows will be skipped. ` : ""}Possible duplicates are added but flagged for you to decide.</span>
+                <Button variant="primary" disabled={busy || toStage === 0 || blocked} onClick={commit}>{busy ? "Saving…" : `Send ${toStage} to review queue`}</Button>
+                <span className="text-xs text-muted">{blocked ? "Tick the box above to import despite the failed check. " : ""}{preview.counts.duplicate > 0 ? `${preview.counts.duplicate} already-imported rows will be skipped. ` : ""}Possible duplicates are added but flagged for you to decide.</span>
               </div>
             </Card>
           )}

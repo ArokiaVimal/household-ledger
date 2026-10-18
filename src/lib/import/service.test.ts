@@ -16,7 +16,7 @@ const bankCsv = `Date,Narration,Chq./Ref.No.,Value Dt,Withdrawal Amt.,Deposit Am
 01/09/26,NEFT CR-ACME LTD-SALARY SEP,N123,01/09/26,,"1,85,000.00","2,30,388.00"
 05/09/26,CREDIT CARD PAYMENT HDFC 4471,REF5,05/09/26,"18,500.00",,"2,11,888.00"
 `;
-const file = (csv: string, over: Partial<ImportInput> = {}): ImportInput => ({ accountId: "bank_hdfc", filename: "hdfc_sep.csv", format: "csv", fileHash: sha(csv), table: parseCsv(csv), ...over });
+const file = (csv: string, over: { accountId?: string; positiveIsDebit?: boolean; acceptMismatch?: boolean } = {}): ImportInput => ({ accountId: "bank_hdfc", filename: "hdfc_sep.csv", format: "csv", fileHash: sha(csv), table: parseCsv(csv), ...over });
 
 async function setup(): Promise<Repository> {
   const repo = createMemoryRepository("h");

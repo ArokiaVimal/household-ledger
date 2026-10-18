@@ -56,4 +56,24 @@ describe.skipIf(!enabled)("statement import on Firestore", () => {
     await expect(repo.records.put({ ...r, amountPaise: r.amountPaise + 1 })).rejects.toThrow();
     expect((await repo.audit.list()).filter((e) => e.action === "import")).toHaveLength(2);
   }, 120_000);
+
+  it("a PDF statement import persists format, check results and raw rows", async () => {
+    const { createFirestoreRepository } = await import("@/data/firestore-repository");
+    const { ensureHouseholdReady, participantIdFor } = await import("@/lib/data/load");
+    const { commitImport } = await import("@/lib/import/service");
+    const { parseStatementPdf } = await import("@/domain/import/pdf");
+    const { header, page, row } = await import("@/domain/import/pdf/test-fixtures");
+    const repo = createFirestoreRepository(`${hid}-pdf`);
+    created.push(`${hid}-pdf`);
+    await ensureHouseholdReady(repo, [{ uid: "itest-u1", displayName: "Vimal" }]);
+    await repo.accounts.put({ id: "cc_amex", name: "Amex Platinum Travel", type: "credit_card" });
+    const pages = [page(1, [...header(undefined, ["0.00", "500.00", "1,500.00", "1,000.00", "50.00"]), ...row(478, "September 10", "TEST MART", "1,500.00"), ...row(460, "September 12", "REFUND TEST", "500.00", { cr: true })])];
+    const deps = { sha256: sha, now: () => Date.now(), newId: () => randomUUID() };
+    const res = await commitImport(repo, { uid: "itest-u1", participantId: participantIdFor("itest-u1") }, { accountId: "cc_amex", filename: "amex.pdf", format: "pdf", fileHash: sha("pdf-fixture"), pdf: parseStatementPdf(pages) }, deps);
+    expect(res.counts.staged).toBe(2);
+    const batch = (await repo.importBatches.list())[0];
+    expect(batch).toMatchObject({ format: "pdf", checksPassed: true, acceptedMismatch: false });
+    expect((await repo.rawTransactions.list()).every((r) => r.cells[0] === "page 1")).toBe(true);
+    expect((await repo.records.list()).map((r) => r.kind).sort()).toEqual(["purchase", "refund"]);
+  }, 120_000);
 });

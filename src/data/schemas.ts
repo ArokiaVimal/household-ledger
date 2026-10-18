@@ -76,10 +76,11 @@ export const AuditEventSchema = z.object({
 
 const count = z.number().int().min(0).max(1_000_000);
 export const ImportBatchSchema = z.object({
-  id, accountId: id, filename: z.string().min(1).max(200), fileHash: z.string().regex(/^[a-f0-9]{64}$/), format: z.enum(["csv", "xlsx"]),
+  id, accountId: id, filename: z.string().min(1).max(200), fileHash: z.string().regex(/^[a-f0-9]{64}$/), format: z.enum(["csv", "xlsx", "pdf"]),
   uploadedAt: z.string().datetime(), uploadedBy: id,
   counts: z.object({ rows: count, staged: count, skippedDuplicate: count, flaggedDuplicate: count, unreadable: count }),
   totals: z.object({ debitPaise: z.number().int().safe().min(0), creditPaise: z.number().int().safe().min(0) }),
+  checksPassed: z.boolean().optional(), acceptedMismatch: z.boolean().optional(),
 }) satisfies z.ZodType<ImportBatch>;
 
 export const RawTransactionSchema = z.object({

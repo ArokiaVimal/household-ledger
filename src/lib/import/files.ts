@@ -4,7 +4,7 @@ import { parseCsv } from "@/domain/import/csv";
 import { detectLayout } from "@/domain/import/columns";
 import { MAX_FILE_BYTES } from "./service";
 
-export type FileKind = "csv" | "xlsx";
+export type FileKind = "csv" | "xlsx" | "pdf";
 export class FileError extends Error {}
 
 const ZIP = [0x50, 0x4b, 0x03, 0x04];
@@ -15,13 +15,16 @@ export function sniffKind(name: string, bytes: Uint8Array): FileKind {
   if (bytes.length > MAX_FILE_BYTES) throw new FileError(`That file is larger than ${MAX_FILE_BYTES / 1024 / 1024} MB. Export a shorter date range.`);
   const lower = name.toLowerCase();
   const head = String.fromCharCode(...bytes.slice(0, 5));
-  if (head.startsWith("%PDF")) throw new FileError("PDF statements can't be read yet. Download the CSV or Excel version from your bank if it offers one.");
+  if (head.startsWith("%PDF")) {
+    if (!lower.endsWith(".pdf")) throw new FileError("That is a PDF but the file name does not end in .pdf. Rename it and try again.");
+    return "pdf";
+  }
   if (ZIP.every((b, i) => bytes[i] === b)) {
     if (!lower.endsWith(".xlsx")) throw new FileError("That looks like a zip or Office file. Upload a .xlsx or .csv statement.");
     return "xlsx";
   }
   if (lower.endsWith(".xls")) throw new FileError("Old .xls files aren't supported. Save it as .xlsx or .csv and try again.");
-  if (!/\.(csv|txt)$/.test(lower)) throw new FileError("Upload a .csv or .xlsx statement.");
+  if (!/\.(csv|txt)$/.test(lower)) throw new FileError("Upload a .csv, .xlsx or .pdf statement.");
   if (bytes.subarray(0, 4096).includes(0)) throw new FileError("That file is not a text CSV.");
   return "csv";
 }
@@ -34,7 +37,7 @@ const cellText = (v: unknown): string => {
 };
 
 /** CSV/TSV text, or the first worksheet (of any) that contains a recognisable transaction table. */
-export async function readTable(kind: FileKind, bytes: Uint8Array): Promise<string[][]> {
+export async function readTable(kind: "csv" | "xlsx", bytes: Uint8Array): Promise<string[][]> {
   if (kind === "csv") return parseCsv(new TextDecoder("utf-8").decode(bytes));
   let sheets: { sheet: string; data: unknown[][] }[];
   try { sheets = (await readExcelFile(Buffer.from(bytes))) as unknown as { sheet: string; data: unknown[][] }[]; } catch { throw new FileError("Could not open that Excel file. It may be damaged or password protected."); }

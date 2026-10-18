@@ -132,12 +132,15 @@ export interface ImportBatch {
   accountId: string;
   filename: string;
   fileHash: string;
-  format: "csv" | "xlsx";
+  format: "csv" | "xlsx" | "pdf";
   uploadedAt: string;
   uploadedBy: string;
   counts: { rows: number; staged: number; skippedDuplicate: number; flaggedDuplicate: number; unreadable: number };
   /** Statement totals as read from the file (paise), so a person can compare them with the statement. */
   totals: { debitPaise: number; creditPaise: number };
+  /** PDF statements only: did every self-check against the statement's own totals pass, and did the user import despite a failure. */
+  checksPassed?: boolean;
+  acceptedMismatch?: boolean;
 }
 
 /** A transaction row exactly as read from a statement. Write-once: the canonical expense may be edited, this never is. */

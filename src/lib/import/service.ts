@@ -4,6 +4,7 @@
 import type { Repository } from "@/data/repository";
 import { classifyRow } from "@/domain/import/classify";
 import { extractRows, type ParsedRow } from "@/domain/import/rows";
+import type { PdfParseResult, StatementCheck, StatementSummary } from "@/domain/import/pdf";
 import { planImport } from "@/domain/dedupe";
 import { suggestCategory } from "@/domain/rules";
 import type { Account, ExpenseRecord, ImportBatch, RawTransaction, TxnKind } from "@/domain/types";
@@ -41,6 +42,11 @@ export interface Preview {
   /** True when the file has one signed Amount column (so the sign convention matters and may need flipping). */
   singleAmountColumn: boolean;
   columns: string[];
+  format: "csv" | "xlsx" | "pdf";
+  /** PDF statements: what the statement says about itself, and whether our reading agrees with it. */
+  summary?: StatementSummary;
+  checks: StatementCheck[];
+  warnings: string[];
   rows: PreviewRow[];
   skipped: { line: number; reason: string; text: string }[];
   totals: { debitPaise: number; creditPaise: number; debitCount: number; creditCount: number };
@@ -48,19 +54,20 @@ export interface Preview {
 }
 
 export class ImportError extends Error {
-  constructor(public code: "invalid" | "not_found" | "already_imported" | "too_large", message: string) { super(message); }
+  constructor(public code: "invalid" | "not_found" | "already_imported" | "too_large" | "check_failed", message: string) { super(message); }
 }
 
-export interface ImportInput {
+interface ImportBase {
   accountId: string;
   filename: string;
-  format: "csv" | "xlsx";
   /** SHA-256 of the file's bytes. */
   fileHash: string;
-  table: string[][];
-  /** Overrides the default sign convention for a single signed amount column. */
+  /** Overrides the default sign convention for a single signed amount column (CSV/Excel). */
   positiveIsDebit?: boolean;
+  /** Import even though a self-check failed. Only a person who has looked at the differences should set this. */
+  acceptMismatch?: boolean;
 }
+export type ImportInput = ImportBase & ({ format: "csv" | "xlsx"; table: string[][] } | { format: "pdf"; pdf: PdfParseResult });
 
 const KIND_CATEGORY: Partial<Record<TxnKind, string>> = { income: "income", cc_payment: "transfers", transfer: "transfers", refund: "refunds", fee: "fees" };
 
@@ -77,9 +84,33 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
   if (prior) throw new ImportError("already_imported", `This exact file was already imported on ${prior.uploadedAt.slice(0, 10)} as "${prior.filename}". Nothing was added again.`);
 
   const positiveIsDebit = input.positiveIsDebit ?? account.type === "credit_card";
-  const extracted = extractRows(input.table, { positiveIsDebit });
-  if (!extracted.ok) throw new ImportError("invalid", extracted.error);
-  const { rows, skipped, totals, layout } = extracted.data;
+  let rows: ParsedRow[];
+  let skipped: { line: number; reason: string; text: string }[] = [];
+  let headers: string[] = [];
+  let singleAmountColumn = false;
+  let summary: StatementSummary | undefined;
+  const checks: StatementCheck[] = [];
+  const warnings: string[] = [];
+  if (input.format === "pdf") {
+    if (!input.pdf.ok) throw new ImportError("invalid", input.pdf.error);
+    summary = input.pdf.summary;
+    checks.push(...input.pdf.checks);
+    warnings.push(...input.pdf.warnings);
+    // PDF rows become the same ParsedRow the CSV path produces, so classification, dedupe and staging are shared.
+    rows = input.pdf.rows.map((r) => ({ line: r.index, date: r.date, description: r.description, amountPaise: r.amountPaise, direction: r.direction, raw: [`page ${r.page}`, ...r.raw] }));
+    const issuerIsAmex = /american express/i.test(summary.issuer);
+    const accountIsAmex = /amex|american express/i.test(`${account.name} ${account.id}`);
+    checks.push({ name: "Payment method matches the statement's issuer", ok: !issuerIsAmex || accountIsAmex, detail: !issuerIsAmex || accountIsAmex ? `${account.name}` : `this is an ${summary.issuer} statement but you chose "${account.name}"` });
+  } else {
+    const extracted = extractRows(input.table, { positiveIsDebit });
+    if (!extracted.ok) throw new ImportError("invalid", extracted.error);
+    rows = extracted.data.rows;
+    skipped = extracted.data.skipped;
+    headers = extracted.data.layout.headers;
+    singleAmountColumn = extracted.data.layout.columns.amount !== undefined && extracted.data.layout.columns.debit === undefined && extracted.data.layout.columns.credit === undefined;
+  }
+  const totals = { debitPaise: 0, creditPaise: 0, debitCount: 0, creditCount: 0 };
+  for (const r of rows) { if (r.direction === "debit") { totals.debitPaise += r.amountPaise; totals.debitCount++; } else { totals.creditPaise += r.amountPaise; totals.creditCount++; } }
   if (rows.length > MAX_ROWS) throw new ImportError("too_large", `This file has ${rows.length} transactions; the limit is ${MAX_ROWS} per file. Split it by month.`);
 
   const [rules, categories, records] = await Promise.all([repo.rules.list(), repo.categories.list(), repo.records.list()]);
@@ -94,7 +125,7 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
     seen.set(base, occurrence);
     return { r, kind, merchant, categoryId, referenceId: dedupeKey(d.sha256, input.accountId, r, occurrence) };
   });
-  const plan = planImport(prepared.map((p) => ({ accountId: input.accountId, date: p.r.date, amountPaise: p.r.amountPaise, merchant: p.merchant, referenceId: p.referenceId })), records);
+  const plan = planImport(prepared.map((p) => ({ accountId: input.accountId, date: p.r.date, amountPaise: p.r.amountPaise, merchant: p.merchant, referenceId: p.referenceId, direction: p.r.direction })), records);
 
   const out = prepared.map((p, i) => {
     const dup = plan[i].dup;
@@ -107,8 +138,8 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
   const counts = { rows: out.length, new: out.filter((x) => x.status === "new").length, duplicate: out.filter((x) => x.status === "duplicate").length, possible: out.filter((x) => x.status === "possible").length, unreadable: skipped.length };
   const preview: Preview = {
     accountId: input.accountId, filename: input.filename, fileHash: input.fileHash, positiveIsDebit,
-    singleAmountColumn: layout.columns.amount !== undefined && layout.columns.debit === undefined && layout.columns.credit === undefined,
-    columns: layout.headers, rows: out.map(({ referenceId: _r, parsed: _p, ...row }) => { void _r; void _p; return row; }), skipped, totals, counts,
+    singleAmountColumn, format: input.format, summary, checks, warnings,
+    columns: headers, rows: out.map(({ referenceId: _r, parsed: _p, ...row }) => { void _r; void _p; return row; }), skipped, totals, counts,
   };
   return { preview, rows: out, account };
 }
@@ -126,6 +157,10 @@ export interface CommitResult { batchId: string; counts: Preview["counts"] & { s
  */
 export async function commitImport(repo: Repository, actor: { uid: string; participantId: string }, input: ImportInput, d: ImportDeps): Promise<CommitResult> {
   const { preview, rows } = await prepare(repo, input, d);
+  const failed = preview.checks.filter((c) => !c.ok);
+  if (failed.length > 0 && !input.acceptMismatch) {
+    throw new ImportError("check_failed", `The statement's own totals do not match what was read (${failed.map((c) => c.name).join("; ")}). Nothing was imported. Review the differences, then confirm you want to import anyway.`);
+  }
   const batchId = d.newId();
   const stage = rows.filter((r) => r.status !== "duplicate");
   const batch: ImportBatch = {
@@ -133,6 +168,7 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
     uploadedAt: new Date(d.now()).toISOString(), uploadedBy: actor.uid,
     counts: { rows: preview.counts.rows, staged: stage.length, skippedDuplicate: preview.counts.duplicate, flaggedDuplicate: preview.counts.possible, unreadable: preview.counts.unreadable },
     totals: { debitPaise: preview.totals.debitPaise, creditPaise: preview.totals.creditPaise },
+    ...(preview.checks.length > 0 ? { checksPassed: failed.length === 0, acceptedMismatch: failed.length > 0 } : {}),
   };
   for (const r of rows) {
     const raw: RawTransaction = { id: `${batchId}-${r.line}`, batchId, line: r.line, cells: r.parsed.raw.map((c) => c.slice(0, 1000)).slice(0, 60) };
@@ -147,6 +183,6 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
     await repo.records.put(JSON.parse(JSON.stringify(rec)) as ExpenseRecord);
   }
   await repo.importBatches.put(batch);
-  await repo.audit.append({ actorId: actor.uid, action: "import", entity: "household", entityId: batchId, summary: `Imported ${input.filename}: ${stage.length} to review, ${preview.counts.duplicate} duplicates skipped, ${preview.counts.possible} possible duplicates, ${preview.counts.unreadable} unreadable rows` });
+  await repo.audit.append({ actorId: actor.uid, action: "import", entity: "household", entityId: batchId, summary: `Imported ${input.filename}: ${stage.length} to review, ${preview.counts.duplicate} duplicates skipped, ${preview.counts.possible} possible duplicates, ${preview.counts.unreadable} unreadable rows${failed.length > 0 ? `; IMPORTED DESPITE FAILED CHECKS (${failed.map((c) => c.name).join("; ")})` : ""}` });
   return { batchId, counts: { ...preview.counts, staged: stage.length } };
 }

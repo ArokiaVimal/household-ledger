@@ -1,4 +1,8 @@
-import type { ExpenseRecord, Paise, Receipt } from "./types";
+import type { ExpenseRecord, Paise, Receipt, TxnKind } from "./types";
+
+const CREDIT_KINDS: TxnKind[] = ["refund", "income"];
+type Dir = "debit" | "credit";
+const dirOfKind = (k?: TxnKind): Dir | undefined => (k ? (CREDIT_KINDS.includes(k) ? "credit" : "debit") : undefined);
 
 export const normalizeMerchant = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\b(pvt|ltd|india|private|limited|upi|pos)\b/g, " ").replace(/\s+/g, " ").trim();
@@ -15,6 +19,8 @@ export interface IncomingTxn {
   amountPaise: Paise;
   merchant: string;
   referenceId?: string;
+  /** Money in or out. A refund of a purchase has the same merchant, date and amount but is NOT a duplicate of it. */
+  direction?: Dir;
 }
 
 export type DupResult =
@@ -27,13 +33,15 @@ export type DupResult =
  * Possible: same account, date and amount with alike merchant. Only flagged
  * for review; amount alone never matches, and nothing is merged automatically.
  */
-export function detectDuplicate(t: IncomingTxn, existing: Pick<ExpenseRecord, "id" | "accountId" | "date" | "amountPaise" | "merchant" | "referenceId">[]): DupResult {
+type Existing = Pick<ExpenseRecord, "id" | "accountId" | "date" | "amountPaise" | "merchant" | "referenceId"> & { kind?: TxnKind; direction?: Dir };
+
+export function detectDuplicate(t: IncomingTxn, existing: Existing[]): DupResult {
   if (t.referenceId) {
     const hit = existing.find((e) => e.accountId === t.accountId && e.referenceId === t.referenceId);
     if (hit) return { status: "exact", matchId: hit.id };
   }
   const poss = existing.find(
-    (e) => e.accountId === t.accountId && e.date === t.date && e.amountPaise === t.amountPaise && merchantsAlike(e.merchant, t.merchant),
+    (e) => e.accountId === t.accountId && e.date === t.date && e.amountPaise === t.amountPaise && merchantsAlike(e.merchant, t.merchant) && sameDirection(t.direction, e.direction ?? dirOfKind(e.kind)),
   );
   return poss ? { status: "possible", matchId: poss.id } : { status: "none" };
 }
@@ -82,11 +90,13 @@ export interface PlannedRow<T extends IncomingTxn> {
  * possible = staged but flagged; none = staged. Rows within the file also count
  * as existing for later rows so a file repeating a reference id is not double staged.
  */
-export function planImport<T extends IncomingTxn>(rows: T[], existing: Pick<ExpenseRecord, "id" | "accountId" | "date" | "amountPaise" | "merchant" | "referenceId">[]): PlannedRow<T>[] {
+const sameDirection = (a?: Dir, b?: Dir) => !a || !b || a === b;
+
+export function planImport<T extends IncomingTxn>(rows: T[], existing: Existing[]): PlannedRow<T>[] {
   const seen = [...existing];
   return rows.map((row, i) => {
     const dup = detectDuplicate(row, seen);
-    if (dup.status !== "exact") seen.push({ id: `incoming-${i}`, accountId: row.accountId, date: row.date, amountPaise: row.amountPaise, merchant: row.merchant, referenceId: row.referenceId });
+    if (dup.status !== "exact") seen.push({ id: `incoming-${i}`, accountId: row.accountId, date: row.date, amountPaise: row.amountPaise, merchant: row.merchant, referenceId: row.referenceId, direction: row.direction });
     return { row, dup };
   });
 }

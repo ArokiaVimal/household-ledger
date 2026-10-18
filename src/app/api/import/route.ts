@@ -8,11 +8,13 @@ import { getSession } from "@/lib/auth/session";
 import { ensureHouseholdReady, participantIdFor } from "@/lib/data/load";
 import { createFirestoreHouseholdStore } from "@/lib/households/firestore-store";
 import { getMembership } from "@/lib/households/service";
+import { parseStatementPdf } from "@/domain/import/pdf";
 import { FileError, readTable, sniffKind } from "@/lib/import/files";
-import { commitImport, ImportError, MAX_FILE_BYTES, previewImport, type ImportDeps } from "@/lib/import/service";
+import { readPdfPages } from "@/lib/import/pdf";
+import { commitImport, ImportError, MAX_FILE_BYTES, previewImport, type ImportDeps, type ImportInput } from "@/lib/import/service";
 
 const deps: ImportDeps = { sha256: (s) => createHash("sha256").update(s).digest("hex"), now: () => Date.now(), newId: () => randomUUID() };
-const status = { invalid: 400, not_found: 404, already_imported: 409, too_large: 413 } as const;
+const status = { invalid: 400, not_found: 404, already_imported: 409, too_large: 413, check_failed: 422 } as const;
 const cleanName = (n: string) => n.replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 120) || "statement";
 
 /**
@@ -33,6 +35,7 @@ export async function POST(req: Request) {
   const accountId = String(form.get("accountId") ?? "");
   const mode = form.get("mode") === "commit" ? "commit" : "preview";
   const sign = form.get("positiveIsDebit");
+  const acceptMismatch = form.get("acceptMismatch") === "1";
   if (!(file instanceof File) || !accountId) return NextResponse.json({ error: "Choose a payment method and a file." }, { status: 400 });
   if (file.size > MAX_FILE_BYTES) return NextResponse.json({ error: "That file is larger than 4 MB. Export a shorter date range." }, { status: 413 });
 
@@ -41,11 +44,13 @@ export async function POST(req: Request) {
     if (!membership) return NextResponse.json({ error: "Create or join a household first." }, { status: 403 });
     const bytes = new Uint8Array(await file.arrayBuffer());
     const kind = sniffKind(file.name, bytes);
-    const table = await readTable(kind, bytes);
-    const input = {
-      accountId, filename: cleanName(file.name), format: kind, fileHash: createHash("sha256").update(bytes).digest("hex"), table,
+    const base = {
+      accountId, filename: cleanName(file.name), fileHash: createHash("sha256").update(bytes).digest("hex"), acceptMismatch,
       positiveIsDebit: sign === "true" ? true : sign === "false" ? false : undefined,
     };
+    const input: ImportInput = kind === "pdf"
+      ? { ...base, format: "pdf", pdf: parseStatementPdf(await readPdfPages(bytes)) }
+      : { ...base, format: kind, table: await readTable(kind, bytes) };
     const repo = createFirestoreRepository(membership.household.id);
     if (mode === "preview") return NextResponse.json({ ok: true, preview: await previewImport(repo, input, deps) });
     await ensureHouseholdReady(repo, membership.members);

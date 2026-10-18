@@ -5,5 +5,6 @@
 - Real-database integration (opt-in, dev project only): `RUN_FIRESTORE_TESTS=1 node --env-file=.env.local node_modules/vitest/vitest.mjs run tests/integration`.
 - Security rules (Firestore + Storage, emulator, needs Java 21): `pnpm test:rules` (24 tests in `tests/rules/`).
 - Import: `src/domain/import/import.test.ts`, `src/lib/import/{service,files}.test.ts`; real-Firestore import test `tests/integration/firestore-import.test.ts` (opt-in).
+- PDF: `src/domain/import/pdf/amex-india.test.ts` (invented layouts), `src/lib/import/service-pdf.test.ts`; opt-in local real-statement test: `STATEMENT_FIXTURE_AMEX=/path/to/statement.pdf node node_modules/vitest/vitest.mjs run tests/integration/pdf-real-statement.test.ts` (prints counts only).
 - Not yet written: export/restore round trip, parser tests, UI tests.
 - Manual: run `pnpm dev`, check each screen at desktop and 390px width; dashboard totals must equal the Transactions list for the same filter.
