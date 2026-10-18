@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Badge, Button, Card, CardTitle, Field, PageHeader, Select } from "@/components/ui";
 import Link from "next/link";
-import { mockImportRows, accounts, merchantRules, ME } from "@/data/mock";
+import { mockImportRows, accounts, ME } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { planImport } from "@/domain/dedupe";
 import { suggestCategory } from "@/domain/rules";
@@ -15,7 +15,7 @@ const history = [
 ];
 
 export default function ImportCentre() {
-  const { accountName, records, staged, stageRecords } = useStore();
+  const { accountName, records, staged, stageRecords, rules } = useStore();
   const [step, setStep] = useState(1);
   const [done, setDone] = useState<{ sent: number; skipped: number } | null>(null);
   const plan = planImport(mockImportRows, [...records, ...staged]);
@@ -27,7 +27,7 @@ export default function ImportCentre() {
     const file = "HDFC_Sep2026_sample.csv (simulated)";
     stageRecords(toStage.map((r): ExpenseRecord => ({
       id: "", date: r.date, merchant: r.merchant, originalDescription: r.description, amountPaise: r.amountPaise, currency: "INR", accountId: r.accountId,
-      categoryId: suggestCategory(merchantRules, r.merchant), kind: "purchase", payerId: ME, shared: false, split: { mode: "personal", participantIds: [ME] },
+      categoryId: suggestCategory(rules, r.merchant), kind: "purchase", payerId: ME, shared: false, split: { mode: "personal", participantIds: [ME] },
       excluded: false, status: "unreviewed", importSource: file, referenceId: r.referenceId, duplicateOf: r.dup.status === "possible" ? r.dup.matchId : undefined,
     })));
     setDone({ sent: toStage.length, skipped: rows.length - toStage.length });

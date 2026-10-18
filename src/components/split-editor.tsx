@@ -17,7 +17,7 @@ const modes = [
 
 const presets: { label: string; ids: string[] }[] = [
   { label: "Just me", ids: ["me"] },
-  { label: "Me + Wife", ids: ["me", "wife"] },
+  { label: `Me + ${participants.find((p) => p.id === "wife")?.name ?? "partner"}`, ids: ["me", "wife"] },
   { label: "Everyone", ids: participants.map((p) => p.id) },
 ];
 

@@ -5,7 +5,7 @@ import { Suspense, useMemo, useState } from "react";
 import { Amount, MerchantAvatar, TxnBadges, TxnCard } from "@/components/txn-row";
 import { TxnEditDialog } from "@/components/txn-edit-dialog";
 import { Badge, EmptyState, Input, PageHeader, Select } from "@/components/ui";
-import { accounts, categories, ME } from "@/data/mock";
+import { accounts, ME } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import { groupNet, summarize } from "@/domain/reports";
@@ -73,7 +73,7 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
 }
 
 function TransactionsView() {
-  const { records, scoped, month, nameOf, categoryName, accountName, recurringName } = useStore();
+  const { categories, records, scoped, month, nameOf, categoryName, accountName, recurringName } = useStore();
   const params = useSearchParams();
   const router = useRouter();
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);

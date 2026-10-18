@@ -1,56 +1,140 @@
 "use client";
+import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button, Card, CardTitle, Field, Input, PageHeader, Select } from "@/components/ui";
-import { categories } from "@/data/mock";
+import { Badge, Button, Card, CardTitle, CompactChips, Dialog, Field, Input, PageHeader } from "@/components/ui";
+import { recurringItems } from "@/data/mock";
 import { useStore } from "@/data/store";
-
-interface Rule { merchant: string; categoryId: string }
+import { categoryUsage, checkDelete, MAX_CATEGORY_NAME } from "@/domain/categories";
+import { PROTECTED_CATEGORY_IDS } from "@/domain/categories";
 
 export default function Categories() {
-  const { records, updateRecord, categoryName } = useStore();
-  const [rules, setRules] = useState<Rule[]>([{ merchant: "Swiggy", categoryId: "food_delivery" }, { merchant: "Zepto", categoryId: "groceries" }, { merchant: "Blinkit", categoryId: "groceries" }]);
+  const { categories, rules, records, staged, updateStaged, categoryName, addCategory, renameCategory, deleteCategory, addRule, removeRule } = useStore();
+  const [name, setName] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [moveTo, setMoveTo] = useState("");
+  const [delError, setDelError] = useState<string | null>(null);
   const [m, setM] = useState("");
   const [c, setC] = useState("groceries");
   const [msg, setMsg] = useState("");
 
+  const usage = (id: string) => categoryUsage(records, id) + categoryUsage(staged, id);
+  const recurringUsing = (id: string) => recurringItems.filter((i) => i.categoryId === id).map((i) => i.name);
+
+  const add = (e: React.FormEvent) => {
+    e.preventDefault();
+    const err = addCategory(name);
+    setAddError(err);
+    if (!err) setName("");
+  };
+
+  const saveEdit = () => {
+    if (!editing) return;
+    const err = renameCategory(editing.id, editing.value);
+    setEditError(err);
+    if (!err) setEditing(null);
+  };
+
+  const target = deleting ? categories.find((x) => x.id === deleting) : null;
+  const check = deleting ? checkDelete(deleting, { records: usage(deleting), recurringItems: recurringUsing(deleting) }) : null;
+  const confirmDelete = () => {
+    if (!deleting) return;
+    const err = deleteCategory(deleting, moveTo || undefined);
+    setDelError(err);
+    if (!err) { setDeleting(null); setMoveTo(""); }
+  };
+
   const apply = () => {
     let n = 0;
-    for (const r of records) {
+    for (const r of staged) {
       const rule = rules.find((x) => x.merchant.toLowerCase() === r.merchant.toLowerCase());
-      if (rule && r.status === "unreviewed" && r.categoryId !== rule.categoryId) { updateRecord(r.id, { categoryId: rule.categoryId }); n++; }
+      if (rule && r.categoryId !== rule.categoryId) { updateStaged(r.id, { categoryId: rule.categoryId }); n++; }
     }
-    setMsg(`${n} unreviewed record(s) recategorized. You can still override each one.`);
+    setMsg(`${n} row${n === 1 ? "" : "s"} in the review queue recategorized. Nothing is approved; you still confirm each one.`);
   };
 
   return (
     <>
-      <PageHeader title="Categories & rules" sub="Rules suggest categories for future imports; you can always override." actions={<Badge tone="warn">Not persisted</Badge>} />
-      <div className="grid gap-3 md:grid-cols-2">
-        <Card>
+      <PageHeader title="Categories & rules" sub="Your household's categories. Add your own, rename any, delete ones you don't use." actions={<Badge tone="warn">Not persisted yet</Badge>} />
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="space-y-3">
+          <CardTitle>Categories</CardTitle>
+          <form onSubmit={add} className="space-y-1">
+            <div className="flex gap-2">
+              <Input aria-label="New category name" placeholder="New category, e.g. Pet care" maxLength={MAX_CATEGORY_NAME + 5} value={name} onChange={(e) => { setName(e.target.value); setAddError(null); }} />
+              <Button type="submit" variant="primary" disabled={!name.trim()}>Add</Button>
+            </div>
+            {addError && <p role="alert" className="text-xs text-danger">{addError}</p>}
+          </form>
+          <ul className="divide-y divide-border">
+            {categories.map((x) => (
+              <li key={x.id} className="flex items-center gap-2 py-2 text-sm">
+                {editing?.id === x.id ? (
+                  <div className="flex flex-1 flex-col gap-1">
+                    <div className="flex gap-2">
+                      <Input aria-label={`Rename ${x.name}`} autoFocus value={editing.value} onChange={(e) => { setEditing({ id: x.id, value: e.target.value }); setEditError(null); }} onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(null); }} />
+                      <Button variant="primary" onClick={saveEdit}>Save</Button>
+                      <Button onClick={() => { setEditing(null); setEditError(null); }}>Cancel</Button>
+                    </div>
+                    {editError && <p role="alert" className="text-xs text-danger">{editError}</p>}
+                  </div>
+                ) : (
+                  <>
+                    <span className="flex-1">{x.name}{PROTECTED_CATEGORY_IDS.includes(x.id) && <span className="ml-1.5 text-xs text-muted">fallback</span>}</span>
+                    <span className="num text-xs text-muted">{usage(x.id)} used</span>
+                    <button aria-label={`Rename ${x.name}`} title="Rename" onClick={() => { setEditing({ id: x.id, value: x.name }); setEditError(null); }} className="grid size-8 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={14} aria-hidden /></button>
+                    {!PROTECTED_CATEGORY_IDS.includes(x.id) && <button aria-label={`Delete ${x.name}`} title="Delete" onClick={() => { setDeleting(x.id); setMoveTo(""); setDelError(null); }} className="grid size-8 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={14} aria-hidden /></button>}
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card className="space-y-3">
           <CardTitle>Merchant rules</CardTitle>
+          <p className="text-xs text-muted">A rule pre-fills the category for a merchant in the review queue. You still approve each row.</p>
           <ul className="divide-y divide-border">
             {rules.map((r) => (
               <li key={r.merchant} className="flex items-center justify-between py-2 text-sm">
                 <span>{r.merchant} → <b>{categoryName(r.categoryId)}</b></span>
-                <Button onClick={() => setRules(rules.filter((x) => x !== r))}>Remove</Button>
+                <Button onClick={() => removeRule(r.merchant)}>Remove</Button>
               </li>
             ))}
+            {rules.length === 0 && <li className="py-2 text-sm text-muted">No rules yet.</li>}
           </ul>
-          <div className="mt-3 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
-            <Field label="Merchant"><Input value={m} onChange={(e) => setM(e.target.value)} /></Field>
-            <Field label="Category"><Select value={c} onChange={(e) => setC(e.target.value)}>{categories.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></Field>
-            <Button disabled={!m.trim()} onClick={() => { setRules([...rules, { merchant: m.trim(), categoryId: c }]); setM(""); }}>Add</Button>
+          <div className="space-y-2 rounded-xl bg-background p-3">
+            <Field label="Merchant"><Input value={m} onChange={(e) => setM(e.target.value)} placeholder="e.g. Swiggy" /></Field>
+            <CompactChips label="Rule category" options={categories.map((x) => ({ id: x.id, label: x.name }))} selected={[c]} onPick={setC} />
+            <Button disabled={!m.trim()} onClick={() => { addRule({ merchant: m.trim(), categoryId: c }); setM(""); }}>Add rule</Button>
           </div>
-          <div className="mt-3"><Button variant="primary" onClick={apply}>Apply to unreviewed</Button> {msg && <span role="status" className="ml-2 text-xs text-muted">{msg}</span>}</div>
-        </Card>
-        <Card>
-          <CardTitle>Categories</CardTitle>
-          <ul className="grid grid-cols-2 gap-1 text-sm">
-            {categories.map((x) => <li key={x.id} className="rounded bg-background px-2 py-1.5">{x.name}</li>)}
-          </ul>
-          <p className="mt-2 text-xs text-muted">Renaming and adding categories comes with persistence in Stage 3.</p>
+          <div><Button variant="primary" onClick={apply}>Apply to review queue</Button> {msg && <span role="status" className="ml-2 text-xs text-muted">{msg}</span>}</div>
         </Card>
       </div>
+
+      <Dialog open={!!deleting} onClose={() => setDeleting(null)} title={`Delete “${target?.name ?? ""}”?`}>
+        {deleting && check && (
+          <div className="space-y-3 pb-1 text-sm">
+            {!check.ok ? (
+              <p role="alert" className="text-danger">{check.reason}</p>
+            ) : check.needsMove ? (
+              <>
+                <p>{usage(deleting)} transaction{usage(deleting) === 1 ? "" : "s"} use this category. Choose where they should go. Merchant rules move with them.</p>
+                <CompactChips label="Move to" options={categories.filter((x) => x.id !== deleting).map((x) => ({ id: x.id, label: x.name }))} selected={moveTo ? [moveTo] : []} onPick={setMoveTo} />
+              </>
+            ) : (
+              <p>No transactions use this category. It will be removed, along with any rules pointing to it.</p>
+            )}
+            {delError && <p role="alert" className="text-danger">{delError}</p>}
+            <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3">
+              <Button onClick={() => setDeleting(null)}>Cancel</Button>
+              {check.ok && <Button variant="danger" onClick={confirmDelete} disabled={check.needsMove && !moveTo}>Delete{check.needsMove ? " and move" : ""}</Button>}
+            </div>
+          </div>
+        )}
+      </Dialog>
     </>
   );
 }

@@ -6,7 +6,7 @@ export const MOCK_MONTH = "2026-09";
 
 export const participants: Participant[] = [
   { id: "me", name: "Vimal", userId: "u_me" },
-  { id: "wife", name: "Wife", userId: "u_wife" },
+  { id: "wife", name: "Varru", userId: "u_wife" },
   { id: "karthik", name: "Karthik", userId: null },
   { id: "priya", name: "Priya", userId: null },
 ];
@@ -66,7 +66,7 @@ export const initialRecords: ExpenseRecord[] = [
   t("2026-09-07", "TNEB (Sis Safa)", "TNEB ELECTRICITY BILL", 1860, "upi_cred", "utilities", { split: equal(...HOUSE), ref: "UPI7001", fundedBy: "bank_icici", rec: "eb_flat" }),
   t("2026-09-07", "ACT Fibernet", "ACT BROADBAND SEP", 1180, "upi_paytm", "utilities", { split: equal(...HOUSE), ref: "UPI7002", fundedBy: "bank_icici" }),
   t("2026-09-08", "Truffles", "TRUFFLES ICE AND SPICE", 3600, "cc_amex", "restaurants", { split: equal("me", "wife", "karthik", "priya"), notes: "Dinner with Karthik & Priya", ref: "CC0908A" }),
-  t("2026-09-08", "Wife (self transfer)", "UPI/TO WIFE/FAMILY", 10000, "upi_gpay", "transfers", { kind: "transfer", ref: "UPI8001", fundedBy: "bank_hdfc" }),
+  t("2026-09-08", "Transfer to Varru", "UPI/TO VARRU/FAMILY", 10000, "upi_gpay", "transfers", { kind: "transfer", ref: "UPI8001", fundedBy: "bank_hdfc" }),
   t("2026-09-09", "Apollo Pharmacy", "APOLLO PHARMACY 412", 860, "cc_icici", "health", { split: personal("wife"), payer: "me", notes: "Paid by me, wife's expense" }),
   t("2026-09-10", "Blinkit", "BLINKIT GROFERS INDIA", 1175, "cc_hdfc", "groceries", { split: { mode: "percent", participantIds: HOUSE, values: { me: 6000, wife: 4000 } }, ref: "CC0910A" }),
   t("2026-09-10", "Ola", "ANI TECHNOLOGIES OLA", 275, "cc_hdfc", "transport", { payer: "wife", split: personal("wife") }),

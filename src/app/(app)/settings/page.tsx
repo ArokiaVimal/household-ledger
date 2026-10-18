@@ -31,14 +31,6 @@ export default function Settings() {
           </div>
         </Card>
         <Card>
-          <CardTitle>Household members</CardTitle>
-          <ul className="space-y-1 text-sm">
-            <li>Vimal <Badge tone="good">Owner</Badge></li>
-            <li>Wife <Badge>Member</Badge></li>
-          </ul>
-          <p className="mt-2 text-xs text-muted">Separate logins and invitations need Firebase Auth (Stage 3).</p>
-        </Card>
-        <Card>
           <CardTitle>Participants</CardTitle>
           <ul className="space-y-1 text-sm">{participants.map((p) => <li key={p.id}>{p.name} {p.userId ? <Badge tone="good">Account</Badge> : <Badge>Friend, no account</Badge>}</li>)}</ul>
         </Card>

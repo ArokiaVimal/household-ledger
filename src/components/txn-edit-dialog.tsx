@@ -1,7 +1,7 @@
 "use client";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
-import { MOCK_TODAY, ME, accounts, categories, participants, recurringItems } from "@/data/mock";
+import { MOCK_TODAY, ME, accounts, participants, recurringItems } from "@/data/mock";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 import { equalSplit, validateSplit } from "@/domain/splits";
@@ -53,7 +53,7 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 }
 
 function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { records, staged, updateRecord, addRecord, updateStaged, approveStaged, rejectStaged, accountName } = useStore();
+  const { categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, rejectStaged, accountName } = useStore();
   const [rejecting, setRejecting] = useState(false);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";

@@ -7,7 +7,10 @@ import { summarize } from "@/domain/reports";
 import type { ExpenseRecord, Receipt, Settlement } from "@/domain/types";
 import { signedShare } from "@/domain/reports";
 import { recurringStatuses } from "@/domain/recurring";
-import { MOCK_TODAY, ME, accounts, categories, initialReceipts, recurringItems, initialRecords, initialSettlements, participants } from "./mock";
+import { cleanCategoryName, categoryUsage, checkDelete, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
+import type { MerchantRule } from "@/domain/rules";
+import type { Category } from "@/domain/types";
+import { MOCK_TODAY, ME, accounts, categories as seedCategories, initialReceipts, merchantRules, recurringItems, initialRecords, initialSettlements, participants } from "./mock";
 
 export type View = "household" | "personal";
 
@@ -28,6 +31,16 @@ interface Store {
   balances: ReturnType<typeof pairBalances>;
   /** Status of each recurring item for the selected month. */
   recurring: ReturnType<typeof recurringStatuses>;
+  /** Household categories (editable) and the merchant rules that point at them. */
+  categories: Category[];
+  rules: MerchantRule[];
+  /** Each returns an error message, or null on success. */
+  addCategory: (name: string) => string | null;
+  renameCategory: (id: string, name: string) => string | null;
+  /** If the category is in use, `moveTo` says where its records and rules go. */
+  deleteCategory: (id: string, moveTo?: string) => string | null;
+  addRule: (r: MerchantRule) => void;
+  removeRule: (merchant: string) => void;
   updateRecord: (id: string, patch: Partial<ExpenseRecord>) => void;
   /** Manual entry. Id is generated here; `importSource` marks it as not imported. */
   addRecord: (r: ExpenseRecord) => void;
@@ -51,6 +64,8 @@ const Ctx = createContext<Store | null>(null);
 export function StoreProvider({ children, initialView = "household" }: { children: ReactNode; initialView?: View }) {
   const [records, setRecords] = useState(() => initialRecords.filter((r) => r.status === "reviewed"));
   const [staged, setStaged] = useState(() => initialRecords.filter((r) => r.status === "unreviewed"));
+  const [categories, setCategories] = useState<Category[]>(seedCategories);
+  const [rules, setRules] = useState<MerchantRule[]>(merchantRules);
   const [settlements, setSettlements] = useState(initialSettlements);
   const [receipts] = useState(initialReceipts);
   const [month, setMonth] = useState("2026-09");
@@ -78,6 +93,34 @@ export function StoreProvider({ children, initialView = "household" }: { childre
     setStaged((xs) => xs.filter((x) => x.id !== id));
   }, [staged]);
   const rejectStaged = useCallback((id: string) => setStaged((xs) => xs.filter((x) => x.id !== id)), []);
+  const addCategory = useCallback((name: string) => {
+    const err = validateCategoryName(name, categories);
+    if (err) return err;
+    setCategories((cs) => [...cs, { id: makeCategoryId(name, cs.map((c) => c.id)), name: cleanCategoryName(name) }]);
+    return null;
+  }, [categories]);
+  const renameCategory = useCallback((id: string, name: string) => {
+    const err = validateCategoryName(name, categories, id);
+    if (err) return err;
+    setCategories((cs) => cs.map((c) => (c.id === id ? { ...c, name: cleanCategoryName(name) } : c)));
+    return null;
+  }, [categories]);
+  const deleteCategory = useCallback((id: string, moveTo?: string) => {
+    const used = categoryUsage(records, id) + categoryUsage(staged, id);
+    const check = checkDelete(id, { records: used, recurringItems: recurringItems.filter((i) => i.categoryId === id).map((i) => i.name) });
+    if (!check.ok) return check.reason;
+    if (check.needsMove && (!moveTo || moveTo === id || !categories.some((c) => c.id === moveTo))) return "Choose a category to move them to.";
+    if (moveTo && check.needsMove) {
+      setRecords((rs) => reassign(rs, id, moveTo));
+      setStaged((xs) => reassign(xs, id, moveTo));
+    }
+    // Rules never point at a missing category: move them with the records, or drop them if nothing to move to.
+    setRules((rs) => (moveTo ? reassign(rs, id, moveTo) : rs.filter((r) => r.categoryId !== id)));
+    setCategories((cs) => cs.filter((c) => c.id !== id));
+    return null;
+  }, [categories, records, staged]);
+  const addRule = useCallback((r: MerchantRule) => setRules((rs) => [...rs.filter((x) => x.merchant.toLowerCase() !== r.merchant.toLowerCase()), r]), []);
+  const removeRule = useCallback((merchant: string) => setRules((rs) => rs.filter((r) => r.merchant !== merchant)), []);
   const addSettlement = useCallback((s: Omit<Settlement, "id">) => setSettlements((x) => [...x, { ...s, id: `s${x.length + 1}` }]), []);
   const voidSettlement = useCallback((id: string) => setSettlements((x) => x.map((s) => (s.id === id ? { ...s, voided: true } : s))), []);
   const linkReceipt = useCallback((receiptId: string, recordId: string | null) => {
@@ -86,7 +129,7 @@ export function StoreProvider({ children, initialView = "household" }: { childre
 
   const value: Store = {
     records, staged, settlements, receipts, month, setMonth, view, setView, scoped, summary, balances, recurring,
-    updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, addSettlement, voidSettlement, linkReceipt,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,
     categoryName: (id) => categories.find((c) => c.id === id)?.name ?? id,

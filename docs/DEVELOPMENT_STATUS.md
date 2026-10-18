@@ -16,6 +16,13 @@ Updated: 2026-10-18 · Branch `feat/stage3-slice3-households` (stacked on slice 
 - Google sign-in added (popup; same session cookie flow and allowlist). Needs the Google provider enabled in the Firebase console and the app's domain in Authorized domains (localhost is there by default). Not tested with a real Google account.
 - `ALLOWED_EMAILS` env var added (temporary allowlist until household membership in slice 3).
 
+## Custom categories and Varru (added after slice 3)
+- The partner participant is named **Varru** in the UI and mock data (internal id stays `wife`; split preset reads "Me + Varru").
+- Categories are household-editable (Categories page): add, rename, delete. `src/domain/categories.ts` holds the rules (unique case-insensitive names, safe characters, stable ids, `uncategorized` cannot be deleted, deleting a used category requires choosing where its transactions and merchant rules move, categories used by recurring items cannot be deleted; 6 tests). Categories and merchant rules now live in `src/data/store.tsx`; every screen reads them from there.
+- Fixed: "apply rules" now targets the review queue (unreviewed rows live in `staged`, not the ledger).
+- Not persisted yet (in-memory like all transaction data); stored per household in slice 5 (`households/{id}/categories`). Recurring items still use fixed categories and cannot be edited in the UI.
+- Not visually checked: the Categories page was verified by typecheck, lint, unit tests and a production build only, because the browser pane cannot sign in.
+
 ## Stage 3 slice 3: households and membership (built; real signed-in flow not yet exercised by the owner)
 - Firestore layout: `households/{id}`, `households/{id}/members/{uid}` (role owner|member), `invites/{sha256(code)}`, `users/{uid}.householdId`. All access is through server code (`/api/household`, Admin SDK); client access is blocked until slice 4 rules.
 - Logic is split for testing: `src/lib/households/{logic,service}.ts` (pure rules + use cases against a `HouseholdStore` interface), `memory-store.ts` (tests), `firestore-store.ts` (app). Owner-only invite/revoke/remove; invite code is 10 unbiased random chars (XXXXX-XXXXX), valid 7 days, bound to one email, single use (transactional), stored only as a SHA-256 hash, shown to the owner once; every join failure returns one generic message; member cap 4 including pending invites.
