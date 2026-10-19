@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { Download, Inbox, LayoutGrid, Repeat, Receipt, ShieldCheck, Sparkles, Tags, Trash2, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
+import { Download, LayoutGrid, Lock, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, Trash2, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
 import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
@@ -14,7 +14,7 @@ import { PartnerCard } from "./partner-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash" };
 
-const JUMP = [["methods", "Payment methods"], ["sharing", "Split with people"], ["ai", "Smart import"], ["capture", "Auto-capture"], ["shortcuts", "Make it yours"], ["data", "Your data"]] as const;
+const JUMP = [["methods", "Payment methods"], ["sharing", "Split with people"], ["ai", "Smart import"], ["integrations", "Integrations"], ["shortcuts", "Make it yours"], ["data", "Your data"]] as const;
 const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
   { href: "/profile", label: "Your profile", hint: "Your name and photo, and how the app greets you.", icon: UserRound },
   { href: "/categories", label: "Categories and rules", hint: "Rename, add your own, and auto-sort favourite merchants.", icon: Tags },
@@ -70,7 +70,7 @@ export default function Settings() {
     <>
       <PageHeader title="Settings" sub="Set up where your money lives, who you split with and how smart your imports are. Change any of it, any time." actions={!live ? <Badge tone="warn">Prototype</Badge> : undefined} />
       <nav aria-label="Jump to a section" className="mb-5 max-w-full flex gap-1.5 overflow-x-auto px-1 pb-1">
-        {JUMP.map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm hover:bg-background">{label}</a>)}
+        {JUMP.filter(([id]) => live || (id !== "ai" && id !== "integrations")).map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm hover:bg-background">{label}</a>)}
       </nav>
 
       <div className="min-w-0 space-y-10">
@@ -143,7 +143,8 @@ export default function Settings() {
         )}
 
         {live && (
-          <Section id="capture" icon={<Inbox size={20} aria-hidden />} title="Auto-capture" tagline="Let transactions arrive on their own. Bank texts and bank emails add themselves to your review queue; you approve each one before it counts.">
+          <Section id="integrations" icon={<Plug size={20} aria-hidden />} title="Integrations" tagline="Connect your own accounts and let transactions arrive on their own. Everything lands in your review queue and nothing counts until you approve it.">
+            <p className="-mt-2 flex items-start gap-2 rounded-xl bg-accent/5 px-4 py-3 text-sm"><Lock size={16} aria-hidden className="mt-0.5 shrink-0 text-accent" /><span>These connections are personal. Each person sets up their own, and nobody else in your space (including your partner) can see your messages or your mail.</span></p>
             <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2"><CaptureCard /><GmailCard /></div>
           </Section>
         )}

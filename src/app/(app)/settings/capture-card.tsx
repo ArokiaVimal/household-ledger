@@ -1,5 +1,5 @@
 "use client";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, MessageSquare } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { MerchantAvatar } from "@/components/txn-row";
 import { Badge, Button, Card, CardTitle, CompactChips, ConfirmDialog } from "@/components/ui";
@@ -60,7 +60,7 @@ export function CaptureCard() {
   if (usable.length === 0) return <Card><CardTitle>Messages</CardTitle><p className="text-sm text-muted">Add a payment method first, so captured messages know where to go.</p></Card>;
   return (
     <Card className="space-y-4">
-      <CardTitle action={<Badge tone={status?.active ? "good" : "neutral"}>{status === null ? "…" : status.active ? "On" : "Off"}</Badge>}>Bank messages (SMS)</CardTitle>
+      <CardTitle action={<Badge tone={status?.active ? "good" : "neutral"}>{status === null ? "…" : status.active ? "On" : "Off"}</Badge>}><span className="inline-flex items-center gap-2"><MessageSquare size={16} aria-hidden className="text-accent" />Bank messages (SMS)</span></CardTitle>
       <p className="text-sm text-muted">Every bank, card and UPI text can add itself to your review queue the moment it arrives. You still approve each one before it counts. OTPs and offers are skipped.</p>
 
       <div className="space-y-1.5">
