@@ -12,8 +12,8 @@ export const participants: Participant[] = [
 ];
 
 export const accounts: Account[] = [
-  { id: "cc_hdfc", name: "HDFC Credit Card", type: "credit_card" },
-  { id: "cc_sbi", name: "SBI Credit Card", type: "credit_card" },
+  { id: "cc_hdfc", name: "HDFC BizGrow Card", type: "credit_card" },
+  { id: "cc_sbi", name: "SBI OCTANE BPCL Credit Card", type: "credit_card" },
   { id: "cc_icici", name: "ICICI Coral Credit Card", type: "credit_card" },
   { id: "cc_amex", name: "Amex Platinum Travel", type: "credit_card" },
   { id: "upi_gpay", name: "GPay", type: "upi" },
@@ -24,6 +24,7 @@ export const accounts: Account[] = [
   { id: "bank_icici", name: "ICICI Bank", type: "bank" },
   { id: "wl_amazonpay", name: "Amazon Pay", type: "wallet", parentId: "cc_amex" },
   { id: "wl_swiggymoney", name: "Swiggy Money", type: "wallet", parentId: "cc_amex" },
+  { id: "wl_myntra", name: "Myntra Wallet", type: "wallet", parentId: "cc_amex" },
 ];
 
 export const categories: Category[] = [

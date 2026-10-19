@@ -3,7 +3,7 @@ import { ChevronDown, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useStore } from "@/data/store";
 import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
-import { walletAccountFor, walletBrandFor } from "@/domain/accounts";
+import { shortName, walletAccountFor, walletBrandFor } from "@/domain/accounts";
 import { knownVoucherSeller } from "@/domain/vouchers";
 import { formatINR, parseRupees } from "@/domain/money";
 import { equalSplit, validateSplit } from "@/domain/splits";
@@ -188,10 +188,10 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       {mode === "review" && dupOf && (
         <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Approve only if this is a separate purchase; otherwise reject it.</p>
       )}
-      {adding && !paidWithId && <FormRow label="Paid with"><CompactChips label="Payment method" options={primaries.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[primaryId]} onPick={(id) => { setPrimaryId(id); setSubId(""); }} /></FormRow>}
+      {adding && !paidWithId && <FormRow label="Paid with"><CompactChips label="Payment method" options={primaries.map((a) => ({ id: a.id, label: shortName(a.name), icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[primaryId]} onPick={(id) => { setPrimaryId(id); setSubId(""); }} /></FormRow>}
       {adding && !paidWithId && subs.length > 0 && (
         <FormRow label="Via">
-          <CompactChips label="Sub payment method" options={[{ id: "", label: "Direct" }, ...subs.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[subId]} onPick={setSubId} />
+          <CompactChips label="Sub payment method" options={[{ id: "", label: "Direct" }, ...subs.map((a) => ({ id: a.id, label: shortName(a.name), icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[subId]} onPick={setSubId} />
           <p className="mt-1.5 text-xs text-muted">{subId ? "" : `Direct means paid with ${accounts.find((a) => a.id === primaryId)?.name} itself. `}Pick a sub payment method only if the money went through it.</p>
         </FormRow>
       )}

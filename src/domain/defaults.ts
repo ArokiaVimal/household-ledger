@@ -10,9 +10,8 @@ export const DEFAULT_CATEGORIES: Category[] = [
 
 /** One-click starting payment methods. Ids are stable so imports and rules can refer to them. */
 export const SUGGESTED_ACCOUNTS: Account[] = [
-  { id: "cc_hdfc", name: "HDFC Credit Card", type: "credit_card" },
-  { id: "cc_sbi", name: "SBI Credit Card", type: "credit_card" },
-  { id: "cc_icici", name: "ICICI Coral Credit Card", type: "credit_card" },
+  { id: "cc_hdfc", name: "HDFC BizGrow Card", type: "credit_card" },
+  { id: "cc_sbi", name: "SBI OCTANE BPCL Credit Card", type: "credit_card" },
   { id: "cc_amex", name: "Amex Platinum Travel", type: "credit_card" },
   { id: "bank_hdfc", name: "HDFC Bank", type: "bank" },
   { id: "bank_icici", name: "ICICI Bank", type: "bank" },
@@ -23,6 +22,7 @@ export const SUGGESTED_ACCOUNTS: Account[] = [
   // Wallets topped up with Amex purchases (see Vouchers): they sit under the Amex card.
   { id: "wl_amazonpay", name: "Amazon Pay", type: "wallet", parentId: "cc_amex" },
   { id: "wl_swiggymoney", name: "Swiggy Money", type: "wallet", parentId: "cc_amex" },
+  { id: "wl_myntra", name: "Myntra Wallet", type: "wallet", parentId: "cc_amex" },
 ];
 
 /** The usual split between the two partners: the household owner bears 64%, the partner 36% (basis points). */

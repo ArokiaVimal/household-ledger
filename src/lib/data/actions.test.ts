@@ -183,7 +183,7 @@ describe("suggested accounts", () => {
     const list = await repo.accounts.list();
     expect(list).toHaveLength(16);
     expect(list.find((a) => a.id === "cc_hdfc")!.name).toBe("My HDFC");
-    expect(list.filter((a) => a.type === "wallet").map((a) => [a.name, a.parentId])).toEqual([["Amazon Pay", "cc_amex"], ["Swiggy Money", "cc_amex"]]);
+    expect(list.filter((a) => a.type === "wallet").map((a) => [a.name, a.parentId])).toEqual([["Amazon Pay", "cc_amex"], ["Swiggy Money", "cc_amex"], ["Myntra Wallet", "cc_amex"]]);
     await applyAction(repo, actor, { type: "accounts.addSuggested" });
     expect(await repo.accounts.list()).toHaveLength(16);
   });

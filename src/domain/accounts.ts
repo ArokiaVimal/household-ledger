@@ -81,3 +81,6 @@ export function planUpiSetup(accounts: Account[]): { add: Account[]; hide: strin
   const hide = banks.length === 0 ? [] : accounts.filter((a) => a.type === "upi" && !a.parentId && !a.archived && GENERIC_UPI.test(a.name.trim())).map((a) => a.id);
   return { add, hide };
 }
+
+/** A shorter name for tight places such as the transaction form's chips: "HDFC BizGrow Card" -> "HDFC BizGrow". */
+export const shortName = (name: string) => name.replace(/\s+(credit\s+)?card$/i, "").replace(/\s+/g, " ").trim() || name;
