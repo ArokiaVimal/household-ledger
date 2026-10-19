@@ -132,7 +132,7 @@ export default function Settings() {
                             );
                           }}
                         </SortableList>
-                        {(a.type === "credit_card" || a.type === "bank") && !a.archived && <button type="button" onClick={() => openDialog({ parent: a.id })} className="min-h-9 rounded-full px-1 text-xs font-medium text-accent hover:underline">+ Add a sub payment method to {a.name}</button>}
+                        {(a.type === "credit_card" || a.type === "bank") && !a.archived && <button type="button" onClick={() => openDialog({ parent: a.id })} className="min-h-9 rounded-full px-1 text-xs text-muted hover:text-accent hover:underline" aria-label={`Add a sub method to ${a.name}`}>+ Add sub method</button>}
                       </div>
                     )}
                   </div>
