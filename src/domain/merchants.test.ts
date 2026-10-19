@@ -16,8 +16,8 @@ describe("merchant suggestions", () => {
   });
   it("offers the common names only while history is thin, and never ones you already use", () => {
     const thin = rankMerchants([rec("2026-10-01", "Swiggy"), rec("2026-10-02", "Local Cafe")]);
-    expect(thin.popular).toEqual(["Zepto", "Instamart", "Amazon"]);
-    expect(rankMerchants([]).popular).toEqual(["Zepto", "Swiggy", "Instamart", "Amazon"]);
+    expect(thin.popular).toEqual(["Zepto", "Instamart", "Amazon", "Geetham", "A2B", "Netflix", "Airtel", "Shell"]); // eight at a time; search finds the rest
+    expect(rankMerchants([]).popular).toEqual(["Zepto", "Swiggy", "Instamart", "Amazon", "Geetham", "A2B", "Netflix", "Airtel"]);
   });
   it("ignores refunds, transfers and blank names, and keeps the last category used", () => {
     const s = rankMerchants([rec("2026-10-01", "Zepto", { categoryId: "groceries" }), { ...rec("2026-10-02", "Refund Co"), kind: "refund" } as ExpenseRecord, { ...rec("2026-10-03", "  "), kind: "purchase" } as ExpenseRecord]);
@@ -26,7 +26,7 @@ describe("merchant suggestions", () => {
   });
   it("searches known merchants first and the common names too", () => {
     const s = rankMerchants([rec("2026-10-01", "Amazon Fresh"), rec("2026-10-02", "Amazon Fresh"), rec("2026-10-03", "Mamaearth")]);
-    expect(searchMerchants(s, "ama").map((m) => m.name)).toEqual(["Amazon Fresh", "Mamaearth", "Instamart", "Amazon"]);
+    expect(searchMerchants(s, "ama").map((m) => m.name)).toEqual(["Amazon Fresh", "Mamaearth", "Instamart", "Amazon", "Amazon Prime"]);
     expect(searchMerchants(s, "zep").map((m) => [m.name, m.known])).toEqual([["Zepto", false]]);
     expect(searchMerchants(s, "")).toEqual([]);
   });

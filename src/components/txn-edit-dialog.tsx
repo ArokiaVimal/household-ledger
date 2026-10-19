@@ -9,7 +9,7 @@ import { attribute } from "@/domain/groups";
 import { inferCategory, merchantFromNotes } from "@/domain/categorize";
 import { readNote, usualFor } from "@/domain/autofill";
 import { ratioSplit } from "@/domain/splits";
-import { COMMON_MERCHANTS, rankMerchants } from "@/domain/merchants";
+import { COMMON_MERCHANTS, MERCHANT_ALIASES, rankMerchants } from "@/domain/merchants";
 import { shortName, walletAccountFor, walletBrandFor } from "@/domain/accounts";
 import { knownVoucherSeller } from "@/domain/vouchers";
 import { formatINR, parseRupees } from "@/domain/money";
@@ -179,7 +179,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
     const got: string[] = [];
     let m = merchant;
     if (!merchantTouched.current && (!merchant.trim() || merchant === autoMerchant.current)) {
-      const found = merchantFromNotes(v, knownMerchants);
+      const found = merchantFromNotes(v, knownMerchants, MERCHANT_ALIASES);
       if (found && found !== merchant) { setMerchant(found); autoMerchant.current = found; setMerchantHint("From your note"); m = found; got.push("merchant"); applyUsual(found, got); }
     }
     if (adding) {

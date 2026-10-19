@@ -27,11 +27,24 @@ describe("category guess without AI", () => {
     expect(inferCategory({ ...base, merchant: "X", records: [rec("X", "uncategorized")] })).toBeNull();
     expect(inferCategory({ ...base, categories: [...cats.filter((c) => c.id !== "groceries"), { id: "food_stuff", name: "Groceries & Food" }], notes: "vegetables" })).toMatchObject({ categoryId: "food_stuff" }); // resolved by name
   });
+  it("knows the everyday places and services people name", () => {
+    const more: Category[] = [...cats, { id: "rent", name: "Rent & household" }, { id: "restaurants2", name: "x" }];
+    expect(inferCategory({ ...base, categories: more, merchant: "Geetham" })).toMatchObject({ categoryId: "restaurants" });
+    expect(inferCategory({ ...base, categories: more, merchant: "A2B" })).toMatchObject({ categoryId: "restaurants" });
+    expect(inferCategory({ ...base, categories: more, merchant: "Iron Safaa" })).toMatchObject({ categoryId: "rent" });
+    expect(inferCategory({ ...base, categories: more, merchant: "Shell" })).toMatchObject({ categoryId: "fuel" });
+    expect(inferCategory({ ...base, categories: more, merchant: "Bharat Petroleum" })).toMatchObject({ categoryId: "fuel" });
+    expect(inferCategory({ ...base, categories: more, notes: "bharath petrol" })).toMatchObject({ categoryId: "fuel" });
+    expect(inferCategory({ ...base, categories: more, merchant: "Amazon Prime" })).toMatchObject({ categoryId: "subscriptions" });
+    expect(inferCategory({ ...base, categories: more, merchant: "Meesho" })).toMatchObject({ categoryId: "shopping" });
+  });
   it("finds a known merchant named in the note", () => {
     expect(merchantFromNotes("Swiggy dinner with Varru", ["Zepto", "Swiggy", "Amazon"])).toBe("Swiggy");
     expect(merchantFromNotes("Amazon Fresh groceries", ["Amazon", "Amazon Fresh"])).toBe("Amazon Fresh");
     expect(merchantFromNotes("swiggying", ["Swiggy"])).toBeNull();
     expect(merchantFromNotes("ok", ["Ok"])).toBeNull();
+    expect(merchantFromNotes("filled petrol at bharath", ["Shell"], { bharath: "Bharat Petroleum" })).toBe("Bharat Petroleum");
+    expect(merchantFromNotes("netflex renewal", [], { netflex: "Netflix" })).toBe("Netflix");
     expect(merchantFromNotes("", ["Zepto"])).toBeNull();
   });
 });

@@ -2,7 +2,11 @@
 // a starting point for someone with little history: they drop out of the suggestions as soon as real merchants fill the list.
 import type { ExpenseRecord } from "./types";
 
-export const COMMON_MERCHANTS = ["Zepto", "Swiggy", "Instamart", "Amazon"] as const;
+export const COMMON_MERCHANTS = ["Zepto", "Swiggy", "Instamart", "Amazon", "Geetham", "A2B", "Netflix", "Airtel", "Shell", "Bharat Petroleum", "Hotstar", "Amazon Prime", "Meesho", "Iron Safaa"] as const;
+/** Other spellings people use, so a note like "bharath petrol" or "netflex" still finds the merchant. */
+export const MERCHANT_ALIASES: Record<string, string> = { bharath: "Bharat Petroleum", bharat: "Bharat Petroleum", bpcl: "Bharat Petroleum", netflex: "Netflix", "iron safa": "Iron Safaa", "iron safaa": "Iron Safaa", "disney hotstar": "Hotstar", "prime video": "Amazon Prime" };
+/** How many common names are suggested at once (the search finds the rest). */
+const SHOW_COMMON = 8;
 
 export interface MerchantInfo { name: string; count: number; lastDate: string; categoryId?: string }
 export interface MerchantSuggestions {
@@ -33,7 +37,7 @@ export function rankMerchants(records: ExpenseRecord[], opts: { recent?: number;
   const inRecent = new Set(recent.map((m) => key(m.name)));
   const frequent = [...all].filter((m) => !inRecent.has(key(m.name)) && m.count >= 2).sort((a, b) => b.count - a.count || b.lastDate.localeCompare(a.lastDate)).slice(0, nFrequent);
   const shown = new Set([...recent, ...frequent].map((m) => key(m.name)));
-  const popular = recent.length + frequent.length >= startAt ? [] : COMMON_MERCHANTS.filter((m) => !shown.has(key(m)));
+  const popular = recent.length + frequent.length >= startAt ? [] : COMMON_MERCHANTS.filter((m) => !shown.has(key(m))).slice(0, SHOW_COMMON);
   return { recent, frequent, popular, all: all.sort((a, b) => a.name.localeCompare(b.name)) };
 }
 

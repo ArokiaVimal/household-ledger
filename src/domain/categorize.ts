@@ -8,16 +8,16 @@ export interface CategoryGuess { categoryId: string; reason: "history" | "rule" 
 /** Everyday words mapped to the category they usually mean. Resolved against the person's OWN categories (by id, then by name), so a renamed or deleted category is simply skipped. */
 const GROUPS: { words: RegExp; ids: string[]; name: RegExp }[] = [
   { words: /\b(swiggy|zomato|food delivery|biryani|pizza|burger|dominos|domino's|kfc|mcdonald'?s|ordered food|takeaway)\b/i, ids: ["food_delivery"], name: /delivery/i },
-  { words: /\b(restaurant|cafe|café|coffee|dinner|lunch|breakfast|brunch|starbucks|ccd|bar|pub|drinks|eating out|dining|tea)\b/i, ids: ["restaurants"], name: /restaurant|cafe|dining/i },
+  { words: /\b(restaurant|cafe|café|coffee|dinner|lunch|breakfast|brunch|starbucks|ccd|bar|pub|drinks|eating out|dining|tea|geetham|a2b|adyar ananda bhavan|saravana|sangeetha|veg)\b/i, ids: ["restaurants"], name: /restaurant|cafe|dining/i },
   { words: /\b(grocer(y|ies)|bigbasket|zepto|blinkit|instamart|dmart|vegetables?|fruits?|milk|eggs|atta|rice|supermarket|provisions?)\b/i, ids: ["groceries"], name: /grocer/i },
-  { words: /\b(petrol|diesel|fuel|bpcl|iocl|hpcl|indian oil|cng)\b/i, ids: ["fuel"], name: /fuel|petrol/i },
+  { words: /\b(petrol|diesel|fuel|bpcl|iocl|hpcl|indian oil|cng|bharat petroleum|bharath|shell|hp petrol)\b/i, ids: ["fuel"], name: /fuel|petrol/i },
   { words: /\b(uber|ola|rapido|cab|taxi|auto|metro|bus|train ticket|parking|toll|fastag|commute)\b/i, ids: ["transport"], name: /transport|travel/i },
-  { words: /\b(netflix|spotify|hotstar|prime video|youtube premium|subscription|icloud|google one|chatgpt)\b/i, ids: ["subscriptions", "entertainment"], name: /subscription|entertain/i },
+  { words: /\b(netflix|netflex|spotify|hotstar|disney|amazon prime|prime video|prime membership|youtube premium|subscription|icloud|google one|chatgpt)\b/i, ids: ["subscriptions", "entertainment"], name: /subscription|entertain/i },
   { words: /\b(movie|bookmyshow|concert|game|gaming|theatre)\b/i, ids: ["entertainment"], name: /entertain/i },
   { words: /\b(electricity|eb bill|tneb|bescom|water bill|gas bill|broadband|wifi|internet|airtel|jio|vi recharge|recharge|mobile bill|dth|utility|utilities)\b/i, ids: ["utilities"], name: /utilit|bill/i },
-  { words: /\b(rent|maintenance|society|housekeeping|maid|plumber|electrician|repair|furniture)\b/i, ids: ["rent"], name: /rent|household|home/i },
+  { words: /\b(rent|maintenance|society|housekeeping|maid|plumber|electrician|repair|furniture|iron safaa|ironing|laundry|dry clean|dhobi)\b/i, ids: ["rent"], name: /rent|household|home/i },
   { words: /\b(doctor|hospital|pharmacy|medicine|medicines|apollo|clinic|dental|lab test|gym|cult|fitness|health|checkup)\b/i, ids: ["health"], name: /health|medic/i },
-  { words: /\b(amazon|flipkart|myntra|ajio|nykaa|shopping|clothes|shirt|shoes|decathlon|gift|electronics)\b/i, ids: ["shopping"], name: /shop/i },
+  { words: /\b(amazon|flipkart|meesho|myntra|ajio|nykaa|shopping|clothes|shirt|shoes|decathlon|gift|electronics)\b/i, ids: ["shopping"], name: /shop/i },
   { words: /\b(flight|hotel|irctc|makemytrip|goibibo|airbnb|holiday|vacation|trip|resort|booking)\b/i, ids: ["travel"], name: /travel|trip/i },
   { words: /\b(insurance|premium|lic|policy)\b/i, ids: ["insurance"], name: /insur/i },
   { words: /\b(emi|loan|instalment|installment|credit card bill)\b/i, ids: ["emi"], name: /emi|loan/i },
@@ -59,7 +59,7 @@ export function inferCategory(i: { merchant: string; notes: string; records: Exp
  * A merchant named in the note ("Swiggy dinner with Varru"): the longest known merchant name that appears as whole words.
  * `known` should be the person's own merchants plus a few common names; matching is case-insensitive and ignores very short names.
  */
-export function merchantFromNotes(notes: string, known: string[]): string | null {
+export function merchantFromNotes(notes: string, known: string[], aliases: Record<string, string> = {}): string | null {
   const text = ` ${norm(notes)} `;
   if (text.trim().length < 3) return null;
   let best: string | null = null;
@@ -68,5 +68,8 @@ export function merchantFromNotes(notes: string, known: string[]): string | null
     if (n.length < 3 || !text.includes(` ${n} `)) continue;
     if (!best || n.length > norm(best).length) best = name;
   }
-  return best;
+  if (best) return best;
+  // Another spelling of a merchant ("netflex", "bharath"): the longest alias that appears as whole words.
+  const hit = Object.keys(aliases).filter((a) => text.includes(` ${norm(a).trim()} `)).sort((a, b) => b.length - a.length)[0];
+  return hit ? aliases[hit] : null;
 }
