@@ -7,14 +7,14 @@ import { Badge, Button, Card, ConfirmDialog, EmptyState, PageHeader } from "@/co
 import { useStore } from "@/data/store";
 import { commitmentTotals } from "@/domain/recurring";
 import { formatINR } from "@/domain/money";
+import { monthLabel } from "@/domain/months";
 import type { RecurringState } from "@/domain/recurring";
 import type { RecurringItem } from "@/domain/types";
 import { RecurringDialog } from "./recurring-form";
 import { LinkPaymentDialog } from "./link-payment";
 
-const tone: Record<RecurringState, "good" | "warn" | "bad" | "neutral"> = { paid: "good", upcoming: "warn", overdue: "bad", ended: "neutral" };
-const text: Record<RecurringState, string> = { paid: "Paid", upcoming: "Upcoming", overdue: "Overdue", ended: "Ended" };
-const untilLabel = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const tone: Record<RecurringState, "good" | "warn" | "bad" | "neutral"> = { paid: "good", upcoming: "warn", overdue: "bad", ended: "neutral", notdue: "neutral" };
+const text: Record<RecurringState, string> = { paid: "Paid", upcoming: "Upcoming", overdue: "Overdue", ended: "Ended", notdue: "Not due" };
 
 export default function Recurring() {
   const { live, recurring, month, nameOf, categoryName, accountName, recurringItems, meId, deleteRecurring, markRecurringPaid } = useStore();
@@ -22,15 +22,15 @@ export default function Recurring() {
   const [editing, setEditing] = useState<RecurringItem | "new" | null>(null);
   const [removing, setRemoving] = useState<RecurringItem | null>(null);
   const totals = commitmentTotals(recurringItems, month);
-  const paid = recurring.filter((r) => r.state === "paid").reduce((s, r) => s + (r.marked ? r.item.expectedPaise : r.actualPaise), 0);
-  const left = recurring.filter((r) => r.state !== "paid" && r.state !== "ended").reduce((s, r) => s + r.item.expectedPaise, 0);
+  const paid = recurring.filter((r) => r.state === "paid").reduce((s, r) => s + (r.marked ? r.expectedPaise : r.actualPaise), 0);
+  const left = recurring.filter((r) => r.state !== "paid" && r.state !== "ended" && r.state !== "notdue").reduce((s, r) => s + r.expectedPaise, 0);
   const groups = [...new Set(recurring.map((r) => r.item.place ?? "Personal"))];
 
   return (
     <>
       <PageHeader tip="Rent, EMIs, subscriptions and other monthly commitments. Mark a transaction as repeating or add one here, with an optional default split." title="Recurring" sub={`Monthly commitments · ${month}`} actions={<><Link href={`/transactions?month=${month}&recurring=1`} className="rounded-full border border-border bg-surface px-3 py-2 text-sm">View payments</Link><Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add recurring</Button></>} />
       <div className="mb-4 grid gap-4 sm:grid-cols-3">
-        <Card><div className="text-xs text-muted">Expected each month</div><div className="num text-xl font-semibold">{formatINR(totals.monthlyPaise)}</div><div className="text-xs text-muted">≈ {formatINR(totals.yearlyPaise)} a year</div></Card>
+        <Card><div className="text-xs text-muted">Expected this month</div><div className="num text-xl font-semibold">{formatINR(totals.monthlyPaise)}</div><div className="text-xs text-muted">≈ {formatINR(totals.yearlyPaise)} over the next 12 months</div></Card>
         <Card><div className="text-xs text-muted">Paid this month</div><div className="num text-xl font-semibold text-good">{formatINR(paid)}</div></Card>
         <Card><div className="text-xs text-muted">Still to pay</div><div className="num text-xl font-semibold">{formatINR(left)}</div><div className="text-xs text-muted">based on expected amounts</div></Card>
       </div>
@@ -43,14 +43,16 @@ export default function Recurring() {
                 {recurring.filter((r) => (r.item.place ?? "Personal") === place).sort((a, b) => a.item.dueDay - b.item.dueDay).map((r) => {
                   const rec = r.records[0];
                   return (
-                    <li key={r.item.id} className="flex flex-col rounded-[var(--radius-card)] bg-surface hover:shadow-md sm:flex-row sm:items-center sm:pr-2">
+                    <li key={r.item.id} className={`flex flex-col rounded-[var(--radius-card)] bg-surface hover:shadow-md sm:flex-row sm:items-center sm:pr-2 ${r.state === "notdue" || r.state === "ended" ? "opacity-70" : ""}`}>
                       <Link href={`/transactions?month=${month}&recurring=${r.item.id}`} className="flex min-w-0 flex-1 flex-wrap items-center gap-3 p-4 pb-2 sm:pb-4">
                         <MerchantAvatar name={r.item.name} />
                         <div className="min-w-0 flex-1 basis-40">
                           <div className="font-medium">{r.item.name}</div>
                           <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
                             <span className="inline-flex items-center gap-1"><CalendarClock size={12} aria-hidden />Due on {r.item.dueDay}</span>
-                            {r.item.until && <span>{r.state === "ended" ? "Ended" : "Until"} {untilLabel(r.item.until)}</span>}
+                            {r.item.until && <span>{r.state === "ended" ? "Ended" : "Until"} {monthLabel(r.item.until.slice(0, 7))}</span>}
+                            {(r.item.everyMonths ?? 1) > 1 && <span>Every {r.item.everyMonths} months</span>}
+                            {r.item.amountVaries && <span>Amount varies</span>}
                             <span>{categoryName(r.item.categoryId)}</span>
                             <span>{r.item.split.mode === "personal" ? `Mine` : `Split with ${r.item.split.participantIds.filter((i) => i !== meId).map(nameOf).join(", ")}`}</span>
                             {rec && <span>{accountName(rec.accountId)}{rec.fundedBy ? ` via ${accountName(rec.fundedBy)}` : ""}</span>}
@@ -58,14 +60,14 @@ export default function Recurring() {
                         </div>
                         <div className="ml-auto flex items-center gap-3">
                         <div className="num text-right">
-                          <div className="font-semibold">{formatINR(r.state === "paid" && !r.marked ? r.actualPaise : r.item.expectedPaise)}</div>
-                          <div className="text-xs text-muted">{r.state === "paid" ? (r.marked ? "marked paid" : r.variancePaise === 0 ? "as expected" : `${r.variancePaise > 0 ? "+" : "−"}${formatINR(Math.abs(r.variancePaise))} vs expected`) : "expected"}</div>
+                          <div className="font-semibold">{formatINR(r.state === "paid" && !r.marked ? r.actualPaise : r.expectedPaise)}</div>
+                          <div className="text-xs text-muted">{r.state === "paid" ? (r.marked ? "marked paid" : r.variancePaise === 0 ? "as expected" : `${r.variancePaise > 0 ? "+" : "−"}${formatINR(Math.abs(r.variancePaise))} vs ${r.estimated ? "last bill" : "expected"}`) : r.state === "notdue" ? (r.nextDue ? `next bill ${monthLabel(r.nextDue)}` : "no more bills") : r.estimated ? "about, from last bill" : r.item.amountVaries ? "first guess" : "expected"}</div>
                         </div>
                         <Badge tone={tone[r.state]}>{text[r.state]}</Badge>
                         </div>
                       </Link>
                       <div className="flex flex-wrap items-center justify-end gap-1 px-2 pb-2 sm:p-0">
-                      {r.state !== "ended" && r.state !== "paid" && <><Button onClick={() => markRecurringPaid(r.item.id, month, true)} aria-label={`Mark ${r.item.name} paid for ${month}`}>Mark paid</Button><Button onClick={() => setLinking(r.item)} aria-label={`Link a payment to ${r.item.name}`}>Link payment</Button></>}
+                      {r.state !== "ended" && r.state !== "paid" && r.state !== "notdue" && <><Button onClick={() => markRecurringPaid(r.item.id, month, true)} aria-label={`Mark ${r.item.name} paid for ${month}`}>Mark paid</Button><Button onClick={() => setLinking(r.item)} aria-label={`Link a payment to ${r.item.name}`}>Link payment</Button></>}
                       {r.marked && <Button onClick={() => markRecurringPaid(r.item.id, month, false)} aria-label={`Undo paid mark for ${r.item.name}`}>Undo</Button>}
                       <button type="button" aria-label={`Edit ${r.item.name}`} title="Edit" onClick={() => setEditing(r.item)} className="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={15} aria-hidden /></button>
                       <button type="button" aria-label={`Remove ${r.item.name}`} title="Remove" onClick={() => setRemoving(r.item)} className="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={15} aria-hidden /></button>

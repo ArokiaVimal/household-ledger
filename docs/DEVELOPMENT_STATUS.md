@@ -314,3 +314,10 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - Each month can be **Mark paid** by hand (`paidMonths`, action `recurring.markPaid`, with Undo). A linked transaction always wins: once an imported or added transaction is linked, the item is paid by it and the hand mark is irrelevant.
 - **Link payment** on an unpaid item lists this month's unlinked transactions (closest amount first), including rows still in Review (they count once approved). Linking sets `recurringId`, so it stays in sync with the transaction. Linking from the transaction form (More options) still works.
 - Not yet tried with real data.
+
+## Recurring: month selector, every N months, varying amounts, amount changes (added)
+- **Until** is a month picker with a **Forever** choice (default). Stored as `YYYY-MM`.
+- **Billed** every 1, 2, 3, 6 or 12 months with a first-bill month (`everyMonths`, `startMonth`). Off months show "Not due" with the next bill month and add nothing to the totals; the 12-month figure counts only billing months before the end.
+- **Different each bill** (`amountVaries`): the typed amount is a first guess; each later month expects about the last linked bill (shown as "about, from last bill"). Real amounts always come from linked or imported transactions.
+- **Amount changes** (rent increase): editing the amount asks "from which month"; earlier months keep the old amount (`changes`). "I mistyped" fixes all months instead.
+- No "exclude from reports" option was added to recurring items.

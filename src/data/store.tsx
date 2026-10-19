@@ -445,12 +445,13 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     if (!name) return "Give it a name.";
     if (!Number.isInteger(draft.expectedPaise) || draft.expectedPaise <= 0) return "Enter the usual monthly amount.";
     if (!Number.isInteger(draft.dueDay) || draft.dueDay < 1 || draft.dueDay > 28) return "Pick a due day between 1 and 28.";
+    if (draft.everyMonths && draft.everyMonths > 1 && !draft.startMonth) return "Say which month the first bill is due.";
     const splitError = validateSplit(draft.expectedPaise, draft.split);
     if (splitError) return splitError;
     const id = draft.id ?? `rc_${slug(name)}-${uuid().slice(0, 6)}`;
     const place = draft.place?.trim();
     const prior = recurringItems.find((x) => x.id === id);
-    const item: RecurringItem = { id, name, categoryId: draft.categoryId, dueDay: draft.dueDay, expectedPaise: draft.expectedPaise, payerId: draft.payerId, split: draft.split, ...(place ? { place } : {}), ...(draft.until ? { until: draft.until } : {}), ...(prior?.paidMonths?.length ? { paidMonths: prior.paidMonths } : {}) };
+    const item: RecurringItem = { id, name, categoryId: draft.categoryId, dueDay: draft.dueDay, expectedPaise: draft.expectedPaise, payerId: draft.payerId, split: draft.split, ...(place ? { place } : {}), ...(draft.until ? { until: draft.until.slice(0, 7) } : {}), ...(draft.everyMonths && draft.everyMonths > 1 ? { everyMonths: draft.everyMonths, startMonth: draft.startMonth } : {}), ...(draft.amountVaries ? { amountVaries: true } : {}), ...(draft.changes?.length ? { changes: draft.changes } : {}), ...(prior?.paidMonths?.length ? { paidMonths: prior.paidMonths } : {}) };
     setRecurringItems((xs) => (xs.some((x) => x.id === id) ? xs.map((x) => (x.id === id ? item : x)) : [...xs, item]));
     void send({ type: "recurring.put", item });
     return null;

@@ -221,11 +221,14 @@ describe("suggested accounts", () => {
     const item = { id: "rc_emi", name: "Car EMI", categoryId: "groceries", dueDay: 5, expectedPaise: 1000000, payerId: "me", split: { mode: "personal" as const, participantIds: ["me"] }, until: "2027-03-31" };
     await applyAction(repo, actor, { type: "recurring.put", item });
     await applyAction(repo, actor, { type: "recurring.markPaid", id: "rc_emi", month: "2026-10", paid: true });
-    expect(await repo.recurring.get("rc_emi")).toMatchObject({ until: "2027-03-31", paidMonths: ["2026-10"] });
+    expect(await repo.recurring.get("rc_emi")).toMatchObject({ until: "2027-03", paidMonths: ["2026-10"] });
     await applyAction(repo, actor, { type: "recurring.put", item: { ...item, expectedPaise: 1100000 } });
     expect((await repo.recurring.get("rc_emi"))!.paidMonths).toEqual(["2026-10"]);
     await applyAction(repo, actor, { type: "recurring.markPaid", id: "rc_emi", month: "2026-10", paid: false });
     expect((await repo.recurring.get("rc_emi"))!.paidMonths).toBeUndefined();
+    await applyAction(repo, actor, { type: "recurring.put", item: { ...item, id: "rc_eb", name: "EB bill", everyMonths: 2, startMonth: "2026-09", amountVaries: true, changes: [{ from: "2027-01", paise: 1200000 }] } });
+    expect(await repo.recurring.get("rc_eb")).toMatchObject({ everyMonths: 2, startMonth: "2026-09", amountVaries: true, changes: [{ from: "2027-01", paise: 1200000 }] });
+    await fails(applyAction(repo, actor, { type: "recurring.put", item: { ...item, id: "rc_x", everyMonths: 2 } }), "invalid"); // needs a first-bill month
     await fails(applyAction(repo, actor, { type: "recurring.markPaid", id: "nope", month: "2026-10", paid: true }), "not_found");
   });
   it("payment methods can be put in the user's own order; unknown ids are refused", async () => {

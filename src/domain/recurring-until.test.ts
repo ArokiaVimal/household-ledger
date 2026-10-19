@@ -26,3 +26,29 @@ describe("recurring until and marked paid", () => {
     expect(commitmentTotals(items, "2026-12").monthlyPaise).toBe(1000000);
   });
 });
+
+describe("bills every N months, varying amounts and rent increases", () => {
+  it("a two-monthly bill is due every second month from its first bill, and not due in between", () => {
+    const eb = item({ id: "eb", everyMonths: 2, startMonth: "2026-09" });
+    const st = (m: string) => recurringStatuses([eb], [], m, "2026-12-31")[0];
+    expect(st("2026-09").state).toBe("overdue");
+    expect(st("2026-10")).toMatchObject({ state: "notdue", nextDue: "2026-11" });
+    expect(st("2026-11").state).toBe("overdue");
+    expect(st("2026-08").state).toBe("notdue"); // before the first bill
+    expect(commitmentTotals([eb], "2026-10").monthlyPaise).toBe(0);
+    expect(commitmentTotals([eb], "2026-11").monthlyPaise).toBe(1000000);
+    expect(commitmentTotals([eb], "2026-11").yearlyPaise).toBe(1000000 * 6);
+  });
+  it("a varying bill expects about the last bill", () => {
+    const gas = item({ id: "emi", amountVaries: true, expectedPaise: 80000 });
+    const last = { ...rec("2026-08-05"), amountPaise: 123400 };
+    expect(recurringStatuses([gas], [last], "2026-09", "2026-09-01")[0]).toMatchObject({ expectedPaise: 123400, estimated: true });
+    expect(recurringStatuses([gas], [], "2026-09", "2026-09-01")[0]).toMatchObject({ expectedPaise: 80000, estimated: false });
+  });
+  it("a rent increase applies from its month and leaves earlier months alone", () => {
+    const rent = item({ id: "rent", expectedPaise: 2500000, changes: [{ from: "2026-11", paise: 2700000 }] });
+    expect(recurringStatuses([rent], [], "2026-10", "2026-10-01")[0].expectedPaise).toBe(2500000);
+    expect(recurringStatuses([rent], [], "2026-12", "2026-10-01")[0].expectedPaise).toBe(2700000);
+    expect(commitmentTotals([rent], "2026-10").yearlyPaise).toBe(2500000 * 1 + 2700000 * 11);
+  });
+});

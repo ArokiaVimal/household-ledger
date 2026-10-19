@@ -5,6 +5,8 @@ import { Button, CompactChips, Dialog, Field, FormRow, Input, Select } from "@/c
 import { useStore } from "@/data/store";
 import { parseRupees } from "@/domain/money";
 import { equalSplit } from "@/domain/splits";
+import { plannedFor } from "@/domain/recurring";
+import { formatINR } from "@/domain/money";
 import type { RecurringItem, SplitConfig } from "@/domain/types";
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
@@ -19,19 +21,27 @@ export function RecurringDialog({ item, onClose }: { item: RecurringItem | "new"
 }
 
 function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => void }) {
-  const { categories, participants, recurringItems, meId, saveRecurring, addCategory } = useStore();
+  const { categories, participants, recurringItems, meId, saveRecurring, addCategory, month: viewMonth } = useStore();
   const [name, setName] = useState(item?.name ?? "");
-  const [amount, setAmount] = useState(item ? (item.expectedPaise / 100).toFixed(2) : "");
+  const [amount, setAmount] = useState(item ? (plannedFor(item, viewMonth) / 100).toFixed(2) : "");
   const [dueDay, setDueDay] = useState(String(item?.dueDay ?? 1));
   const [categoryId, setCategoryId] = useState(item?.categoryId ?? "rent");
   const [place, setPlace] = useState(item?.place ?? "");
-  const [until, setUntil] = useState(item?.until ?? "");
+  const [until, setUntil] = useState(item?.until?.slice(0, 7) ?? "");
+  const [forever, setForever] = useState(!item?.until);
+  const [every, setEvery] = useState(String(item?.everyMonths ?? 1));
+  const [startMonth, setStartMonth] = useState(item?.startMonth ?? viewMonth);
+  const [varies, setVaries] = useState(!!item?.amountVaries);
+  // Changing the amount of an existing item: from which month does the new amount apply?
+  const [changeFrom, setChangeFrom] = useState(viewMonth);
+  const [changeMode, setChangeMode] = useState<"from" | "all">("from");
   const [payerId, setPayerId] = useState(item?.payerId ?? meId);
   const [split, setSplit] = useState<SplitConfig>(item?.split ?? { mode: "personal", participantIds: [meId] });
   const [error, setError] = useState<string | null>(null);
   const expectedPaise = parseRupees(amount) ?? 0;
   const places = [...new Set(recurringItems.map((r) => r.place).filter((p): p is string => !!p))];
   const sharing = split.mode !== "personal" || payerId !== meId;
+  const amountChanged = !!item && expectedPaise > 0 && expectedPaise !== plannedFor(item, viewMonth);
   const category = categories.some((c) => c.id === categoryId) ? categoryId : categories[0]?.id ?? "uncategorized";
 
   const onAmount = (v: string) => {
@@ -40,7 +50,14 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
     if (split.mode === "custom" && p > 0) setSplit({ ...split, values: equalSplit(p, split.participantIds) });
   };
   const save = () => {
-    const err = saveRecurring({ id: item?.id, name, categoryId: category, dueDay: Number(dueDay), expectedPaise, payerId, split, place, ...(until ? { until } : {}) });
+    let base = expectedPaise;
+    let changes = item?.changes;
+    if (item && !varies && amountChanged) {
+      if (changeMode === "all") changes = undefined;
+      else { base = item.expectedPaise; changes = [...(item.changes ?? []).filter((c) => c.from !== changeFrom), { from: changeFrom, paise: expectedPaise }].sort((a, b) => a.from.localeCompare(b.from)); }
+    }
+    if (!forever && !until) return setError("Pick the last month, or choose Forever.");
+    const err = saveRecurring({ id: item?.id, name, categoryId: category, dueDay: Number(dueDay), expectedPaise: base, payerId, split, place, ...(!forever && until ? { until } : {}), ...(Number(every) > 1 ? { everyMonths: Number(every), startMonth } : {}), ...(varies ? { amountVaries: true } : {}), ...(changes?.length ? { changes } : {}) });
     if (err) return setError(err);
     onClose();
   };
@@ -48,16 +65,30 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
   return (
     <div className="space-y-3">
       <FormRow label="Name"><Input autoFocus value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="e.g. Rent, Car EMI, Life insurance" maxLength={80} /></FormRow>
-      <FormRow label="Amount">
+      <FormRow label="Amount" tip="For a bill that is different every time (electricity, gas, phone), choose Different each bill. The amount here is then just a first guess, and each later month expects about what the last bill was. The real amount always comes from the transaction you link or import.">
         <div className="flex items-center gap-2"><span className="text-lg font-semibold">₹</span><Input aria-label="Usual monthly amount" inputMode="decimal" value={amount} onChange={(e) => onAmount(e.target.value)} placeholder="0.00" className="max-w-40" /><span className="text-xs text-muted">every month</span></div>
       </FormRow>
+      <FormRow label="Each bill"><CompactChips label="Amount pattern" options={[{ id: "same", label: "Same amount" }, { id: "varies", label: "Different each bill" }]} selected={[varies ? "varies" : "same"]} onPick={(id) => setVaries(id === "varies")} /></FormRow>
+      {item && !varies && amountChanged && (
+        <div className="space-y-2 rounded-xl bg-accent/5 p-3 text-xs text-muted">
+          <div>The amount changed from {formatINR(plannedFor(item, viewMonth))} to {formatINR(expectedPaise)} (a rent increase, for example). Earlier months keep the old amount.</div>
+          <CompactChips label="When the new amount applies" options={[{ id: "from", label: "From a month" }, { id: "all", label: "I mistyped: fix all months" }]} selected={[changeMode]} onPick={(id) => setChangeMode(id)} />
+          {changeMode === "from" && <div className="flex items-center gap-2"><span>Applies from</span><Input type="month" aria-label="New amount applies from" value={changeFrom} onChange={(e) => setChangeFrom(e.target.value)} className="max-w-44" /></div>}
+        </div>
+      )}
+      {item?.changes?.length ? <p className="text-xs text-muted">Planned changes: {item.changes.map((c) => `${formatINR(c.paise)} from ${c.from}`).join(", ")}.</p> : null}
+      <FormRow label="Billed"><CompactChips label="How often it is billed" options={[{ id: "1", label: "Every month" }, { id: "2", label: "Every 2 months" }, { id: "3", label: "Every 3 months" }, { id: "6", label: "Every 6 months" }, { id: "12", label: "Yearly" }]} selected={[every]} onPick={setEvery} /></FormRow>
+      {Number(every) > 1 && <FormRow label="First bill"><Input type="month" aria-label="Month of the first bill" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} className="max-w-44" /></FormRow>}
       <FormRow label="Due on">
         <Select aria-label="Due day" value={dueDay} onChange={(e) => setDueDay(e.target.value)} className="max-w-40">
           {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => <option key={d} value={String(d)}>{ordinal(d)} of the month</option>)}
         </Select>
       </FormRow>
-      <FormRow label="Until" tip="The last day this payment applies, for example when an EMI or a lease ends. After that month it stops showing as due and stops counting in your monthly commitment. Leave empty if it has no end.">
-        <div className="flex items-center gap-2"><Input type="date" aria-label="Recurring until" value={until} onChange={(e) => setUntil(e.target.value)} className="max-w-48" />{until && <button type="button" onClick={() => setUntil("")} className="min-h-9 px-2 text-xs font-medium text-accent hover:underline">No end date</button>}</div>
+      <FormRow label="Until" tip="Forever keeps it every period until you stop it. Pick a last month for something that ends, like an EMI or a lease; after that month it shows as Ended and leaves your monthly commitment.">
+        <div className="space-y-2">
+          <CompactChips label="Until when" options={[{ id: "forever", label: "Forever" }, { id: "month", label: "Until a month" }]} selected={[forever ? "forever" : "month"]} onPick={(id) => { setForever(id === "forever"); if (id === "month" && !until) setUntil(viewMonth); }} />
+          {!forever && <Input type="month" aria-label="Recurring until" value={until} onChange={(e) => setUntil(e.target.value)} className="max-w-44" />}
+        </div>
       </FormRow>
       <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[category]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
       <Field label="Where (optional)">

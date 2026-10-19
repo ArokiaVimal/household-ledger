@@ -160,8 +160,16 @@ export interface RecurringItem {
   split: SplitConfig;
   /** Where it applies, e.g. the apartment or parents' house. */
   place?: string;
-  /** Last day it applies (YYYY-MM-DD). After that month it no longer counts or shows as due. */
+  /** Last month it applies (YYYY-MM; an old YYYY-MM-DD still reads as its month). Empty means it runs until the user stops it. */
   until?: string;
+  /** Billed every this many months (2 for a bill that comes every two months). Left out means every month. */
+  everyMonths?: number;
+  /** First month it was due (YYYY-MM); with `everyMonths` it fixes which months are billing months. */
+  startMonth?: string;
+  /** The amount differs each bill (electricity, gas, phone). `expectedPaise` is then only a first guess; later months estimate from the last bill. */
+  amountVaries?: boolean;
+  /** Planned amount changes, e.g. a rent increase: from this month on the amount is `paise`. Earlier months keep the earlier amount. */
+  changes?: { from: string; paise: Paise }[];
   /** Months (YYYY-MM) the user marked paid by hand, when no transaction is linked. A linked transaction always wins. */
   paidMonths?: string[];
 }
