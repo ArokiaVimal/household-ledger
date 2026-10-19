@@ -94,7 +94,7 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
         </div>
       </FormRow>
       <PaymentPicker optional value={accountId} onChange={setAccountId} />
-      <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} /> }))} selected={[category]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
+      <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} icon={c.icon} /> }))} selected={[category]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
       <Field label="Where (optional)">
         <Input list="recurring-places" value={place} onChange={(e) => setPlace(e.target.value)} placeholder="e.g. Our apartment, Parents' house" maxLength={120} />
         <datalist id="recurring-places">{places.map((p) => <option key={p} value={p} />)}</datalist>

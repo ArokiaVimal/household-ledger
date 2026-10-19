@@ -1,9 +1,9 @@
 "use client";
-import { ChevronDown, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowLeftRight, Ban, Banknote, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, Trash2, Undo2 } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useStore } from "@/data/store";
 import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
-import { CategoryGlyph, PersonGlyph } from "@/components/glyphs";
+import { CategoryGlyph, Dot, PersonGlyph } from "@/components/glyphs";
 import { shortName, walletAccountFor, walletBrandFor } from "@/domain/accounts";
 import { knownVoucherSeller } from "@/domain/vouchers";
 import { formatINR, parseRupees } from "@/domain/money";
@@ -14,13 +14,13 @@ import { MerchantAvatar } from "./txn-row";
 import { AiBadge, Button, CompactChips, ConfirmDialog, Dialog, FormRow, Input } from "./ui";
 
 const NEW_RECURRING = "__new_recurring";
-const kinds: { id: TxnKind; label: string }[] = [
-  { id: "purchase", label: "Purchase" },
-  { id: "refund", label: "Refund" },
-  { id: "fee", label: "Fee" },
-  { id: "income", label: "Income" },
-  { id: "transfer", label: "Transfer" },
-  { id: "cc_payment", label: "Card bill" },
+const kinds: { id: TxnKind; label: string; icon: ReactNode }[] = [
+  { id: "purchase", label: "Purchase", icon: <Dot icon={ShoppingBag} tone="bg-pink-100 text-pink-700" /> },
+  { id: "refund", label: "Refund", icon: <Dot icon={Undo2} tone="bg-emerald-100 text-emerald-700" /> },
+  { id: "fee", label: "Fee", icon: <Dot icon={Receipt} tone="bg-gray-200 text-gray-700" /> },
+  { id: "income", label: "Income", icon: <Dot icon={Banknote} tone="bg-lime-100 text-lime-700" /> },
+  { id: "transfer", label: "Transfer", icon: <Dot icon={ArrowLeftRight} tone="bg-sky-100 text-sky-700" /> },
+  { id: "cc_payment", label: "Card bill", icon: <Dot icon={CreditCard} tone="bg-indigo-100 text-indigo-700" /> },
 ];
 
 interface Props { record: ExpenseRecord | null; onClose: () => void; /** Open the next unreviewed record, with how many remain. */ next?: { remaining: number; open: () => void } }
@@ -96,8 +96,8 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const impliedBrand = walletBrandFor(accounts.find((a) => a.id === accountId), voucherBrands);
   const walletId = paidWithId || impliedBrand?.id || "";
   const brandOptions = [
-    ...voucherBrands.map((b) => ({ id: b.id, label: b.name })),
-    ...SUGGESTED_VOUCHER_BRANDS.filter((n) => !voucherBrands.some((b) => b.name.toLowerCase() === n.toLowerCase())).map((n) => ({ id: `suggest:${n}`, label: n })),
+    ...voucherBrands.map((b) => ({ id: b.id, label: b.name, icon: <MerchantAvatar name={b.name} size={24} /> })),
+    ...SUGGESTED_VOUCHER_BRANDS.filter((n) => !voucherBrands.some((b) => b.name.toLowerCase() === n.toLowerCase())).map((n) => ({ id: `suggest:${n}`, label: n, icon: <MerchantAvatar name={n} size={24} /> })),
   ];
   const pickBrand = (id: string, set: (v: string) => void) => { if (id.startsWith("suggest:")) { const r = addVoucherBrand(id.slice(8)); if (r.id) set(r.id); } else set(id); };
   const voucherAdder = { label: "Add voucher", placeholder: "e.g. Flipkart, BookMyShow", add: addVoucherBrand };
@@ -214,7 +214,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       <FormRow label="Note">
         <Input aria-label="Note" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} placeholder="What was this for? Helps AI" />
       </FormRow>
-      <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} /> }))} selected={[categoryId]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
+      <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} icon={c.icon} /> }))} selected={[categoryId]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
       {promptVoucher && (
         <FormRow label="Wallet">
           <CompactChips label="Wallet topped up" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
@@ -234,7 +234,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         <div className="space-y-2.5">
           <FormRow label="Type"><CompactChips label="Type" options={kinds} selected={[kind]} onPick={setKind} /></FormRow>
           {!promptVoucher && kind === "purchase" && !walletId && (
-            <FormRow label="Tops up wallet"><CompactChips label="Wallet topped up" options={[{ id: "", label: "No" }, ...brandOptions]} selected={[voucherId]} onPick={(id) => pickBrand(id, setVoucherId)} adder={voucherAdder} /></FormRow>
+            <FormRow label="Tops up wallet"><CompactChips label="Wallet topped up" options={[{ id: "", label: "No", icon: <Dot icon={Ban} /> }, ...brandOptions]} selected={[voucherId]} onPick={(id) => pickBrand(id, setVoucherId)} adder={voucherAdder} /></FormRow>
           )}
           {kind === "cc_payment" && (
             <FormRow label="Which card"><CompactChips label="Credit card that was paid" options={[{ id: "", label: "Not sure" }, ...accounts.filter((a) => a.type === "credit_card").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[paidCardId]} onPick={setPaidCardId} /></FormRow>
@@ -243,14 +243,14 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
             <FormRow label="From bank"><CompactChips label="Paid from bank" options={[{ id: "", label: "Unknown" }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[fundedBy]} onPick={setFundedBy} /></FormRow>
           )}
           <FormRow label="Recurring">
-            <CompactChips label="Recurring commitment" options={[{ id: "", label: "None" }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name })), { id: NEW_RECURRING, label: "Repeat every month" }]} selected={[recurringId]} onPick={(v) => { setRecurringId(v); setRecurringError(null); }} />
+            <CompactChips label="Recurring commitment" options={[{ id: "", label: "None", icon: <Dot icon={Ban} /> }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name, icon: <Dot icon={Repeat} tone="bg-red-100 text-red-700" /> })), { id: NEW_RECURRING, label: "Repeat every month", icon: <Dot icon={Plus} tone="bg-accent/10 text-accent" /> }]} selected={[recurringId]} onPick={(v) => { setRecurringId(v); setRecurringError(null); }} />
             {record.recurringHint && !record.recurringId && <p className="mt-1.5 text-xs text-muted">This looks like a monthly payment (EMI, rent, premium or similar). Approving it adds it to Recurring; choose None if it is not.</p>}
             {recurringId === NEW_RECURRING && <p className="mt-1.5 text-xs text-muted">Adds “{merchant.trim() || "this payment"}” to Recurring: {formatINR(amountPaise)} due on the {dueDay}{[11, 12, 13].includes(dueDay) ? "th" : ["th", "st", "nd", "rd"][dueDay % 10 < 4 ? dueDay % 10 : 0]} each month, split the same way. You can change it later under Recurring.</p>}
             {recurringError && <p role="alert" className="mt-1.5 text-xs text-danger">{recurringError}</p>}
           </FormRow>
           <FormRow label="Reports">
             <button type="button" aria-pressed={excluded} onClick={() => setExcluded(!excluded)} title="Exclude from reports (original record is kept)"
-              className={`min-h-9 rounded-full border px-3 text-sm ${excluded ? "border-danger bg-danger/10 text-danger" : "border-border bg-surface"}`}>{excluded ? "Excluded from reports" : "Exclude from reports"}</button>
+              className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3.5 text-sm ${excluded ? "border-danger bg-danger/10 text-danger" : "border-transparent bg-background"}`}><EyeOff size={16} aria-hidden />{excluded ? "Excluded from reports" : "Exclude from reports"}</button>
           </FormRow>
         </div>
       )}

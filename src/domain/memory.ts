@@ -53,7 +53,7 @@ export function learnFromUser(existing: MerchantMemory | null | undefined, l: Le
   const same = existing?.source === "user" && existing.categoryId === l.categoryId && existing.kind === l.kind;
   // Once a merchant is known to sell vouchers it stays that way, so every new purchase from it asks which voucher was bought.
   const voucherSeller = l.voucherSeller || existing?.voucherSeller;
-  return { id: memoryDocId(l.key), key: l.key, name: l.name, categoryId: l.categoryId, kind: l.kind, source: "user", confident: true, confirmed: same ? existing.confirmed + 1 : 1, lastSeen: l.date, ...(voucherSeller ? { voucherSeller: true } : {}) };
+  return { id: memoryDocId(l.key), key: l.key, name: l.name, categoryId: l.categoryId, kind: l.kind, source: "user", confident: true, confirmed: same ? existing.confirmed + 1 : 1, lastSeen: l.date, ...(voucherSeller ? { voucherSeller: true } : {}), ...(existing?.icon ? { icon: existing.icon } : {}) };
 }
 
 /** A Claude suggestion is kept so the same merchant is never sent again; it never replaces something you decided. */

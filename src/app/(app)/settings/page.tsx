@@ -15,6 +15,7 @@ import { orderByUse, planUpiSetup } from "@/domain/accounts";
 import { CaptureCard } from "./capture-card";
 import { GmailCard } from "./gmail-card";
 import { PartnerCard } from "./partner-card";
+import { IconsCard } from "./icons-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet" };
 
@@ -184,6 +185,7 @@ export default function Settings() {
                 : "To switch it on, the app owner adds an Anthropic API key to the server settings. Until then, nothing is ever sent to AI."}</p>
               <Link href="/import" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Import</Link>
             </AiFeatureCard>
+            {aiEnabled && <IconsCard />}
           </Section>
         )}
 

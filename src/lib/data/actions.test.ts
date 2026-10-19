@@ -231,6 +231,16 @@ describe("suggested accounts", () => {
     await fails(applyAction(repo, actor, { type: "recurring.put", item: { ...item, id: "rc_x", everyMonths: 2 } }), "invalid"); // needs a first-bill month
     await fails(applyAction(repo, actor, { type: "recurring.markPaid", id: "nope", month: "2026-10", paid: true }), "not_found");
   });
+  it("saves chosen icons for categories, payment methods and merchants, and refuses made-up icons", async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "a1", name: "Myntra Wallet", type: "wallet" });
+    await repo.merchantMemory.put({ id: "mm_zepto", key: "zepto", name: "Zepto", categoryId: "groceries", kind: "purchase", source: "user", confident: true, confirmed: 1, lastSeen: "2026-09-01" });
+    await applyAction(repo, actor, { type: "icons.apply", categories: [{ id: "groceries", icon: "basket" }], accounts: [{ id: "a1", icon: "bag" }], merchants: [{ name: "zepto", icon: "store" }] });
+    expect((await repo.categories.get("groceries"))!.icon).toBe("basket");
+    expect((await repo.accounts.get("a1"))!.icon).toBe("bag");
+    expect((await repo.merchantMemory.get("mm_zepto"))!.icon).toBe("store");
+    await fails(applyAction(repo, actor, { type: "icons.apply", categories: [{ id: "groceries", icon: "http://x" as never }], accounts: [], merchants: [] }), "invalid");
+  });
   it("payment methods can be put in the user's own order; unknown ids are refused", async () => {
     const repo = await setup();
     await repo.accounts.put({ id: "a1", name: "One", type: "credit_card" });

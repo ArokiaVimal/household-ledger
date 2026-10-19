@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { logoFor } from "@/lib/logos";
+import { Glyph } from "./glyphs";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import { signedShare, signedSpend } from "@/domain/reports";
@@ -41,7 +42,9 @@ export function TxnBadges({ r }: { r: ExpenseRecord }) {
 const tints = ["bg-accent-soft text-accent", "bg-good-soft text-good", "bg-warn-soft text-warn", "bg-background text-foreground"];
 export function MerchantAvatar({ name, size = 40 }: { name: string; size?: number }) {
   const logo = logoFor(name);
+  const { iconsByName } = useStore();
   const [failed, setFailed] = useState(false);
+  const chosen = iconsByName[name.trim().toLowerCase()];
   if (logo && !failed) {
     return (
       <span aria-hidden className="grid shrink-0 place-items-center rounded-full border border-border bg-white" style={{ width: size, height: size }}>
@@ -50,6 +53,7 @@ export function MerchantAvatar({ name, size = 40 }: { name: string; size?: numbe
       </span>
     );
   }
+  if (chosen && (!logo || failed)) return <Glyph iconKey={chosen} size={size} />;
   const tint = tints[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % tints.length];
   return <span aria-hidden style={{ width: size, height: size }} className={cn("grid shrink-0 place-items-center rounded-full text-sm font-semibold", tint)}>{name[0]?.toUpperCase()}</span>;
 }

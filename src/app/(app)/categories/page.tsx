@@ -83,7 +83,7 @@ export default function Categories() {
                   </div>
                 ) : (
                   <>
-                    <CategoryGlyph name={x.name} size={32} />
+                    <CategoryGlyph name={x.name} icon={x.icon} size={32} />
                     <span className="min-w-0 flex-1 truncate font-medium">{x.name}{PROTECTED_CATEGORY_IDS.includes(x.id) && <span className="ml-1.5 text-xs font-normal text-muted">fallback</span>}</span>
                     <span className="num shrink-0 text-xs text-muted">{usage(x.id)}<span className="hidden sm:inline"> used</span></span>
                     <button aria-label={`Rename ${x.name}`} title="Rename" onClick={() => { setEditing({ id: x.id, value: x.name }); setEditError(null); }} className="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-background sm:size-8"><Pencil size={14} aria-hidden /></button>
@@ -109,7 +109,7 @@ export default function Categories() {
           </ul>
           <div className="space-y-2 rounded-xl bg-background p-3">
             <Field label="Merchant"><Input value={m} onChange={(e) => setM(e.target.value)} placeholder="e.g. Swiggy" /></Field>
-            <CompactChips label="Rule category" options={categories.map((x) => ({ id: x.id, label: x.name, icon: <CategoryGlyph name={x.name} /> }))} selected={[c]} onPick={setC} />
+            <CompactChips label="Rule category" options={categories.map((x) => ({ id: x.id, label: x.name, icon: <CategoryGlyph name={x.name} icon={x.icon} /> }))} selected={[c]} onPick={setC} />
             <Button className="w-full sm:w-auto" disabled={!m.trim()} onClick={() => { addRule({ merchant: m.trim(), categoryId: c }); setM(""); }}>Add rule</Button>
           </div>
           <div className="space-y-2"><Button variant="primary" className="w-full sm:w-auto" onClick={apply}>Apply to review queue</Button>{msg && <p role="status" className="text-xs text-muted">{msg}</p>}</div>

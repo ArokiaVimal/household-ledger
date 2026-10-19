@@ -62,6 +62,8 @@ export interface Account {
   theme?: CardTheme;
   /** Hidden from pickers but kept, because transactions still refer to it. */
   archived?: boolean;
+  /** Chosen icon for a payment method with no brand logo (a key from the built-in set). */
+  icon?: string;
   /** Position in the user's own ordering (0 first); pick lists follow it. */
   order?: number;
 }
@@ -72,6 +74,8 @@ export const CARD_THEMES: CardTheme[] = ["indigo", "navy", "teal", "plum", "grap
 export interface Category {
   id: string;
   name: string;
+  /** Chosen icon (a key from the built-in set). Left out, it follows the name. */
+  icon?: string;
 }
 
 /** Canonical expense/financial record (prototype merges txn + expense). */
@@ -137,6 +141,8 @@ export interface MerchantMemory {
   kind: TxnKind;
   /** This merchant sells vouchers: every new purchase from it asks which voucher was bought. */
   voucherSeller?: boolean;
+  /** Chosen icon for a merchant with no brand logo (a key from the built-in set). */
+  icon?: string;
   /** user = you approved or corrected it (always wins); ai = Claude's suggestion, not yet confirmed. */
   source: "user" | "ai";
   /** AI entries only: Claude said it was sure. */

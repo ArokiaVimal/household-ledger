@@ -8,6 +8,7 @@ import { ConflictError } from "@/data/repository";
 import { ExpenseRecordSchema, SplitConfigSchema, ruleId } from "@/data/schemas";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { validateSplit } from "@/domain/splits";
+import { ICON_KEYS } from "@/domain/icons";
 import { planUpiSetup, suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
@@ -46,6 +47,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("account.update"), id, name: z.string().min(1).max(60).optional(), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]).optional(), parentId: id.nullable().optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).nullable().optional(), archived: z.boolean().optional() }),
   z.object({ type: z.literal("account.delete"), id }),
   z.object({ type: z.literal("accounts.setupUpi") }),
+  z.object({ type: z.literal("icons.apply"), categories: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), accounts: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), merchants: z.array(z.object({ name: z.string().min(1).max(60), icon: z.enum(ICON_KEYS) })).max(300) }),
   z.object({ type: z.literal("accounts.reorder"), ids: z.array(id).min(1).max(200) }),
   z.object({ type: z.literal("accounts.addSuggested") }),
   z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60) }),
@@ -350,6 +352,15 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       if (all.some((x) => x.parentId === a.id)) throw new ActionError("conflict", `Other payment methods are under ${cur.name}. Move or delete them first.`);
       await repo.accounts.remove(a.id);
       await log("delete", "household", a.id, `Deleted payment method ${cur.name}`);
+      return;
+    }
+    case "icons.apply": {
+      const [cats, accts, memories] = await Promise.all([repo.categories.list(), repo.accounts.list(), repo.merchantMemory.list()]);
+      let n = 0;
+      for (const x of a.categories) { const c = cats.find((y) => y.id === x.id); if (c) { await repo.categories.put({ ...c, icon: x.icon }); n++; } }
+      for (const x of a.accounts) { const c = accts.find((y) => y.id === x.id); if (c) { await repo.accounts.put({ ...c, icon: x.icon }); n++; } }
+      for (const x of a.merchants) for (const m of memories.filter((y) => y.name.toLowerCase() === x.name.toLowerCase())) { await repo.merchantMemory.put({ ...m, icon: x.icon }); n++; }
+      await log("edit", "household", "icons", `Set ${n} icons`);
       return;
     }
     case "accounts.setupUpi": {

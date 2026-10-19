@@ -328,3 +328,8 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 ## Icons for categories and people, cleaner forms (added)
 - `CategoryGlyph` (coloured icon picked from the category's name; unknown names get a tag) and `PersonGlyph` (coloured initial, stable colour per person) in `src/components/glyphs.tsx`. Shown in the transaction and recurring forms (category, split with, paid by), the Categories page, People and Settings.
 - Forms: big centred amount on a soft tint, uppercase small labels, softer chips and inputs inside dialogs (page-level controls keep their outlined look), a calmer "More options" bar. Icons are picked by name only; choosing your own icon per category is not built.
+
+## Icons on option chips and AI icon refresh (added)
+- Type, Tops up wallet, Recurring and Reports now have icons. Wallet brands use the merchant picture (logo, chosen icon or initial).
+- **Refresh icons with AI** (Settings, Smart import; live mode with an API key, `/api/icons`): finds categories, payment methods and merchants that have no icon, no name match and no brand logo, sends only their names, and proposes an icon for each. Claude can only answer with a key from the built-in set (`src/domain/icons.ts`), so nothing is fetched from outside the app (brand logos stay committed files) and nothing invented can render. You review the list, then Save (`icons.apply`). Stored on `Category.icon`, `Account.icon`, `MerchantMemory.icon`; renaming a category resets its icon.
+- The button only works with a real API key in live mode; verified here with unit tests and a fake Claude, not against the real API.
