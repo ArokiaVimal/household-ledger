@@ -84,9 +84,9 @@ function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
 export function AppShell({ children, user }: { children: ReactNode; user: { email: string } | null }) {
   const path = usePathname();
   const router = useRouter();
-  const { live, partner, previewing, staged, syncError, dismissSyncError } = useStore();
+  const { live, partner, participants, meId, previewing, staged, syncError, dismissSyncError } = useStore();
   // Solo use is complete on its own: settle-up and the Mine/Together switch appear once a partner is linked.
-  const visibleNav = nav.filter((n) => n.href !== "/settlements" || !live || !!partner);
+  const visibleNav = nav.filter((n) => n.href !== "/settlements" || !live || !!partner || participants.some((p) => p.id !== meId));
   const [q, setQ] = useState("");
   const { profile } = useProfile();
   const [adding, setAdding] = useState(false);

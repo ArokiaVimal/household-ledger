@@ -59,7 +59,7 @@ export const ExpenseRecordSchema = z
   }) satisfies z.ZodType<ExpenseRecord>;
 
 export const SettlementSchema = z
-  .object({ id, date, fromId: id, toId: id, amountPaise: paise.positive(), note: z.string().max(500).optional(), voided: z.boolean().optional() })
+  .object({ id, date, fromId: id, toId: id, amountPaise: paise.positive(), note: z.string().max(500).optional(), voided: z.boolean().optional(), recordIds: z.array(id).max(500).optional() })
   .refine((s) => s.fromId !== s.toId, { message: "Pick two different people", path: ["toId"] }) satisfies z.ZodType<Settlement>;
 
 export const SharedExpenseSchema = z

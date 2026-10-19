@@ -34,7 +34,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("record.approve"), id, patch: editable.optional() }),
   z.object({ type: z.literal("record.reject"), id }),
   z.object({ type: z.literal("record.delete"), id }),
-  z.object({ type: z.literal("settlement.create"), settlement: z.object({ id, date: z.string(), fromId: id, toId: id, amountPaise: money, note: z.string().max(500).optional() }) }),
+  z.object({ type: z.literal("settlement.create"), settlement: z.object({ id, date: z.string(), fromId: id, toId: id, amountPaise: money, note: z.string().max(500).optional(), recordIds: z.array(id).max(500).optional() }) }),
   z.object({ type: z.literal("settlement.void"), id }),
   z.object({ type: z.literal("category.add"), id, name: z.string().max(100) }),
   z.object({ type: z.literal("category.rename"), id, name: z.string().max(100) }),
@@ -112,11 +112,24 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
     }
     return rec;
   };
-  /** The couple space for settlements. `undefined` (tests, no couple wiring) keeps them in the given repository. */
-  const settlementRepo = (): Repository => {
+  /**
+   * Where a settlement lives. Between you and your linked partner it is in the couple space (both see it); with anyone else
+   * (friends, an invited partner) it is in your own space. `undefined` couple (tests) keeps everything in the given repository.
+   */
+  const meParticipant = couple?.meId ?? `u_${actor.uid}`;
+  const settlementRepoFor = (fromId: string, toId: string): Repository => {
     if (couple === undefined) return repo;
-    if (!couple || !couple.active) throw new ActionError("invalid", "Link with a partner in Settings to settle up.");
-    return couple.repo;
+    if (![fromId, toId].includes(meParticipant)) throw new ActionError("invalid", "A settlement has to involve you.");
+    const withPartner = !!couple && [fromId, toId].every((p) => p === couple.meId || p === couple.partnerId);
+    if (withPartner) {
+      if (!couple!.active) throw new ActionError("invalid", "You unlinked from your partner, so nothing new can be settled with them.");
+      return couple!.repo;
+    }
+    return repo;
+  };
+  const findSettlement = async (id: string): Promise<{ repo: Repository; cur: NonNullable<Awaited<ReturnType<Repository["settlements"]["get"]>>> } | null> => {
+    for (const r of couple === undefined ? [repo] : [...(couple ? [couple.repo] : []), repo]) { const cur = await r.settlements.get(id); if (cur) return { repo: r, cur }; }
+    return null;
   };
 
   switch (a.type) {
@@ -163,17 +176,18 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       return;
     }
     case "settlement.create": {
-      const target = settlementRepo();
-      if (couple && ![a.settlement.fromId, a.settlement.toId].every((p) => p === couple.meId || p === couple.partnerId)) throw new ActionError("invalid", "A settlement is between you and your partner.");
+      const target = settlementRepoFor(a.settlement.fromId, a.settlement.toId);
+      if (a.settlement.fromId === a.settlement.toId) throw new ActionError("invalid", "Pick two different people.");
+      if (couple !== undefined && !(await repo.participants.get(a.settlement.fromId === meParticipant ? a.settlement.toId : a.settlement.fromId)) && !(couple && [couple.partnerId].includes(a.settlement.fromId === meParticipant ? a.settlement.toId : a.settlement.fromId))) throw new ActionError("invalid", "Unknown person.");
       if (await target.settlements.get(a.settlement.id)) throw new ActionError("conflict", "That settlement already exists.");
       await target.settlements.put(a.settlement);
       await target.audit.append({ actorId: actor.uid, action: "settle", entity: "settlement", entityId: a.settlement.id, summary: `${a.settlement.fromId} paid ${a.settlement.toId} ${money(a.settlement.amountPaise)}` });
       return;
     }
     case "settlement.void": {
-      const target = settlementRepo();
-      const cur = await target.settlements.get(a.id);
-      if (!cur) throw new ActionError("not_found", "Settlement not found.");
+      const found = await findSettlement(a.id);
+      if (!found) throw new ActionError("not_found", "Settlement not found.");
+      const { repo: target, cur } = found;
       if (cur.voided) return;
       await target.settlements.put({ ...cur, voided: true });
       await target.audit.append({ actorId: actor.uid, action: "void_settlement", entity: "settlement", entityId: a.id, summary: `Voided settlement of ${money(cur.amountPaise)}` });

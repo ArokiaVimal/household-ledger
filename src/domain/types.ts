@@ -148,6 +148,8 @@ export interface Settlement {
   note?: string;
   /** Voided settlements stay in history but no longer count. */
   voided?: boolean;
+  /** The payments this settlement pays off (so each one can show as settled). Empty for a plain amount. */
+  recordIds?: string[];
 }
 
 export interface Receipt {

@@ -289,4 +289,15 @@ describe("sharing with a partner", () => {
     await fails(applyAction(repo, actor, { type: "settlement.create", settlement: { ...s, id: "s11" } }, null), "invalid");
     await fails(applyAction(repo, actor, { type: "settlement.create", settlement: { ...s, id: "s12" } }, { ...ctx, active: false }), "invalid");
   });
+  it("a settlement with a friend lives in your own space and remembers which payments it covers; void finds it there", async () => {
+    const { repo, couple, ctx } = await linked();
+    await repo.participants.put({ id: "friend", name: "Karthik", userId: null });
+    const s = { id: "sf1", date: "2026-10-01", fromId: "friend", toId: "me", amountPaise: 7000, recordIds: ["imp1"] };
+    await applyAction(repo, actor, { type: "settlement.create", settlement: s }, ctx);
+    expect((await repo.settlements.get("sf1"))!.recordIds).toEqual(["imp1"]);
+    expect(await couple.settlements.list()).toEqual([]);
+    await applyAction(repo, actor, { type: "settlement.void", id: "sf1" }, ctx);
+    expect((await repo.settlements.get("sf1"))!.voided).toBe(true);
+    await fails(applyAction(repo, actor, { type: "settlement.create", settlement: { ...s, id: "sf2", fromId: "friend", toId: "wife" } }, ctx), "invalid");
+  });
 });

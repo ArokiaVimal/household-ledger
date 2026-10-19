@@ -82,6 +82,8 @@ interface Store {
   scoped: ExpenseRecord[];
   summary: ReturnType<typeof summarize>;
   balances: ReturnType<typeof pairBalances>;
+  /** Every payment that can create a debt between two people (see `personLedger`). */
+  ledgerRecords: ExpenseRecord[];
   /** Status of each recurring item for the selected month. */
   recurring: ReturnType<typeof recurringStatuses>;
   /** Household categories (editable) and the merchant rules that point at them. */
@@ -151,7 +153,7 @@ function seed(live?: LiveInit) {
     // Names of both partners are needed to show a split, whichever space they were first stored in.
     const people = [...d.participants, ...(c?.participants ?? []).filter((p) => !d.participants.some((x) => x.id === p.id))];
     return {
-      records: d.records.filter((r) => r.status === "reviewed"), staged: d.records.filter((r) => r.status === "unreviewed"), categories: d.categories, rules: d.rules, settlements: c?.settlements ?? [],
+      records: d.records.filter((r) => r.status === "reviewed"), staged: d.records.filter((r) => r.status === "unreviewed"), categories: d.categories, rules: d.rules, settlements: [...(c?.settlements ?? []), ...d.settlements.filter((x) => !(c?.settlements ?? []).some((y) => y.id === x.id))],
       shared: c?.shared ?? ([] as SharedExpense[]),
       receipts: d.receipts, participants: people, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches,
     };
@@ -222,7 +224,10 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const scoped = useMemo(() => scopeRecords({ own: shown, shared: sharedRecords, coupled: together, view, meId, month }), [shown, sharedRecords, together, month, view, meId]);
   const summary = useMemo(() => summarize(scoped, meId), [scoped, meId]);
   const recurring = useMemo(() => recurringStatuses(recurringItems, records, month, today), [recurringItems, records, month, today]);
-  const balances = useMemo(() => pairBalances(live ? sharedRecords : records, settlements), [live, sharedRecords, records, settlements]);
+  // Everything that can make one person owe another: what is shared with your partner (couple space) plus what you split with
+  // friends and an invited partner (your own space). A record already shared with your partner is counted once, from the couple copy.
+  const ledgerRecords = useMemo(() => (live ? [...sharedRecords, ...records.filter((r) => !r.sharedWithPartner && r.split.participantIds.some((id) => id !== meId))] : records), [live, sharedRecords, records, meId]);
+  const balances = useMemo(() => pairBalances(ledgerRecords, settlements), [ledgerRecords, settlements]);
 
   const updateRecord = useCallback((id: string, patch: Partial<ExpenseRecord>) => {
     if (live && !records.some((r) => r.id === id)) { setSyncError("Only the person who shared this expense can change it."); return; }
@@ -359,7 +364,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const addSettlement = useCallback((s: Omit<Settlement, "id">) => {
     const id = live ? uuid() : `s${Date.now().toString(36)}`;
     setSettlements((x) => [...x, { ...s, id }]);
-    void send({ type: "settlement.create", settlement: { id, date: s.date, fromId: s.fromId, toId: s.toId, amountPaise: s.amountPaise, note: s.note } });
+    void send({ type: "settlement.create", settlement: { id, date: s.date, fromId: s.fromId, toId: s.toId, amountPaise: s.amountPaise, note: s.note, recordIds: s.recordIds } });
   }, [live, send]);
   const voidSettlement = useCallback((id: string) => {
     setSettlements((x) => x.map((s) => (s.id === id ? { ...s, voided: true } : s)));
@@ -374,7 +379,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const value: Store = {
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
-    previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, recurring,
+    previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
     categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },

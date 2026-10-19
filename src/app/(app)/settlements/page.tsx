@@ -1,98 +1,134 @@
 "use client";
-import { useState } from "react";
+import { Bell, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { Bell } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Badge, Button, Card, CardTitle, ConfirmDialog, Dialog, EmptyState, Field, Input, PageHeader, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
+import { personLedger, settlementFor } from "@/domain/ledger";
 import { formatINR, parseRupees } from "@/domain/money";
 
 export default function Settlements() {
-  const { balances, settlements, addSettlement, voidSettlement, nameOf, participants, meId, today, live, partner } = useStore();
+  const { settlements, ledgerRecords, addSettlement, voidSettlement, nameOf, participants, meId, today, live, partner } = useStore();
   const [open, setOpen] = useState(false);
-  const [settling, setSettling] = useState<{ from: string; to: string; outstanding: number } | null>(null);
+  const [all, setAll] = useState(false);
   const [voiding, setVoiding] = useState<string | null>(null);
-  const [from, setFrom] = useState(participants.find((p) => p.id !== meId && (!live || p.id === partner?.participantId))?.id ?? meId);
+  const [from, setFrom] = useState(meId);
   const [to, setTo] = useState(meId);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const paise = parseRupees(amount);
   const err = from === to ? "Pick two different people" : paise === null || paise <= 0 ? "Enter a valid amount" : null;
 
-  const canSettle = !live || !!partner?.active;
-  const people = live && partner ? participants.filter((p) => p.id === meId || p.id === partner.participantId) : participants;
-  const prefill = (f: string, t: string, outstanding: number) => { setFrom(f); setTo(t); setAmount((outstanding / 100).toFixed(2)); setOpen(true); };
-  // A friendly nudge you can send from any app. Uses the phone's share sheet where there is one, otherwise WhatsApp.
-  const remind = async (debtor: string, outstanding: number) => {
-    const text = `Hi ${nameOf(debtor)}, a gentle reminder: you owe me ${formatINR(outstanding)} for our shared expenses. Pay whenever you can, thank you!`;
+  const others = participants.filter((p) => p.id !== meId);
+  // You can settle with anyone except a partner you have since unlinked from.
+  const canSettleWith = (id: string) => !(live && partner && !partner.active && id === partner.participantId);
+  const ledgers = useMemo(() => others.map((p) => personLedger(p.id, meId, ledgerRecords, settlements)).filter((l) => l.open.length + l.settled.length > 0 || l.outstandingPaise !== 0), [others, meId, ledgerRecords, settlements]);
+  const owedToMe = ledgers.filter((l) => l.outstandingPaise > 0 && canSettleWith(l.personId)).reduce((s, l) => s + l.outstandingPaise, 0);
+  const iOwe = ledgers.filter((l) => l.outstandingPaise < 0 && canSettleWith(l.personId)).reduce((s, l) => s - l.outstandingPaise, 0);
+  const toSettle = ledgers.filter((l) => l.outstandingPaise !== 0 && canSettleWith(l.personId));
+  const canRecord = !live || others.some((p) => canSettleWith(p.id));
+  const people = participants;
+
+  const remind = async (name: string, amountPaise: number) => {
+    const text = `Hi ${name}, a gentle reminder: you owe me ${formatINR(amountPaise)} for our shared expenses. Pay whenever you can, thank you!`;
     try { if (navigator.share) return await navigator.share({ text }); } catch { return; }
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
   };
+  const settleAll = () => {
+    for (const l of toSettle) {
+      const s = settlementFor(l.personId, meId, l.open, l.outstandingPaise);
+      if (s) addSettlement({ date: today, fromId: s.fromId, toId: s.toId, amountPaise: s.amountPaise, note: "Settled everything", recordIds: s.recordIds });
+    }
+    setAll(false);
+  };
 
-  if (live && !partner) {
+  if (live && others.length === 0) {
     return (
       <>
-        <PageHeader title="Settlements" />
-        <Card><EmptyState title="Settling up is for partners" hint="Your transactions are private. Link a partner in Settings to split expenses and settle up." /><Link href="/settings" className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white">Open Settings</Link></Card>
+        <PageHeader title="Settle up" />
+        <Card><EmptyState title="No one to settle with yet" hint="Add a friend or invite your partner in Settings, then split an expense with them." /><Link href="/settings" className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white">Open Settings</Link></Card>
       </>
     );
   }
   return (
     <>
-      <PageHeader title="Settlements" sub={canSettle ? "Recording a payment reduces what is owed. It never creates an expense." : "You unlinked from your partner. This is the shared history; nothing new can be recorded."} actions={canSettle ? <Button variant="primary" onClick={() => { setAmount(""); setOpen(true); }}>Record settlement</Button> : undefined} />
+      <PageHeader title="Settle up" sub="See everything you share with each person, pick payments and settle them. Settling never creates an expense." actions={canRecord ? <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button> : undefined} />
+
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <Card className="p-4"><div className="text-xs text-muted">You are owed</div><div className="num text-xl font-semibold text-good">{formatINR(owedToMe)}</div></Card>
+        <Card className="p-4"><div className="text-xs text-muted">You owe</div><div className="num text-xl font-semibold">{formatINR(iOwe)}</div></Card>
+      </div>
+      {toSettle.length > 0 && <Button variant="primary" className="mb-4 min-h-11 w-full sm:w-auto sm:px-6" onClick={() => setAll(true)}>Settle all with {toSettle.length} {toSettle.length === 1 ? "person" : "people"}</Button>}
+
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-2">
         <Card>
-          <CardTitle>Who owes whom</CardTitle>
-          {balances.length === 0 ? <EmptyState title="Nothing outstanding" /> : (
+          <CardTitle>People</CardTitle>
+          {ledgers.length === 0 ? <EmptyState title="Nothing shared yet" hint="Split an expense with someone and it appears here." /> : (
             <ul className="divide-y divide-border">
-              {balances.map((b) => (
-                <li key={b.from + b.to} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-3">
-                  <div className="min-w-0 flex-1 basis-44">
-                    <div className="text-sm"><b>{nameOf(b.from)}</b> owes <b>{nameOf(b.to)}</b></div>
-                    <div className="num text-xs text-muted">Owed {formatINR(b.owed)} · settled {formatINR(b.settled)}</div>
-                  </div>
-                  <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                    {b.outstanding === 0 ? <Badge tone="good">Settled</Badge> : b.settled > 0 ? <Badge tone="warn">Partial</Badge> : null}
-                    <span className="num font-semibold">{formatINR(b.outstanding)}</span>
-                    {canSettle && b.outstanding > 0 && b.to === meId && <Button aria-label={`Remind ${nameOf(b.from)}`} title="Send a reminder" onClick={() => void remind(b.from, b.outstanding)}><Bell size={14} aria-hidden /><span className="hidden sm:inline">Remind</span></Button>}
-                    {canSettle && b.outstanding > 0 && <Button variant="primary" onClick={() => setSettling(b)}>Settle</Button>}
-                  </div>
-                </li>
-              ))}
+              {ledgers.map((l) => {
+                const name = nameOf(l.personId);
+                const owes = l.outstandingPaise > 0;
+                return (
+                  <li key={l.personId} className="flex items-center gap-2 py-1.5">
+                    <Link href={`/settlements/${encodeURIComponent(l.personId)}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-2 hover:bg-background sm:px-2">
+                      <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/10 font-semibold text-accent">{name.slice(0, 1).toUpperCase()}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{name}</span>
+                        <span className="block text-xs text-muted">{l.open.length === 0 ? (l.outstandingPaise === 0 ? "All settled" : "Balance from earlier payments") : `${l.open.length} payment${l.open.length === 1 ? "" : "s"} to settle`}</span>
+                      </span>
+                      <span className="text-right">
+                        <span className={`num block font-semibold ${l.outstandingPaise === 0 ? "text-muted" : owes ? "text-good" : ""}`}>{l.outstandingPaise === 0 ? "₹0" : formatINR(Math.abs(l.outstandingPaise))}</span>
+                        <span className="block text-xs text-muted">{l.outstandingPaise === 0 ? "even" : owes ? "owes you" : "you owe"}</span>
+                      </span>
+                      <ChevronRight size={16} aria-hidden className="shrink-0 text-muted" />
+                    </Link>
+                    {owes && canSettleWith(l.personId) && <button type="button" aria-label={`Remind ${name}`} title="Send a reminder" onClick={() => void remind(name, l.outstandingPaise)} className="grid size-10 shrink-0 place-items-center rounded-full border border-border text-muted hover:bg-background"><Bell size={15} aria-hidden /></button>}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>
         <Card>
           <CardTitle>History</CardTitle>
-          <ul className="divide-y divide-border">
-            {settlements.map((s) => (
-              <li key={s.id} className="flex items-center justify-between gap-2 py-2.5 text-sm">
-                <div className={s.voided ? "text-muted line-through" : ""}>
-                  {nameOf(s.fromId)} → {nameOf(s.toId)} <span className="num font-medium">{formatINR(s.amountPaise)}</span>
-                  <div className="text-xs text-muted">{s.date}{s.note ? ` · ${s.note}` : ""}</div>
-                </div>
-                {s.voided ? <Badge>Voided</Badge> : !canSettle ? null : <Button variant="danger" onClick={() => setVoiding(s.id)}>Void</Button>}
+          {settlements.length === 0 ? <p className="text-sm text-muted">No settlements yet.</p> : (
+            <ul className="divide-y divide-border">
+              {[...settlements].sort((a, b) => b.date.localeCompare(a.date)).map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-2 py-2.5 text-sm">
+                  <div className={s.voided ? "text-muted line-through" : ""}>
+                    {nameOf(s.fromId)} → {nameOf(s.toId)} <span className="num font-medium">{formatINR(s.amountPaise)}</span>
+                    <div className="text-xs text-muted">{s.date}{s.recordIds?.length ? ` · ${s.recordIds.length} payment${s.recordIds.length === 1 ? "" : "s"}` : ""}{s.note ? ` · ${s.note}` : ""}</div>
+                  </div>
+                  {s.voided ? <Badge>Voided</Badge> : canRecord ? <Button variant="danger" onClick={() => setVoiding(s.id)}>Void</Button> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-muted">Voided entries stay in history but stop counting, and their payments become unsettled again.</p>
+        </Card>
+      </div>
+
+      <Dialog open={all} onClose={() => setAll(false)} title="Settle everything?">
+        <div className="space-y-3 pb-1 text-sm">
+          <ul className="divide-y divide-border rounded-xl bg-background px-3">
+            {toSettle.map((l) => (
+              <li key={l.personId} className="flex items-center justify-between gap-2 py-2.5">
+                <span><b>{l.outstandingPaise > 0 ? nameOf(l.personId) : "You"}</b> pay{l.outstandingPaise > 0 ? "s" : ""} <b>{l.outstandingPaise > 0 ? "you" : nameOf(l.personId)}</b></span>
+                <span className="num font-semibold">{formatINR(Math.abs(l.outstandingPaise))}</span>
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-muted">Voided entries stay in history (audit trail) but stop counting. Record a new one to correct an amount.</p>
-        </Card>
-      </div>
-      <Dialog open={!!settling} onClose={() => setSettling(null)} title="Settle up">
-        {settling && (
-          <div className="space-y-3 pb-1 text-sm">
-            <p><b>{nameOf(settling.from)}</b> paid <b>{nameOf(settling.to)}</b> <b className="num">{formatINR(settling.outstanding)}</b>?</p>
-            <p className="text-muted">This marks everything currently owed between you two as paid. It never counts as spending, and you can void it later from the history.</p>
-            <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3">
-              <Button onClick={() => { const b = settling; setSettling(null); prefill(b.from, b.to, b.outstanding); }}>Part payment…</Button>
-              <Button variant="primary" onClick={() => { addSettlement({ date: today, fromId: settling.from, toId: settling.to, amountPaise: settling.outstanding }); setSettling(null); }}>Yes, settled in full</Button>
-            </div>
+          <p className="text-muted">Every open payment with these people is marked settled. You can void any of them afterwards from the history.</p>
+          <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3">
+            <Button onClick={() => setAll(false)}>Cancel</Button>
+            <Button variant="primary" onClick={settleAll}>Yes, settle all</Button>
           </div>
-        )}
+        </div>
       </Dialog>
       <ConfirmDialog open={!!voiding} onClose={() => setVoiding(null)} title="Void this settlement?" confirmLabel="Void it" onConfirm={() => voiding && voidSettlement(voiding)}>
-        <p>It will stop counting, so the amount owed goes back up. It stays in the history as voided.</p>
+        <p>It will stop counting, so the amount owed goes back up and its payments become unsettled. It stays in the history as voided.</p>
       </ConfirmDialog>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Record settlement">
+      <Dialog open={open} onClose={() => setOpen(false)} title="Record a payment">
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Paid by"><Select value={from} onChange={(e) => setFrom(e.target.value)}>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
