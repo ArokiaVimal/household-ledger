@@ -61,17 +61,36 @@ function readSummary(lines: PdfLine[]): Partial<StatementSummary> {
   return out;
 }
 
-/** "Payment Due Date" followed by a date on the same or the next line, in the formats Indian statements print. */
+/** Every date in a piece of text, in reading order: "29 Oct 2026", "October 29, 2026" and "29/10/2026". */
+function datesIn(text: string): string[] {
+  const found: { at: number; iso: string }[] = [];
+  const monthOf = (name: string) => monthNo(name) || MONTHS.findIndex((x) => x.startsWith(name.toLowerCase())) + 1;
+  for (const m of text.matchAll(/(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})/g)) { const mo = monthOf(m[2]); if (mo) found.push({ at: m.index!, iso: iso(Number(m[3]), mo, Number(m[1])) }); }
+  for (const m of text.matchAll(/([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})/g)) { const mo = monthOf(m[1]); if (mo) found.push({ at: m.index!, iso: iso(Number(m[3]), mo, Number(m[2])) }); }
+  for (const m of text.matchAll(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/g)) if (Number(m[2]) >= 1 && Number(m[2]) <= 12) found.push({ at: m.index!, iso: iso(Number(m[3]), Number(m[2]), Number(m[1])) });
+  return found.sort((a, b) => a.at - b.at).map((f) => f.iso);
+}
+
+/**
+ * The payment due date. Statements print it in several places, so the clearest wording wins:
+ * "Due by <date>", then "payment of Rs. X by <date>", then a "Payment Due" label (when a line holds both the statement date
+ * and the due date, the due date is the last one).
+ */
 export function readDueDate(lines: PdfLine[]): string | undefined {
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].text.match(/\bdue\s+by\s+(.+)/i);
+    if (m) { const d = datesIn(m[1])[0] ?? datesIn(lines[i + 1]?.text ?? "")[0]; if (d) return d; }
+  }
+  for (let i = 0; i < lines.length; i++) {
+    if (!/payment\s+of\s+rs\.?\s*[\d,.]+\s+by\b/i.test(lines[i].text)) continue;
+    const d = datesIn(lines[i].text.replace(/^.*?\bby\b/i, ""))[0] ?? datesIn(lines[i + 1]?.text ?? "")[0];
+    if (d) return d;
+  }
   for (let i = 0; i < lines.length; i++) {
     if (!/(payment\s+due(\s+date)?|due\s+date)/i.test(lines[i].text)) continue;
     for (const text of [lines[i].text, lines[i + 1]?.text ?? ""]) {
-      const named = text.match(/(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})/) ?? undefined;
-      if (named) { const m = monthNo(named[2]) || MONTHS.findIndex((x) => x.startsWith(named[2].toLowerCase())) + 1; if (m) return iso(Number(named[3]), m, Number(named[1])); }
-      const us = text.match(/([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})/);
-      if (us) { const m = MONTHS.findIndex((x) => x.startsWith(us[1].toLowerCase())) + 1; if (m) return iso(Number(us[3]), m, Number(us[2])); }
-      const num = text.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
-      if (num && Number(num[2]) >= 1 && Number(num[2]) <= 12) return iso(Number(num[3]), Number(num[2]), Number(num[1]));
+      const all = datesIn(text);
+      if (all.length) return all[all.length - 1];
     }
   }
   return undefined;

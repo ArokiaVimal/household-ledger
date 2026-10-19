@@ -87,4 +87,8 @@ describe("one payment seen in the app and in the bank is a possible duplicate, n
     expect(detectDuplicate({ accountId: "bank_icici", date: "2026-09-01", amountPaise: 61200, merchant: "Swiggy" }, existing).status).toBe("none");
     expect(detectDuplicate({ accountId: "bank_hdfc", date: "2026-09-01", amountPaise: 99900, merchant: "Swiggy" }, existing).status).toBe("none");
   });
+  it("a credit-card statement stays a credit-card statement despite cheque and IFSC small print", () => {
+    const text = "American Express Platinum Travel Credit Card Statement of Account Opening Balance Minimum Payment Due Credit Limit Card Number XXXX\n" + "x ".repeat(3000) + "Make a crossed cheque payable. IFSC code. Account number. Branch.";
+    expect(statementType(text)).toBe("credit_card");
+  });
 });

@@ -32,6 +32,11 @@ export const issuerKeys = (text: string) => [...issuerHits(text).keys()];
 
 /** "credit_card" or "bank" when the wording makes it clear, otherwise null. */
 export function statementType(text: string): "credit_card" | "bank" | null {
+  // The top of a statement says what it is; the legal small print further down mentions cheques, IFSC codes and branches
+  // even on a credit-card statement. Decide on the top first, and only then on the whole text.
+  return typeOf(text.slice(0, 2500)) ?? typeOf(text);
+}
+function typeOf(text: string): "credit_card" | "bank" | null {
   const t = text.toLowerCase();
   const count = (res: RegExp[], weight = 1) => res.reduce((s, r) => s + (r.test(t) ? weight : 0), 0);
   const card = count([/credit limit/, /minimum (amount|payment) due/, /total (amount|payment) due/, /payment due date/, /credit card/, /card (number|no)/, /reward points/]);

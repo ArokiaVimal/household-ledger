@@ -98,6 +98,11 @@ describe("readDueDate", () => {
     expect(due(t(14, 600, "Payment Due Date"), t(14, 585, "29 Oct 2026"))).toBe("2026-10-29");
     expect(due(t(14, 600, "Due Date: 29/10/2026"))).toBe("2026-10-29");
   });
+  it("picks the due date, not the statement date, when the page prints both", () => {
+    expect(due(t(14, 600, "Minimum Payment Due"), t(14, 585, "Statement includes payments and charges received by September 02, 2026 September 20, 2026"))).toBe("2026-09-20");
+    expect(due(t(14, 600, "Statement includes charges received by September 02, 2026"), t(14, 580, "Due by September 20, 2026"))).toBe("2026-09-20");
+    expect(due(t(14, 600, "We would appreciate receiving your payment of Rs. 1,455.00 by"), t(14, 585, "20/09/2026."))).toBe("2026-09-20");
+  });
   it("returns nothing when no due date is printed", () => {
     expect(due(t(14, 600, "Statement of Account"), t(14, 585, "October 9, 2026"))).toBeUndefined();
   });
