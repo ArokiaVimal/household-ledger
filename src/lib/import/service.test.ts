@@ -246,3 +246,33 @@ describe("monthly commitments", () => {
   });
 });
 
+
+describe("voucher sellers", () => {
+  const textInput = (description: string, over: Record<string, unknown> = {}) => ({
+    accountId: "cc_hdfc", filename: "t", fileHash: "8".repeat(64), format: "text" as const, readBy: "parser" as const,
+    rows: [{ line: 1, date: "2026-09-05", description, amountPaise: 1_000_000, direction: "debit" as const, raw: [description] }], ...over,
+  });
+  it("shows Shopwise for the CUST CAP SOLUTIONS descriptor, keeps the statement text, asks for the voucher at review, and never asks Claude about it", async () => {
+    const repo = await setup();
+    let asked = 0;
+    const d: ImportDeps = { ...deps, suggest: async () => { asked++; return { suggestions: [], usage: { asked: 0, calls: 0, inputTokens: 0, outputTokens: 0 } }; } };
+    const input = textInput("POS 4471 CUST CAP SOLUTIONS BANGALORE IN");
+    const p = await previewImport(repo, input, d);
+    expect(p.rows[0]).toMatchObject({ merchant: "Shopwise", kind: "purchase", voucher: true });
+    expect(asked).toBe(0);
+    await commitImport(repo, { uid: "u1", participantId: "p1" }, input, d);
+    const [rec] = await repo.records.list();
+    expect(rec).toMatchObject({ merchant: "Shopwise", originalDescription: "POS 4471 CUST CAP SOLUTIONS BANGALORE IN", status: "unreviewed", voucherPending: true });
+    expect(rec.voucherBrandId).toBeUndefined();
+  });
+  it("a merchant you confirmed as a voucher seller asks every time, under your own name for it", async () => {
+    const repo = await setup();
+    await repo.merchantMemory.put({ id: "mm_gift_hub", key: "gift hub", name: "Gift Hub", categoryId: "shopping", kind: "purchase", source: "user", confident: true, confirmed: 2, lastSeen: "2026-09-01", voucherSeller: true });
+    const p = await previewImport(repo, textInput("GIFT HUB MUMBAI"), deps);
+    expect(p.rows[0]).toMatchObject({ merchant: "Gift Hub", voucher: true });
+  });
+  it("an ordinary merchant is not a voucher seller", async () => {
+    const repo = await setup();
+    expect((await previewImport(repo, textInput("SWIGGY ORDER"), deps)).rows[0].voucher).toBeFalsy();
+  });
+});

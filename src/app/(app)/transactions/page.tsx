@@ -72,7 +72,7 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
 }
 
 function TransactionsView() {
-  const { meId, accounts, categories, records, scoped, month, nameOf, categoryName, accountName, recurringName } = useStore();
+  const { meId, accounts, categories, records, scoped, month, nameOf, categoryName, accountName, recurringName, voucherBrands } = useStore();
   const params = useSearchParams();
   const router = useRouter();
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
@@ -96,6 +96,9 @@ function TransactionsView() {
       .filter((r) => !get("account") || r.accountId === get("account"))
       .filter((r) => !get("recurring") || (get("recurring") === "1" ? !!r.recurringId : r.recurringId === get("recurring")))
       .filter((r) => !get("shared") || r.shared === (get("shared") === "1"))
+      // Vouchers: ?voucher=<brand> (bought), 1 (any bought), none (bought, brand not chosen yet); ?paidWith=<brand> or 1 (paid with a voucher).
+      .filter((r) => !get("voucher") || (get("voucher") === "1" ? !!r.voucherBrandId : get("voucher") === "none" ? !!r.voucherPending && !r.voucherBrandId : r.voucherBrandId === get("voucher")))
+      .filter((r) => !get("paidWith") || (get("paidWith") === "1" ? !!r.paidWithVoucherId : r.paidWithVoucherId === get("paidWith")))
       .filter((r) => !text || `${r.merchant} ${r.originalDescription} ${r.notes ?? ""}`.toLowerCase().includes(text))
       .sort((a, b) => b.date.localeCompare(a.date));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -103,7 +106,7 @@ function TransactionsView() {
 
   const total = summarize(rows, meId);
   const view = get("view") || "all";
-  const active = ["recurring", "q", "category", "merchant", "status", "kind", "account", "shared"].filter((k) => get(k));
+  const active = ["recurring", "q", "category", "merchant", "status", "kind", "account", "shared", "voucher", "paidWith"].filter((k) => get(k));
 
   return (
     <>
@@ -122,7 +125,7 @@ function TransactionsView() {
       </div>
       {active.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5 text-xs">
-          {active.map((k) => <Badge key={k} tone="good">{k}: {k === "category" ? categoryName(get(k)) : k === "account" ? accountName(get(k)) : k === "recurring" && get(k) !== "1" ? recurringName(get(k)) : get(k)}</Badge>)}
+          {active.map((k) => <Badge key={k} tone="good">{k}: {k === "category" ? categoryName(get(k)) : k === "account" ? accountName(get(k)) : k === "recurring" && get(k) !== "1" ? recurringName(get(k)) : (k === "voucher" || k === "paidWith") && get(k) !== "1" && get(k) !== "none" ? voucherBrands.find((b) => b.id === get(k))?.name ?? get(k) : get(k)}</Badge>)}
           <button className="text-muted underline" onClick={() => router.replace(`/transactions${get("month") ? `?month=${get("month")}` : ""}`)}>Clear filters</button>
         </div>
       )}

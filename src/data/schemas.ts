@@ -3,7 +3,7 @@
 // domain types, so a type change that is not mirrored here fails to compile.
 import { z } from "zod";
 import { validateSplit } from "@/domain/splits";
-import type { Account, AuditEvent, CardBill, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense, SplitConfig } from "@/domain/types";
+import type { Account, AuditEvent, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense, SplitConfig } from "@/domain/types";
 
 export const SCHEMA_VERSION = 1;
 
@@ -48,6 +48,9 @@ export const ExpenseRecordSchema = z
     fundedBy: id.optional(),
     paidCardId: id.optional(),
     recurringHint: z.boolean().optional(),
+    voucherBrandId: id.optional(),
+    paidWithVoucherId: id.optional(),
+    voucherPending: z.boolean().optional(),
     recurringId: id.optional(),
     suggested: z.enum(["memory", "ai", "ai_unsure"]).optional(),
     sharedWithPartner: z.boolean().optional(),
@@ -58,6 +61,9 @@ export const ExpenseRecordSchema = z
     const err = validateSplit(r.amountPaise, r.split as SplitConfig);
     if (err) ctx.addIssue({ code: "custom", path: ["split"], message: err });
     if (r.shared !== (r.split.mode !== "personal")) ctx.addIssue({ code: "custom", path: ["shared"], message: "shared must match the split mode" });
+    // A voucher purchase is one outflow; a payment made with a voucher is not. A transaction cannot be both.
+    if (r.voucherBrandId && r.paidWithVoucherId) ctx.addIssue({ code: "custom", path: ["paidWithVoucherId"], message: "A transaction cannot both buy a voucher and be paid with one" });
+    if (r.voucherBrandId && r.kind !== "purchase") ctx.addIssue({ code: "custom", path: ["voucherBrandId"], message: "Only a purchase can buy a voucher" });
   }) satisfies z.ZodType<ExpenseRecord>;
 
 export const SettlementSchema = z
@@ -108,9 +114,16 @@ export const RawTransactionSchema = z.object({
 const kindEnum = z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]);
 export const MerchantMemorySchema = z.object({
   id, key: z.string().min(1).max(80), name: z.string().min(1).max(60), categoryId: id, kind: kindEnum,
-  source: z.enum(["user", "ai"]), confident: z.boolean(), confirmed: z.number().int().min(0).max(1_000_000), lastSeen: date,
+  source: z.enum(["user", "ai"]), confident: z.boolean(), confirmed: z.number().int().min(0).max(1_000_000), lastSeen: date, voucherSeller: z.boolean().optional(),
 }) satisfies z.ZodType<MerchantMemory>;
 
 export const CardBillSchema = z.object({
   id, accountId: id, statementDate: date, dueDate: date, totalDuePaise: paise.positive(), source: z.enum(["statement", "manual", "message"]), batchId: id.optional(), paid: z.boolean().optional(),
 }) satisfies z.ZodType<CardBill>;
+
+export const VoucherBrandSchema = z.object({
+  id, name: z.string().trim().min(1).max(40),
+  balance: z.object({ amountPaise: z.number().int().safe().min(0), asOf: date }).optional(),
+  tracksAllUse: z.boolean().optional(),
+}) satisfies z.ZodType<VoucherBrand>;
+

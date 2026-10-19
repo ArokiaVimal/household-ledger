@@ -315,5 +315,39 @@ describe("sharing with a partner", () => {
     expect(await repo.cardBills.get("b1")).toBeNull();
     await fails(applyAction(repo, actor, { type: "cardbill.delete", id: "b1" }), "not_found");
   });
+  it("voucher brands: add (no duplicates), rename, record a balance, and refuse to delete one in use", async () => {
+    const repo = await setup();
+    await applyAction(repo, actor, { type: "voucherBrand.add", id: "vb1", name: "  Amazon  " });
+    expect((await repo.voucherBrands.get("vb1"))!.name).toBe("Amazon");
+    await fails(applyAction(repo, actor, { type: "voucherBrand.add", id: "vb2", name: "amazon" }), "conflict");
+    await fails(applyAction(repo, actor, { type: "voucherBrand.add", id: "vb3", name: "" }), "invalid");
+    await applyAction(repo, actor, { type: "voucherBrand.update", id: "vb1", name: "Amazon Pay", balance: { amountPaise: 500000, asOf: "2026-09-05" }, tracksAllUse: true });
+    expect(await repo.voucherBrands.get("vb1")).toMatchObject({ name: "Amazon Pay", balance: { amountPaise: 500000, asOf: "2026-09-05" }, tracksAllUse: true });
+    await applyAction(repo, actor, { type: "voucherBrand.update", id: "vb1", balance: null, tracksAllUse: false });
+    expect(await repo.voucherBrands.get("vb1")).toEqual({ id: "vb1", name: "Amazon Pay" });
+    await repo.records.put(imported({ id: "vp", referenceId: "VP", voucherBrandId: "vb1" }));
+    await fails(applyAction(repo, actor, { type: "voucherBrand.delete", id: "vb1" }), "conflict");
+    await applyAction(repo, actor, { type: "voucherBrand.add", id: "vb9", name: "Myntra" });
+    await applyAction(repo, actor, { type: "voucherBrand.delete", id: "vb9" });
+    expect(await repo.voucherBrands.get("vb9")).toBeNull();
+  });
+  it("approving a voucher purchase records the brand, clears the prompt, and remembers the merchant as a voucher seller", async () => {
+    const repo = await setup();
+    await applyAction(repo, actor, { type: "voucherBrand.add", id: "vb1", name: "Swiggy" });
+    await repo.records.put(imported({ id: "shop", referenceId: "SH", originalDescription: "CUST CAP SOLUTIONS BANGALORE", merchant: "Shopwise", voucherPending: true }));
+    await applyAction(repo, actor, { type: "record.approve", id: "shop", patch: { voucherBrandId: "vb1", voucherPending: null } });
+    const r = (await repo.records.get("shop"))!;
+    expect(r).toMatchObject({ status: "reviewed", voucherBrandId: "vb1" });
+    expect(r.voucherPending).toBeUndefined();
+    expect((await repo.merchantMemory.list()).find((m) => m.name === "Shopwise")).toMatchObject({ voucherSeller: true, source: "user" });
+    expect((await repo.audit.list()).some((e) => /voucher: Swiggy/.test(e.summary))).toBe(true);
+  });
+  it("refuses an unknown brand, and a payment cannot both buy and use a voucher", async () => {
+    const repo = await setup();
+    await repo.records.put(imported({ id: "r9", referenceId: "R9" }));
+    await fails(applyAction(repo, actor, { type: "record.update", id: "r9", patch: { voucherBrandId: "nope" } }), "invalid");
+    await applyAction(repo, actor, { type: "voucherBrand.add", id: "vb1", name: "Swiggy" });
+    await expect(applyAction(repo, actor, { type: "record.update", id: "r9", patch: { voucherBrandId: "vb1", paidWithVoucherId: "vb1" } })).rejects.toThrow();
+  });
 });
 

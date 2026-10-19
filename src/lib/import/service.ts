@@ -8,6 +8,7 @@ import type { PdfParseResult, StatementCheck, StatementSummary } from "@/domain/
 import { planImport } from "@/domain/dedupe";
 import { resolveChannel } from "@/domain/import/channel";
 import { looksRecurring, repeatsMonthly } from "@/domain/import/recurring-hint";
+import { knownVoucherSeller } from "@/domain/vouchers";
 import type { Sensed } from "@/domain/import/sense";
 import { isConfident, kindFits, lookupMemory, memoryKey, rememberSuggestion, seedMemory } from "@/domain/memory";
 import type { AiItem, AiUsage, Suggest } from "./ai";
@@ -52,6 +53,8 @@ export interface PreviewRow {
   paidCardId?: string;
   /** Looks like a monthly commitment (EMI, rent, premium, subscription); review will offer to add it to Recurring. */
   recurring?: boolean;
+  /** A voucher seller (for example Shopwise): review asks which voucher was bought. */
+  voucher?: boolean;
   /** What will happen: skipped duplicates are not added. Defaults to skipping exact duplicates only; your decision overrides it. */
   action: "import" | "skip";
   /** The existing entry this duplicates or resembles (absent when it only repeats another line of the same file). */
@@ -139,7 +142,7 @@ function dedupeKey(sha256: (s: string) => string, accountId: string, r: ParsedRo
   return `h:${sha256(`${accountId}|${r.date}|${r.amountPaise}|${r.direction}|${r.description.toLowerCase()}|${occurrence}`).slice(0, 24)}`;
 }
 
-export interface ResolvedRow { merchant: string; kind: TxnKind; key: string; categoryId: string; suggested?: Suggestion }
+export interface ResolvedRow { merchant: string; kind: TxnKind; key: string; categoryId: string; suggested?: Suggestion; /** A voucher seller: review asks which voucher was bought. */ voucher?: boolean }
 
 /**
  * Decides merchant, payment type and category for statement lines: your rules, then merchant memory, then (only for
@@ -175,7 +178,7 @@ export async function resolveRows(
     const wanted = KIND_CATEGORY[p.kind];
     if (wanted) { p.categoryId = hasCategory(wanted) ? wanted : "uncategorized"; if (p.kind !== "income" && p.kind !== "refund") continue; }
     // A clearly classified fee, card payment or transfer needs no AI; vague purchases and credits do.
-    if (p.key && !unknown.has(p.key)) unknown.set(p.key, { key: p.key, description: p.r.description, amountPaise: p.r.amountPaise, direction: p.r.direction });
+    if (p.key && !unknown.has(p.key) && !knownVoucherSeller(p.r.description)) unknown.set(p.key, { key: p.key, description: p.r.description, amountPaise: p.r.amountPaise, direction: p.r.direction });
   }
   const ai: AiUsage = { asked: 0, calls: 0, inputTokens: 0, outputTokens: 0 };
   if (d.suggest && unknown.size > 0) {
@@ -192,6 +195,17 @@ export async function resolveRows(
       p.merchant = mem.name; p.kind = mem.kind; p.categoryId = KIND_CATEGORY[mem.kind] ?? mem.categoryId;
       p.suggested = isConfident(mem) ? "ai" : "ai_unsure";
     }
+  }
+  // Voucher sellers (built-in descriptors, or merchants you have confirmed as sellers): show the friendly name, keep the statement
+  // text as it is, and mark the row so review asks which voucher was bought. A name you confirmed yourself always wins.
+  for (const p of prepared) {
+    const seller = knownVoucherSeller(p.r.description);
+    const mem = lookupMemory(memory, p.key);
+    if (!seller && !mem?.voucherSeller) continue;
+    (p as { voucher?: boolean }).voucher = true;
+    if (seller && mem?.source !== "user") { p.merchant = seller; p.suggested ??= "memory"; }
+    if (p.kind !== "cc_payment" && p.kind !== "income" && p.kind !== "refund") p.kind = "purchase";
+    if (p.categoryId === "uncategorized" && hasCategory("vouchers")) p.categoryId = "vouchers";
   }
   return { items: prepared.map(({ r: _r, ...rest }) => { void _r; return rest; }), ai };
 }
@@ -260,7 +274,7 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
   const accounts = await repo.accounts.list();
   const withRef = prepared.map((p) => {
     const ch = resolveChannel(p.r.description, p.kind, account, accounts);
-    return { ...p, accountId: ch.accountId, fundedBy: ch.fundedBy, paidCardId: ch.paidCard?.id, recurring: p.kind !== "cc_payment" && (p.r.recurringHint === true || looksRecurring(p.r.description, p.kind, p.r.direction) || repeatsMonthly(p.r.description, p.r.amountPaise, p.r.date, records)), merchant: ch.merchant ?? p.merchant, referenceId: dedupeKey(d.sha256, input.accountId, p.r, p.occurrence) };
+    return { ...p, accountId: ch.accountId, fundedBy: ch.fundedBy, paidCardId: ch.paidCard?.id, voucher: p.voucher, recurring: p.kind !== "cc_payment" && (p.r.recurringHint === true || looksRecurring(p.r.description, p.kind, p.r.direction) || repeatsMonthly(p.r.description, p.r.amountPaise, p.r.date, records)), merchant: ch.merchant ?? p.merchant, referenceId: dedupeKey(d.sha256, input.accountId, p.r, p.occurrence) };
   });
   const plan = planImport(withRef.map((p) => ({ accountId: p.accountId, fundedBy: p.fundedBy, date: p.r.date, amountPaise: p.r.amountPaise, merchant: p.merchant, referenceId: p.referenceId, direction: p.r.direction })), records);
 
@@ -273,7 +287,7 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
     return {
       action, match: found ? { merchant: found.merchant, date: found.date, amountPaise: found.amountPaise, reviewed: found.status === "reviewed" } : undefined,
       line: p.r.line, date: p.r.date, description: p.r.description, merchant: p.merchant, amountPaise: p.r.amountPaise, direction: p.r.direction,
-      kind: p.kind, categoryId: p.categoryId, suggested: p.suggested, status, accountId: p.accountId, fundedBy: p.fundedBy, paidCardId: p.paidCardId, recurring: p.recurring, matchId: dup.status === "none" ? undefined : dup.matchId, referenceId: p.referenceId, parsed: p.r,
+      kind: p.kind, categoryId: p.categoryId, suggested: p.suggested, status, accountId: p.accountId, fundedBy: p.fundedBy, paidCardId: p.paidCardId, recurring: p.recurring, voucher: p.voucher, matchId: dup.status === "none" ? undefined : dup.matchId, referenceId: p.referenceId, parsed: p.r,
     };
   });
   const counts = { rows: out.length, new: out.filter((x) => x.status === "new").length, duplicate: out.filter((x) => x.status === "duplicate").length, possible: out.filter((x) => x.status === "possible").length, unreadable: skipped.length, toImport: out.filter((x) => x.action === "import").length };
@@ -329,7 +343,7 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
   for (const r of stage) {
     const rec: ExpenseRecord = {
       id: d.newId(), date: r.date, postedDate: r.parsed.postedDate, merchant: r.merchant, originalDescription: r.description.slice(0, 500), amountPaise: r.amountPaise, currency: "INR",
-      accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), ...(r.paidCardId ? { paidCardId: r.paidCardId } : {}), ...(r.recurring ? { recurringHint: true } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
+      accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), ...(r.paidCardId ? { paidCardId: r.paidCardId } : {}), ...(r.recurring ? { recurringHint: true } : {}), ...(r.voucher ? { voucherPending: true } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
       excluded: false, status: "unreviewed", suggested: r.suggested, importSource: `${input.filename.slice(0, 150)} (import ${batchId.slice(0, 8)})`, referenceId: r.referenceId, duplicateOf: r.status !== "new" ? r.matchId : undefined,
     };
     await repo.records.put(JSON.parse(JSON.stringify(rec)) as ExpenseRecord);

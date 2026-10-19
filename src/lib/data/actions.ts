@@ -20,12 +20,12 @@ const money = z.number().int().safe();
 const editable = z.object({
   merchant: z.string().min(1).max(120), categoryId: id, kind: z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]),
   payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).nullable(),
-  recurringId: id.nullable(), fundedBy: id.nullable(), paidCardId: id.nullable(), recurringHint: z.boolean().nullable(), receiptId: id.nullable(), shareNote: z.boolean(),
+  recurringId: id.nullable(), fundedBy: id.nullable(), paidCardId: id.nullable(), recurringHint: z.boolean().nullable(), voucherBrandId: id.nullable(), paidWithVoucherId: id.nullable(), voucherPending: z.boolean().nullable(), receiptId: id.nullable(), shareNote: z.boolean(),
 }).partial();
 
 const manualRecord = z.object({
   id, date: z.string(), merchant: z.string().min(1).max(120), amountPaise: money, accountId: id, categoryId: id, kind: z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]),
-  payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).optional(), recurringId: id.optional(), fundedBy: id.optional(), paidCardId: id.optional(),
+  payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).optional(), recurringId: id.optional(), fundedBy: id.optional(), paidCardId: id.optional(), voucherBrandId: id.optional(), paidWithVoucherId: id.optional(),
 });
 
 export const ActionSchema = z.discriminatedUnion("type", [
@@ -49,6 +49,9 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("recurring.delete"), id }),
   z.object({ type: z.literal("cardbill.put"), bill: z.object({ id, accountId: id, statementDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), totalDuePaise: z.number().int().safe().positive(), source: z.enum(["statement", "manual", "message"]), batchId: id.optional(), paid: z.boolean().optional() }) }),
   z.object({ type: z.literal("cardbill.delete"), id }),
+  z.object({ type: z.literal("voucherBrand.add"), id, name: z.string().max(60) }),
+  z.object({ type: z.literal("voucherBrand.update"), id, name: z.string().max(60).optional(), balance: z.object({ amountPaise: z.number().int().safe().min(0), asOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).nullable().optional(), tracksAllUse: z.boolean().optional() }),
+  z.object({ type: z.literal("voucherBrand.delete"), id }),
 ]);
 export type Action = z.infer<typeof ActionSchema>;
 
@@ -134,12 +137,53 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
     return null;
   };
 
+  /** A voucher brand named on a record must exist. (Exclusivity and "purchase only" are enforced by the record schema.) */
+  const checkVoucherRefs = async (r: ExpenseRecord) => {
+    for (const id of [r.voucherBrandId, r.paidWithVoucherId]) if (id && !(await repo.voucherBrands.get(id))) throw new ActionError("invalid", "Unknown voucher brand.");
+  };
+
   switch (a.type) {
+    case "voucherBrand.add": {
+      const name = a.name.replace(/\s+/g, " ").trim();
+      if (!name || name.length > 40) throw new ActionError("invalid", "Enter a voucher name (up to 40 characters).");
+      const all = await repo.voucherBrands.list();
+      if (all.some((b) => b.id === a.id)) throw new ActionError("conflict", "That voucher already exists.");
+      if (all.some((b) => b.name.toLowerCase() === name.toLowerCase())) throw new ActionError("conflict", "You already have a voucher with that name.");
+      await repo.voucherBrands.put({ id: a.id, name });
+      await log("create", "household", a.id, `Added voucher brand ${name}`);
+      return;
+    }
+    case "voucherBrand.update": {
+      const cur = await repo.voucherBrands.get(a.id);
+      if (!cur) throw new ActionError("not_found", "Voucher not found.");
+      const next = { ...cur };
+      if (a.name !== undefined) {
+        const name = a.name.replace(/\s+/g, " ").trim();
+        if (!name || name.length > 40) throw new ActionError("invalid", "Enter a voucher name (up to 40 characters).");
+        if ((await repo.voucherBrands.list()).some((b) => b.id !== a.id && b.name.toLowerCase() === name.toLowerCase())) throw new ActionError("conflict", "You already have a voucher with that name.");
+        next.name = name;
+      }
+      if (a.balance === null) delete next.balance; else if (a.balance) next.balance = a.balance;
+      if (a.tracksAllUse !== undefined) { if (a.tracksAllUse) next.tracksAllUse = true; else delete next.tracksAllUse; }
+      await repo.voucherBrands.put(next);
+      await log("edit", "household", a.id, `Changed voucher ${next.name}${a.balance ? ` balance ${money(a.balance.amountPaise)} as of ${a.balance.asOf}` : ""}`);
+      return;
+    }
+    case "voucherBrand.delete": {
+      const cur = await repo.voucherBrands.get(a.id);
+      if (!cur) throw new ActionError("not_found", "Voucher not found.");
+      const used = (await repo.records.list()).filter((r) => r.voucherBrandId === a.id || r.paidWithVoucherId === a.id).length;
+      if (used > 0) throw new ActionError("conflict", `${used} transaction${used === 1 ? " is" : "s are"} attributed to ${cur.name}, so it cannot be removed. Rename it instead.`);
+      await repo.voucherBrands.remove(a.id);
+      await log("delete", "household", a.id, `Removed voucher brand ${cur.name}`);
+      return;
+    }
     case "record.create": {
       if (await repo.records.get(a.record.id)) throw new ActionError("conflict", "That record already exists.");
       const rec = ExpenseRecordSchema.parse({
         ...strip(a.record), currency: "INR", status: "reviewed", importSource: "Manual entry", originalDescription: "Entered manually",
       });
+      await checkVoucherRefs(rec as ExpenseRecord);
       await repo.records.put(await syncShare(rec as ExpenseRecord));
       await log("create", "record", a.record.id, `Added ${a.record.merchant} ${money(a.record.amountPaise)} on ${a.record.date}`);
       return;
@@ -151,14 +195,16 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       if (a.type === "record.approve" && cur.status !== "unreviewed") throw new ActionError("conflict", "That record is already reviewed.");
       const next = applyPatch(cur, a.patch ?? {});
       if (a.type === "record.approve") { next.status = "reviewed"; delete next.suggested; }
+      await checkVoucherRefs(next);
       await repo.records.put(await syncShare(next));
       // What you decide here is what the import will suggest next month.
       const decided = a.type === "record.approve" || !!(a.patch && ("categoryId" in a.patch || "merchant" in a.patch || "kind" in a.patch));
       if (decided && next.status === "reviewed") {
         const key = memoryKey(next.importSource === "Manual entry" ? next.merchant : next.originalDescription);
-        if (key) await repo.merchantMemory.put(learnFromUser(await repo.merchantMemory.get(memoryDocId(key)), { key, name: next.merchant.slice(0, 60), categoryId: next.categoryId, kind: next.kind, date: next.date }));
+        if (key) await repo.merchantMemory.put(learnFromUser(await repo.merchantMemory.get(memoryDocId(key)), { key, name: next.merchant.slice(0, 60), categoryId: next.categoryId, kind: next.kind, date: next.date, voucherSeller: !!next.voucherBrandId || !!next.voucherPending }));
       }
-      await log(a.type === "record.approve" ? "approve" : "edit", "record", a.id, `${a.type === "record.approve" ? "Approved" : "Edited"} ${next.merchant} ${money(next.amountPaise)}${a.patch?.categoryId ? ` (category ${next.categoryId})` : ""}`);
+      const brandNote = next.voucherBrandId ? ` (voucher: ${(await repo.voucherBrands.get(next.voucherBrandId))?.name ?? next.voucherBrandId})` : next.paidWithVoucherId ? ` (paid with ${(await repo.voucherBrands.get(next.paidWithVoucherId))?.name ?? next.paidWithVoucherId} voucher)` : "";
+      await log(a.type === "record.approve" ? "approve" : "edit", "record", a.id, `${a.type === "record.approve" ? "Approved" : "Edited"} ${next.merchant} ${money(next.amountPaise)}${a.patch?.categoryId ? ` (category ${next.categoryId})` : ""}${brandNote}`);
       return;
     }
     case "record.reject": {

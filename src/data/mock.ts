@@ -1,5 +1,5 @@
 // FICTIONAL DATA for the prototype only. Nothing here is real or persisted.
-import type { CardBill, Account, Category, ExpenseRecord, Participant, Receipt, RecurringItem, Settlement, SplitConfig, TxnKind } from "@/domain/types";
+import type { CardBill, VoucherBrand, Account, Category, ExpenseRecord, Participant, Receipt, RecurringItem, Settlement, SplitConfig, TxnKind } from "@/domain/types";
 
 export const ME = "me";
 export const MOCK_MONTH = "2026-09";
@@ -154,3 +154,23 @@ export const merchantRules = [
   { merchant: "Uber", categoryId: "transport" },
   { merchant: "Indian Oil", categoryId: "fuel" },
 ];
+
+/** Fictional voucher demo: ₹17,000 of vouchers bought through Shopwise on Amex, plus two orders paid with them. */
+export const voucherBrands: VoucherBrand[] = [
+  { id: "vb_amazon", name: "Amazon", balance: { amountPaise: r(7000), asOf: "2026-09-11" } }, // a balance read off the Amazon app: remaining is reliable
+  { id: "vb_swiggy", name: "Swiggy", tracksAllUse: true }, // every use recorded: remaining is reliable
+  { id: "vb_myntra", name: "Myntra" }, // neither: remaining stays unknown
+];
+const voucherRec = (id: string, date: string, rupees: number, o: Partial<ExpenseRecord>): ExpenseRecord => ({
+  id, date, merchant: "Shopwise", originalDescription: "CUST CAP SOLUTIONS BANGALORE IN", amountPaise: r(rupees), currency: "INR", accountId: "cc_amex", categoryId: "shopping", kind: "purchase",
+  payerId: ME, shared: false, split: { mode: "personal", participantIds: [ME] }, excluded: false, status: "reviewed", importSource: "Amex_Sep2026.pdf", ...o,
+});
+export const voucherRecords: ExpenseRecord[] = [
+  voucherRec("vv1", "2026-09-03", 10000, { voucherBrandId: "vb_amazon", referenceId: "VV1" }),
+  voucherRec("vv2", "2026-09-05", 2000, { voucherBrandId: "vb_swiggy", referenceId: "VV2" }),
+  voucherRec("vv3", "2026-09-18", 5000, { voucherBrandId: "vb_myntra", referenceId: "VV3" }),
+  voucherRec("vv4", "2026-09-22", 1500, { status: "unreviewed", voucherPending: true, referenceId: "VV4" }),
+  voucherRec("vu1", "2026-09-10", 1299, { merchant: "Amazon", originalDescription: "Amazon order (paid with Amazon voucher)", paidWithVoucherId: "vb_amazon", importSource: "Manual entry", categoryId: "shopping" }),
+  voucherRec("vu2", "2026-09-12", 450, { merchant: "Swiggy", originalDescription: "Swiggy order (paid with Swiggy voucher)", paidWithVoucherId: "vb_swiggy", importSource: "Manual entry", categoryId: "food_delivery" }),
+];
+

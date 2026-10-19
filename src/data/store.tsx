@@ -14,13 +14,13 @@ import { summarize } from "@/domain/reports";
 import type { MerchantRule } from "@/domain/rules";
 import { scopeRecords, sharedToRecord } from "@/domain/sharing";
 import { OWNER_SHARE_BPS } from "@/domain/defaults";
-import type { Account, CardBill, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
+import type { Account, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
 import type { CoupleData } from "@/lib/data/couple";
 import type { HouseholdData } from "@/lib/data/load";
 import { pickMonth } from "@/domain/months";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { validateSplit } from "@/domain/splits";
-import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, participants as mockParticipants, recurringItems as mockRecurring, cardBills as mockCardBills, trendHistory as mockTrend } from "./mock";
+import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, participants as mockParticipants, recurringItems as mockRecurring, cardBills as mockCardBills, voucherBrands as mockVoucherBrands, voucherRecords as mockVoucherRecords, trendHistory as mockTrend } from "./mock";
 
 export type View = "household" | "personal";
 
@@ -110,6 +110,11 @@ interface Store {
   /** Adds or changes a bill (new when `id` is omitted). Returns an error message, or null when saved. */
   saveCardBill: (bill: Omit<CardBill, "id"> & { id?: string }) => string | null;
   deleteCardBill: (id: string) => void;
+  /** Voucher brands (Amazon, Swiggy, Myntra, or ones you add). */
+  voucherBrands: VoucherBrand[];
+  addVoucherBrand: (name: string) => Added;
+  updateVoucherBrand: (id: string, patch: { name?: string; balance?: VoucherBrand["balance"] | null; tracksAllUse?: boolean }) => string | null;
+  deleteVoucherBrand: (id: string) => string | null;
   updateRecord: (id: string, patch: Partial<ExpenseRecord>) => void;
   /** Manual entry. In live mode the id is generated here and the server forces the trusted fields. */
   addRecord: (r: ExpenseRecord) => void;
@@ -139,7 +144,7 @@ const Ctx = createContext<Store | null>(null);
 const uuid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 
 /** Fields a person can change on an existing record; undefined means "clear it" on the wire. */
-const EDITABLE = ["merchant", "categoryId", "kind", "payerId", "shared", "split", "excluded", "notes", "recurringId", "fundedBy", "paidCardId", "recurringHint", "receiptId"] as const;
+const EDITABLE = ["merchant", "categoryId", "kind", "payerId", "shared", "split", "excluded", "notes", "recurringId", "fundedBy", "paidCardId", "recurringHint", "voucherBrandId", "paidWithVoucherId", "voucherPending", "receiptId"] as const;
 function toWirePatch(patch: Partial<ExpenseRecord>) {
   const out: Record<string, unknown> = {};
   for (const k of EDITABLE) if (k in patch) out[k] = patch[k] === undefined ? null : patch[k];
@@ -160,12 +165,12 @@ function seed(live?: LiveInit) {
     return {
       records: d.records.filter((r) => r.status === "reviewed"), staged: d.records.filter((r) => r.status === "unreviewed"), categories: d.categories, rules: d.rules, settlements: [...(c?.settlements ?? []), ...d.settlements.filter((x) => !(c?.settlements ?? []).some((y) => y.id === x.id))],
       shared: c?.shared ?? ([] as SharedExpense[]),
-      receipts: d.receipts, participants: people, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches, cardBills: d.cardBills,
+      receipts: d.receipts, participants: people, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches, cardBills: d.cardBills, voucherBrands: d.voucherBrands,
     };
   }
   return {
-    records: initialRecords.filter((r) => r.status === "reviewed"), staged: initialRecords.filter((r) => r.status === "unreviewed"), categories: mockCategories, rules: merchantRules,
-    settlements: initialSettlements, shared: [] as SharedExpense[], receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[], cardBills: mockCardBills,
+    records: [...initialRecords, ...mockVoucherRecords].filter((r) => r.status === "reviewed"), staged: [...initialRecords, ...mockVoucherRecords].filter((r) => r.status === "unreviewed"), categories: mockCategories, rules: merchantRules,
+    settlements: initialSettlements, shared: [] as SharedExpense[], receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[], cardBills: mockCardBills, voucherBrands: mockVoucherBrands,
   };
 }
 
@@ -183,6 +188,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const [accounts, setAccounts] = useState<Account[]>(init.accounts);
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(init.recurringItems);
   const [cardBills, setCardBills] = useState<CardBill[]>(init.cardBills);
+  const [voucherBrands, setVoucherBrands] = useState<VoucherBrand[]>(init.voucherBrands);
   const today = live?.today ?? MOCK_TODAY;
   const [month, setMonth] = useState(() => pickMonth(today, [...init.records, ...init.staged].map((r) => r.date)));
   const [view, setView] = useState<View>(initialView);
@@ -201,7 +207,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   if (prevInit !== init) {
     setPrevInit(init);
     setRecords(init.records); setStaged(init.staged); setCategories(init.categories); setRules(init.rules); setSettlements(init.settlements); setShared(init.shared);
-    setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems); setCardBills(init.cardBills);
+    setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems); setCardBills(init.cardBills); setVoucherBrands(init.voucherBrands);
     // New data may live in a month other than the one on screen (e.g. an older statement): keep the month if it has data, else move to one that does.
     const dates = [...init.records, ...init.staged].map((r) => r.date);
     setMonth((m) => (dates.length === 0 || dates.some((d) => d.startsWith(m)) ? m : pickMonth(today, dates)));
@@ -245,7 +251,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     setRecords((rs) => [...rs, rec]);
     void send({
       type: "record.create",
-      record: { id: rec.id, date: rec.date, merchant: rec.merchant, amountPaise: rec.amountPaise, accountId: rec.accountId, categoryId: rec.categoryId, kind: rec.kind, payerId: rec.payerId, shared: rec.shared, split: rec.split, excluded: rec.excluded, notes: rec.notes, recurringId: rec.recurringId, fundedBy: rec.fundedBy, paidCardId: rec.paidCardId },
+      record: { id: rec.id, date: rec.date, merchant: rec.merchant, amountPaise: rec.amountPaise, accountId: rec.accountId, categoryId: rec.categoryId, kind: rec.kind, payerId: rec.payerId, shared: rec.shared, split: rec.split, excluded: rec.excluded, notes: rec.notes, recurringId: rec.recurringId, fundedBy: rec.fundedBy, paidCardId: rec.paidCardId, voucherBrandId: rec.voucherBrandId, paidWithVoucherId: rec.paidWithVoucherId },
     });
   }, [live, send]);
   const stageRecords = useCallback((rs: ExpenseRecord[]) => {
@@ -382,6 +388,39 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     void send({ type: "cardbill.delete", id });
   }, [send]);
 
+  const addVoucherBrand = useCallback((name: string): Added => {
+    const n = name.replace(/\s+/g, " ").trim();
+    if (!n || n.length > 40) return { error: "Enter a voucher name (up to 40 characters)." };
+    if (voucherBrands.some((b) => b.name.toLowerCase() === n.toLowerCase())) return { error: "You already have a voucher with that name." };
+    const id = `vb_${slug(n)}-${uuid().slice(0, 6)}`;
+    setVoucherBrands((bs) => [...bs, { id, name: n }].sort((a, b) => a.name.localeCompare(b.name)));
+    void send({ type: "voucherBrand.add", id, name: n });
+    return { id };
+  }, [voucherBrands, send]);
+  const updateVoucherBrand = useCallback((id: string, patch: { name?: string; balance?: VoucherBrand["balance"] | null; tracksAllUse?: boolean }) => {
+    const cur = voucherBrands.find((b) => b.id === id);
+    if (!cur) return "Voucher not found.";
+    const next: VoucherBrand = { ...cur };
+    if (patch.name !== undefined) {
+      const n = patch.name.replace(/\s+/g, " ").trim();
+      if (!n || n.length > 40) return "Enter a voucher name (up to 40 characters).";
+      if (voucherBrands.some((b) => b.id !== id && b.name.toLowerCase() === n.toLowerCase())) return "You already have a voucher with that name.";
+      next.name = n;
+    }
+    if (patch.balance === null) delete next.balance; else if (patch.balance) next.balance = patch.balance;
+    if (patch.tracksAllUse !== undefined) { if (patch.tracksAllUse) next.tracksAllUse = true; else delete next.tracksAllUse; }
+    setVoucherBrands((bs) => bs.map((b) => (b.id === id ? next : b)).sort((a, b) => a.name.localeCompare(b.name)));
+    void send({ type: "voucherBrand.update", id, ...(patch.name !== undefined ? { name: next.name } : {}), ...(patch.balance !== undefined ? { balance: patch.balance } : {}), ...(patch.tracksAllUse !== undefined ? { tracksAllUse: patch.tracksAllUse } : {}) });
+    return null;
+  }, [voucherBrands, send]);
+  const deleteVoucherBrand = useCallback((id: string) => {
+    const used = [...records, ...staged].filter((r) => r.voucherBrandId === id || r.paidWithVoucherId === id).length;
+    if (used > 0) return `${used} transaction${used === 1 ? " is" : "s are"} attributed to it, so it cannot be removed. Rename it instead.`;
+    setVoucherBrands((bs) => bs.filter((b) => b.id !== id));
+    void send({ type: "voucherBrand.delete", id });
+    return null;
+  }, [records, staged, send]);
+
   const addSettlement = useCallback((s: Omit<Settlement, "id">) => {
     const id = live ? uuid() : `s${Date.now().toString(36)}`;
     setSettlements((x) => [...x, { ...s, id }]);
@@ -401,7 +440,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,

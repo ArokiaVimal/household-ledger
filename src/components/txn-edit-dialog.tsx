@@ -2,6 +2,7 @@
 import { ChevronDown, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useStore } from "@/data/store";
+import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
 import { formatINR, parseRupees } from "@/domain/money";
 import { equalSplit, validateSplit } from "@/domain/splits";
 import type { ExpenseRecord, SplitConfig, TxnKind } from "@/domain/types";
@@ -54,7 +55,7 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 }
 
 function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { meId, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, addCategory } = useStore();
+  const { meId, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, addCategory, voucherBrands, addVoucherBrand } = useStore();
   const [deleting, setDeleting] = useState(false);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";
@@ -72,6 +73,17 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [recurringId, setRecurringId] = useState(record.recurringId ?? (record.recurringHint ? sameItem?.id ?? NEW_RECURRING : ""));
   const [fundedBy, setFundedBy] = useState(record.fundedBy ?? "");
   const [paidCardId, setPaidCardId] = useState(record.paidCardId ?? "");
+  // Vouchers. A voucher seller (say Shopwise) asks which voucher this bought; any purchase can be marked as buying one, or as paid with one.
+  const promptVoucher = !!record.voucherPending || !!record.voucherBrandId;
+  const [voucherId, setVoucherId] = useState(record.voucherBrandId ?? "");
+  const [voucherLater, setVoucherLater] = useState(!!record.voucherPending && !record.voucherBrandId && record.status === "reviewed");
+  const [paidWithId, setPaidWithId] = useState(record.paidWithVoucherId ?? "");
+  const brandOptions = [
+    ...voucherBrands.map((b) => ({ id: b.id, label: b.name })),
+    ...SUGGESTED_VOUCHER_BRANDS.filter((n) => !voucherBrands.some((b) => b.name.toLowerCase() === n.toLowerCase())).map((n) => ({ id: `suggest:${n}`, label: n })),
+  ];
+  const pickBrand = (id: string, set: (v: string) => void) => { if (id.startsWith("suggest:")) { const r = addVoucherBrand(id.slice(8)); if (r.id) set(r.id); } else set(id); };
+  const voucherAdder = { label: "Add voucher", placeholder: "e.g. Flipkart, BookMyShow", add: addVoucherBrand };
   const [notes, setNotes] = useState(record.notes ?? "");
   const [excluded, setExcluded] = useState(record.excluded);
   const [recurringError, setRecurringError] = useState<string | null>(null);
@@ -94,7 +106,8 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const isUpi = accounts.find((a) => a.id === accountId)?.type === "upi";
   const splitError = validateSplit(amountPaise, split);
   const missing = adding ? (!accountId ? "Add a payment method first (Settings)" : amountPaise <= 0 ? "Enter an amount" : !merchant.trim() ? "Enter a merchant" : !/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Pick a date" : null) : null;
-  const bad = splitError ?? missing;
+  const voucherProblem = promptVoucher && !voucherId && !voucherLater ? "Pick the voucher that was bought, or choose Decide later" : voucherId && paidWithId ? "A payment cannot both buy a voucher and be paid with one" : null;
+  const bad = splitError ?? missing ?? voucherProblem;
 
   const onAmount = (v: string) => {
     setAmountText(v);
@@ -111,7 +124,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       if (err) { setRecurringError(err); setMore(true); return; }
     }
     const fields = {
-      merchant: merchant.trim(), categoryId, kind, payerId, split, shared: split.mode !== "personal", notes: notes || undefined, excluded,
+      merchant: merchant.trim(), categoryId, kind: voucherId ? ("purchase" as const) : kind, voucherBrandId: voucherId || undefined, paidWithVoucherId: paidWithId || undefined, voucherPending: voucherLater && !voucherId ? true : undefined, payerId, split, shared: split.mode !== "personal", notes: notes || undefined, excluded,
       recurringId: linkId || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, recurringHint: undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
     };
     if (adding) {
@@ -164,6 +177,14 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         )}
       </FormRow>
       <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[categoryId]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
+      {promptVoucher && (
+        <FormRow label="Voucher">
+          <CompactChips label="Voucher bought" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
+            onPick={(id) => { if (id === "__later") { setVoucherLater(true); setVoucherId(""); } else { setVoucherLater(false); pickBrand(id, setVoucherId); } }} adder={voucherAdder} />
+          <p className="mt-1.5 text-xs text-muted">Which voucher did this buy? It stays under {accountName(accountId)} and {merchant || "this merchant"}, counts once as money spent, and is attributed to the brand you pick. Statement text is never changed.</p>
+          {!voucherId && !voucherLater && <p role="alert" className="mt-1 text-xs font-medium text-warn">Choose a voucher to continue.</p>}
+        </FormRow>
+      )}
       <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>
       {(sharing || !adding) && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
       <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="flex w-full items-center gap-1.5 border-t border-border pt-3 text-sm font-medium text-muted hover:text-foreground">
@@ -172,6 +193,15 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       {more && (
         <div className="space-y-2.5">
           <FormRow label="Type"><CompactChips label="Type" options={kinds} selected={[kind]} onPick={setKind} /></FormRow>
+          {!promptVoucher && kind === "purchase" && !paidWithId && (
+            <FormRow label="Buys voucher"><CompactChips label="Voucher bought" options={[{ id: "", label: "No" }, ...brandOptions]} selected={[voucherId]} onPick={(id) => pickBrand(id, setVoucherId)} adder={voucherAdder} /></FormRow>
+          )}
+          {!voucherId && !promptVoucher && (
+            <FormRow label="Paid with voucher">
+              <CompactChips label="Paid with a voucher" options={[{ id: "", label: "No" }, ...voucherBrands.map((b) => ({ id: b.id, label: b.name }))]} selected={[paidWithId]} onPick={setPaidWithId} />
+              {paidWithId && <p className="mt-1.5 text-xs text-muted">Not counted again: buying the voucher was already the spend. This only shows how it was used.</p>}
+            </FormRow>
+          )}
           {kind === "cc_payment" && (
             <FormRow label="Which card"><CompactChips label="Credit card that was paid" options={[{ id: "", label: "Not sure" }, ...accounts.filter((a) => a.type === "credit_card").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[paidCardId]} onPick={setPaidCardId} /></FormRow>
           )}

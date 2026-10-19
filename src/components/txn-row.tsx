@@ -20,12 +20,17 @@ export function Amount({ r }: { r: ExpenseRecord }) {
 }
 
 export function TxnBadges({ r }: { r: ExpenseRecord }) {
+  const { voucherBrands } = useStore();
+  const brand = (id?: string) => voucherBrands.find((b) => b.id === id)?.name ?? "voucher";
   return (
     <>
       {r.status === "unreviewed" ? <Badge tone="warn">Unreviewed</Badge> : <Badge tone="good">Reviewed</Badge>}
       {r.duplicateOf && <Badge tone="bad">Possible duplicate</Badge>}
       {r.receiptId && <Badge tone="good">Receipt linked</Badge>}
       {r.excluded && <Badge>Excluded</Badge>}
+      {r.voucherBrandId && <Badge tone="good">Voucher: {brand(r.voucherBrandId)}</Badge>}
+      {!r.voucherBrandId && r.voucherPending && <Badge tone="warn">Needs a voucher brand</Badge>}
+      {r.paidWithVoucherId && <Badge>Paid with {brand(r.paidWithVoucherId)} voucher</Badge>}
       {r.kind !== "purchase" && <Badge>{r.kind === "cc_payment" ? "Card bill payment" : r.kind}</Badge>}
       {r.shared && <Badge tone="good">{r.sharedWithPartner ? "Shared with partner" : "Shared"}</Badge>}
     </>

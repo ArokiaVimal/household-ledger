@@ -95,6 +95,12 @@ export interface ExpenseRecord {
   fundedBy?: string;
   /** For a card-bill payment (kind cc_payment) made from a bank: the credit card that was paid. */
   paidCardId?: string;
+  /** This transaction BOUGHT a voucher of this brand (for example through a voucher seller such as Shopwise). The purchase is the one cash outflow. */
+  voucherBrandId?: string;
+  /** This transaction was PAID with a voucher of this brand. It is not a new outflow (the voucher purchase already was), so it never counts in spending totals. */
+  paidWithVoucherId?: string;
+  /** Import only: a voucher seller whose brand has not been chosen yet. Review asks which voucher was bought; cleared on approval. */
+  voucherPending?: boolean;
   /** Import only: looks like a monthly commitment (EMI, rent, premium). Pre-selects "Repeat every month" in review; cleared on approval. */
   recurringHint?: boolean;
   /** Recurring commitment this payment fulfils (rent, EMI, insurance...). */
@@ -118,6 +124,8 @@ export interface MerchantMemory {
   name: string;
   categoryId: string;
   kind: TxnKind;
+  /** This merchant sells vouchers: every new purchase from it asks which voucher was bought. */
+  voucherSeller?: boolean;
   /** user = you approved or corrected it (always wins); ai = Claude's suggestion, not yet confirmed. */
   source: "user" | "ai";
   /** AI entries only: Claude said it was sure. */
@@ -250,4 +258,14 @@ export interface CardBill {
   batchId?: string;
   /** Marked as paid by hand (for when the payment is not in your records). */
   paid?: boolean;
+}
+
+/** A voucher brand you buy (Amazon, Swiggy, Myntra, or one you add). Balance and "I record every use" decide whether a remaining value may be shown. */
+export interface VoucherBrand {
+  id: string;
+  name: string;
+  /** A balance you read off the brand's own app or statement, on a date. The only reliable starting point for "remaining". */
+  balance?: { amountPaise: Paise; asOf: string };
+  /** You record every use of this voucher, so purchases minus recorded uses is a reliable remaining value. */
+  tracksAllUse?: boolean;
 }

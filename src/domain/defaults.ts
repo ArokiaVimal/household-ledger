@@ -24,3 +24,6 @@ export const SUGGESTED_ACCOUNTS: Account[] = [
 
 /** The usual split between the two partners: the household owner bears 64%, the partner 36% (basis points). */
 export const OWNER_SHARE_BPS = 6400;
+
+/** Voucher brands offered the first time you pick one. They are created only when you choose them, so nothing is added behind your back. */
+export const SUGGESTED_VOUCHER_BRANDS = ["Amazon", "Swiggy", "Myntra"] as const;

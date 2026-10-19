@@ -8,6 +8,8 @@ import type { ExpenseRecord, Paise } from "./types";
  */
 export function signedSpend(r: ExpenseRecord): Paise {
   if (r.excluded) return 0;
+  // Paid with a voucher: the voucher purchase was already the outflow, so this must not count again.
+  if (r.paidWithVoucherId) return 0;
   if (r.kind === "purchase" || r.kind === "fee") return r.amountPaise;
   if (r.kind === "refund") return -r.amountPaise;
   return 0;

@@ -46,12 +46,14 @@ export function lookupMemory(memory: MerchantMemory[], key: string): MerchantMem
 /** True when the entry is trustworthy enough to pre-approve: you confirmed it, or Claude said it was sure. */
 export const isConfident = (m: MerchantMemory) => m.source === "user" || m.confident;
 
-export interface Learned { key: string; name: string; categoryId: string; kind: TxnKind; date: string }
+export interface Learned { key: string; name: string; categoryId: string; kind: TxnKind; date: string; voucherSeller?: boolean }
 
 /** You approved or corrected a row: it becomes (or stays) a confirmed memory, replacing any AI guess or older choice. */
 export function learnFromUser(existing: MerchantMemory | null | undefined, l: Learned): MerchantMemory {
   const same = existing?.source === "user" && existing.categoryId === l.categoryId && existing.kind === l.kind;
-  return { id: memoryDocId(l.key), key: l.key, name: l.name, categoryId: l.categoryId, kind: l.kind, source: "user", confident: true, confirmed: same ? existing.confirmed + 1 : 1, lastSeen: l.date };
+  // Once a merchant is known to sell vouchers it stays that way, so every new purchase from it asks which voucher was bought.
+  const voucherSeller = l.voucherSeller || existing?.voucherSeller;
+  return { id: memoryDocId(l.key), key: l.key, name: l.name, categoryId: l.categoryId, kind: l.kind, source: "user", confident: true, confirmed: same ? existing.confirmed + 1 : 1, lastSeen: l.date, ...(voucherSeller ? { voucherSeller: true } : {}) };
 }
 
 /** A Claude suggestion is kept so the same merchant is never sent again; it never replaces something you decided. */
