@@ -1,7 +1,7 @@
 import type { Repository } from "@/data/repository";
 import { DEFAULT_CATEGORIES } from "@/domain/defaults";
 import type { MerchantRule } from "@/domain/rules";
-import type { Account, CardBill, Category, VoucherBrand, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
+import type { PaymentGroup, Account, CardBill, Category, VoucherBrand, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement } from "@/domain/types";
 
 /** Everything the UI needs for one household, as plain JSON. */
 export interface HouseholdData {
@@ -11,6 +11,7 @@ export interface HouseholdData {
   recurring: RecurringItem[];
   cardBills: CardBill[];
   voucherBrands: VoucherBrand[];
+  paymentGroups: PaymentGroup[];
   /** Icon chosen for a merchant (by lowercase display name). */
   merchantIcons: Record<string, string>;
   participants: Participant[];
@@ -35,12 +36,13 @@ export async function ensureHouseholdReady(repo: Repository, members: { uid: str
 }
 
 export async function loadHouseholdData(repo: Repository): Promise<HouseholdData> {
-  const [records, settlements, receipts, recurring, participants, accounts, categories, rules, importBatches, cardBills, voucherBrands, memories] = await Promise.all([
-    repo.records.list(), repo.settlements.list(), repo.receipts.list(), repo.recurring.list(), repo.participants.list(), repo.accounts.list(), repo.categories.list(), repo.rules.list(), repo.importBatches.list(), repo.cardBills.list(), repo.voucherBrands.list(), repo.merchantMemory.list(),
+  const [records, settlements, receipts, recurring, participants, accounts, categories, rules, importBatches, cardBills, voucherBrands, memories, paymentGroups] = await Promise.all([
+    repo.records.list(), repo.settlements.list(), repo.receipts.list(), repo.recurring.list(), repo.participants.list(), repo.accounts.list(), repo.categories.list(), repo.rules.list(), repo.importBatches.list(), repo.cardBills.list(), repo.voucherBrands.list(), repo.merchantMemory.list(), repo.paymentGroups.list(),
   ]);
   const byDate = (a: ExpenseRecord, b: ExpenseRecord) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id);
   return {
     records: records.sort(byDate), settlements: settlements.sort((a, b) => a.date.localeCompare(b.date)), receipts, recurring, cardBills, voucherBrands: voucherBrands.sort((a, b) => a.name.localeCompare(b.name)),
+    paymentGroups: paymentGroups.sort((a, b) => (a.order ?? 1e6) - (b.order ?? 1e6)),
     merchantIcons: Object.fromEntries(memories.filter((m) => m.icon).map((m) => [m.name.toLowerCase(), m.icon as string])),
     participants: participants.sort((a, b) => a.name.localeCompare(b.name)), accounts, categories: categories.sort(orderCategories),
     rules: rules.map((r) => ({ merchant: r.merchant, categoryId: r.categoryId })),

@@ -9,7 +9,8 @@ import { Badge, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { rootOf } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
-import { groupNet, summarize } from "@/domain/reports";
+import { summarize } from "@/domain/reports";
+import { summarizeGroup } from "@/domain/groups";
 import { needsVoucherBrand } from "@/domain/vouchers";
 import { cn } from "@/lib/cn";
 import type { ExpenseRecord } from "@/domain/types";
@@ -26,13 +27,15 @@ const VIEWS = [
 
 /** Grouped view. Group totals come from the domain groupNet (same rule as the dashboard). */
 function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: string; onEdit: (r: ExpenseRecord) => void }) {
-  const { accounts, nameOf, categoryName, accountName, recurringName } = useStore();
+  const { accounts, nameOf, categoryName, accountName, recurringName, attributionOf, activeGroup } = useStore();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const bankOf = (r: ExpenseRecord) => r.fundedBy ?? (accounts.find((a) => a.id === r.accountId)?.type === "bank" ? r.accountId : "");
   const keyOf = (r: ExpenseRecord) => (view === "account" ? rootOf(accounts, r.accountId) : view === "bank" ? bankOf(r) : view === "recurring" ? (r.recurringId ?? "") : view === "merchant" ? r.merchant : view === "category" ? r.categoryId : r.payerId);
   const label = (k: string) => (view === "account" || view === "bank" ? accountName(k) : view === "recurring" ? recurringName(k) : view === "category" ? categoryName(k) : view === "payer" ? nameOf(k) : k);
   const scope = view === "bank" ? rows.filter((r) => bankOf(r)) : view === "recurring" ? rows.filter((r) => r.recurringId) : rows;
-  const totals = groupNet(scope, keyOf);
+  // Totals are what counts in the group on screen (allocated shares), so a group heading never adds up the whole bill.
+  const totals: Record<string, number> = {};
+  for (const r of scope) totals[keyOf(r)] = (totals[keyOf(r)] ?? 0) + (attributionOf(r)?.allocatedPaise ?? 0);
   const keys = [...new Set(scope.map(keyOf))].sort((a, b) => (totals[b] ?? 0) - (totals[a] ?? 0));
   const toggle = (k: string) => setCollapsed((c) => { const n = new Set(c); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   return (
@@ -48,7 +51,7 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
                 <h3 className="truncate text-lg font-semibold">{label(k)}</h3>
                 <div className="text-xs text-muted">{items.length} transaction{items.length === 1 ? "" : "s"}</div>
               </div>
-              <div className="num text-right text-lg font-semibold">{formatINR(totals[k] ?? 0)}<div className="text-xs font-normal text-muted">net spending</div></div>
+              <div className="num text-right text-lg font-semibold">{formatINR(totals[k] ?? 0)}<div className="text-xs font-normal text-muted">in {activeGroup.name}</div></div>
               <ChevronDown size={18} aria-hidden className={cn("shrink-0 text-muted transition-transform", shut && "-rotate-90")} />
             </button>
             {!shut && (
@@ -75,7 +78,7 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
 }
 
 function TransactionsView() {
-  const { meId, accounts, categories, records, scoped, month, nameOf, categoryName, accountName, recurringName, voucherBrands } = useStore();
+  const { meId, accounts, categories, groupRecords, groups, activeGroup, month, nameOf, categoryName, accountName, recurringName, voucherBrands } = useStore();
   const params = useSearchParams();
   const router = useRouter();
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
@@ -89,7 +92,7 @@ function TransactionsView() {
 
   const rows = useMemo(() => {
     const m = params.get("month");
-    const base = m ? records.filter((r) => r.date.startsWith(m)) : scoped;
+    const base = groupRecords(m || month);
     const text = (params.get("q") ?? "").trim().toLowerCase();
     return base
       .filter((r) => !get("category") || r.categoryId === get("category"))
@@ -106,9 +109,9 @@ function TransactionsView() {
       .filter((r) => !text || `${r.merchant} ${r.originalDescription} ${r.notes ?? ""}`.toLowerCase().includes(text))
       .sort((a, b) => b.date.localeCompare(a.date));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [records, scoped, params]);
+  }, [groupRecords, month, params]);
 
-  const total = summarize(rows, meId);
+  const total = summarizeGroup(rows, activeGroup, groups, meId);
   const view = get("view") || "all";
   const active = ["recurring", "q", "category", "merchant", "status", "kind", "account", "shared", "voucher", "paidWith"].filter((k) => get(k));
 
@@ -163,8 +166,9 @@ function TransactionsView() {
             </table>
           </div>
           <div className="num mt-3 flex flex-wrap justify-end gap-x-6 gap-y-1 text-sm">
-            <span className="text-muted">Net spending in list</span><b>{formatINR(total.net)}</b>
-            <span className="text-muted">My share</span><b>{formatINR(total.myShare)}</b>
+            <span className="text-muted">Counts in {activeGroup.name}</span><b>{formatINR(total.allocated)}</b>
+            <span className="text-muted">My share</span><b>{formatINR(total.my)}</b>
+            {total.onBehalf !== 0 && <><span className="text-muted">Paid for others</span><b>{formatINR(total.onBehalf)}</b></>}
           </div>
         </>
       )}

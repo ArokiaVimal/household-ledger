@@ -59,8 +59,9 @@ export function MerchantAvatar({ name, size = 40 }: { name: string; size?: numbe
 }
 
 export function TxnCard({ r, onClick }: { r: ExpenseRecord; onClick?: () => void }) {
-  const { nameOf, categoryName, meId } = useStore();
+  const { nameOf, categoryName, meId, attributionOf, activeGroup } = useStore();
   const mine = signedShare(r, meId);
+  const counted = attributionOf(r)?.allocatedPaise ?? 0;
   return (
     <button onClick={onClick} className="block w-full rounded-2xl bg-surface p-3 text-left active:bg-background">
       <div className="flex items-start justify-between gap-3">
@@ -72,6 +73,7 @@ export function TxnCard({ r, onClick }: { r: ExpenseRecord; onClick?: () => void
         <div className="text-right">
           <Amount r={r} />
           {r.shared && !r.excluded && mine !== 0 && <div className="num text-xs text-muted">my share {formatINR(Math.abs(mine))}</div>}
+          {counted !== 0 && Math.abs(counted) !== r.amountPaise && <div className="num text-xs text-muted">counts {formatINR(Math.abs(counted))} in {activeGroup.name}</div>}
         </div>
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1"><TxnBadges r={r} /></div>

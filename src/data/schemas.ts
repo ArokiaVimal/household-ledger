@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { validateSplit } from "@/domain/splits";
 import { ICON_KEYS } from "@/domain/icons";
-import type { Account, AuditEvent, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense, SplitConfig } from "@/domain/types";
+import type { PaymentGroup, Account, AuditEvent, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense, SplitConfig } from "@/domain/types";
 
 export const SCHEMA_VERSION = 1;
 
@@ -124,6 +124,10 @@ export const MerchantMemorySchema = z.object({
 export const CardBillSchema = z.object({
   id, accountId: id, statementDate: date, dueDate: date, totalDuePaise: paise.positive(), source: z.enum(["statement", "manual", "message"]), batchId: id.optional(), paid: z.boolean().optional(),
 }) satisfies z.ZodType<CardBill>;
+
+export const PaymentGroupSchema = z.object({
+  id, name: z.string().min(1).max(40), kind: z.enum(["mine", "people"]), memberIds: z.array(id).max(30), coverMembers: z.boolean(), includeMe: z.boolean(), order: z.number().int().min(0).max(100).optional(),
+}) satisfies z.ZodType<PaymentGroup>;
 
 export const VoucherBrandSchema = z.object({
   id, name: z.string().trim().min(1).max(40),

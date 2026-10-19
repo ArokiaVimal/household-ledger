@@ -48,6 +48,9 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("account.update"), id, name: z.string().min(1).max(60).optional(), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]).optional(), parentId: id.nullable().optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).nullable().optional(), archived: z.boolean().optional() }),
   z.object({ type: z.literal("account.delete"), id }),
   z.object({ type: z.literal("accounts.setupUpi") }),
+  z.object({ type: z.literal("group.put"), group: z.object({ id, name: z.string().min(1).max(40), kind: z.enum(["mine", "people"]), memberIds: z.array(id).max(30), coverMembers: z.boolean(), includeMe: z.boolean() }) }),
+  z.object({ type: z.literal("group.delete"), id }),
+  z.object({ type: z.literal("groups.reorder"), ids: z.array(id).min(1).max(50) }),
   z.object({ type: z.literal("icons.apply"), categories: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), accounts: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), merchants: z.array(z.object({ name: z.string().min(1).max(60), icon: z.enum(ICON_KEYS) })).max(300) }),
   z.object({ type: z.literal("accounts.reorder"), ids: z.array(id).min(1).max(200) }),
   z.object({ type: z.literal("accounts.addSuggested") }),
@@ -354,6 +357,36 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       if (all.some((x) => x.parentId === a.id)) throw new ActionError("conflict", `Other payment methods are under ${cur.name}. Move or delete them first.`);
       await repo.accounts.remove(a.id);
       await log("delete", "household", a.id, `Deleted payment method ${cur.name}`);
+      return;
+    }
+    case "group.put": {
+      const g = a.group;
+      const name = g.name.trim();
+      if (!name) throw new ActionError("invalid", "Give the group a name.");
+      const all = await repo.paymentGroups.list();
+      if (all.some((x) => x.id !== g.id && x.name.toLowerCase() === name.toLowerCase())) throw new ActionError("conflict", "You already have a group with that name.");
+      if (g.kind === "mine" && all.some((x) => x.id !== g.id && x.kind === "mine")) throw new ActionError("conflict", "There can only be one Mine group.");
+      const before = all.find((x) => x.id === g.id);
+      const memberIds = [...new Set(g.memberIds)];
+      const order = before?.order ?? (g.kind === "mine" ? 0 : all.length);
+      await repo.paymentGroups.put({ id: g.id, name, kind: g.kind, memberIds: g.kind === "mine" ? [] : memberIds, coverMembers: g.kind === "mine" ? false : g.coverMembers, includeMe: g.kind === "mine" ? true : g.includeMe, order });
+      await log(before ? "edit" : "create", "household", g.id, `${before ? "Changed" : "Added"} payment group ${name}`);
+      return;
+    }
+    case "group.delete": {
+      const cur = await repo.paymentGroups.get(a.id);
+      if (!cur) throw new ActionError("not_found", "That group was not found.");
+      if (cur.kind === "mine") throw new ActionError("invalid", "Mine cannot be deleted. You can rename it.");
+      await repo.paymentGroups.remove(a.id);
+      await log("delete", "household", a.id, `Removed payment group ${cur.name}`);
+      return;
+    }
+    case "groups.reorder": {
+      const all = await repo.paymentGroups.list();
+      const byId = new Map(all.map((x) => [x.id, x]));
+      if (new Set(a.ids).size !== a.ids.length || a.ids.some((i) => !byId.has(i))) throw new ActionError("invalid", "That order includes a group that does not exist.");
+      for (const [i, gid] of a.ids.entries()) await repo.paymentGroups.put({ ...byId.get(gid)!, order: i });
+      await log("edit", "household", "groups", "Reordered payment groups");
       return;
     }
     case "icons.apply": {

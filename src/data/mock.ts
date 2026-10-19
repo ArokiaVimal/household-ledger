@@ -1,5 +1,5 @@
 // FICTIONAL DATA for the prototype only. Nothing here is real or persisted.
-import type { CardBill, VoucherBrand, Account, Category, ExpenseRecord, Participant, Receipt, RecurringItem, Settlement, SplitConfig, TxnKind } from "@/domain/types";
+import type { PaymentGroup, CardBill, VoucherBrand, Account, Category, ExpenseRecord, Participant, Receipt, RecurringItem, Settlement, SplitConfig, TxnKind } from "@/domain/types";
 
 export const ME = "me";
 export const MOCK_MONTH = "2026-09";
@@ -159,6 +159,13 @@ export const merchantRules = [
 ];
 
 /** Fictional voucher demo: ₹17,000 of vouchers bought through Shopwise on Amex, plus two orders paid with them. */
+/** The demo profile's Payment Groups. Every profile sets up its own; these are only this sample's. */
+export const paymentGroups: PaymentGroup[] = [
+  { id: "g_mine", name: "Mine", kind: "mine", memberIds: [], coverMembers: false, includeMe: true, order: 0 },
+  { id: "g_wife", name: "Varru + Vimal", kind: "people", memberIds: [ME, "wife"], coverMembers: false, includeMe: true, order: 1 },
+  { id: "g_parents", name: "Parents", kind: "people", memberIds: [], coverMembers: true, includeMe: false, order: 2 },
+];
+
 export const voucherBrands: VoucherBrand[] = [
   { id: "vb_amazon", name: "Amazon", balance: { amountPaise: r(7000), asOf: "2026-09-11" } }, // a balance read off the Amazon app: remaining is reliable
   { id: "vb_swiggy", name: "Swiggy", tracksAllUse: true }, // every use recorded: remaining is reliable

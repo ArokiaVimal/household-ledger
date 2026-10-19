@@ -12,7 +12,8 @@ import { cardViews, dueLabel, upcomingBills } from "@/domain/cardbills";
 import { NAV } from "@/components/nav-items";
 import { rootOf } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
-import { byCategory, byMerchant, byMonth, groupNet, summarize } from "@/domain/reports";
+import { byMonth } from "@/domain/reports";
+import { summarizeGroup } from "@/domain/groups";
 import { cn } from "@/lib/cn";
 import { logoFor } from "@/lib/logos";
 
@@ -48,22 +49,22 @@ function ReviewedNotice() {
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet, wallet: Wallet } as const;
 
 export default function Dashboard() {
-  const { live, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView, partner } = useStore();
+  const { live, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, balances, month, categoryName, nameOf, accountName, partner, groups, activeGroup, groupSummary, attributionOf, allocatedByKey } = useStore();
   const withPartner = !live || !!partner;
-  const household = useMemo(() => summarize(shown.filter((r) => r.date.startsWith(month)), meId), [shown, month, meId]);
-  const cats = useMemo(() => Object.entries(byCategory(scoped)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [scoped, categoryName]);
-  const perAccount = useMemo(() => groupNet(scoped, (r) => r.accountId), [scoped]);
+  const prevMonth = (() => { const [y, m] = month.split("-").map(Number); return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7); })();
+  const prevAllocated = useMemo(() => summarizeGroup(shown.filter((r) => r.date.startsWith(prevMonth)), activeGroup, groups, meId).allocated, [shown, prevMonth, activeGroup, groups, meId]);
+  const cats = useMemo(() => Object.entries(allocatedByKey((r) => r.categoryId)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [allocatedByKey, categoryName]);
+  const perAccount = useMemo(() => allocatedByKey((r) => r.accountId), [allocatedByKey]);
   const trend = useMemo(() => {
     const all = { ...trendHistory, ...byMonth(shown) };
     return Object.keys(all).sort().map((m) => ({ key: m, label: new Date(m + "-01").toLocaleString("en", { month: "short" }), value: all[m] }));
   }, [shown, trendHistory]);
-  const topMerchant = Object.entries(byMerchant(scoped)).sort((a, b) => b[1] - a[1])[0];
+  const topMerchant = Object.entries(allocatedByKey((r) => r.merchant)).sort((a, b) => b[1] - a[1])[0];
   const iOwe = balances.filter((b) => b.from === meId && b.outstanding > 0);
   const owedToMe = balances.filter((b) => b.to === meId && b.outstanding > 0);
   const q = `month=${month}`;
   const prevKey = (() => { const [y, m] = month.split("-").map(Number); return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7); })();
-  const prev = byMonth(shown)[prevKey] ?? trendHistory[prevKey];
-  const delta = prev && prev > 0 ? Math.round(((household.net - prev) / prev) * 1000) / 10 : null;
+  const delta = prevAllocated > 0 ? Math.round(((groupSummary.allocated - prevAllocated) / prevAllocated) * 1000) / 10 : null;
   const dueBills = useMemo(() => upcomingBills(cardViews(accounts, cardBills, records, today)), [accounts, cardBills, records, today]);
   const prevName = new Date(`${prevKey}-01T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" });
 
@@ -85,11 +86,11 @@ export default function Dashboard() {
     <div className="space-y-4">
       <Suspense fallback={null}><ReviewedNotice /></Suspense>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <Kpi icon={Wallet} label="Net spending" value={formatINR(summary.net)} sub="after refunds" href={`/transactions?${q}`}
+        <Kpi icon={Wallet} label={`${activeGroup.name} spending`} value={formatINR(groupSummary.allocated)} sub="after refunds, my allocated amounts" href={`/transactions?${q}`}
           pill={delta !== null && <Pill tone={delta > 0 ? "bad" : "good"}>{delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{Math.abs(delta)}% vs {prevName}{live ? "" : " (mock)"}</Pill>} />
-        <Kpi icon={UserRound} label="My share" value={formatINR(summary.myShare)} sub="what I ultimately bear" />
-        <Kpi icon={Users} label="All spending" value={formatINR(household.net)} sub={`Shared ${formatINR(summary.sharedNet)}`} href={`/transactions?${q}&shared=1`} />
-        <Kpi icon={TrendingDown} label="Refunds & review" value={`−${formatINR(summary.refunds)}`} sub={`${staged.length} awaiting review`} href="/review"
+        <Kpi icon={UserRound} label="My share" value={formatINR(groupSummary.my)} sub="what I ultimately bear" />
+        <Kpi icon={Users} label="Paid for others" value={formatINR(groupSummary.onBehalf)} sub={`I paid ${formatINR(groupSummary.paid)} in all`} href={`/transactions?${q}&shared=1`} />
+        <Kpi icon={TrendingDown} label="Refunds & review" value={`−${formatINR(groupSummary.refunds)}`} sub={`${staged.length} awaiting review`} href="/review"
           pill={staged.length > 0 && <Pill tone="bad">Review</Pill>} />
       </div>
 
@@ -153,8 +154,8 @@ export default function Dashboard() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
           <CardTitle>Expense breakdown</CardTitle>
-          <DonutChart data={cats} total={summary.net} href={(k) => `/transactions?${q}&category=${k}`} />
-          <p className="mt-3 text-xs text-muted">Purchase total ≠ my share ≠ money paid. My share: {formatINR(summary.myShare)}.</p>
+          <DonutChart data={cats} total={groupSummary.allocated} href={(k) => `/transactions?${q}&category=${k}`} />
+          <p className="mt-3 text-xs text-muted">Amounts count what belongs to {activeGroup.name}: allocated shares, not the full bill. Paid by me {formatINR(groupSummary.paid)}, my share {formatINR(groupSummary.my)}.</p>
         </Card>
         <Card>
           <CardTitle action={<Link href={`/transactions?${q}`} className="text-xs text-accent">View all</Link>}>Recent transactions</CardTitle>
@@ -166,7 +167,7 @@ export default function Dashboard() {
                   <div className="truncate text-sm font-medium">{r.merchant}</div>
                   <div className="flex flex-wrap items-center gap-1 text-xs text-muted">{r.date}<TxnBadges r={r} /></div>
                 </div>
-                <Amount r={r} />
+                <span className="text-right"><Amount r={r} />{(() => { const a = attributionOf(r); return a && a.allocatedPaise !== (r.kind === "refund" ? -r.amountPaise : r.amountPaise) ? <span className="num block text-xs text-muted">counts {formatINR(Math.abs(a.allocatedPaise))}</span> : null; })()}</span>
               </li>
             ))}
           </ul>
@@ -180,7 +181,6 @@ export default function Dashboard() {
           {iOwe.length + owedToMe.length === 0 && <p className="text-sm text-muted">All settled up.</p>}
         </Card>}
       </div>
-      {withPartner && view === "personal" && <button className="text-xs text-muted underline" onClick={() => setView("household")}>{live ? "Show what we share" : "Show everything"}</button>}
       {/* On a phone: every screen in one place at the bottom of the dashboard. */}
       <section aria-label="Everything in the app" className="space-y-2 md:hidden">
         <h2 className="px-1 text-sm font-medium text-muted">Everything in the app</h2>

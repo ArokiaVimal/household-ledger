@@ -9,20 +9,21 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { pairBalances } from "@/domain/balances";
 import { categoryUsage, checkDelete, cleanCategoryName, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
 import { validateAvatarDataUrl } from "@/lib/profile/profile";
+import { allocatedBy, attribute, inGroup, summarizeGroup, withMine, type Attribution, type GroupSummary } from "@/domain/groups";
 import { planUpiSetup, sortAccounts, suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { recurringStatuses } from "@/domain/recurring";
 import { summarize } from "@/domain/reports";
 import type { MerchantRule } from "@/domain/rules";
-import { scopeRecords, sharedToRecord } from "@/domain/sharing";
+import { sharedToRecord } from "@/domain/sharing";
 import { OWNER_SHARE_BPS } from "@/domain/defaults";
-import type { Account, CardBill, CardTheme, VoucherBrand, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
+import type { PaymentGroup, Account, CardBill, CardTheme, VoucherBrand, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
 import type { CoupleData } from "@/lib/data/couple";
 import type { HouseholdData } from "@/lib/data/load";
 import { pickMonth } from "@/domain/months";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { validateSplit } from "@/domain/splits";
-import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, participants as mockParticipants, recurringItems as mockRecurring, cardBills as mockCardBills, voucherBrands as mockVoucherBrands, voucherRecords as mockVoucherRecords, trendHistory as mockTrend } from "./mock";
+import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, paymentGroups as mockPaymentGroups, participants as mockParticipants, recurringItems as mockRecurring, cardBills as mockCardBills, voucherBrands as mockVoucherBrands, voucherRecords as mockVoucherRecords, trendHistory as mockTrend } from "./mock";
 
 export type View = "household" | "personal";
 
@@ -106,6 +107,23 @@ interface Store {
   updateAccount: (id: string, patch: { name?: string; type?: Account["type"]; parentId?: string | null; theme?: CardTheme | null; archived?: boolean }) => string | null;
   /** Delete a payment method nothing uses. Returns an error message (suggesting Hide) when something does. */
   deleteAccount: (id: string) => string | null;
+  /** Payment Groups (per profile): the selector, the group on screen and how a record counts in it. */
+  groups: PaymentGroup[];
+  activeGroup: PaymentGroup;
+  setGroupId: (id: string) => void;
+  /** This month's totals for the group on screen: allocated, my share, paid by me, paid on behalf of others. */
+  groupSummary: GroupSummary;
+  /** How one record counts in the group on screen (null when it does not belong). */
+  attributionOf: (r: ExpenseRecord) => Attribution | null;
+  /** Records of any month that belong to the group on screen. */
+  groupRecords: (month: string) => ExpenseRecord[];
+  /** Net allocated amount per key (category, merchant…) in the group on screen. */
+  allocatedByKey: (key: (r: ExpenseRecord) => string) => Record<string, number>;
+  saveGroup: (draft: Omit<PaymentGroup, "id" | "order"> & { id?: string }) => string | null;
+  deleteGroup: (id: string) => string | null;
+  reorderGroups: (ids: string[]) => void;
+  /** Adds Mine, "<partner> + <you>" and Parents as a starting point, for whichever of them are missing. */
+  addStarterGroups: () => number;
   /** Sets (or with null removes) the photo of a person other than yourself. Returns an error message when it is refused. */
   setParticipantPhoto: (id: string, photo: string | null) => string | null;
   /** Icons by lowercase name for payment methods and merchants that have no brand logo. */
@@ -186,12 +204,12 @@ function seed(live?: LiveInit) {
     return {
       records: d.records.filter((r) => r.status === "reviewed"), staged: d.records.filter((r) => r.status === "unreviewed"), categories: d.categories, rules: d.rules, settlements: [...(c?.settlements ?? []), ...d.settlements.filter((x) => !(c?.settlements ?? []).some((y) => y.id === x.id))],
       shared: c?.shared ?? ([] as SharedExpense[]),
-      receipts: d.receipts, participants: people, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches, cardBills: d.cardBills, voucherBrands: d.voucherBrands, merchantIcons: d.merchantIcons,
+      receipts: d.receipts, participants: people, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches, cardBills: d.cardBills, voucherBrands: d.voucherBrands, paymentGroups: d.paymentGroups, merchantIcons: d.merchantIcons,
     };
   }
   return {
     records: [...initialRecords, ...mockVoucherRecords].filter((r) => r.status === "reviewed"), staged: [...initialRecords, ...mockVoucherRecords].filter((r) => r.status === "unreviewed"), categories: mockCategories, rules: merchantRules,
-    settlements: initialSettlements, shared: [] as SharedExpense[], receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[], cardBills: mockCardBills, voucherBrands: mockVoucherBrands, merchantIcons: {} as Record<string, string>,
+    settlements: initialSettlements, shared: [] as SharedExpense[], receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[], cardBills: mockCardBills, voucherBrands: mockVoucherBrands, paymentGroups: mockPaymentGroups, merchantIcons: {} as Record<string, string>,
   };
 }
 
@@ -229,6 +247,18 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     try { if (next) localStorage.setItem("pf-month-lock", next); else localStorage.removeItem("pf-month-lock"); } catch { /* storage unavailable */ }
   }, [lockedMonth, month]);
   const [view, setView] = useState<View>(initialView);
+  const [paymentGroups, setPaymentGroups] = useState<PaymentGroup[]>(init.paymentGroups);
+  const [groupId, setGroupIdState] = useState<string>("");
+  // The chosen group is remembered on this device.
+  useEffect(() => {
+    let saved: string | null = null;
+    try { saved = localStorage.getItem("pf-group"); } catch { /* storage unavailable */ }
+    if (saved) Promise.resolve().then(() => setGroupIdState(saved));
+  }, []);
+  const setGroupId = useCallback((id: string) => {
+    setGroupIdState(id);
+    try { localStorage.setItem("pf-group", id); } catch { /* storage unavailable */ }
+  }, []);
   const [syncError, setSyncError] = useState<string | null>(null);
   const meId = live?.meId ?? ME;
   const couple = live?.couple;
@@ -244,7 +274,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   if (prevInit !== init) {
     setPrevInit(init);
     setRecords(init.records); setStaged(init.staged); setCategories(init.categories); setRules(init.rules); setSettlements(init.settlements); setShared(init.shared);
-    setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems); setCardBills(init.cardBills); setVoucherBrands(init.voucherBrands); setMerchantIcons(init.merchantIcons);
+    setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems); setCardBills(init.cardBills); setVoucherBrands(init.voucherBrands); setMerchantIcons(init.merchantIcons); setPaymentGroups(init.paymentGroups);
     // New data may live in a month other than the one on screen (e.g. an older statement): keep the month if it has data, else move to one that does.
     const dates = [...init.records, ...init.staged].map((r) => r.date);
     setMonth((m) => (lockedMonth || dates.length === 0 || dates.some((d) => d.startsWith(m)) ? m : pickMonth(today, dates)));
@@ -270,7 +300,21 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   // partner paid; Together = only what is shared. My own shared expenses appear once, from my records.
   const sharedRecords = useMemo(() => shared.map(sharedToRecord), [shared]);
   const together = !!live && !!couple;
-  const scoped = useMemo(() => scopeRecords({ own: shown, shared: sharedRecords, coupled: together, view, meId, month }), [shown, sharedRecords, together, month, view, meId]);
+  // Payment Groups: the selector at the top of every screen. The group decides which of this month's records belong and how much of
+  // each one counts; the ledger itself is never touched, and each record is counted once per group.
+  const groups = useMemo(() => withMine(paymentGroups), [paymentGroups]);
+  const activeGroup = groups.find((g) => g.id === groupId) ?? groups[0];
+  /** The records that could belong to a group in a month: mine, plus (with a partner) what they paid that I share in. */
+  const baseFor = useCallback((m: string) => (together ? [...shown, ...sharedRecords.filter((r) => r.payerId !== meId)] : shown).filter((r) => r.date.startsWith(m)), [shown, sharedRecords, together, meId]);
+  const groupBase = useMemo(() => baseFor(month), [baseFor, month]);
+  /** Records of any month that belong to the group on screen (for drill-downs and yearly charts). */
+  const groupRecords = useCallback((m: string) => inGroup(baseFor(m), activeGroup, groups, meId).map((x) => x.r), [baseFor, activeGroup, groups, meId]);
+  const groupRows = useMemo(() => inGroup(groupBase, activeGroup, groups, meId), [groupBase, activeGroup, groups, meId]);
+  const scoped = useMemo(() => groupRows.map((x) => x.r), [groupRows]);
+  const attributions = useMemo(() => new Map<string, Attribution>(groupRows.map((x) => [x.r.id, x.a])), [groupRows]);
+  const groupSummary: GroupSummary = useMemo(() => summarizeGroup(groupBase, activeGroup, groups, meId), [groupBase, activeGroup, groups, meId]);
+  const attributionOf = useCallback((r: ExpenseRecord) => attributions.get(r.id) ?? attribute(r, activeGroup, groups, meId), [attributions, activeGroup, groups, meId]);
+  const allocatedByKey = useCallback((key: (r: ExpenseRecord) => string) => allocatedBy(groupBase, activeGroup, groups, meId, key), [groupBase, activeGroup, groups, meId]);
   const summary = useMemo(() => summarize(scoped, meId), [scoped, meId]);
   const recurring = useMemo(() => recurringStatuses(recurringItems, records, month, today), [recurringItems, records, month, today]);
   // Everything that can make one person owe another: what is shared with your partner (couple space) plus what you split with
@@ -450,6 +494,43 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     return { id };
   }, [participants, send]);
 
+  const saveGroup = useCallback((draft: Omit<PaymentGroup, "id" | "order"> & { id?: string }) => {
+    const name = draft.name.trim();
+    if (!name || name.length > 40) return "Give the group a name (up to 40 characters).";
+    if (paymentGroups.some((g) => g.id !== draft.id && g.name.toLowerCase() === name.toLowerCase())) return "You already have a group with that name.";
+    if (draft.kind === "mine" && paymentGroups.some((g) => g.id !== draft.id && g.kind === "mine")) return "There can only be one Mine group.";
+    const id = draft.id ?? `g_${slug(name)}-${uuid().slice(0, 6)}`;
+    const prior = paymentGroups.find((g) => g.id === id);
+    const order = prior?.order ?? (draft.kind === "mine" ? 0 : paymentGroups.length);
+    const g: PaymentGroup = { id, name, kind: draft.kind, memberIds: draft.kind === "mine" ? [] : [...new Set(draft.memberIds)], coverMembers: draft.kind === "mine" ? false : draft.coverMembers, includeMe: draft.kind === "mine" ? true : draft.includeMe, order };
+    setPaymentGroups((gs) => (gs.some((x) => x.id === id) ? gs.map((x) => (x.id === id ? g : x)) : [...gs, g]));
+    void send({ type: "group.put", group: { id, name, kind: g.kind, memberIds: g.memberIds, coverMembers: g.coverMembers, includeMe: g.includeMe } });
+    return null;
+  }, [paymentGroups, send]);
+  const deleteGroup = useCallback((id: string) => {
+    const cur = paymentGroups.find((g) => g.id === id);
+    if (!cur) return "That group was not found.";
+    if (cur.kind === "mine") return "Mine cannot be deleted. You can rename it.";
+    setPaymentGroups((gs) => gs.filter((g) => g.id !== id));
+    if (groupId === id) setGroupId("");
+    void send({ type: "group.delete", id });
+    return null;
+  }, [paymentGroups, groupId, setGroupId, send]);
+  const reorderGroups = useCallback((ids: string[]) => {
+    // Mine may be only virtual; saving the order makes every listed group real, so keep to the saved ones.
+    const saved = ids.filter((i) => paymentGroups.some((g) => g.id === i));
+    setPaymentGroups((gs) => gs.map((g) => (saved.includes(g.id) ? { ...g, order: saved.indexOf(g.id) } : g)));
+    if (saved.length) void send({ type: "groups.reorder", ids: saved });
+  }, [paymentGroups, send]);
+  const addStarterGroups = useCallback(() => {
+    let added = 0;
+    const me = participants.find((p) => p.id === meId)?.name ?? "Me";
+    const partner = participants.find((p) => p.id === partnerId);
+    if (!paymentGroups.some((g) => g.kind === "mine")) { if (!saveGroup({ name: "Mine", kind: "mine", memberIds: [], coverMembers: false, includeMe: true })) added++; }
+    if (partner && !paymentGroups.some((g) => g.kind === "people" && g.memberIds.includes(partner.id))) { if (!saveGroup({ name: `${partner.name} + ${me.split(/\s+/)[0]}`, kind: "people", memberIds: [meId, partner.id], coverMembers: false, includeMe: true })) added++; }
+    if (!paymentGroups.some((g) => g.name.toLowerCase() === "parents")) { if (!saveGroup({ name: "Parents", kind: "people", memberIds: [], coverMembers: true, includeMe: false })) added++; }
+    return added;
+  }, [participants, meId, partnerId, paymentGroups, saveGroup]);
   const setParticipantPhoto = useCallback((id: string, photo: string | null) => {
     const cur = participants.find((p) => p.id === id);
     if (!cur) return "That person was not found.";
@@ -559,7 +640,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, setParticipantPhoto, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, markRecurringPaid, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, attributionOf, groupRecords, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, setParticipantPhoto, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, markRecurringPaid, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,

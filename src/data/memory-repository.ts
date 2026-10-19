@@ -1,7 +1,7 @@
 import type { ZodType } from "zod";
-import { AccountSchema, AuditEventSchema, CardBillSchema, VoucherBrandSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, SharedExpenseSchema, type RuleDoc } from "./schemas";
+import { AccountSchema, AuditEventSchema, CardBillSchema, PaymentGroupSchema, VoucherBrandSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, SharedExpenseSchema, type RuleDoc } from "./schemas";
 import { ConflictError, type AppendOnly, type Collection, type Repository } from "./repository";
-import type { Account, AuditEvent, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
+import type { PaymentGroup, Account, AuditEvent, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
 
 export interface Seed {
   records?: ExpenseRecord[];
@@ -11,6 +11,7 @@ export interface Seed {
   recurring?: RecurringItem[];
   cardBills?: CardBill[];
   voucherBrands?: VoucherBrand[];
+  paymentGroups?: PaymentGroup[];
   participants?: Participant[];
   accounts?: Account[];
   categories?: Category[];
@@ -60,6 +61,7 @@ export function createMemoryRepository(householdId: string, seed: Seed = {}): Re
     recurring: collection(RecurringItemSchema, seed.recurring),
     cardBills: collection(CardBillSchema, seed.cardBills),
     voucherBrands: collection(VoucherBrandSchema, seed.voucherBrands),
+    paymentGroups: collection(PaymentGroupSchema, seed.paymentGroups),
     participants: collection(ParticipantSchema, seed.participants),
     accounts: collection(AccountSchema, seed.accounts),
     categories: collection(CategorySchema, seed.categories),

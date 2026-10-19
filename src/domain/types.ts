@@ -302,3 +302,24 @@ export interface VoucherBrand {
   /** You record every use of this voucher, so purchases minus recorded uses is a reliable remaining value. */
   tracksAllUse?: boolean;
 }
+
+/**
+ * A Payment Group is a lens on your own spending (Mine, Wife & Me, Parents…), set up per profile. It never copies or moves a
+ * transaction: each group just attributes a transaction's allocated shares to itself, so one transaction can show in several groups
+ * while the ledger and your overall spending stay as they are. Different from Categories (what the money was for) and from
+ * Split Groups (an occasion such as a trip, with its own settlements).
+ */
+export interface PaymentGroup {
+  id: string;
+  name: string;
+  /** "mine": your own share plus what you cover for others. "people": the shares of the contacts listed in `memberIds`. */
+  kind: "mine" | "people";
+  /** The contacts (participant ids) in a people group. May include you. Ignored for "mine". */
+  memberIds: string[];
+  /** People group only: when you pay these people's shares, that money counts in Mine too (e.g. parents you support). */
+  coverMembers: boolean;
+  /** People group only: also count YOUR share of expenses that involve these people (a "Wife & Me" group counts both). */
+  includeMe: boolean;
+  /** Position in the selector (0 first). */
+  order?: number;
+}

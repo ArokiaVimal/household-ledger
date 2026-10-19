@@ -124,6 +124,8 @@ service cloud.firestore {
       // Card bills are written by the server only.
       match /cardBills/{id} { allow read: if isMember(hid); allow write: if false; }
       match /voucherBrands/{id} { allow read: if isMember(hid); allow write: if false; }
+      // Payment groups (per-profile lenses on spending) are written by the server only.
+      match /paymentGroups/{id} { allow read: if isMember(hid); allow write: if false; }
       match /receipts/{id} { allow read: if isMember(hid); allow create, update: if isMember(hid) && smallDoc(request.resource.data); allow delete: if isMember(hid); }
       // Participants and accounts are referenced by history, so they are archived, not deleted.
       match /participants/{id} { allow read: if isMember(hid); allow create, update: if isMember(hid) && smallDoc(request.resource.data); allow delete: if false; }

@@ -16,10 +16,11 @@ import { CaptureCard } from "./capture-card";
 import { GmailCard } from "./gmail-card";
 import { PartnerCard } from "./partner-card";
 import { IconsCard } from "./icons-card";
+import { GroupsCard } from "./groups-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet" };
 
-const JUMP = [["methods", "Payment methods"], ["sharing", "Split with people"], ["ai", "Smart import"], ["integrations", "Integrations"], ["shortcuts", "Make it yours"], ["data", "Your data"]] as const;
+const JUMP = [["methods", "Payment methods"], ["groups", "Payment groups"], ["sharing", "Split with people"], ["ai", "Smart import"], ["integrations", "Integrations"], ["shortcuts", "Make it yours"], ["data", "Your data"]] as const;
 const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
   { href: "/profile", label: "Your profile", hint: "Your name and photo, and how the app greets you.", icon: UserRound },
   { href: "/categories", label: "Categories and rules", hint: "Rename, add your own, and auto-sort favourite merchants.", icon: Tags },
@@ -147,6 +148,10 @@ export default function Settings() {
             {accounts.length === 0 && <p className="py-3 text-sm text-muted">Nothing here yet. Add your first card, UPI app or bank account to start tracking.</p>}
             <div className="flex flex-wrap gap-2"><Button variant="primary" onClick={() => openDialog({})}>+ Add primary payment method</Button>{accounts.length > 1 && <Button onClick={() => reorderAccounts(orderByUse(accounts, usedBy))}>Sort by most used</Button>}{upiPlan.add.length + upiPlan.hide.length > 0 && <Button onClick={() => setUpiMsg(`Added ${setupUpiApps()} UPI apps under your banks.`)}>Put UPI apps under each bank</Button>}{missingSuggested > 0 && <Button onClick={addSuggestedAccounts}>Add my usual cards, UPI apps and banks ({missingSuggested})</Button>}</div>
           </Card>
+        </Section>
+
+        <Section id="groups" icon={<LayoutGrid size={20} aria-hidden />} title="Payment groups" tagline="Choose how you want to look at your spending: just yours, you and your partner, your parents. Each group counts only the shares that belong to it.">
+          <GroupsCard />
         </Section>
 
         <Section id="sharing" icon={<Users size={20} aria-hidden />} title="Split with people" tagline="Rent with your partner, a dinner with friends, a trip with the gang. Split it fairly, see who owes whom, and settle up without the awkward maths.">

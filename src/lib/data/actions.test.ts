@@ -448,3 +448,25 @@ describe("sharing with a partner", () => {
   });
 });
 
+
+describe("payment groups", () => {
+  it("saves, renames, reorders and deletes a user's own groups, with the safety rules", async () => {
+    const repo = await setup();
+    const g = { id: "g_wife", name: "Varru + Vimal", kind: "people" as const, memberIds: ["me", "wife", "wife"], coverMembers: false, includeMe: true };
+    await applyAction(repo, actor, { type: "group.put", group: g });
+    expect(await repo.paymentGroups.get("g_wife")).toMatchObject({ name: "Varru + Vimal", memberIds: ["me", "wife"], order: 1 - 1 });
+    await applyAction(repo, actor, { type: "group.put", group: { id: "g_mine", name: "Mine", kind: "mine", memberIds: ["junk"], coverMembers: true, includeMe: false } });
+    expect(await repo.paymentGroups.get("g_mine")).toMatchObject({ kind: "mine", memberIds: [], coverMembers: false, includeMe: true, order: 0 });
+    await fails(applyAction(repo, actor, { type: "group.put", group: { ...g, id: "g_other" } }), "conflict"); // same name
+    await fails(applyAction(repo, actor, { type: "group.put", group: { id: "g_mine2", name: "Me again", kind: "mine", memberIds: [], coverMembers: false, includeMe: true } }), "conflict"); // second Mine
+    await applyAction(repo, actor, { type: "group.put", group: { ...g, name: "Wife & Me" } });
+    expect((await repo.paymentGroups.get("g_wife"))!.name).toBe("Wife & Me");
+    await applyAction(repo, actor, { type: "groups.reorder", ids: ["g_wife", "g_mine"] });
+    expect((await repo.paymentGroups.get("g_wife"))!.order).toBe(0);
+    await fails(applyAction(repo, actor, { type: "groups.reorder", ids: ["g_wife", "nope"] }), "invalid");
+    await fails(applyAction(repo, actor, { type: "group.delete", id: "g_mine" }), "invalid");
+    await applyAction(repo, actor, { type: "group.delete", id: "g_wife" });
+    expect(await repo.paymentGroups.get("g_wife")).toBeNull();
+    await fails(applyAction(repo, actor, { type: "group.delete", id: "g_wife" }), "not_found");
+  });
+});
