@@ -1,11 +1,11 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
 import { Amount, MerchantAvatar, TxnBadges, TxnCard } from "@/components/txn-row";
 import { TxnEditDialog } from "@/components/txn-edit-dialog";
 import { NotesAi } from "./notes-ai";
-import { Badge, EmptyState, Input, PageHeader, Select } from "@/components/ui";
+import { Badge, Button, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { rootOf } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
@@ -82,6 +82,7 @@ function TransactionsView() {
   const params = useSearchParams();
   const router = useRouter();
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const get = (k: string) => params.get(k) ?? "";
   const set = (k: string, v: string) => {
@@ -115,20 +116,39 @@ function TransactionsView() {
   const view = get("view") || "all";
   const active = ["recurring", "q", "category", "merchant", "status", "kind", "account", "shared", "voucher", "paidWith"].filter((k) => get(k));
 
+  const filterFields = (
+    <>
+      <Select aria-label="Category" value={get("category")} onChange={(e) => set("category", e.target.value)}>
+        <option value="">All categories</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </Select>
+      <Select aria-label="Type" value={get("kind")} onChange={(e) => set("kind", e.target.value)}>
+        <option value="">All types</option>{([["purchase", "Purchases"], ["refund", "Refunds"], ["income", "Income"], ["transfer", "Transfers"], ["cc_payment", "Card bill payments"], ["fee", "Fees"]] as const).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+      </Select>
+      <Select aria-label="Account" value={get("account")} onChange={(e) => set("account", e.target.value)}>
+        <option value="">All accounts</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+      </Select>
+    </>
+  );
+  const filterCount = ["category", "kind", "account"].filter((k) => get(k)).length;
+
   return (
     <>
       <PageHeader tip="Your approved transactions. Use Read notes with AI to let Claude use your notes to suggest categories; you review every suggestion before it applies." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
-      <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-6">
+      {/* Phone: search plus one Filters button. From tablet width the three selects sit in the row. */}
+      <div className="mb-3 flex gap-2 md:hidden">
+        <Input className="min-w-0 flex-1" placeholder="Search" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
+        <button type="button" onClick={() => setFiltersOpen(true)} aria-label={`Filters${filterCount ? `, ${filterCount} on` : ""}`} className="relative grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background">
+          <SlidersHorizontal size={17} aria-hidden />
+          {filterCount > 0 && <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-accent text-[10px] font-semibold text-white">{filterCount}</span>}
+        </button>
+      </div>
+      <Dialog open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
+        <div className="space-y-3 pb-3">{filterFields}</div>
+        <div className="sticky bottom-0 -mx-4 flex justify-between gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => { for (const k of ["category", "kind", "account"]) set(k, ""); }}>Reset</Button><Button variant="primary" onClick={() => setFiltersOpen(false)}>Show {rows.length}</Button></div>
+      </Dialog>
+      <div className="mb-3 hidden gap-2 md:grid md:grid-cols-6">
         <Input className="col-span-2" placeholder="Search merchant, description, notes" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
-        <Select aria-label="Category" value={get("category")} onChange={(e) => set("category", e.target.value)}>
-          <option value="">All categories</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </Select>
-        <Select aria-label="Type" value={get("kind")} onChange={(e) => set("kind", e.target.value)}>
-          <option value="">All types</option>{([["purchase", "Purchases"], ["refund", "Refunds"], ["income", "Income"], ["transfer", "Transfers"], ["cc_payment", "Card bill payments"], ["fee", "Fees"]] as const).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </Select>
-        <Select aria-label="Account" value={get("account")} onChange={(e) => set("account", e.target.value)}>
-          <option value="">All accounts</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </Select>
+        {filterFields}
       </div>
       {active.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5 text-xs">
@@ -136,10 +156,10 @@ function TransactionsView() {
           <button className="text-muted underline" onClick={() => router.replace(`/transactions${get("month") ? `?month=${get("month")}` : ""}`)}>Clear filters</button>
         </div>
       )}
-      <div role="tablist" aria-label="Group transactions" className="mb-3 flex gap-1 overflow-x-auto rounded-full bg-surface p-1">
+      <div role="tablist" aria-label="Group transactions" className="mb-3 flex gap-1 overflow-x-auto rounded-full bg-surface p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {VIEWS.map((v) => (
           <button key={v.id} role="tab" aria-selected={view === v.id} onClick={() => set("view", v.id === "all" ? "" : v.id)}
-            className={cn("shrink-0 rounded-full px-3.5 py-1.5 text-sm", view === v.id ? "bg-foreground text-white" : "text-muted hover:bg-background")}>{v.label}</button>
+            className={cn("shrink-0 rounded-full px-3 py-1.5 text-[13px] md:px-3.5 md:text-sm", view === v.id ? "bg-foreground text-white" : "text-muted hover:bg-background")}>{v.label}</button>
         ))}
       </div>
       {rows.length === 0 ? <EmptyState title="No transactions match" hint="Try clearing a filter." /> : view !== "all" ? (

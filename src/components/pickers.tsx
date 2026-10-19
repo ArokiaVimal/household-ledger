@@ -39,7 +39,7 @@ export function TileGrid({ options, selected, onPick, label, multi, columns = 2 
             <button type="button" role={multi ? undefined : "radio"} aria-checked={multi ? undefined : on} aria-pressed={multi ? on : undefined} onClick={() => onPick(o.id)}
               className={cn("relative flex min-h-14 w-full items-center gap-2 rounded-2xl border px-2.5 py-2 text-left transition-colors", on ? "border-accent bg-accent/10" : "border-transparent bg-background hover:border-border")}>
               {o.icon && <span className="grid size-8 shrink-0 place-items-center">{o.icon}</span>}
-              <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium leading-tight">{o.label}</span>{o.hint && <span className="block truncate text-[11px] leading-tight text-muted">{o.hint}</span>}</span>
+              <span className="min-w-0 flex-1"><span className="line-clamp-2 block text-[13px] font-medium leading-tight">{o.label}</span>{o.hint && <span className="block truncate text-[11px] leading-tight text-muted">{o.hint}</span>}</span>
               {on && <Check size={15} aria-hidden className="shrink-0 text-accent" />}
             </button>
           </li>

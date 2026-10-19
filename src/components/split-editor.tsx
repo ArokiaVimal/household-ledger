@@ -55,11 +55,11 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
     : { mode: "equal", participantIds: [meId, o] });
   const withConfig = (who: string[]): SplitConfig => (who.length === 0 ? nobody : who.length === 1 ? usualWith(who[0]) : { mode: "equal", participantIds: [meId, ...who] });
   // How to split with the chosen people. One person gets the quick ratios; a group is split equally unless "More ways".
-  const howOptions: { label: string; config: SplitConfig }[] = others.length === 1 ? (() => {
+  const howOptions: { label: string; title?: string; config: SplitConfig }[] = others.length === 1 ? (() => {
     const o = others[0];
     const usual = usualWith(o);
     return [
-      ...(usual.mode === "percent" ? [{ label: `${nameOf(ownerId)} ${pct(splitRatio.leaderBps)} · ${nameOf(ownerId === meId ? o : meId)} ${pct(10000 - splitRatio.leaderBps)}`, config: usual }] : []),
+      ...(usual.mode === "percent" ? [{ label: `${nameOf(ownerId)} ${pct(splitRatio.leaderBps)} · ${nameOf(ownerId === meId ? o : meId)} ${pct(10000 - splitRatio.leaderBps)}`, title: "Your usual split", config: usual }] : []),
       { label: "50 / 50", config: { mode: "equal" as const, participantIds: [meId, o] } },
       { label: `${firstName(nameOf(o))} owes all`, config: { mode: "shares" as const, participantIds: [meId, o], values: { [meId]: 0, [o]: 1 } } },
       { label: "I owe all", config: { mode: "shares" as const, participantIds: [meId, o], values: { [meId]: 1, [o]: 0 } } },
@@ -160,16 +160,21 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
         <section aria-label="How">
           <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">How</h3>
           <TileGrid label="How to split" columns={2}
-            options={[...howOptions.map((p) => ({ id: p.label, label: p.label, icon: modeDot(p.config.mode), hint: describe(p.config) })), { id: CUSTOM, label: "More ways", icon: <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={32} />, hint: "Amounts, %, shares, by item" }]}
+            options={[...howOptions.map((p) => ({ id: p.label, label: p.title ?? p.label, icon: modeDot(p.config.mode), hint: describe(p.config) })), { id: CUSTOM, label: "Custom", icon: <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={32} />, hint: "Amounts, %, shares, by item" }]}
             selected={showAdvanced ? [CUSTOM] : [presetId]} onPick={pickPreset} />
           {!showAdvanced && !error && ids.length > 1 && total > 0 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
         </section>
       )}
 
       {showAdvanced && (
-        <div className="space-y-3 rounded-2xl bg-background p-3">
+        <div className="space-y-3 border-t border-border pt-3">
           <div className="space-y-1.5">
-            <TileGrid label="Split method" columns={2} options={MODES.map((m) => ({ id: m.id, label: m.label, icon: modeDot(m.id) }))} selected={[value.mode]} onPick={(m) => onChange(build(m as SplitMode, ids.length ? ids : [meId]))} />
+            <div role="radiogroup" aria-label="Split method" className="flex flex-wrap gap-1.5">
+              {MODES.map((m) => { const on = value.mode === m.id; const [I] = MODE_ICON[m.id]; return (
+                <button key={m.id} type="button" role="radio" aria-checked={on} onClick={() => onChange(build(m.id, ids.length ? ids : [meId]))}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors ${on ? "border-accent bg-accent font-medium text-white shadow-sm" : "border-transparent bg-background hover:border-border"}`}><I size={14} aria-hidden />{m.label}</button>
+              ); })}
+            </div>
             <p className="text-xs text-muted">{mode.hint}</p>
           </div>
 
@@ -203,7 +208,7 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
             </div>
           ) : (
             <>
-              <ul className="divide-y divide-border overflow-hidden rounded-2xl bg-surface" aria-label="Who is in this expense">
+              <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface" aria-label="Who is in this expense">
                 {participants.map((p) => {
                   const on = ids.includes(p.id);
                   const tag = p.pendingEmail ? "invited" : p.id === partnerId || p.relationship === "partner" ? "" : p.userId === null ? relationshipText(p).toLowerCase() : "";

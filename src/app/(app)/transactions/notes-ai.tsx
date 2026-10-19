@@ -48,7 +48,7 @@ export function NotesAi() {
 
   return (
     <>
-      <Button disabled={!!off} title={off ?? undefined} onClick={() => { setOpen(true); setResult(null); setError(null); setDone(null); }}><Sparkles size={15} aria-hidden />Read notes with AI<AiBadge>AI</AiBadge></Button>
+      <Button disabled={!!off} title={off ?? undefined} aria-label="Read notes with AI" onClick={() => { setOpen(true); setResult(null); setError(null); setDone(null); }}><Sparkles size={15} aria-hidden /><span className="max-sm:sr-only">Read notes with AI</span><span className="max-sm:hidden"><AiBadge>AI</AiBadge></span></Button>
       <Dialog open={open} onClose={() => setOpen(false)} title="Read notes with AI">
         <div className="space-y-3 pb-1 text-sm">
           {!result && !done && (
