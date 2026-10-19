@@ -7,6 +7,8 @@ import { ActionError, applyAction } from "@/lib/data/actions";
 import { createFirestoreHouseholdStore } from "@/lib/households/firestore-store";
 import { getMembership } from "@/lib/households/service";
 import { coupleContextFor } from "@/lib/data/couple";
+import { activeLinksFor, refreshForContact } from "@/lib/links/service";
+import { createLinkDeps } from "@/lib/links/server";
 
 const status = { invalid: 400, not_found: 404, conflict: 409 } as const;
 
@@ -27,7 +29,16 @@ export async function POST(req: Request) {
     if (!membership) return NextResponse.json({ error: "Create or join a household first." }, { status: 403 });
     const hStore = createFirestoreHouseholdStore();
     const couple = await coupleContextFor(hStore, session.uid, (id) => createFirestoreRepository(id));
-    await applyAction(createFirestoreRepository(membership.household.id), { uid: session.uid }, json, couple);
+    const linkDeps = createLinkDeps();
+    // Active Friends & Family links, so new and edited expenses reach the linked person's copy automatically.
+    const links = await activeLinksFor(linkDeps, session.uid);
+    await applyAction(createFirestoreRepository(membership.household.id), { uid: session.uid }, json, couple, links);
+    // A contact saved with an email may match an account that already exists (e.g. the email was added after they signed up).
+    // This only stores a proposal for the owner to confirm; it must never fail the save.
+    const t = (json as { type?: string; id?: string; record?: unknown } | null);
+    if ((t?.type === "participant.add" || t?.type === "participant.update") && typeof t.id === "string") {
+      await refreshForContact(linkDeps, { uid: session.uid, householdId: membership.household.id }, t.id).catch((e) => console.error("link check failed", (e as { code?: string }).code));
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ActionError) return NextResponse.json({ error: e.message }, { status: status[e.code] });

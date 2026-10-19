@@ -12,7 +12,7 @@ export const NAV: NavItem[] = [
   { href: "/recurring", label: "Recurring", icon: Repeat, hint: "Rent, EMIs, bills" },
   { href: "/cards", label: "Card bills", icon: CreditCard, hint: "What to pay, and by when" },
   { href: "/vouchers", label: "Wallets", icon: Ticket, hint: "Voucher top-ups and use" },
-  { href: "/insights", label: "AI insights", icon: Sparkles, hint: "Tips for your month" },
+  { href: "/insights", label: "AI", icon: Sparkles, hint: "Insights and all AI tools" },
   { href: "/reports", label: "Reports", icon: BarChart3, hint: "Where it all went" },
   { href: "/categories", label: "Categories", icon: Tags, hint: "Names and rules" },
   { href: "/receipts", label: "Receipts", icon: Receipt, hint: "Match receipts" },

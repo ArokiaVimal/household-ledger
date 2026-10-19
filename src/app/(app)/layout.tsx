@@ -16,6 +16,8 @@ import { serverDeps } from "@/lib/households/firestore-store";
 import { defaultDisplayName } from "@/lib/profile/profile";
 import type { CoupleMembership, InviteOffer, Membership } from "@/lib/households/types";
 import { getProfile } from "@/lib/profile/store";
+import { loadLinkData, type LinkData } from "@/lib/links/service";
+import { createLinkDeps } from "@/lib/links/server";
 
 /** Reads the session on every request, so it must stream inside <Suspense> (Cache Components). */
 async function AuthedShell({ children }: { children: ReactNode }) {
@@ -27,6 +29,7 @@ async function AuthedShell({ children }: { children: ReactNode }) {
   let coupleMembership: CoupleMembership | null = null;
   let offers: InviteOffer[] = [];
   let hStatus: HouseholdStatus = "off";
+  let linkData: LinkData = { proposals: [], links: [] };
   if (session.mode === "on") {
     // The profile and the membership do not depend on each other, so read them at the same time.
     const hStore = createFirestoreHouseholdStore();
@@ -51,6 +54,8 @@ async function AuthedShell({ children }: { children: ReactNode }) {
         coupleMembership = await getCouple(hStore, session.uid);
         if (!coupleMembership?.active && session.email) offers = await pendingInvitesFor(hStore, session.email, serverDeps);
       } catch (e) { console.error("partner load failed:", (e as { code?: string }).code); }
+      // Friends & Family links: proposals waiting for the owner, and what linked people share. A problem here must not hide private data.
+      if (membership) linkData = await loadLinkData(createLinkDeps(), session.uid).catch((e) => { console.error("link load failed:", (e as { code?: string }).code); return linkData; });
       hStatus = "ok";
     } catch (e) {
       console.error("household load failed:", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 200));
@@ -94,7 +99,7 @@ async function AuthedShell({ children }: { children: ReactNode }) {
     : null;
   return (
     <ProfileProvider initial={profile} status={status}>
-      <HouseholdProvider membership={membership} status={hStatus} uid={session.mode === "on" ? session.uid : null} partner={partnerInfo} offers={offers} myName={profile?.displayName ?? ""}>
+      <HouseholdProvider membership={membership} status={hStatus} uid={session.mode === "on" ? session.uid : null} partner={partnerInfo} offers={offers} myName={profile?.displayName ?? ""} linkData={linkData}>
         <StoreProvider initialView={profile?.defaultView} live={live}>
           <AppShell user={session.mode === "on" ? { email: session.email ?? "" } : null}>
             {dataError ? (

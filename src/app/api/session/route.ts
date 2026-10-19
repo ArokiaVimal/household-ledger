@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS, getAuthMode, isRecentSignIn, isSignInAllowed, isSameOrigin } from "@/lib/auth/config";
 import { getAdminAuth } from "@/lib/firebase/admin";
+import { refreshForAccount } from "@/lib/links/service";
+import { createLinkDeps } from "@/lib/links/server";
 
 const body = z.object({ idToken: z.string().min(20).max(4096) });
 const FAIL = NextResponse.json({ error: "Sign-in failed" }, { status: 401 }); // one generic message on purpose
@@ -23,6 +25,8 @@ export async function POST(req: Request) {
     (await cookies()).set(SESSION_COOKIE, cookie, {
       httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: SESSION_MAX_AGE_SECONDS,
     });
+    // Does anyone already have this (verified) email saved as a contact? Only stores a proposal for THEM to confirm; never blocks sign-in.
+    await refreshForAccount(createLinkDeps(), { uid: decoded.uid, email: decoded.email, emailVerified: decoded.email_verified === true }).catch((e) => console.error("link check failed", (e as { code?: string }).code));
     return NextResponse.json({ ok: true });
   } catch {
     return FAIL;

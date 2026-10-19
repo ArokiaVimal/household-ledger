@@ -1,7 +1,11 @@
 "use client";
-import { AlertTriangle, Lightbulb, RefreshCw, Sparkles, TrendingUp } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, FileUp, Lightbulb, RefreshCw, Sparkles, TrendingUp, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { AiBadge, Button, Card } from "@/components/ui";
+import { IconsCard } from "../settings/icons-card";
+import { NotesAi } from "../transactions/notes-ai";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import type { Analysis } from "@/lib/insights/ai";
@@ -9,6 +13,22 @@ import type { Analysis } from "@/lib/insights/ai";
 interface Saved { analysis: Analysis; generatedAt: string }
 const key = (m: string) => `insights:${m}`;
 const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en", { month: "long", year: "numeric", timeZone: "UTC" });
+
+function AiTool({ icon: I, title, where, blurb, children }: { icon: LucideIcon; title: string; where: string; blurb: string; children: ReactNode }) {
+  return (
+    <div className="space-y-3 rounded-[var(--radius-card)] bg-surface p-4">
+      <div className="flex items-start gap-3">
+        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/10 text-accent"><I size={18} /></span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2 font-medium">{title} <AiBadge /></div>
+          <p className="text-sm text-muted">{blurb}</p>
+          <p className="mt-0.5 text-xs text-muted">{where}</p>
+        </div>
+      </div>
+      <div>{children}</div>
+    </div>
+  );
+}
 
 /** AI analysis of the selected month. It only runs when you press Analyse or Refresh; the last result is kept on this device. */
 export default function Insights() {
@@ -51,8 +71,8 @@ export default function Insights() {
     <>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">AI insights <AiBadge>AI-powered</AiBadge></h1>
-          <p className="text-sm text-muted">Tips and a plain-English look at your month. It only runs when you ask.</p>
+          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">AI <AiBadge>AI-powered</AiBadge></h1>
+          <p className="text-sm text-muted">Tips for your month and every AI tool in one place. Nothing runs until you press a button.</p>
         </div>
       </div>
 
@@ -120,6 +140,21 @@ export default function Insights() {
       {!a && !error && !busy && !off && count > 0 && (
         <Card className="p-6 text-center"><p className="text-sm text-muted">Press <b>Analyse</b> to get your tips for {monthName(month)}.</p></Card>
       )}
+
+      <section id="tools" aria-labelledby="tools-h" className="mt-8 space-y-3">
+        <div>
+          <h2 id="tools-h" className="text-lg font-semibold tracking-tight">All AI tools</h2>
+          <p className="text-sm text-muted">Every AI feature in the app, in one place. Each one runs only when you press its button, shows you what it found, and nothing counts until you approve it. Some also live where you use them.</p>
+        </div>
+        <ul className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-2">
+          <li><AiTool icon={Sparkles} title="Read notes with AI" where="Also on Transactions" blurb="Reads the notes you wrote on payments and suggests the category each one really belongs to. You pick which suggestions to apply."><NotesAi /></AiTool></li>
+          <li><IconsCard live={live} aiEnabled={aiEnabled} /></li>
+          <li><AiTool icon={FileUp} title="Read statements and describe payments" where="Also on Import" blurb="Reads a bank, card or UPI statement the app has not seen before, or turns a sentence like “paid 450 at Swiggy” into a transaction. It senses the payment method, EMIs and recurring payments, and the card bill due amount and date."><Link href="/import" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Import</Link></AiTool></li>
+          <li><AiTool icon={ClipboardCheck} title="Name and sort merchants" where="Also in Review" blurb="Names merchants and suggests categories for imported rows, marked with an AI badge until you approve them. It remembers what you approve, so each month needs less review."><Link href="/review" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Review</Link></AiTool></li>
+        </ul>
+        {off && <p className="px-1 text-xs text-muted">{off}</p>}
+        <p className="px-1 text-xs text-muted">Privacy: only text you choose to send leaves the app, after a click. Account numbers, emails and phone numbers are hidden first; your name and the original files are never sent. <Link href="/settings#ai" className="text-accent underline">AI settings</Link></p>
+      </section>
     </>
   );
 }
