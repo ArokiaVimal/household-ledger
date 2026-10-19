@@ -61,7 +61,7 @@ export function buildFacts(input: { month: string; today: string; meId: string; 
   const others = spends.filter((r) => r !== biggest);
   const avgOthers = others.length ? others.reduce((s, r) => s + r.amountPaise, 0) / others.length : 0;
   if (biggest && avgOthers > 0 && biggest.amountPaise > avgOthers * 5) worthALook.push(`Largest single purchase: ${biggest.merchant}, ₹${rupees(biggest.amountPaise)}`);
-  const unc = spends.filter((r) => r.categoryId === "uncategorized");
+  const unc = spends.filter((r) => r.categoryId === "uncategorized" && !r.voucherBrandId);
   if (unc.length >= 3) worthALook.push(`${unc.length} purchases (₹${rupees(unc.reduce((s, r) => s + r.amountPaise, 0))}) have no category`);
   if (input.staged > 0) worthALook.push(`${input.staged} imported transactions are still waiting for review and are not counted`);
   const dups = inMonth.filter((r) => r.duplicateOf).length;

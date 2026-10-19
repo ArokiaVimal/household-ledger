@@ -170,7 +170,7 @@ function ReviewQueue() {
                       {r.suggested === "memory" && <Badge tone="good">Remembered</Badge>}
                       {r.suggested === "ai" && <AiBadge>AI guess</AiBadge>}
                       {r.suggested === "ai_unsure" && <AiBadge tone="unsure">AI unsure, check</AiBadge>}
-                      {!r.suggested && r.categoryId === "uncategorized" && <Badge tone="warn">Needs a category</Badge>}
+                      {!r.suggested && r.categoryId === "uncategorized" && !r.voucherBrandId && <Badge tone="warn">Needs a category</Badge>}
                     </div>
                   </div>
                   <Amount r={r} />

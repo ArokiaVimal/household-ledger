@@ -229,7 +229,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       if (err) { setRecurringError(err); setMore(true); return; }
     }
     const fields = {
-      merchant: merchant.trim(), categoryId, kind: voucherId ? ("purchase" as const) : kind, voucherBrandId: voucherId || undefined, paidWithVoucherId: walletId || undefined, voucherPending: voucherLater && !voucherId ? true : undefined, payerId, split: topUp ? { mode: "personal" as const, participantIds: [payerId] } : split, shared: topUp ? false : split.mode !== "personal", notes: notes || undefined, excluded,
+      merchant: merchant.trim(), categoryId: topUp && categories.some((c) => c.id === "vouchers") ? "vouchers" : categoryId, kind: voucherId ? ("purchase" as const) : kind, voucherBrandId: voucherId || undefined, paidWithVoucherId: walletId || undefined, voucherPending: voucherLater && !voucherId ? true : undefined, payerId, split: topUp ? { mode: "personal" as const, participantIds: [payerId] } : split, shared: topUp ? false : split.mode !== "personal", notes: notes || undefined, excluded,
       recurringId: linkId || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, recurringHint: undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
     };
     if (adding) {
@@ -298,7 +298,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         </>
       )}
       <PickerRow icon={merchant.trim() ? <MerchantAvatar name={merchant} size={32} /> : <Dot icon={Store} size={32} tone="bg-accent/10 text-accent" />} label="Merchant" value={merchant.trim() || "Where did you pay?"} muted={!merchant.trim()} sub={merchantHint ?? undefined} onClick={() => setSheet("merchant")} />
-      <PickerRow icon={<CategoryGlyph name={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} icon={categories.find((c) => c.id === categoryId)?.icon} size={32} />} label="Category" value={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} muted={categoryId === "uncategorized"} sub={catHint ? `Suggested: ${catHint}` : undefined} onClick={() => setSheet("category")} />
+      {!topUp && <PickerRow icon={<CategoryGlyph name={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} icon={categories.find((c) => c.id === categoryId)?.icon} size={32} />} label="Category" value={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} muted={categoryId === "uncategorized"} sub={catHint ? `Suggested: ${catHint}` : undefined} onClick={() => setSheet("category")} />}
       {promptVoucher && (
         <FormRow label="Wallet">
           <CompactChips label="Wallet topped up" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
