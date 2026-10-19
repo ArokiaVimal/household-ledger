@@ -9,7 +9,7 @@ import type { IconPick } from "@/lib/icons/ai";
 const KIND: Record<IconPick["kind"], string> = { category: "Category", account: "Payment method", merchant: "Merchant" };
 
 /** Asks AI for icons for anything new (categories, payment methods, merchants). Only names are sent; you review before anything changes. */
-export function IconsCard() {
+export function IconsCard({ live, aiEnabled }: { live: boolean; aiEnabled: boolean }) {
   const { applyIcons } = useStore();
   const [busy, setBusy] = useState(false);
   const [picks, setPicks] = useState<IconPick[] | null>(null);
@@ -45,7 +45,9 @@ export function IconsCard() {
           <p className="text-sm text-muted">Goes through categories, payment methods and merchants you added since, and suggests an icon for each. Only the names are sent, never amounts or notes. Icons come from the app&apos;s built-in set, and you review them before they are saved.</p>
         </div>
       </div>
-      <Button onClick={() => void refresh()} disabled={busy}>{busy ? "Looking…" : "Refresh icons with AI"}</Button>
+      <Button onClick={() => void refresh()} disabled={busy || !live || !aiEnabled}>{busy ? "Looking…" : "Refresh icons with AI"}</Button>
+      {!live && <p className="text-xs text-muted">This needs a signed-in account. The demo has no AI.</p>}
+      {live && !aiEnabled && <p className="text-xs text-muted">AI is off on this server. The app owner switches it on by adding an Anthropic API key; until then nothing is sent anywhere.</p>}
       {msg && <p role="status" className="text-sm text-muted">{msg}</p>}
       {picks && (
         <div className="space-y-2">

@@ -169,7 +169,6 @@ export default function Settings() {
                 : "To switch it on, the app owner adds an Anthropic API key to the server settings. Until then, nothing is ever sent to AI."}</p>
               <Link href="/import" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Import</Link>
             </AiFeatureCard>
-            {aiEnabled && <IconsCard />}
           </Section>
         )}
 
@@ -189,6 +188,7 @@ export default function Settings() {
               </Link>
             ))}
           </div>
+          <IconsCard live={live} aiEnabled={aiEnabled} />
         </Section>
 
         <Section id="data" icon={<ShieldCheck size={20} aria-hidden />} title="Your data" tagline="It is your money and your data. Take a copy whenever you like.">
