@@ -1,0 +1,38 @@
+// "Needs attention": the few things that deserve a look today, from what the app already knows. Pure, no AI.
+import type { BillStatus } from "./cardbills";
+import type { RecurringStatus } from "./recurring";
+
+export interface AttentionItem { key: string; label: string; count: number; href: string; tone: "bad" | "warn" }
+
+export interface AttentionInput {
+  /** Imported rows waiting for review. */
+  waiting: number;
+  /** Card bills still to pay (see upcomingBills). */
+  bills: BillStatus[];
+  /** Recurring items for the month on screen. */
+  recurring: RecurringStatus[];
+  /** Approved transactions of the month with no category. */
+  uncategorized: number;
+  /** Recurring suggestions waiting for a yes or no. */
+  suggestions?: number;
+  /** A bill this close to due counts as "soon". */
+  soonDays?: number;
+}
+
+export function needsAttention(i: AttentionInput): AttentionItem[] {
+  const soon = i.soonDays ?? 3;
+  const overdueBills = i.bills.filter((b) => b.state === "overdue").length;
+  const dueSoon = i.bills.filter((b) => b.state !== "overdue" && b.daysLeft <= soon).length;
+  const overdueRecurring = i.recurring.filter((r) => r.state === "overdue").length;
+  const items: AttentionItem[] = [
+    { key: "review", label: "waiting for review", count: i.waiting, href: "/review", tone: "warn" },
+    { key: "bills-overdue", label: "overdue card bills", count: overdueBills, href: "/cards", tone: "bad" },
+    { key: "bills-soon", label: `card bills due within ${soon} days`, count: dueSoon, href: "/cards", tone: "warn" },
+    { key: "recurring-overdue", label: "overdue recurring payments", count: overdueRecurring, href: "/recurring", tone: "bad" },
+    { key: "suggestions", label: "recurring suggestions to confirm", count: i.suggestions ?? 0, href: "/recurring#suggestions", tone: "warn" },
+    { key: "uncategorized", label: "without a category", count: i.uncategorized, href: "/transactions?category=uncategorized", tone: "warn" },
+  ];
+  return items.filter((x) => x.count > 0);
+}
+
+export const attentionTotal = (items: AttentionItem[]) => items.reduce((s, x) => s + x.count, 0);

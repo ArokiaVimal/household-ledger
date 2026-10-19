@@ -1,5 +1,5 @@
 "use client";
-import { CreditCard, Landmark, Smartphone, Sparkles, TrendingDown, TrendingUp, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
+import { AlertCircle, ChevronRight, ClipboardCheck, CreditCard, Landmark, Smartphone, Sparkles, TrendingDown, TrendingUp, UserRound, Wallet, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, type ReactNode } from "react";
@@ -14,18 +14,17 @@ import { rootOf } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
 import { byMonth } from "@/domain/reports";
 import { summarizeGroup } from "@/domain/groups";
+import { attentionTotal, needsAttention } from "@/domain/attention";
+import { summarize } from "@/domain/reports";
 import { cn } from "@/lib/cn";
 import { logoFor } from "@/lib/logos";
 
-function Kpi({ icon: I, label, value, sub, pill, href }: { icon: LucideIcon; label: string; value: string; sub: string; pill?: ReactNode; href?: string }) {
+function BigFigure({ icon: I, label, value, sub, pill, href }: { icon: LucideIcon; label: string; value: string; sub: string; pill?: ReactNode; href?: string }) {
   const body = (
-    <Card className="h-full p-3.5 sm:p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="text-xs font-medium text-muted sm:text-sm sm:text-foreground">{label}</div>
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-background sm:size-10" aria-hidden><I size={16} /></span>
-      </div>
-      <div className="num mt-2 truncate text-lg font-semibold tracking-tight sm:mt-3 sm:text-xl">{value}</div>
-      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">{sub}{pill}</div>
+    <Card className="flex h-full flex-col p-4">
+      <div className="flex items-start justify-between gap-2"><div className="text-sm font-medium text-muted">{label}</div><span className="grid size-9 shrink-0 place-items-center rounded-full bg-background" aria-hidden><I size={16} /></span></div>
+      <div className="num mt-2 text-3xl font-semibold tracking-tight">{value}</div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">{sub}{pill}</div>
     </Card>
   );
   return href ? <Link href={href} className="block rounded-[var(--radius-card)] transition-shadow hover:shadow-md">{body}</Link> : body;
@@ -49,7 +48,7 @@ function ReviewedNotice() {
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet, wallet: Wallet } as const;
 
 export default function Dashboard() {
-  const { live, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, balances, month, categoryName, nameOf, accountName, partner, groups, activeGroup, groupSummary, attributionOf, allocatedByKey } = useStore();
+  const { live, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, balances, month, categoryName, nameOf, accountName, partner, groups, activeGroup, groupSummary, monthRecords, recurring, attributionOf, allocatedByKey } = useStore();
   const withPartner = !live || !!partner;
   const prevMonth = (() => { const [y, m] = month.split("-").map(Number); return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7); })();
   const prevAllocated = useMemo(() => summarizeGroup(shown.filter((r) => r.date.startsWith(prevMonth)), activeGroup, groups, meId).allocated, [shown, prevMonth, activeGroup, groups, meId]);
@@ -66,6 +65,10 @@ export default function Dashboard() {
   const prevKey = (() => { const [y, m] = month.split("-").map(Number); return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7); })();
   const delta = prevAllocated > 0 ? Math.round(((groupSummary.allocated - prevAllocated) / prevAllocated) * 1000) / 10 : null;
   const dueBills = useMemo(() => upcomingBills(cardViews(accounts, cardBills, records, today)), [accounts, cardBills, records, today]);
+  // The headline figures. Outflow is every record of the month on screen (all groups): transfers, card-bill payments and
+  // excluded rows are not spending, and refunds subtract. My share follows the group lens and the existing split allocations.
+  const outflow = useMemo(() => summarize(monthRecords, meId).net, [monthRecords, meId]);
+  const attention = useMemo(() => needsAttention({ waiting: staged.length, bills: dueBills, recurring, uncategorized: monthRecords.filter((r) => r.categoryId === "uncategorized" && r.status === "reviewed").length }), [staged.length, dueBills, recurring, monthRecords]);
   const prevName = new Date(`${prevKey}-01T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" });
 
   // The welcome guide is only for someone with no transactions at all (also after deleting everything, even if import history
@@ -85,14 +88,26 @@ export default function Dashboard() {
   return (
     <div className="space-y-4">
       <Suspense fallback={null}><ReviewedNotice /></Suspense>
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <Kpi icon={Wallet} label={`${activeGroup.name} spending`} value={formatINR(groupSummary.allocated)} sub="after refunds, my allocated amounts" href={`/transactions?${q}`}
+      {staged.length > 0 && (
+        <Link href="/review" className="flex min-h-14 items-center gap-3 rounded-[var(--radius-card)] bg-accent px-4 py-3 text-white shadow-md transition-transform active:scale-[0.99]">
+          <ClipboardCheck size={22} aria-hidden />
+          <span className="min-w-0 flex-1"><span className="block text-base font-semibold">Review now</span><span className="block text-sm text-white/80">{staged.length} transaction{staged.length === 1 ? "" : "s"} waiting. Nothing counts until you approve it.</span></span>
+          <ChevronRight size={20} aria-hidden />
+        </Link>
+      )}
+
+      <section aria-label="This month at a glance" className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <BigFigure label="Total household outflow" value={formatINR(outflow)} sub="Spending after refunds. Transfers and card-bill payments are not counted." href={`/transactions?${q}`} icon={Wallet}
           pill={delta !== null && <Pill tone={delta > 0 ? "bad" : "good"}>{delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{Math.abs(delta)}% vs {prevName}{live ? "" : " (mock)"}</Pill>} />
-        <Kpi icon={UserRound} label="My share" value={formatINR(groupSummary.my)} sub="what I ultimately bear" />
-        <Kpi icon={Users} label="Paid for others" value={formatINR(groupSummary.onBehalf)} sub={`I paid ${formatINR(groupSummary.paid)} in all`} href={`/transactions?${q}&shared=1`} />
-        <Kpi icon={TrendingDown} label="Refunds & review" value={`−${formatINR(groupSummary.refunds)}`} sub={`${staged.length} awaiting review`} href="/review"
-          pill={staged.length > 0 && <Pill tone="bad">Review</Pill>} />
-      </div>
+        <BigFigure label="My share of spending" value={formatINR(groupSummary.my)} sub={groupSummary.onBehalf !== 0 ? `${activeGroup.name} counts ${formatINR(groupSummary.allocated)}, including ${formatINR(groupSummary.onBehalf)} paid for others` : `What I ultimately bear${activeGroup.kind === "mine" ? "" : ` (${activeGroup.name} counts ${formatINR(groupSummary.allocated)})`}`} icon={UserRound} />
+        <Card className="flex h-full flex-col p-4">
+          <div className="flex items-start justify-between gap-2"><div className="text-sm font-medium text-muted">Needs attention</div><span className="grid size-9 shrink-0 place-items-center rounded-full bg-background" aria-hidden><AlertCircle size={16} /></span></div>
+          <div className={cn("num mt-2 text-3xl font-semibold tracking-tight", attention.length === 0 ? "text-good" : attentionTotal(attention) > 0 ? "" : "")}>{attention.length === 0 ? "All clear" : attentionTotal(attention)}</div>
+          {attention.length === 0 ? <p className="mt-1 text-xs text-muted">Nothing is overdue or waiting.</p> : (
+            <ul className="mt-2 space-y-1 text-sm">{attention.map((x) => <li key={x.key}><Link href={x.href} className="flex items-center gap-2 rounded-lg py-0.5 hover:underline"><span className={cn("size-2 shrink-0 rounded-full", x.tone === "bad" ? "bg-danger" : "bg-warn")} aria-hidden /><b className="num">{x.count}</b> {x.label}</Link></li>)}</ul>
+          )}
+        </Card>
+      </section>
 
       {dueBills.length > 0 && (
         <Card>
@@ -111,6 +126,18 @@ export default function Dashboard() {
         </Card>
       )}
 
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-1">
+          <CardTitle>Expense breakdown</CardTitle>
+          <DonutChart data={cats} total={groupSummary.allocated} href={(k) => `/transactions?${q}&category=${k}`} />
+          <p className="mt-3 text-xs text-muted">Amounts count what belongs to {activeGroup.name}: allocated shares, not the full bill. Paid by me {formatINR(groupSummary.paid)}, my share {formatINR(groupSummary.my)}.</p>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardTitle action={!live ? <Badge>Apr–Aug mock</Badge> : undefined}>Spending trend</CardTitle>
+          <TrendChart data={trend} href={(k) => `/transactions?month=${k}`} />
+        </Card>
+      </div>
+
       <Link href="/insights" className="flex items-center gap-3 rounded-[var(--radius-card)] bg-gradient-to-br from-accent/10 via-surface to-surface p-4 ring-1 ring-accent/20 transition-shadow hover:shadow-md">
         <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-white"><Sparkles size={18} /></span>
         <span className="min-w-0 flex-1"><span className="block font-medium">AI insights for {new Date(`${month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" })}</span><span className="block text-sm text-muted">Tips and a plain-English look at your month. Only runs when you ask.</span></span>
@@ -118,7 +145,7 @@ export default function Dashboard() {
       </Link>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="bg-accent-soft">
+        <Card className="bg-accent-soft lg:col-span-1">
           <CardTitle>Accounts this month</CardTitle>
           <ul className="space-y-2">
             {accounts.filter((a) => !a.parentId || !accounts.some((x) => x.id === a.parentId)).filter((a) => scoped.some((r) => rootOf(accounts, r.accountId) === a.id)).map((a) => {
@@ -145,18 +172,9 @@ export default function Dashboard() {
           </ul>
           <p className="mt-3 text-xs text-muted">Spending only. Card bill payments, transfers and income are excluded. {topMerchant && <>Top merchant: <b>{topMerchant[0]}</b>.</>}</p>
         </Card>
-        <Card className="lg:col-span-2">
-          <CardTitle action={!live ? <Badge>Apr–Aug mock</Badge> : undefined}>Net spending trend</CardTitle>
-          <TrendChart data={trend} href={(k) => `/transactions?month=${k}`} />
-        </Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card>
-          <CardTitle>Expense breakdown</CardTitle>
-          <DonutChart data={cats} total={groupSummary.allocated} href={(k) => `/transactions?${q}&category=${k}`} />
-          <p className="mt-3 text-xs text-muted">Amounts count what belongs to {activeGroup.name}: allocated shares, not the full bill. Paid by me {formatINR(groupSummary.paid)}, my share {formatINR(groupSummary.my)}.</p>
-        </Card>
         <Card>
           <CardTitle action={<Link href={`/transactions?${q}`} className="text-xs text-accent">View all</Link>}>Recent transactions</CardTitle>
           <ul className="space-y-3">

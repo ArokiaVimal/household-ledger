@@ -114,6 +114,8 @@ interface Store {
   setGroupId: (id: string) => void;
   /** This month's totals for the group on screen: allocated, my share, paid by me, paid on behalf of others. */
   groupSummary: GroupSummary;
+  /** Every record of the month on screen that could belong to a group (mine, plus what a partner paid that I share in), before any group filter. */
+  monthRecords: ExpenseRecord[];
   /** How one record counts in the group on screen (null when it does not belong). */
   attributionOf: (r: ExpenseRecord) => Attribution | null;
   /** Records of any month that belong to the group on screen. */
@@ -662,7 +664,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, attributionOf, groupRecords, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, setParticipantPhoto, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, setParticipantPhoto, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,
