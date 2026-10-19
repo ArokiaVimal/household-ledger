@@ -65,7 +65,7 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
   const { meId, nameOf, groups, rules, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
   const [deleting, setDeleting] = useState(false);
-  const [sheet, setSheet] = useState<null | "pay" | "via" | "wallet" | "merchant" | "category">(null);
+  const [sheet, setSheet] = useState<null | "pay" | "via" | "wallet" | "merchant" | "category" | "kind" | "topup" | "card" | "bank" | "recurring">(null);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";
   const [merchant, setMerchant] = useState(record.merchant);
@@ -268,30 +268,32 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         <ChevronDown size={18} aria-hidden className={`shrink-0 text-muted transition-transform ${more ? "rotate-180" : ""}`} />
       </button>
       {more && (
-        <div className="space-y-2.5">
-          <FormRow label="Type"><CompactChips label="Type" options={kinds} selected={[kind]} onPick={setKind} /></FormRow>
+        <div className="space-y-3">
+          <PickerRow icon={kinds.find((k) => k.id === kind)?.icon} label="Type" value={kinds.find((k) => k.id === kind)?.label ?? "Purchase"} onClick={() => setSheet("kind")} />
           {!promptVoucher && kind === "purchase" && !walletId && (!!voucherId || !accounts.some((x) => x.type === "wallet" && !x.archived)) && (
-            <FormRow label="Tops up wallet"><CompactChips label="Wallet topped up" options={[{ id: "", label: "No", icon: <Dot icon={Ban} /> }, ...brandOptions]} selected={[voucherId]} onPick={(id) => pickBrand(id, setVoucherId)} adder={voucherAdder} /></FormRow>
+            <PickerRow icon={voucherId ? <MerchantAvatar name={voucherBrands.find((b) => b.id === voucherId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="Tops up wallet" value={voucherId ? `${voucherBrands.find((b) => b.id === voucherId)?.name ?? "Wallet"} wallet` : "No"} muted={!voucherId} onClick={() => setSheet("topup")} />
           )}
           {kind === "cc_payment" && (
-            <FormRow label="Which card"><CompactChips label="Credit card that was paid" options={[{ id: "", label: "Not sure" }, ...accounts.filter((a) => a.type === "credit_card").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[paidCardId]} onPick={setPaidCardId} /></FormRow>
+            <PickerRow icon={paidCardId ? <MerchantAvatar name={accounts.find((a) => a.id === paidCardId)?.name ?? "?"} size={32} /> : <Dot icon={CreditCard} size={32} tone="bg-indigo-100 text-indigo-700" />} label="Which card" value={paidCardId ? shortName(accounts.find((a) => a.id === paidCardId)?.name ?? "") : "Not sure"} muted={!paidCardId} onClick={() => setSheet("card")} />
           )}
           {isUpi && (
-            <FormRow label="From bank"><CompactChips label="Paid from bank" options={[{ id: "", label: "Unknown" }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[fundedBy]} onPick={setFundedBy} /></FormRow>
+            <PickerRow icon={fundedBy ? <MerchantAvatar name={accounts.find((a) => a.id === fundedBy)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="From bank" value={fundedBy ? shortName(accounts.find((a) => a.id === fundedBy)?.name ?? "") : "Unknown"} muted={!fundedBy} onClick={() => setSheet("bank")} />
           )}
-          <FormRow label="Recurring">
-            <CompactChips label="Recurring commitment" options={[{ id: "", label: "None", icon: <Dot icon={Ban} /> }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name, icon: <Dot icon={Repeat} tone="bg-red-100 text-red-700" /> })), { id: NEW_RECURRING, label: "Repeat every month", icon: <Dot icon={Plus} tone="bg-accent/10 text-accent" /> }]} selected={[recurringId]} onPick={(v) => { setRecurringId(v); setRecurringError(null); }} />
-            {record.recurringHint && !record.recurringId && <p className="mt-1.5 text-xs text-muted">This looks like a monthly payment (EMI, rent, premium or similar). Approving it adds it to Recurring; choose None if it is not.</p>}
-            {recurringId === NEW_RECURRING && <p className="mt-1.5 text-xs text-muted">Adds “{merchant.trim() || "this payment"}” to Recurring: {formatINR(amountPaise)} due on the {dueDay}{[11, 12, 13].includes(dueDay) ? "th" : ["th", "st", "nd", "rd"][dueDay % 10 < 4 ? dueDay % 10 : 0]} each month, split the same way. You can change it later under Recurring.</p>}
-            {recurringError && <p role="alert" className="mt-1.5 text-xs text-danger">{recurringError}</p>}
-          </FormRow>
-          <FormRow label="Reports">
-            <button type="button" aria-pressed={excluded} onClick={() => setExcluded(!excluded)} title="Exclude from reports (original record is kept)"
-              className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3.5 text-sm ${excluded ? "border-danger bg-danger/10 text-danger" : "border-transparent bg-background"}`}><EyeOff size={16} aria-hidden />{excluded ? "Excluded from reports" : "Exclude from reports"}</button>
-          </FormRow>
+          <PickerRow icon={<Dot icon={recurringId === NEW_RECURRING ? Plus : recurringId ? Repeat : Ban} size={32} tone={recurringId ? "bg-red-100 text-red-700" : undefined} />} label="Recurring" value={recurringId === NEW_RECURRING ? "Repeat every month" : recurringId ? (recurringItems.find((i) => i.id === recurringId)?.name ?? "Recurring item") : "None"} muted={!recurringId} onClick={() => setSheet("recurring")} />
+          {record.recurringHint && !record.recurringId && <p className="-mt-1.5 px-1 text-xs text-muted">This looks like a monthly payment (EMI, rent, premium or similar). Approving it adds it to Recurring; choose None if it is not.</p>}
+          {recurringId === NEW_RECURRING && <p className="-mt-1.5 px-1 text-xs text-muted">Adds “{merchant.trim() || "this payment"}” to Recurring: {formatINR(amountPaise)} due on the {dueDay}{[11, 12, 13].includes(dueDay) ? "th" : ["th", "st", "nd", "rd"][dueDay % 10 < 4 ? dueDay % 10 : 0]} each month, split the same way. You can change it later under Recurring.</p>}
+          {recurringError && <p role="alert" className="-mt-1.5 px-1 text-xs text-danger">{recurringError}</p>}
+          <PickerRow icon={<Dot icon={EyeOff} size={32} tone={excluded ? "bg-danger/10 text-danger" : undefined} />} label="Reports" value={excluded ? "Excluded from reports" : "Counted in reports"} muted={!excluded} onClick={() => setExcluded(!excluded)}>
+            <span aria-hidden className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${excluded ? "bg-danger" : "bg-border"}`}><span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${excluded ? "left-[1.15rem]" : "left-0.5"}`} /></span>
+          </PickerRow>
         </div>
       )}
 
+      <ListSheet open={sheet === "kind"} onClose={() => setSheet(null)} title="Type" value={kind} options={kinds.map((k) => ({ id: k.id, label: k.label, icon: k.icon }))} onPick={(id) => setKind(id as TxnKind)} />
+      <ListSheet open={sheet === "topup"} onClose={() => setSheet(null)} title="Tops up wallet" value={voucherId} options={[{ id: "", label: "No", icon: <Dot icon={Ban} size={32} /> }, ...brandOptions.map((o) => ({ id: o.id, label: o.label, icon: o.icon }))]} onPick={(id) => pickBrand(id, setVoucherId)} />
+      <ListSheet open={sheet === "card"} onClose={() => setSheet(null)} title="Which card was paid" value={paidCardId} options={[{ id: "", label: "Not sure", icon: <Dot icon={Ban} size={32} /> }, ...accounts.filter((a) => a.type === "credit_card").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setPaidCardId} />
+      <ListSheet open={sheet === "bank"} onClose={() => setSheet(null)} title="Paid from bank" value={fundedBy} options={[{ id: "", label: "Unknown", icon: <Dot icon={Ban} size={32} /> }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setFundedBy} />
+      <ListSheet open={sheet === "recurring"} onClose={() => { setSheet(null); setRecurringError(null); }} title="Recurring" value={recurringId} options={[{ id: "", label: "None", icon: <Dot icon={Ban} size={32} /> }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name, icon: <Dot icon={Repeat} size={32} tone="bg-red-100 text-red-700" /> })), { id: NEW_RECURRING, label: "Repeat every month", hint: "Adds this payment to Recurring", icon: <Dot icon={Plus} size={32} tone="bg-accent/10 text-accent" /> }]} onPick={(v) => { setRecurringId(v); setRecurringError(null); }} />
       <ListSheet open={sheet === "pay"} onClose={() => setSheet(null)} title="Paid with" value={primaryId} options={primaries.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))} onPick={(id) => { setPrimaryId(id); setSubId(""); }} />
       <ListSheet open={sheet === "via"} onClose={() => setSheet(null)} title="Via" value={subId} options={[{ id: "", label: "Direct", hint: `Paid with ${accounts.find((a) => a.id === primaryId)?.name ?? "it"} itself`, icon: <Dot icon={Ban} size={32} /> }, ...subs.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setSubId} note="Pick a sub payment method only if the money went through it." />
       <ListSheet open={sheet === "wallet"} onClose={() => setSheet(null)} title="From wallet" value={paidWithId} options={[{ id: "", label: "No", icon: <Dot icon={Ban} size={32} /> }, ...voucherBrands.map((b) => ({ id: b.id, label: `${b.name} wallet`, icon: <MerchantAvatar name={b.name} size={32} /> }))]} onPick={setPaidWithId} />

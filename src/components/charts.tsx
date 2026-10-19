@@ -49,8 +49,8 @@ export function DonutChart({ data, total, href }: { data: Datum[]; total: number
   const sum = slices.reduce((t, d) => t + d.value, 0);
   const pctOf = (v: number) => (sum > 0 ? Math.round((v / sum) * 100) : 0);
   return (
-    <div className="flex flex-wrap items-center gap-4">
-      <ul className="min-w-32 flex-1 space-y-2 text-sm">
+    <div className="flex flex-wrap items-center gap-3">
+      <ul className="min-w-32 flex-1 basis-0 space-y-1.5 text-sm">
         {slices.map((d, i) => (
           <li key={d.label}>
             <button disabled={!d.key} onClick={() => router.push(href(d.key))} className="flex w-full items-center gap-2 text-left hover:underline disabled:no-underline">
@@ -61,10 +61,10 @@ export function DonutChart({ data, total, href }: { data: Datum[]; total: number
           </li>
         ))}
       </ul>
-      <div className="relative size-36 shrink-0" role="img" aria-label="Category donut chart. Select a slice to open transactions">
+      <div className="relative size-32 shrink-0 sm:size-40" role="img" aria-label="Category donut chart. Select a slice to open transactions">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={slices} dataKey="value" nameKey="label" innerRadius={52} outerRadius={74} paddingAngle={2} cornerRadius={4} stroke="none"
+            <Pie data={slices} dataKey="value" nameKey="label" innerRadius="68%" outerRadius="98%" paddingAngle={2} cornerRadius={4} stroke="none"
               onClick={(d) => { const k = (d as unknown as { key: string }).key; if (k) router.push(href(k)); }}>
               {slices.map((d, i) => <Cell key={d.label} fill={PALETTE[i % PALETTE.length]} cursor={d.key ? "pointer" : "default"} />)}
             </Pie>
@@ -72,7 +72,7 @@ export function DonutChart({ data, total, href }: { data: Datum[]; total: number
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
-          <div><div className="text-[11px] text-muted">Total spent</div><div className="num text-sm font-semibold">{formatINR(total)}</div></div>
+          <div><div className="text-[11px] text-muted">Total spent</div><div className="num text-[11px] font-semibold sm:text-sm">{formatINR(total).replace(/\.00$/, "")}</div></div>
         </div>
       </div>
     </div>

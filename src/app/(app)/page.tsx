@@ -12,7 +12,7 @@ import type { BillStatus } from "@/domain/cardbills";
 import { useStore } from "@/data/store";
 import { cardViews, upcomingBills } from "@/domain/cardbills";
 import { NAV } from "@/components/nav-items";
-import { rootOf } from "@/domain/accounts";
+import { rootOf, shortName } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
 import { byMonth } from "@/domain/reports";
 import { summarizeGroup } from "@/domain/groups";
@@ -21,6 +21,8 @@ import { summarize } from "@/domain/reports";
 import { cn } from "@/lib/cn";
 import { logoFor } from "@/lib/logos";
 
+/** The first two words, so a long card or bill name fits a narrow column. */
+const two = (n: string) => n.split(/\s+/).slice(0, 2).join(" ");
 const prettyDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
 
 /** A compact section header: icon, title and a "View all" link that opens the complete list. */
@@ -32,21 +34,53 @@ function SectionHead({ icon: I, title, href, hrefLabel = "View all" }: { icon: L
     </div>
   );
 }
-function ViewAll({ href, n }: { href: string; n: number }) {
-  return <Link href={href} className="mt-1 flex min-h-9 items-center justify-center rounded-xl bg-background text-sm font-medium text-accent">View all (+{n} more)</Link>;
-}
 /** The round tick of a checklist row: filled when done, tap to mark it paid (the page confirms first). */
 function Tick({ done, label, onClick }: { done: boolean; label: string; onClick: () => void }) {
   return (
-    <button type="button" aria-label={done ? `${label} (already paid)` : label} disabled={done} onClick={onClick} className={cn("grid size-7 shrink-0 place-items-center rounded-full border-2 transition-colors", done ? "border-accent bg-accent text-white" : "border-border bg-surface hover:border-accent")}>
+    <button type="button" aria-label={done ? `${label} (already paid)` : label} disabled={done} onClick={onClick} className={cn("grid size-6 shrink-0 place-items-center rounded-full border-2 transition-colors", done ? "border-accent bg-accent text-white" : "border-border bg-surface hover:border-accent")}>
       {done && <Check size={14} strokeWidth={3} aria-hidden />}
     </button>
   );
 }
-function Status({ tone, children }: { tone: "good" | "bad" | "warn" | "info"; children: ReactNode }) {
-  const c = { good: "bg-good-soft text-good", bad: "bg-danger/10 text-danger", warn: "bg-warn-soft text-warn", info: "bg-accent/10 text-accent" }[tone];
-  return <span className={cn("shrink-0 rounded-full px-3 py-1 text-xs font-medium", c)}>{children}</span>;
+interface CheckRow { key: string; logo: ReactNode; name: string; sub: string; tone: "good" | "bad" | "warn" | "info"; done: boolean; tickLabel: string; onTick: () => void }
+
+/**
+ * A compact checklist card for the two-column home layout. Only what still needs doing is listed (paid items move under "View all");
+ * when everything is paid it says so. Names are short and the status is a colour and, when it matters, one word.
+ */
+function ChecklistCard({ icon: I, title, href, rows, empty, addLabel }: { icon: LucideIcon; title: string; href: string; rows: CheckRow[]; empty: string; addLabel: string }) {
+  const open = rows.filter((r) => !r.done);
+  const paid = rows.length - open.length;
+  const tone = { good: "text-good", bad: "text-danger", warn: "text-warn", info: "text-muted" } as const;
+  const more = open.length > 3 ? `View all (+${open.length - 3})` : paid > 0 ? `View all · ${paid} paid` : "View all";
+  return (
+    <Card className="flex min-w-0 flex-col p-2.5 md:p-4">
+      <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent/10 text-accent" aria-hidden><I size={14} /></span>{title}</h2>
+      {rows.length === 0 ? (
+        <p className="flex-1 py-2 text-xs text-muted">{empty}. <Link href={href} className="text-accent underline">{addLabel}</Link></p>
+      ) : open.length === 0 ? (
+        <div className="flex flex-1 flex-col items-start gap-2 py-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-good-soft px-3 py-1 text-xs font-medium text-good"><Check size={13} strokeWidth={3} aria-hidden />All {rows.length} paid</span>
+          <Link href={href} className="inline-flex min-h-9 w-full items-center justify-center rounded-xl bg-background text-xs font-medium text-accent">View all</Link>
+        </div>
+      ) : (
+        <>
+          <ul className="flex-1 divide-y divide-border">
+            {open.slice(0, 3).map((r) => (
+              <li key={r.key} className="flex items-center gap-1.5 py-2">
+                {r.logo}
+                <Link href={href} className="min-w-0 flex-1"><span className="block truncate text-[12.5px] font-medium leading-tight">{r.name}</span><span className={cn("block truncate text-[11px] leading-tight", tone[r.tone])}>{r.sub}</span></Link>
+                <Tick done={false} label={r.tickLabel} onClick={r.onTick} />
+              </li>
+            ))}
+          </ul>
+          <Link href={href} className="mt-1 flex min-h-9 items-center justify-center rounded-xl bg-background px-2 text-xs font-medium text-accent">{more}</Link>
+        </>
+      )}
+    </Card>
+  );
 }
+
 
 function Pill({ tone, children }: { tone: "good" | "bad"; children: ReactNode }) {
   return <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium", tone === "good" ? "bg-good-soft text-good" : "bg-danger/10 text-danger")}>{children}</span>;
@@ -113,48 +147,20 @@ export default function Dashboard() {
     <div className="space-y-3 md:space-y-4">
       <Suspense fallback={null}><ReviewedNotice /></Suspense>
       {staged.length > 0 && (
-        <Link href="/review" className="flex min-h-12 items-center gap-3 rounded-[var(--radius-card)] bg-accent px-4 py-2.5 text-white shadow-md transition-transform active:scale-[0.99]">
+        <Link href="/review" className="flex min-h-12 items-center gap-3 rounded-[var(--radius-card)] bg-gradient-to-r from-accent to-violet-500 px-4 py-2.5 text-white shadow-lg shadow-accent/25 transition-transform active:scale-[0.99]">
           <ClipboardCheck size={20} aria-hidden />
           <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Review now</span><span className="block truncate text-xs text-white/80">{staged.length} transaction{staged.length === 1 ? "" : "s"} waiting. Nothing counts until you approve it.</span></span>
           <ChevronRight size={18} aria-hidden />
         </Link>
       )}
 
-      {/* 2. Credit-card bills */}
-      <Card className="p-4">
-        <SectionHead icon={CalendarClock} title="Credit-card bills" href="/cards" />
-        {billRows.length === 0 ? <p className="py-2 text-sm text-muted">No card bills tracked yet. <Link href="/cards" className="text-accent underline">Add one</Link> to see when it is due.</p> : (
-          <ul className="divide-y divide-border">
-            {billRows.slice(0, 3).map((b) => (
-              <li key={b.bill.id} className="flex items-center gap-3 py-2">
-                <Tick done={b.state === "paid"} label={`Mark ${accountName(b.bill.accountId)} bill paid`} onClick={() => setPaying({ kind: "bill", bill: b })} />
-                <MerchantAvatar name={accountName(b.bill.accountId)} size={32} />
-                <Link href="/cards" className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{accountName(b.bill.accountId)}</span><span className="block truncate text-xs text-muted">Due {prettyDay(b.bill.dueDate)} · {formatINR(b.state === "paid" ? b.bill.totalDuePaise : b.remainingPaise)}</span></Link>
-                <Status tone={b.state === "paid" ? "good" : b.state === "overdue" ? "bad" : b.daysLeft <= 3 ? "warn" : "info"}>{b.state === "paid" ? "Paid" : b.state === "overdue" ? "Overdue" : b.daysLeft === 0 ? "Due today" : b.daysLeft <= 7 ? `In ${b.daysLeft}d` : "Upcoming"}</Status>
-              </li>
-            ))}
-          </ul>
-        )}
-        {billRows.length > 3 && <ViewAll href="/cards" n={billRows.length - 3} />}
-      </Card>
-
-      {/* 3. Recurring expenses */}
-      <Card className="p-4">
-        <SectionHead icon={Repeat} title="Recurring expenses" href="/recurring" />
-        {recurringRows.length === 0 ? <p className="py-2 text-sm text-muted">Nothing recurring is due this month. <Link href="/recurring" className="text-accent underline">Add rent, EMIs or subscriptions</Link>.</p> : (
-          <ul className="divide-y divide-border">
-            {recurringRows.slice(0, 4).map((r) => (
-              <li key={r.item.id} className="flex items-center gap-3 py-2">
-                <Tick done={r.state === "paid"} label={`Mark ${r.item.name} paid`} onClick={() => setPaying({ kind: "recurring", id: r.item.id, name: r.item.name })} />
-                <CategoryGlyph name={categoryName(r.item.categoryId)} size={32} icon={categories.find((c) => c.id === r.item.categoryId)?.icon} />
-                <Link href="/recurring" className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{r.item.name}</span><span className="block truncate text-xs text-muted">Due on {r.item.dueDay} · {r.estimated ? "about " : ""}{formatINR(r.state === "paid" && !r.marked ? r.actualPaise : r.expectedPaise)}</span></Link>
-                <Status tone={r.state === "paid" ? "good" : r.state === "overdue" ? "bad" : r.item.dueDay === Number(today.slice(8, 10)) && month === today.slice(0, 7) ? "warn" : "info"}>{r.state === "paid" ? "Paid" : r.state === "overdue" ? "Overdue" : r.item.dueDay === Number(today.slice(8, 10)) && month === today.slice(0, 7) ? "Due today" : "Upcoming"}</Status>
-              </li>
-            ))}
-          </ul>
-        )}
-        {recurringRows.length > 4 && <ViewAll href="/recurring" n={recurringRows.length - 4} />}
-      </Card>
+      {/* 2 and 3. Credit-card bills and recurring expenses, side by side. Paid ones move under "View all". */}
+      <section aria-label="Bills and recurring expenses" className="grid grid-cols-2 gap-3 md:gap-4">
+        <ChecklistCard icon={CalendarClock} title="Card bills" href="/cards" empty="No bills tracked yet" addLabel="Add a bill"
+          rows={billRows.map((b) => ({ key: b.bill.id, logo: <MerchantAvatar name={accountName(b.bill.accountId)} size={26} />, name: two(shortName(accountName(b.bill.accountId))), sub: `${b.state === "overdue" ? "Overdue" : prettyDay(b.bill.dueDate)} ${formatINR(b.state === "paid" ? b.bill.totalDuePaise : b.remainingPaise).replace(".00", "")}`, tone: b.state === "paid" ? "good" : b.state === "overdue" ? "bad" : b.daysLeft <= 3 ? "warn" : "info", done: b.state === "paid", tickLabel: `Mark ${accountName(b.bill.accountId)} bill paid`, onTick: () => setPaying({ kind: "bill", bill: b }) }))} />
+        <ChecklistCard icon={Repeat} title="Recurring" href="/recurring" empty="Nothing due this month" addLabel="Add one"
+          rows={recurringRows.map((r) => { const dueToday = r.item.dueDay === Number(today.slice(8, 10)) && month === today.slice(0, 7); return { key: r.item.id, logo: <CategoryGlyph name={categoryName(r.item.categoryId)} size={26} icon={categories.find((c) => c.id === r.item.categoryId)?.icon} />, name: two(r.item.name), sub: `${r.state === "overdue" ? "Overdue" : dueToday ? "Today" : `${r.item.dueDay} ${new Date(`${month}-01T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" })}`} ${r.estimated ? "~" : ""}${formatINR(r.state === "paid" && !r.marked ? r.actualPaise : r.expectedPaise).replace(".00", "")}`, tone: r.state === "paid" ? "good" as const : r.state === "overdue" ? "bad" as const : dueToday ? "warn" as const : "info" as const, done: r.state === "paid", tickLabel: `Mark ${r.item.name} paid`, onTick: () => setPaying({ kind: "recurring", id: r.item.id, name: r.item.name }) }; })} />
+      </section>
 
       {/* 4. I owe / I'm owed */}
       {withPartner && (
@@ -173,17 +179,17 @@ export default function Dashboard() {
       )}
 
       {/* 5. Spending summary and category breakdown */}
-      <Card className="space-y-3 p-4">
+      <Card className="space-y-3 bg-gradient-to-br from-surface via-surface to-accent/[0.06] p-4 ring-1 ring-black/[0.03]">
         <SectionHead icon={BarChart3} title="Spending overview" href={`/reports`} hrefLabel="Reports" />
         <div className="grid grid-cols-2 gap-3">
           <div>
             <div className="text-xs text-muted">Total household outflow</div>
-            <div className="num text-2xl font-semibold tracking-tight">{formatINR(outflow)}</div>
+            <div className="num whitespace-nowrap text-xl font-semibold tracking-tight sm:text-2xl">{formatINR(outflow)}</div>
             {delta !== null && <Pill tone={delta > 0 ? "bad" : "good"}>{delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{Math.abs(delta)}% vs {prevName}</Pill>}
           </div>
           <div>
             <div className="text-xs text-muted">My share of spending</div>
-            <div className="num text-2xl font-semibold tracking-tight">{formatINR(groupSummary.my)}</div>
+            <div className="num whitespace-nowrap text-xl font-semibold tracking-tight sm:text-2xl">{formatINR(groupSummary.my)}</div>
             {activeGroup.kind !== "mine" && <div className="text-xs text-muted">{activeGroup.name}: {formatINR(groupSummary.allocated)}</div>}
           </div>
         </div>
