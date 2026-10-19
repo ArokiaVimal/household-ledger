@@ -235,9 +235,9 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         ? <p className="border-t border-border pt-3 text-xs text-muted">A wallet top-up is your own money going into the wallet, so it is not split or shared. Split the purchases you make from the wallet instead.</p>
         : <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>}
       {(sharing || !adding) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
-      <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="group flex min-h-14 w-full items-center gap-3 rounded-2xl border border-border bg-surface px-3 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent">
-        <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={32} />
-        <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">More options</span><span className="block truncate text-xs text-muted">Type, recurring, hide from reports</span></span>
+      <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="group flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-border bg-surface px-3 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent">
+        <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={26} />
+        <span className="flex-1 text-sm font-semibold">More options</span>
         {!more && changed > 0 && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">{changed} set</span>}
         <ChevronDown size={18} aria-hidden className={`shrink-0 text-muted transition-transform ${more ? "rotate-180" : ""}`} />
       </button>
