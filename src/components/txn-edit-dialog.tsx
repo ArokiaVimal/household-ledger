@@ -9,6 +9,7 @@ import { SplitEditor } from "./split-editor";
 import { MerchantAvatar } from "./txn-row";
 import { AiBadge, Button, CompactChips, ConfirmDialog, Dialog, FormRow, Input } from "./ui";
 
+const NEW_RECURRING = "__new_recurring";
 const kinds: { id: TxnKind; label: string }[] = [
   { id: "purchase", label: "Purchase" },
   { id: "refund", label: "Refund" },
@@ -53,7 +54,7 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 }
 
 function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { meId, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName } = useStore();
+  const { meId, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring } = useStore();
   const [deleting, setDeleting] = useState(false);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";
@@ -69,7 +70,9 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [fundedBy, setFundedBy] = useState(record.fundedBy ?? "");
   const [notes, setNotes] = useState(record.notes ?? "");
   const [excluded, setExcluded] = useState(record.excluded);
+  const [recurringError, setRecurringError] = useState<string | null>(null);
   const [more, setMore] = useState(!!record.recurringId || record.excluded || record.kind !== "purchase");
+  const dueDay = Math.min(28, Math.max(1, Number(date.slice(8, 10)) || 1));
   const amountPaise = adding ? (parseRupees(amountText) ?? 0) : record.amountPaise;
   // Quick picks for manual entry: the places you pay most often, with the category you used last time.
   const quick = useMemo(() => {
@@ -96,9 +99,16 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   };
 
   const save = (action: "close" | "next" | "another" | "draft") => {
+    // "Repeat every month": turn this payment into a recurring item (usual amount, due day, split) and link it.
+    let linkId = recurringId;
+    if (recurringId === NEW_RECURRING) {
+      linkId = `rc_${Math.random().toString(36).slice(2, 10)}`;
+      const err = saveRecurring({ id: linkId, name: merchant.trim() || "Recurring payment", categoryId, dueDay, expectedPaise: amountPaise, payerId, split });
+      if (err) { setRecurringError(err); setMore(true); return; }
+    }
     const fields = {
       merchant: merchant.trim(), categoryId, kind, payerId, split, shared: split.mode !== "personal", notes: notes || undefined, excluded,
-      recurringId: recurringId || undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
+      recurringId: linkId || undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
     };
     if (adding) {
       addRecord({ ...record, ...fields, date, accountId, amountPaise });
@@ -162,7 +172,9 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
             <FormRow label="From bank"><CompactChips label="Paid from bank" options={[{ id: "", label: "Unknown" }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[fundedBy]} onPick={setFundedBy} /></FormRow>
           )}
           <FormRow label="Recurring">
-            <CompactChips label="Recurring commitment" options={[{ id: "", label: "None" }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name }))]} selected={[recurringId]} onPick={setRecurringId} />
+            <CompactChips label="Recurring commitment" options={[{ id: "", label: "None" }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name })), { id: NEW_RECURRING, label: "Repeat every month" }]} selected={[recurringId]} onPick={(v) => { setRecurringId(v); setRecurringError(null); }} />
+            {recurringId === NEW_RECURRING && <p className="mt-1.5 text-xs text-muted">Adds “{merchant.trim() || "this payment"}” to Recurring: {formatINR(amountPaise)} due on the {dueDay}{[11, 12, 13].includes(dueDay) ? "th" : ["th", "st", "nd", "rd"][dueDay % 10 < 4 ? dueDay % 10 : 0]} each month, split the same way. You can change it later under Recurring.</p>}
+            {recurringError && <p role="alert" className="mt-1.5 text-xs text-danger">{recurringError}</p>}
           </FormRow>
           <FormRow label="Notes">
             <div className="flex items-center gap-2">
