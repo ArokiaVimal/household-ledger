@@ -7,6 +7,7 @@ import type { Repository } from "@/data/repository";
 import { ConflictError } from "@/data/repository";
 import { ExpenseRecordSchema, SplitConfigSchema, ruleId } from "@/data/schemas";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
+import { validateSplit } from "@/domain/splits";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
 import { buildShared, planShare, SharingError } from "@/domain/sharing";
@@ -44,6 +45,8 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("accounts.addSuggested") }),
   z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60) }),
   z.object({ type: z.literal("participant.delete"), id }),
+  z.object({ type: z.literal("recurring.put"), item: z.object({ id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: z.number().int().safe().positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional() }) }),
+  z.object({ type: z.literal("recurring.delete"), id }),
 ]);
 export type Action = z.infer<typeof ActionSchema>;
 
@@ -236,6 +239,29 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const add = SUGGESTED_ACCOUNTS.filter((x) => !have.has(x.id));
       for (const acc of add) await repo.accounts.put(acc);
       await log("create", "household", "accounts", `Added ${add.length} suggested payment methods`);
+      return;
+    }
+    case "recurring.put": {
+      const it = a.item;
+      const name = it.name.trim();
+      if (!name) throw new ActionError("invalid", "Give it a name.");
+      if (!(await repo.categories.get(it.categoryId))) throw new ActionError("invalid", "Unknown category.");
+      if (!(await repo.participants.get(it.payerId))) throw new ActionError("invalid", "Unknown payer.");
+      const splitError = validateSplit(it.expectedPaise, it.split);
+      if (splitError) throw new ActionError("invalid", splitError);
+      const before = await repo.recurring.get(it.id);
+      const place = it.place?.trim();
+      await repo.recurring.put({ id: it.id, name, categoryId: it.categoryId, dueDay: it.dueDay, expectedPaise: it.expectedPaise, payerId: it.payerId, split: it.split, ...(place ? { place } : {}) });
+      await log(before ? "edit" : "create", "recurring", it.id, `${before ? "Changed" : "Added"} recurring ${name} ${money(it.expectedPaise)} due on ${it.dueDay}`);
+      return;
+    }
+    case "recurring.delete": {
+      const item = await repo.recurring.get(a.id);
+      if (!item) throw new ActionError("not_found", "That recurring item was not found.");
+      // Payments stay exactly as they are; they just stop being tied to a commitment that no longer exists.
+      for (const r of (await repo.records.list()).filter((x) => x.recurringId === a.id)) { const { recurringId: _gone, ...rest } = r; void _gone; await repo.records.put(rest); }
+      await repo.recurring.remove(a.id);
+      await log("delete", "recurring", a.id, `Removed recurring ${item.name}`);
       return;
     }
     case "participant.delete": {

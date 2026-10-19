@@ -19,6 +19,7 @@ import type { CoupleData } from "@/lib/data/couple";
 import type { HouseholdData } from "@/lib/data/load";
 import { pickMonth } from "@/domain/months";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
+import { validateSplit } from "@/domain/splits";
 import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, participants as mockParticipants, recurringItems as mockRecurring, trendHistory as mockTrend } from "./mock";
 
 export type View = "household" | "personal";
@@ -98,6 +99,10 @@ interface Store {
   addParticipant: (name: string) => string | null;
   /** Removes a friend (no account) that nothing refers to. Returns an error message, or null when removed. */
   deleteParticipant: (id: string) => string | null;
+  /** Adds or changes a recurring commitment (new when `id` is omitted). Returns an error message, or null when saved. */
+  saveRecurring: (item: Omit<RecurringItem, "id"> & { id?: string }) => string | null;
+  /** Removes a recurring item; the payments linked to it stay but are unlinked. */
+  deleteRecurring: (id: string) => void;
   updateRecord: (id: string, patch: Partial<ExpenseRecord>) => void;
   /** Manual entry. In live mode the id is generated here and the server forces the trusted fields. */
   addRecord: (r: ExpenseRecord) => void;
@@ -328,6 +333,26 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     return null;
   }, [participants, meId, records, staged, settlements, recurringItems, send]);
 
+  const saveRecurring = useCallback((draft: Omit<RecurringItem, "id"> & { id?: string }) => {
+    const name = draft.name.trim();
+    if (!name) return "Give it a name.";
+    if (!Number.isInteger(draft.expectedPaise) || draft.expectedPaise <= 0) return "Enter the usual monthly amount.";
+    if (!Number.isInteger(draft.dueDay) || draft.dueDay < 1 || draft.dueDay > 28) return "Pick a due day between 1 and 28.";
+    const splitError = validateSplit(draft.expectedPaise, draft.split);
+    if (splitError) return splitError;
+    const id = draft.id ?? `rc_${slug(name)}-${uuid().slice(0, 6)}`;
+    const place = draft.place?.trim();
+    const item: RecurringItem = { id, name, categoryId: draft.categoryId, dueDay: draft.dueDay, expectedPaise: draft.expectedPaise, payerId: draft.payerId, split: draft.split, ...(place ? { place } : {}) };
+    setRecurringItems((xs) => (xs.some((x) => x.id === id) ? xs.map((x) => (x.id === id ? item : x)) : [...xs, item]));
+    void send({ type: "recurring.put", item });
+    return null;
+  }, [send]);
+  const deleteRecurring = useCallback((id: string) => {
+    setRecurringItems((xs) => xs.filter((x) => x.id !== id));
+    setRecords((rs) => rs.map((r) => { if (r.recurringId !== id) return r; const { recurringId: _gone, ...rest } = r; void _gone; return rest; }));
+    void send({ type: "recurring.delete", id });
+  }, [send]);
+
   const addSettlement = useCallback((s: Omit<Settlement, "id">) => {
     const id = live ? uuid() : `s${Date.now().toString(36)}`;
     setSettlements((x) => [...x, { ...s, id }]);
@@ -347,7 +372,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant, deleteParticipant,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,

@@ -151,6 +151,21 @@ describe("accounts, participants and input safety", () => {
     await fails(applyAction(repo, actor, { type: "participant.delete", id: "u_u2" }), "conflict");
     await fails(applyAction(repo, actor, { type: "participant.delete", id: "nobody" }), "not_found");
   });
+  it("adds, changes and removes a recurring item; removing keeps the payments but unlinks them", async () => {
+    const repo = await setup();
+    await repo.participants.put({ id: "me", name: "Me", userId: "u1" });
+    const item = { id: "rc_rent", name: "Rent", categoryId: "groceries", dueDay: 1, expectedPaise: 2500000, payerId: "me", split: { mode: "personal" as const, participantIds: ["me"] } };
+    await applyAction(repo, actor, { type: "recurring.put", item });
+    await applyAction(repo, actor, { type: "recurring.put", item: { ...item, expectedPaise: 2600000, place: " Our flat " } });
+    expect(await repo.recurring.get("rc_rent")).toMatchObject({ expectedPaise: 2600000, place: "Our flat" });
+    await fails(applyAction(repo, actor, { type: "recurring.put", item: { ...item, id: "x", categoryId: "nope" } }), "invalid");
+    await fails(applyAction(repo, actor, { type: "recurring.put", item: { ...item, id: "y", split: { mode: "percent" as const, participantIds: ["me"], values: { me: 5000 } } } }), "invalid");
+    await repo.records.put(imported({ id: "linked", referenceId: "RR", recurringId: "rc_rent" }));
+    await applyAction(repo, actor, { type: "recurring.delete", id: "rc_rent" });
+    expect(await repo.recurring.get("rc_rent")).toBeNull();
+    expect((await repo.records.get("linked"))!.recurringId).toBeUndefined();
+    await fails(applyAction(repo, actor, { type: "recurring.delete", id: "rc_rent" }), "not_found");
+  });
   it("unknown actions and junk are refused, and every accepted change wrote an audit event", async () => {
     const repo = await setup();
     await fails(applyAction(repo, actor, { type: "drop.database" }), "invalid");
