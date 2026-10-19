@@ -42,6 +42,14 @@ function collection<T extends { id: string }>(db: Firestore, hid: string, name: 
 }
 
 /** Same rule as the in-memory repository and firestore.rules: bank-sourced fields never change. */
+/**
+ * Shared terms in a link space carry a `version`. A write that sets one must be exactly one more than what is stored, so two people
+ * saving the same expense cannot overwrite each other (the second is refused). Couple-space copies carry no version and are unaffected.
+ */
+const guardShared = (prev: SharedExpense, next: SharedExpense) => {
+  if (next.version !== undefined && next.version !== (prev.version ?? 0) + 1) throw new ConflictError("This expense was changed by someone else first.");
+};
+
 const RAW_FIELDS = ["date", "postedDate", "originalDescription", "amountPaise", "currency", "accountId", "importSource", "referenceId"] as const;
 const guardRecord: Guard<ExpenseRecord> = (prev, next) => {
   if (prev.importSource === "Manual entry") return;
@@ -56,7 +64,7 @@ export function createFirestoreRepository(householdId: string, db: Firestore = g
     householdId,
     records: collection<ExpenseRecord>(db, householdId, "records", ExpenseRecordSchema as unknown as ZodType<ExpenseRecord>, { guard: guardRecord }),
     settlements: noRemove(collection<Settlement>(db, householdId, "settlements", SettlementSchema as unknown as ZodType<Settlement>, { appendOnly: true })),
-    sharedExpenses: noRemove(collection<SharedExpense>(db, householdId, "sharedExpenses", SharedExpenseSchema as unknown as ZodType<SharedExpense>, { appendOnly: true })),
+    sharedExpenses: noRemove(collection<SharedExpense>(db, householdId, "sharedExpenses", SharedExpenseSchema as unknown as ZodType<SharedExpense>, { appendOnly: true, guard: guardShared })),
     receipts: collection(db, householdId, "receipts", ReceiptSchema),
     recurring: collection(db, householdId, "recurring", RecurringItemSchema),
     cardBills: collection(db, householdId, "cardBills", CardBillSchema),

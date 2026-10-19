@@ -354,8 +354,9 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
 
   const updateRecord = useCallback((id: string, patch: Partial<ExpenseRecord>) => {
     if (live && !records.some((r) => r.id === id)) { setSyncError("Only the person who shared this expense can change it."); return; }
+    const ifRev = records.find((r) => r.id === id)?.sharedRev ?? 0; // refused if a linked person changed it meanwhile
     setRecords((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-    void send({ type: "record.update", id, patch: toWirePatch(patch) });
+    void send({ type: "record.update", id, patch: toWirePatch(patch), ifRev });
   }, [live, records, send]);
   const addRecord = useCallback((r: ExpenseRecord) => {
     const rec = { ...r, id: live ? uuid() : `m${Date.now().toString(36)}` };

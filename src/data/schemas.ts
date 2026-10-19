@@ -56,6 +56,7 @@ export const ExpenseRecordSchema = z
     recurringId: id.optional(),
     suggested: z.enum(["memory", "ai", "ai_unsure"]).optional(),
     sharedWithPartner: z.boolean().optional(),
+    sharedRev: z.number().int().min(0).optional(),
     shareNote: z.boolean().optional(),
   })
   .superRefine((r, ctx) => {
@@ -77,7 +78,7 @@ export const SettlementSchema = z
 export const SharedExpenseSchema = z
   .object({
     id, ownerUid: id, payerId: id, date, merchant: z.string().min(1).max(120), amountPaise: paise.positive("Amount must be greater than zero"), kind: z.enum(["purchase", "refund", "fee"]), categoryId: id, categoryName: z.string().min(1).max(60),
-    split: SplitConfigSchema, note: z.string().max(500).optional(), voided: z.boolean().optional(), createdAt: z.string().datetime(), updatedAt: z.string().datetime(),
+    split: SplitConfigSchema, note: z.string().max(500).optional(), voided: z.boolean().optional(), version: z.number().int().min(1).optional(), people: z.record(z.string().max(128), z.string().max(80)).optional(), createdAt: z.string().datetime(), updatedAt: z.string().datetime(),
   })
   .superRefine((r, ctx) => {
     const err = validateSplit(r.amountPaise, r.split as SplitConfig);

@@ -16,7 +16,7 @@ import { serverDeps } from "@/lib/households/firestore-store";
 import { defaultDisplayName } from "@/lib/profile/profile";
 import type { CoupleMembership, InviteOffer, Membership } from "@/lib/households/types";
 import { getProfile } from "@/lib/profile/store";
-import { loadLinkData, type LinkData } from "@/lib/links/service";
+import { loadLinkData, upgradeLinks, type LinkData } from "@/lib/links/service";
 import { createLinkDeps } from "@/lib/links/server";
 
 /** Reads the session on every request, so it must stream inside <Suspense> (Cache Components). */
@@ -55,6 +55,7 @@ async function AuthedShell({ children }: { children: ReactNode }) {
         if (!coupleMembership?.active && session.email) offers = await pendingInvitesFor(hStore, session.email, serverDeps);
       } catch (e) { console.error("partner load failed:", (e as { code?: string }).code); }
       // Friends & Family links: proposals waiting for the owner, and what linked people share. A problem here must not hide private data.
+      if (membership) await upgradeLinks(createLinkDeps(), session.uid).catch((e) => console.error("link upgrade failed:", (e as { code?: string }).code));
       if (membership) linkData = await loadLinkData(createLinkDeps(), session.uid).catch((e) => { console.error("link load failed:", (e as { code?: string }).code); return linkData; });
       hStatus = "ok";
     } catch (e) {

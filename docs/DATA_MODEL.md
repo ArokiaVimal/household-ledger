@@ -23,3 +23,5 @@ Paths: `households/{id}/{records|settlements|receipts|recurring|participants|acc
 
 ## Account links (added)
 `contactLinks/{pairKey}` (server only; `pairKey` = sorted uids joined by `__`): `uids`, `spaceId?`, `sides{uid: {householdId, contactIds, contactId?, email, status proposed|active|declined|ended, proposedAt, confirmedAt?, endedAt?, endedBy?}}`. `households/{id}` with `kind: "link"` holds only `members`, `sharedExpenses` (pair-scoped: custom split of the two shares, payer `u_<uid>`), `settlements`, `auditEvents`. `Participant.linkId` marks a linked contact (separate from `userId`). Needs the collection-group field override on `participants.email` (`firestore.indexes.json`).
+
+Revision 2 additions: `SharedExpense.version` (+1 per change, compare-and-set), `SharedExpense.people` (id -> name of other participants), `ExpenseRecord.sharedRev` (goes up on the linked person's edits), `LinkSide.schema` (2 = full-expense terms). Link-space `sharedExpenses` hold the full split with `u_<uid>` for the two linked people; `auditEvents` hold the shared log; `settlements` may carry a note written in the link.

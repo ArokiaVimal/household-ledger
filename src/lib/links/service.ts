@@ -4,7 +4,7 @@
 import type { Repository } from "@/data/repository";
 import { chooseContact, linkParticipantId, otherUid, pairKey, proposalsFor, type AccountIdentity, type ContactLink, type LinkSide, type LinkStatus, type Proposal } from "@/domain/links";
 import { normalizeEmail } from "@/domain/contacts";
-import type { Participant, Settlement, SharedExpense } from "@/domain/types";
+import type { AuditEvent, Participant, Settlement, SharedExpense } from "@/domain/types";
 import { getActiveCouple } from "@/lib/households/couple";
 import type { HouseholdStore, Member } from "@/lib/households/types";
 import { backfill, type ActionLink } from "./sync";
@@ -106,8 +106,10 @@ export async function confirmLink(d: LinkDeps, actor: LinkActor, key: string, pi
   const next: ContactLink = { ...link, spaceId, updatedAt: now, sides: { ...link.sides, [actor.uid]: { ...side, status: "active", contactId, confirmedAt: side.confirmedAt ?? now } } };
   await d.store.putPair(next);
   if (contact.linkId !== key) await repo.participants.put({ ...contact, linkId: key });
-  const ctx = { meId: linkParticipantId(actor.uid), contactId, ownerUid: actor.uid, otherUid: them };
-  return backfill(repo, { key, ctx, repo: d.repoFor(spaceId) });
+  const mine = actionLinkOf(d, next, actor.uid)!;
+  const out = await backfill(repo, mine, actor.uid);
+  await d.store.putPair({ ...next, sides: { ...next.sides, [actor.uid]: { ...next.sides[actor.uid], schema: 2 } } });
+  return out;
 }
 
 /** "Not now / no": the contact stays a plain contact and this pair is not proposed again. */
@@ -153,15 +155,33 @@ export async function removeAccountLinks(d: LinkDeps, uid: string): Promise<numb
   return links.length;
 }
 
+/** One active link from the owner's side (who, where the shared terms live, and the other owner's ledger if they keep a contact for you too). */
+export function actionLinkOf(d: LinkDeps, pair: ContactLink, uid: string): ActionLink | null {
+  const s = pair.sides[uid];
+  if (!pair.spaceId || s?.status !== "active" || !s.contactId) return null;
+  const them = otherUid(pair, uid);
+  const t = pair.sides[them];
+  const peer = t?.status === "active" && t.contactId ? { repo: d.repoFor(t.householdId), ctx: { meId: linkParticipantId(them), contactId: t.contactId, ownerUid: them, otherUid: uid } } : undefined;
+  return { key: pair.id, ctx: { meId: linkParticipantId(uid), contactId: s.contactId, ownerUid: uid, otherUid: them }, repo: d.repoFor(pair.spaceId), ...(peer ? { peer } : {}) };
+}
+
 /** Active links as the owner's write actions need them (to mirror new and edited expenses automatically). */
 export async function activeLinksFor(d: LinkDeps, uid: string): Promise<ActionLink[]> {
-  const out: ActionLink[] = [];
-  for (const l of await d.store.listForUser(uid)) {
-    const s = l.sides[uid];
-    if (!l.spaceId || s?.status !== "active" || !s.contactId) continue;
-    out.push({ key: l.id, ctx: { meId: linkParticipantId(uid), contactId: s.contactId, ownerUid: uid, otherUid: otherUid(l, uid) }, repo: d.repoFor(l.spaceId) });
+  return (await d.store.listForUser(uid)).map((l) => actionLinkOf(d, l, uid)).filter((l): l is ActionLink => !!l);
+}
+
+/** Brings links made before revision 2 up to date once: the shared terms now carry the full expense. Safe to call on every sign-in. */
+export async function upgradeLinks(d: LinkDeps, uid: string): Promise<number> {
+  let n = 0;
+  for (const pair of await d.store.listForUser(uid)) {
+    const side = pair.sides[uid];
+    const link = actionLinkOf(d, pair, uid);
+    if (!link || !side || side.schema === 2) continue;
+    await backfill(d.repoFor(side.householdId), link, uid);
+    await d.store.putPair({ ...pair, sides: { ...pair.sides, [uid]: { ...side, schema: 2 } } });
+    n++;
   }
-  return out;
+  return n;
 }
 
 // ---- what the screens need (plain JSON) ----
@@ -177,8 +197,15 @@ export interface LinkView {
   /** True while at least one direction still syncs. False = history only. */
   live: boolean;
   me: string; // my participant id in the link space
+  /** Account uids whose side is active: only these owners' expenses can still be edited. */
+  activeOwners: string[];
   shared: SharedExpense[];
+  /** Withdrawn by their owner: not counted, kept as history. */
+  withdrawn: SharedExpense[];
   settlements: Settlement[];
+  /** The log of every change, oldest first, and who is who in it. */
+  audit: AuditEvent[];
+  names: Record<string, string>;
 }
 export interface LinkData { proposals: ProposalView[]; links: LinkView[] }
 
@@ -198,7 +225,7 @@ export async function loadLinkData(d: LinkDeps, uid: string): Promise<LinkData> 
     const visible = p.spaceId && ((mine && mine.status !== "proposed" && mine.status !== "declined") || (theirs && theirs.status !== "proposed" && theirs.status !== "declined"));
     if (!p.spaceId || !visible) continue;
     const repo = d.repoFor(p.spaceId);
-    const [shared, settlements, members] = await Promise.all([repo.sharedExpenses.list(), repo.settlements.list(), d.households.listMembers(p.spaceId)]);
+    const [shared, settlements, members, audit] = await Promise.all([repo.sharedExpenses.list(), repo.settlements.list(), d.households.listMembers(p.spaceId), repo.audit.list()]);
     const them = otherUid(p, uid);
     const contactName = mine?.contactId ? (await d.repoFor(mine.householdId).participants.get(mine.contactId))?.name : undefined;
     links.push({
@@ -206,8 +233,11 @@ export async function loadLinkData(d: LinkDeps, uid: string): Promise<LinkData> 
       mine: mine && mine.status !== "proposed" && mine.status !== "declined" ? { status: mine.status, contactName } : null,
       theirs: theirs && theirs.status !== "proposed" && theirs.status !== "declined" ? { status: theirs.status } : null,
       live: mine?.status === "active" || theirs?.status === "active", me: linkParticipantId(uid),
+      activeOwners: Object.entries(p.sides).filter(([, x]) => x.status === "active").map(([u]) => u),
       shared: shared.filter((s) => !s.voided).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id)),
+      withdrawn: shared.filter((s) => s.voided).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
       settlements: settlements.sort((a, b) => a.date.localeCompare(b.date)),
+      audit, names: Object.fromEntries(members.map((m) => [m.uid, m.displayName || "Someone"])),
     });
   }
   return { proposals, links };

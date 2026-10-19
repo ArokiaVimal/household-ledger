@@ -41,6 +41,14 @@ function collection<T extends { id: string }>(schema: ZodType<T>, seed: T[] = []
 }
 
 /** Raw bank fields of a reviewed record never change; edits go to categorisation and split fields only. */
+/**
+ * Shared terms in a link space carry a `version`. A write that sets one must be exactly one more than what is stored, so two people
+ * saving the same expense cannot overwrite each other (the second is refused). Couple-space copies carry no version and are unaffected.
+ */
+const guardShared = (prev: SharedExpense, next: SharedExpense) => {
+  if (next.version !== undefined && next.version !== (prev.version ?? 0) + 1) throw new ConflictError("This expense was changed by someone else first.");
+};
+
 const RAW_FIELDS = ["date", "postedDate", "originalDescription", "amountPaise", "currency", "accountId", "importSource", "referenceId"] as const;
 function guardRecord(prev: ExpenseRecord, next: ExpenseRecord) {
   if (prev.importSource === "Manual entry") return; // the user owns manual entries
@@ -56,7 +64,7 @@ export function createMemoryRepository(householdId: string, seed: Seed = {}): Re
     householdId,
     records: collection(ExpenseRecordSchema as unknown as ZodType<ExpenseRecord>, seed.records, { guard: guardRecord }),
     settlements: noRemove(collection(SettlementSchema as unknown as ZodType<Settlement>, seed.settlements, { appendOnly: true })),
-    sharedExpenses: noRemove(collection(SharedExpenseSchema as unknown as ZodType<SharedExpense>, seed.sharedExpenses, { appendOnly: true })),
+    sharedExpenses: noRemove(collection(SharedExpenseSchema as unknown as ZodType<SharedExpense>, seed.sharedExpenses, { appendOnly: true, guard: guardShared })),
     receipts: collection(ReceiptSchema, seed.receipts),
     recurring: collection(RecurringItemSchema, seed.recurring),
     cardBills: collection(CardBillSchema, seed.cardBills),

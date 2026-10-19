@@ -17,7 +17,7 @@ import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
 import { buildShared, planShare, SharingError } from "@/domain/sharing";
 import type { AuditEvent, ExpenseRecord } from "@/domain/types";
-import { syncRecordToLinks, syncSettlement, type ActionLink } from "@/lib/links/sync";
+import { namesOf, syncRecordToLinks, syncSettlement, type ActionLink } from "@/lib/links/sync";
 
 const id = z.string().min(1).max(128);
 const money = z.number().int().safe();
@@ -36,8 +36,8 @@ const manualRecord = z.object({
 
 export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("record.create"), record: manualRecord }),
-  z.object({ type: z.literal("record.update"), id, patch: editable }),
-  z.object({ type: z.literal("record.approve"), id, patch: editable.optional() }),
+  z.object({ type: z.literal("record.update"), id, patch: editable, ifRev: z.number().int().min(0).optional() }),
+  z.object({ type: z.literal("record.approve"), id, patch: editable.optional(), ifRev: z.number().int().min(0).optional() }),
   z.object({ type: z.literal("audit.undo"), eventId: id }),
   z.object({ type: z.literal("batch.rollback"), id }),
   z.object({ type: z.literal("record.reject"), id }),
@@ -155,7 +155,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
    */
   const syncLinks = async (rec: ExpenseRecord): Promise<void> => {
     if (links.length === 0) return;
-    await syncRecordToLinks(links, rec, (await repo.categories.get(rec.categoryId))?.name ?? rec.categoryId);
+    await syncRecordToLinks(links, rec, { categoryName: (await repo.categories.get(rec.categoryId))?.name ?? rec.categoryId, names: await namesOf(repo), actorUid: actor.uid });
   };
   /**
    * Where a settlement lives. Between you and your linked partner it is in the couple space (both see it); with anyone else
@@ -244,6 +244,8 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const cur = await repo.records.get(a.id);
       if (!cur) throw new ActionError("not_found", "Record not found.");
       if (a.type === "record.approve" && cur.status !== "unreviewed") throw new ActionError("conflict", "That record is already reviewed.");
+      // A linked person changed the shared terms since this screen loaded: refuse rather than silently overwrite their edit.
+      if (a.ifRev !== undefined && a.ifRev !== (cur.sharedRev ?? 0)) throw new ActionError("conflict", "Someone you share this expense with changed it while you were editing. Your screen has been refreshed; nothing was overwritten.");
       const next = applyPatch(cur, a.patch ?? {});
       if (a.type === "record.approve") { next.status = "reviewed"; delete next.suggested; }
       await checkVoucherRefs(next);
@@ -324,7 +326,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       if (couple !== undefined && !(await repo.participants.get(a.settlement.fromId === meParticipant ? a.settlement.toId : a.settlement.fromId)) && !(couple && [couple.partnerId].includes(a.settlement.fromId === meParticipant ? a.settlement.toId : a.settlement.fromId))) throw new ActionError("invalid", "Unknown person.");
       if (await target.settlements.get(a.settlement.id)) throw new ActionError("conflict", "That settlement already exists.");
       await target.settlements.put(a.settlement);
-      if (target === repo) for (const l of links) await syncSettlement(l, a.settlement); // a payment between you and a linked contact is mirrored
+      if (target === repo) for (const l of links) await syncSettlement(l, a.settlement, actor.uid); // a payment between you and a linked contact is mirrored
       await target.audit.append({ actorId: actor.uid, action: "settle", entity: "settlement", entityId: a.settlement.id, summary: `${a.settlement.fromId} paid ${a.settlement.toId} ${money(a.settlement.amountPaise)}` });
       return;
     }
@@ -334,7 +336,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const { repo: target, cur } = found;
       if (cur.voided) return;
       await target.settlements.put({ ...cur, voided: true });
-      if (target === repo) for (const l of links) await syncSettlement(l, { ...cur, voided: true });
+      if (target === repo) for (const l of links) await syncSettlement(l, { ...cur, voided: true }, actor.uid);
       await target.audit.append({ actorId: actor.uid, action: "void_settlement", entity: "settlement", entityId: a.id, summary: `Voided settlement of ${money(cur.amountPaise)}` });
       return;
     }
