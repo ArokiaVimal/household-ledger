@@ -1,5 +1,5 @@
 "use client";
-import { CheckCircle2, ChevronDown, ClipboardPaste, FileUp, Sparkles, UploadCloud, XCircle, type LucideIcon } from "lucide-react";
+import { CheckCircle2, ChevronDown, ClipboardPaste, FileUp, Image as ImageIcon, Sparkles, UploadCloud, XCircle, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, type ReactNode } from "react";
@@ -8,6 +8,7 @@ import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import type { Preview, PreviewRow } from "@/lib/import/service";
+import { ShotImport } from "./shot-import";
 
 const MAX_BYTES = 4 * 1024 * 1024;
 const kindLabel: Record<string, string> = { purchase: "Purchase", refund: "Refund", fee: "Fee", income: "Income", transfer: "Transfer", cc_payment: "Card bill" };
@@ -47,6 +48,7 @@ export function LiveImport() {
   const { accounts, accountName, categoryName, importBatches, aiEnabled } = useStore();
   const router = useRouter();
   const usable = accounts.filter((a) => a.type !== "cash" && !a.archived);
+  const [shotOpen, setShotOpen] = useState(false);
   const [src, setSrc] = useState<Src | null>(null);
   const [sign, setSign] = useState<"auto" | "out" | "in">("auto");
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -160,12 +162,13 @@ export function LiveImport() {
 
   return (
     <>
+      <ShotImport open={shotOpen} onClose={() => setShotOpen(false)} aiEnabled={aiEnabled} />
       <PageHeader title="Import" sub="Bring in a statement or a note. You approve everything before it counts." />
       {usable.length === 0 ? (
         <EmptyState title="Add a payment method first" hint="Open Settings and add the card or account this belongs to." />
       ) : (
         <div className="space-y-5">
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Entry icon={Sparkles} primary title="Import with AI" text="Drop in any statement. We find the bank or card for you." badge={<Badge tone={aiEnabled ? "good" : "neutral"}>{aiEnabled ? "On" : "Off"}</Badge>}>
               <input ref={aiInput} type="file" accept=".csv,.txt,.xlsx,.pdf" className="sr-only" aria-label="Choose statement file for AI import" onChange={(e) => { pickFile(e.target.files?.[0], true); e.target.value = ""; }} />
               <Button variant="primary" disabled={busy} onClick={() => aiInput.current?.click()}><UploadCloud size={16} aria-hidden />{busy && src?.kind === "file" && src.ai ? "Reading…" : "Choose statement"}</Button>
@@ -175,6 +178,9 @@ export function LiveImport() {
             </Entry>
             <Entry icon={ClipboardPaste} title="Paste or describe" text="Paste rows from your bank app, or just write it in your own words.">
               <Button disabled={busy} onClick={() => setPasteOpen(true)}>Paste or type</Button>
+            </Entry>
+            <Entry icon={ImageIcon} title="Read a screenshot" text="Orders or payments from an app. We match them to what you have." badge={<Badge tone={aiEnabled ? "good" : "neutral"}>{aiEnabled ? "AI" : "Off"}</Badge>}>
+              <Button disabled={busy || !aiEnabled} onClick={() => setShotOpen(true)}>Choose screenshot</Button>
             </Entry>
           </div>
           <details className="group rounded-xl text-sm text-muted">
