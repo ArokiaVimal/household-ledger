@@ -297,8 +297,10 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
           {paidWithId && <p className="-mt-2 px-1 text-xs text-muted">Paid from the {voucherBrands.find((b) => b.id === paidWithId)?.name} wallet, so it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
         </>
       )}
+      <div className="grid gap-2.5 sm:grid-cols-2">
       <PickerRow icon={merchant.trim() ? <MerchantAvatar name={merchant} size={32} /> : <Dot icon={Store} size={32} tone="bg-accent/10 text-accent" />} label="Merchant" value={merchant.trim() || "Where did you pay?"} muted={!merchant.trim()} sub={merchantHint ?? undefined} onClick={() => setSheet("merchant")} />
       {!topUp && <PickerRow icon={<CategoryGlyph name={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} icon={categories.find((c) => c.id === categoryId)?.icon} size={32} />} label="Category" value={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} muted={categoryId === "uncategorized"} sub={catHint ? `Suggested: ${catHint}` : undefined} onClick={() => setSheet("category")} />}
+      </div>
       {promptVoucher && (
         <FormRow label="Wallet" tip="Adds to that wallet's balance and counts once as spending. A top-up is never split; split wallet purchases instead.">
           <CompactChips label="Wallet topped up" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
@@ -311,10 +313,10 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         : (
           <>
             <PickerRow icon={<span className="flex -space-x-2">{(split.participantIds.length ? split.participantIds : [meId]).slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={26} /></span>)}</span>} label="Split with" value={split.mode === "personal" || split.participantIds.length <= 1 ? "Just me" : split.participantIds.map((id) => (id === meId ? "You" : nameOf(id))).join(", ")} sub={splitError ?? (split.participantIds.length > 1 ? "Tap to change who and how" : "Tap to share with someone")} onClick={() => { touch("split"); setSplitOpen(true); }} />
-            {countsIn.length > 0 && <p className="-mt-1 px-1 text-xs text-muted">Counts in <b className="font-medium text-foreground">{countsIn.join(" · ")}</b>. This follows who is in the split.</p>}
+            {countsIn.length > 0 && <p className="-mt-1 px-1 text-xs text-muted">Counts in <b className="font-medium text-foreground">{countsIn.join(" · ")}</b></p>}
           </>
         )}
-      {(sharing || !adding) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={(id) => { touch("payer"); setPayerId(id); }} /></FormRow>}
+      {(sharing || payerId !== meId) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={(id) => { touch("payer"); setPayerId(id); }} /></FormRow>}
       <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="group flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-border bg-surface px-3 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent">
         <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={26} />
         <span className="flex-1 text-sm font-semibold">More options</span>
