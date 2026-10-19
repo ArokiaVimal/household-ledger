@@ -40,8 +40,11 @@ It is a personal tool, not a public product. There is no advertising, no data se
 | Review queue: approve, edit, reject imported rows | Working |
 | Import statements: CSV, Excel, and American Express (India) credit-card PDF, with checks against the statement's own totals | Working |
 | Invite partner by email; shared view | Working |
-| Reports and charts, recurring-commitments screen (view only) | Working / partial |
-| Receipts, screenshots, other banks' PDFs, automatic capture, saved original files | **Not built** (see roadmap) |
+| Reports and charts; recurring payments (add, edit, link, "Repeat every month"); card bills with due dates | Working |
+| Settle up: person-wise ledger, settle chosen payments or everything | Working |
+| AI: statement reader fallback, paste or describe transactions, AI insights for a month (only when you press the button) | Working (needs an Anthropic key on the server) |
+| Automatic capture of bank SMS and Gmail alerts | Built, **deferred** (see roadmap, "Later") |
+| Receipts, screenshots, other banks' native PDF parsers, saved original files | **Not built** (see roadmap) |
 
 ## How it is built
 ```
