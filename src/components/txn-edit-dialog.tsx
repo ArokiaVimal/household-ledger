@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeftRight, Ban, Banknote, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeftRight, Ban, Banknote, CalendarDays, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, Trash2, Undo2 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useStore } from "@/data/store";
 import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
@@ -168,10 +168,17 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   return (
     <div className="space-y-4">
       {adding ? (
-        <div className="rounded-2xl bg-gradient-to-br from-accent/10 to-accent/[0.04] p-4">
-          <label className="mx-auto flex w-fit items-center gap-1.5"><span className="text-3xl font-semibold text-accent">₹</span>
-            <input autoFocus aria-label="Amount" inputMode="decimal" placeholder="0.00" className="num w-44 min-w-0 bg-transparent text-left text-4xl font-semibold tracking-tight placeholder:text-muted/40 focus:outline-none" value={amountText} onChange={(e) => onAmount(e.target.value)} /></label>
-          <div className="mt-2 flex justify-center"><Input aria-label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44 bg-surface text-center" /></div>
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 rounded-2xl bg-gradient-to-br from-accent/10 to-accent/[0.04] p-4">
+          <label className="min-w-[10rem] flex-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted/80">Amount</span>
+            <span className="flex items-baseline gap-1.5"><span className="text-3xl font-semibold text-accent">₹</span>
+              <input autoFocus aria-label="Amount" inputMode="decimal" placeholder="0.00" className="num w-full min-w-0 bg-transparent text-4xl font-semibold tracking-tight placeholder:text-muted/40 focus:outline-none" value={amountText} onChange={(e) => onAmount(e.target.value)} /></span>
+          </label>
+          <label className="relative inline-flex min-h-10 items-center gap-2 rounded-full bg-surface px-3.5 text-sm font-medium shadow-sm focus-within:outline-2 focus-within:outline-accent">
+            <CalendarDays size={16} aria-hidden className="text-accent" />
+            <span className="num">{date ? new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "Pick a date"}</span>
+            <input aria-label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+          </label>
         </div>
       ) : (
         <div className="rounded-xl bg-background p-3">
