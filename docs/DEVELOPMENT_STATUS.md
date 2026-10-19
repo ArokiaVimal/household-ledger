@@ -213,5 +213,5 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - Not built: a UPI pay link inside the reminder (needs each person's UPI ID stored in their profile), shared recurring items inside the couple space, auto-detecting recurring patterns.
 
 ## "Repeat every month" from any transaction (added)
-- The Recurring row in the add/edit/review form now ends with **Repeat every month**. Choosing it creates a recurring item from the payment (name = merchant, usual amount, due day = the payment's day, category, payer, split) and links the payment to it, so it shows under Recurring as paid. Before, the row only offered "None" until recurring items had been created by hand. Not yet checked in a browser (the pane was blocked by a WhatsApp pop-up from the Remind button).
+- The Recurring row in the add/edit/review form now ends with **Repeat every month**. Choosing it creates a recurring item from the payment (name = merchant, usual amount, due day = the payment's day, category, payer, split) and links the payment to it, so it shows under Recurring as paid. Before, the row only offered "None" until recurring items had been created by hand. Checked in a browser (demo): the payment shows under Recurring as Paid.
 
