@@ -290,3 +290,10 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - Tests: hierarchy helpers, parent resolution (own Amex with another id, none), wallet and voucher wallet link, account add/update rules, suggested accounts (twelve, wallets under Amex).
 - Limit: a wallet payment method whose name does not contain a voucher brand's name (for example a wallet called "Gift balance") is not linked automatically; use "From wallet".
 
+
+## Primary and sub payment methods, card pictures, info tips, phone navigation (added)
+- Payment methods are fully editable in Settings: add a primary method, add a sub method inside a card or bank (Amazon Pay or Swiggy Money inside Amex), rename, retype, move between primary and sub, pick a card colour, hide (keeps history, leaves pick lists) or delete (only when nothing uses it). Server rules in `account.update` / `account.delete`; tests in `actions.test.ts`.
+- The transaction form shows "Via" (Direct or a sub method) only after a primary with sub methods is chosen.
+- `CardMockup` / `CardChip` draw credit cards (colour from the issuer, or the user's choice). `InfoTip` (i) is available on `PageHeader`, `CardTitle` and `FormRow` through a `tip` prop; placed on Review, Settle up, Wallets, Recurring, Transactions, Card bills and payment methods.
+- Phone: bottom bar is Home, Transactions, Review (with count), Import, More; More opens every other page, and the dashboard ends with an "Everything in the app" grid. Verified in the browser at phone width with demo data.
+- Not yet verified live with real data.

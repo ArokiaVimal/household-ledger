@@ -52,7 +52,7 @@ export default function Settlements() {
   }
   return (
     <>
-      <PageHeader title="Settle up" sub="See everything you share with each person, pick payments and settle them. Settling never creates an expense." actions={canRecord ? <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button> : undefined} />
+      <PageHeader title="Settle up" tip="Shows what each person owes you or you owe them from shared expenses. Settling up records the payment between you; it never creates a new expense." sub="See everything you share with each person, pick payments and settle them. Settling never creates an expense." actions={canRecord ? <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button> : undefined} />
 
       <div className="mb-4 grid grid-cols-2 gap-3">
         <Card className="p-4"><div className="text-xs text-muted">You are owed</div><div className="num text-xl font-semibold text-good">{formatINR(owedToMe)}</div></Card>

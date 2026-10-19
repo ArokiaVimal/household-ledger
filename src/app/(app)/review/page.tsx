@@ -107,7 +107,7 @@ function ReviewQueue() {
 
   return (
     <>
-      <PageHeader title="Review queue" sub="Imported rows stay here until you approve them. Only approved rows count in reports, balances and the dashboard."
+      <PageHeader tip="Anything imported or captured waits here. Approve, fix or discard each row. Only approved rows count in totals, reports and balances, so a wrong import can never skew your numbers." title="Review queue" sub="Imported rows stay here until you approve them. Only approved rows count in reports, balances and the dashboard."
         actions={<Link href="/import" className="rounded-full border border-border bg-surface px-3 py-2 text-sm">Import</Link>} />
       {imported > 0 && staged.length > 0 && (
         <div role="status" className="mb-3 rounded-2xl bg-good-soft p-3 text-sm text-good">

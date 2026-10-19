@@ -64,7 +64,16 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [merchant, setMerchant] = useState(record.merchant);
   const [amountText, setAmountText] = useState("");
   const [date, setDate] = useState(record.date);
-  const [accountId, setAccountId] = useState(record.accountId);
+  // Primary payment method first; its sub payment methods (Amazon Pay, Swiggy Money under Amex) only appear once you choose it.
+  // "Direct" means the primary itself (a plain Amex payment).
+  const startAcct = accounts.find((a) => a.id === record.accountId);
+  const startParent = startAcct?.parentId && accounts.some((a) => a.id === startAcct.parentId) ? startAcct.parentId : "";
+  const [primaryId, setPrimaryId] = useState(startParent || record.accountId);
+  const [subId, setSubId] = useState(startParent ? record.accountId : "");
+  const accountId = subId || primaryId;
+  const keep = (a: { id: string; archived?: boolean }) => !a.archived || a.id === record.accountId || a.id === primaryId || a.id === subId;
+  const primaries = accounts.filter((a) => (!a.parentId || !accounts.some((x) => x.id === a.parentId)) && keep(a));
+  const subs = accounts.filter((a) => a.parentId === primaryId && keep(a));
   const [categoryId, setCategoryId] = useState(record.categoryId);
   const [kind, setKind] = useState(record.kind);
   const [payerId, setPayerId] = useState(record.payerId);
@@ -179,7 +188,13 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       {mode === "review" && dupOf && (
         <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Approve only if this is a separate purchase; otherwise reject it.</p>
       )}
-      {adding && !paidWithId && <FormRow label="Paid with"><CompactChips label="Payment method" options={accounts.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={setAccountId} /></FormRow>}
+      {adding && !paidWithId && <FormRow label="Paid with"><CompactChips label="Payment method" options={primaries.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[primaryId]} onPick={(id) => { setPrimaryId(id); setSubId(""); }} /></FormRow>}
+      {adding && !paidWithId && subs.length > 0 && (
+        <FormRow label="Via">
+          <CompactChips label="Sub payment method" options={[{ id: "", label: "Direct" }, ...subs.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[subId]} onPick={setSubId} />
+          <p className="mt-1.5 text-xs text-muted">{subId ? "" : `Direct means paid with ${accounts.find((a) => a.id === primaryId)?.name} itself. `}Pick a sub payment method only if the money went through it.</p>
+        </FormRow>
+      )}
       {adding && impliedBrand && <p className="-mt-1 rounded-xl bg-accent/5 px-3 py-2 text-xs text-muted">Paid from the {impliedBrand.name} wallet: it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
       {voucherBrands.length > 0 && !topUp && !impliedBrand && kind === "purchase" && (
         <FormRow label="From wallet">

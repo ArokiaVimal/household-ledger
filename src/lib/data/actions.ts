@@ -42,8 +42,9 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("category.delete"), id, moveTo: id.optional() }),
   z.object({ type: z.literal("rule.put"), merchant: z.string().max(100), categoryId: id }),
   z.object({ type: z.literal("rule.remove"), merchant: z.string().max(100) }),
-  z.object({ type: z.literal("account.add"), id, name: z.string().min(1).max(60), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]), parentId: id.optional() }),
-  z.object({ type: z.literal("account.update"), id, name: z.string().min(1).max(60).optional(), parentId: id.nullable().optional() }),
+  z.object({ type: z.literal("account.add"), id, name: z.string().min(1).max(60), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]), parentId: id.optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).optional() }),
+  z.object({ type: z.literal("account.update"), id, name: z.string().min(1).max(60).optional(), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]).optional(), parentId: id.nullable().optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).nullable().optional(), archived: z.boolean().optional() }),
+  z.object({ type: z.literal("account.delete"), id }),
   z.object({ type: z.literal("accounts.addSuggested") }),
   z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60) }),
   z.object({ type: z.literal("participant.delete"), id }),
@@ -304,7 +305,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
     case "account.add": {
       if (await repo.accounts.get(a.id)) throw new ActionError("conflict", "That account already exists.");
       if (a.parentId) await checkParent(a.id, a.parentId);
-      await repo.accounts.put({ id: a.id, name: a.name.trim(), type: a.accountType, ...(a.parentId ? { parentId: a.parentId } : {}) });
+      await repo.accounts.put({ id: a.id, name: a.name.trim(), type: a.accountType, ...(a.parentId ? { parentId: a.parentId } : {}), ...(a.theme ? { theme: a.theme } : {}) });
       await log("create", "household", a.id, `Added payment method ${a.name.trim()}${a.parentId ? ` under ${(await repo.accounts.get(a.parentId))?.name}` : ""}`);
       return;
     }
@@ -312,16 +313,40 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const cur = await repo.accounts.get(a.id);
       if (!cur) throw new ActionError("not_found", "Payment method not found.");
       const next = { ...cur };
+      const all = await repo.accounts.list();
       if (a.name !== undefined) {
         const name = a.name.trim();
         if (!name) throw new ActionError("invalid", "Enter a name.");
-        if ((await repo.accounts.list()).some((x) => x.id !== a.id && x.name.toLowerCase() === name.toLowerCase())) throw new ActionError("conflict", "You already have a payment method with that name.");
+        if (all.some((x) => x.id !== a.id && x.name.toLowerCase() === name.toLowerCase())) throw new ActionError("conflict", "You already have a payment method with that name.");
         next.name = name;
+      }
+      if (a.accountType !== undefined && a.accountType !== cur.type) {
+        // A card or bank can have others under it, and a card can have bills; changing the type must not strand either.
+        if (a.accountType !== "credit_card" && a.accountType !== "bank" && all.some((x) => x.parentId === a.id)) throw new ActionError("invalid", "Other payment methods are under this one, so it has to stay a card or a bank account.");
+        if (a.accountType !== "credit_card" && (await repo.cardBills.list()).some((b) => b.accountId === a.id)) throw new ActionError("invalid", "This card has bills, so it has to stay a credit card.");
+        next.type = a.accountType;
       }
       if (a.parentId === null) delete next.parentId;
       else if (a.parentId) { await checkParent(a.id, a.parentId); next.parentId = a.parentId; }
+      if (a.parentId !== undefined && !next.parentId) { /* now a primary payment method */ }
+      if (a.theme === null) delete next.theme; else if (a.theme) next.theme = a.theme;
+      if (a.archived !== undefined) {
+        if (a.archived && all.some((x) => x.parentId === a.id && !x.archived)) throw new ActionError("invalid", "Hide the payment methods under it first.");
+        if (a.archived) next.archived = true; else delete next.archived;
+      }
       await repo.accounts.put(next);
-      await log("edit", "household", a.id, `Changed payment method ${next.name}${a.parentId ? ` (now under ${(await repo.accounts.get(a.parentId))?.name})` : a.parentId === null ? " (no longer under another)" : ""}`);
+      await log("edit", "household", a.id, `Changed payment method ${next.name}${a.parentId ? ` (now under ${(await repo.accounts.get(a.parentId))?.name})` : a.parentId === null ? " (now a primary payment method)" : ""}${a.archived === true ? " (hidden)" : a.archived === false ? " (shown again)" : ""}`);
+      return;
+    }
+    case "account.delete": {
+      const cur = await repo.accounts.get(a.id);
+      if (!cur) throw new ActionError("not_found", "Payment method not found.");
+      const [records, bills, batches, all] = await Promise.all([repo.records.list(), repo.cardBills.list(), repo.importBatches.list(), repo.accounts.list()]);
+      const used = records.filter((r) => r.accountId === a.id || r.fundedBy === a.id || r.paidCardId === a.id).length + bills.filter((b) => b.accountId === a.id).length + batches.filter((b) => b.accountId === a.id).length;
+      if (used > 0) throw new ActionError("conflict", `${cur.name} is used by ${used} transaction${used === 1 ? "" : "s"}, bills or imports, so it cannot be deleted. Hide it instead.`);
+      if (all.some((x) => x.parentId === a.id)) throw new ActionError("conflict", `Other payment methods are under ${cur.name}. Move or delete them first.`);
+      await repo.accounts.remove(a.id);
+      await log("delete", "household", a.id, `Deleted payment method ${cur.name}`);
       return;
     }
     case "accounts.addSuggested": {

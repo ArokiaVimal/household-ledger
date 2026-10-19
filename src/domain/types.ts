@@ -58,7 +58,14 @@ export interface Account {
   type: "credit_card" | "bank" | "upi" | "cash" | "wallet";
   /** Sits under another payment method (Amazon Pay under Amex). Reports and groupings roll it up into the parent. */
   parentId?: string;
+  /** Colour of the card picture shown for it. Left out, it follows the issuer. */
+  theme?: CardTheme;
+  /** Hidden from pickers but kept, because transactions still refer to it. */
+  archived?: boolean;
 }
+
+export type CardTheme = "indigo" | "navy" | "teal" | "plum" | "graphite" | "platinum" | "ruby" | "gold";
+export const CARD_THEMES: CardTheme[] = ["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"];
 
 export interface Category {
   id: string;

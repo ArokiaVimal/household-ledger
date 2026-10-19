@@ -22,7 +22,7 @@ async function call<T>(payload: Record<string, unknown>): Promise<{ ok: boolean;
 /** Auto-capture of bank messages: a private link that a phone automation posts each SMS to. Messages wait in the review queue. */
 export function CaptureCard() {
   const { accounts, categoryName } = useStore();
-  const usable = accounts.filter((a) => a.type !== "cash");
+  const usable = accounts.filter((a) => a.type !== "cash" && !a.archived);
   const [status, setStatus] = useState<Status | null>(null);
   const [accountId, setAccountId] = useState(usable[0]?.id ?? "");
   const [link, setLink] = useState<string | null>(null);

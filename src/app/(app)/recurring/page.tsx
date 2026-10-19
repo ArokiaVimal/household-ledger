@@ -25,7 +25,7 @@ export default function Recurring() {
 
   return (
     <>
-      <PageHeader title="Recurring" sub={`Monthly commitments · ${month}`} actions={<><Link href={`/transactions?month=${month}&recurring=1`} className="rounded-full border border-border bg-surface px-3 py-2 text-sm">View payments</Link><Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add recurring</Button></>} />
+      <PageHeader tip="Rent, EMIs, subscriptions and other monthly commitments. Mark a transaction as repeating or add one here, with an optional default split." title="Recurring" sub={`Monthly commitments · ${month}`} actions={<><Link href={`/transactions?month=${month}&recurring=1`} className="rounded-full border border-border bg-surface px-3 py-2 text-sm">View payments</Link><Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add recurring</Button></>} />
       <div className="mb-4 grid gap-4 sm:grid-cols-3">
         <Card><div className="text-xs text-muted">Expected each month</div><div className="num text-xl font-semibold">{formatINR(totals.monthlyPaise)}</div><div className="text-xs text-muted">≈ {formatINR(totals.yearlyPaise)} a year</div></Card>
         <Card><div className="text-xs text-muted">Paid this month</div><div className="num text-xl font-semibold text-good">{formatINR(paid)}</div></Card>

@@ -3,10 +3,11 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { Download, LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, Trash2, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
 import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
+import { CardMockup, THEME_STYLE, themeFor } from "@/components/card-mockup";
 import { useStore } from "@/data/store";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
-import type { Account } from "@/domain/types";
+import { CARD_THEMES, type Account, type CardTheme } from "@/domain/types";
 import { MerchantAvatar } from "@/components/txn-row";
 import { CaptureCard } from "./capture-card";
 import { GmailCard } from "./gmail-card";
@@ -40,18 +41,34 @@ function Section({ id, icon, title, tagline, children }: { id: string; icon: Rea
 }
 
 export default function Settings() {
-  const { live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, updateAccount, addSuggestedAccounts, addParticipant, deleteParticipant } = useStore();
+  const { live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, addSuggestedAccounts, addParticipant, deleteParticipant } = useStore();
   const [confirm, setConfirm] = useState(false);
-  const [accName, setAccName] = useState("");
-  const [accType, setAccType] = useState<Account["type"]>("credit_card");
-  const [accError, setAccError] = useState<string | null>(null);
-  const [accParent, setAccParent] = useState("");
-  const [editingAcc, setEditingAcc] = useState<Account | null>(null);
-  const [editParent, setEditParent] = useState("");
-  const [editError, setEditError] = useState<string | null>(null);
-  const parents = accounts.filter((a) => (a.type === "credit_card" || a.type === "bank") && !a.parentId);
-  // Roots first, each followed by the payment methods under it.
-  const ordered = [...accounts.filter((a) => !a.parentId || !accounts.some((x) => x.id === a.parentId)).flatMap((a) => [a, ...accounts.filter((c) => c.parentId === a.id)])];
+  // One dialog adds and edits payment methods. `parent` is set when adding a sub payment method.
+  const [dlg, setDlg] = useState<{ acc?: Account; parent?: string } | null>(null);
+  const [fName, setFName] = useState("");
+  const [fType, setFType] = useState<Account["type"]>("credit_card");
+  const [fParent, setFParent] = useState("");
+  const [fTheme, setFTheme] = useState<CardTheme | "">("");
+  const [fError, setFError] = useState<string | null>(null);
+  const [deletingAcc, setDeletingAcc] = useState<Account | null>(null);
+  const roots = accounts.filter((a) => !a.parentId || !accounts.some((x) => x.id === a.parentId));
+  const childrenOf = (id: string) => accounts.filter((c) => c.parentId === id);
+  const openDialog = (d: { acc?: Account; parent?: string }) => {
+    setDlg(d); setFError(null);
+    setFName(d.acc?.name ?? ""); setFType(d.acc?.type ?? (d.parent ? "wallet" : "credit_card"));
+    setFParent(d.acc?.parentId ?? d.parent ?? ""); setFTheme(d.acc?.theme ?? "");
+  };
+  const subTypes: Account["type"][] = ["wallet", "upi", "cash"];
+  const isSub = !!fParent;
+  const canBeSub = !dlg?.acc || childrenOf(dlg.acc.id).length === 0;
+  const parentOptions = roots.filter((p) => (p.type === "credit_card" || p.type === "bank") && p.id !== dlg?.acc?.id);
+  const saveDialog = () => {
+    const type = isSub && fType !== "wallet" && fType !== "upi" && fType !== "cash" ? "wallet" : fType;
+    const err = dlg?.acc
+      ? updateAccount(dlg.acc.id, { name: fName, type, parentId: fParent || null, theme: type === "credit_card" && !isSub && fTheme ? fTheme : null })
+      : addAccount(fName, type, fParent || undefined, type === "credit_card" && !isSub && fTheme ? fTheme : undefined);
+    if (err) setFError(err); else setDlg(null);
+  };
   const [friend, setFriend] = useState("");
   const [friendError, setFriendError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -82,36 +99,37 @@ export default function Settings() {
 
       <div className="min-w-0 space-y-10">
         <Section id="methods" icon={<Wallet size={20} aria-hidden />} title="Payment methods" tagline="Know exactly where every rupee came from. Add the cards, UPI apps and bank accounts you spend with, and each transaction is filed under the right one.">
-          <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2">
-            <Card className="space-y-3">
-              <CardTitle action={<span className="text-xs text-muted">{accounts.length} added</span>}>Your payment methods</CardTitle>
-              <ul className="divide-y divide-border text-sm">
-                {ordered.map((a) => {
-                  const n = usedBy(a.id);
-                  const parent = accounts.find((x) => x.id === a.parentId);
-                  return (
-                    <li key={a.id} className={`flex items-center justify-between gap-2 py-2.5 ${parent ? "ml-6 border-l-2 border-accent/20 pl-3" : ""}`}>
-                      <span className="flex min-w-0 items-center gap-2.5"><MerchantAvatar name={a.name} size={32} /><span className="min-w-0"><span className="block truncate font-medium">{a.name}</span><span className="block text-xs text-muted">{parent ? `Under ${parent.name} · ` : ""}{n === 0 ? "No transactions yet" : `${n} transaction${n === 1 ? "" : "s"}`}</span></span></span>
-                      <span className="flex shrink-0 items-center gap-1.5"><Badge>{typeLabel[a.type]}</Badge>{a.type !== "credit_card" && a.type !== "bank" || a.parentId ? <button type="button" aria-label={`Edit ${a.name}`} title="Edit" onClick={() => { setEditingAcc(a); setEditParent(a.parentId ?? ""); setEditError(null); }} className="grid size-9 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={14} aria-hidden /></button> : null}</span>
-                    </li>
-                  );
-                })}
-                {accounts.length === 0 && <li className="py-3 text-muted">Nothing here yet. Add your first card, UPI app or bank account to start tracking.</li>}
-              </ul>
-              {missingSuggested > 0 && <Button variant="primary" onClick={addSuggestedAccounts}>Add my usual cards, UPI apps and banks ({missingSuggested})</Button>}
-            </Card>
-            <Card>
-              <CardTitle>Add one of your own</CardTitle>
-              <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); const err = addAccount(accName, accType, accType === "credit_card" || accType === "bank" ? undefined : accParent || undefined); setAccError(err); if (!err) { setAccName(""); setAccParent(""); } }}>
-                <Field label="Name" error={accError}><Input value={accName} onChange={(e) => { setAccName(e.target.value); setAccError(null); }} placeholder="e.g. Axis Magnus Credit Card" maxLength={60} /></Field>
-                <ChipGroup label="Type" options={(Object.keys(typeLabel) as Account["type"][]).map((t) => ({ id: t, label: typeLabel[t] }))} value={accType} onChange={setAccType} />
-                {accType !== "credit_card" && accType !== "bank" && parents.length > 0 && (
-                  <div className="space-y-1.5"><div className="text-xs font-medium text-muted">Comes under (optional)</div><CompactChips label="Comes under" options={[{ id: "", label: "None" }, ...parents.map((p) => ({ id: p.id, label: p.name }))]} selected={[accParent]} onPick={setAccParent} /><p className="text-xs text-muted">For example Amazon Pay under your Amex: it then rolls up into Amex in your groupings.</p></div>
-                )}
-                <Button type="submit" variant="primary" disabled={!accName.trim()}>Add payment method</Button>
-              </form>
-            </Card>
-          </div>
+          <Card className="space-y-3">
+            <CardTitle tip="A primary payment method is the main card or account, like your Amex or HDFC Bank. A sub payment method sits inside it, like Amazon Pay or Swiggy Money loaded from that Amex. Everything is yours to rename, move, hide or remove." action={<span className="text-xs text-muted">{accounts.length} added</span>}>Your payment methods</CardTitle>
+            <ul className="space-y-4 text-sm">
+              {roots.map((a) => {
+                const subs = childrenOf(a.id);
+                return (
+                  <li key={a.id} className={`space-y-2 ${a.archived ? "opacity-60" : ""}`}>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {a.type === "credit_card" ? <div className="w-44 shrink-0"><CardMockup name={a.name} theme={a.theme} hidden={a.archived} /></div> : <MerchantAvatar name={a.name} size={40} />}
+                      <div className="min-w-[8rem] flex-1"><div className="font-medium">{a.name}</div><div className="text-xs text-muted">{typeLabel[a.type]} · {usedBy(a.id) === 0 ? "No transactions yet" : `${usedBy(a.id)} transaction${usedBy(a.id) === 1 ? "" : "s"}`}{a.archived ? " · Hidden" : ""}</div></div>
+                      <button type="button" aria-label={`Edit ${a.name}`} title="Edit" onClick={() => openDialog({ acc: a })} className="grid size-11 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={16} aria-hidden /></button>
+                    </div>
+                    {(subs.length > 0 || a.type === "credit_card" || a.type === "bank") && (
+                      <ul className="ml-4 space-y-1 border-l-2 border-accent/20 pl-3">
+                        {subs.map((c) => (
+                          <li key={c.id} className={`flex items-center gap-2.5 py-1 ${c.archived ? "opacity-60" : ""}`}>
+                            <MerchantAvatar name={c.name} size={30} />
+                            <span className="min-w-0 flex-1"><span className="block truncate font-medium">{c.name}</span><span className="block text-xs text-muted">{typeLabel[c.type]} · {usedBy(c.id)} transaction{usedBy(c.id) === 1 ? "" : "s"}{c.archived ? " · Hidden" : ""}</span></span>
+                            <button type="button" aria-label={`Edit ${c.name}`} title="Edit" onClick={() => openDialog({ acc: c })} className="grid size-11 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={16} aria-hidden /></button>
+                          </li>
+                        ))}
+                        {(a.type === "credit_card" || a.type === "bank") && !a.archived && <li><button type="button" onClick={() => openDialog({ parent: a.id })} className="min-h-9 rounded-full px-1 text-xs font-medium text-accent hover:underline">+ Add a sub payment method to {a.name}</button></li>}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+              {accounts.length === 0 && <li className="py-3 text-muted">Nothing here yet. Add your first card, UPI app or bank account to start tracking.</li>}
+            </ul>
+            <div className="flex flex-wrap gap-2"><Button variant="primary" onClick={() => openDialog({})}>+ Add primary payment method</Button>{missingSuggested > 0 && <Button onClick={addSuggestedAccounts}>Add my usual cards, UPI apps and banks ({missingSuggested})</Button>}</div>
+          </Card>
         </Section>
 
         <Section id="sharing" icon={<Users size={20} aria-hidden />} title="Split with people" tagline="Rent with your partner, a dinner with friends, a trip with the gang. Split it fairly, see who owes whom, and settle up without the awkward maths.">
@@ -179,16 +197,40 @@ export default function Settings() {
         </Section>
       </div>
 
-      <Dialog open={!!editingAcc} onClose={() => setEditingAcc(null)} title={editingAcc ? `Edit ${editingAcc.name}` : "Edit payment method"}>
-        {editingAcc && (
+      <Dialog open={!!dlg} onClose={() => setDlg(null)} title={dlg?.acc ? `Edit ${dlg.acc.name}` : isSub ? "Add a sub payment method" : "Add a primary payment method"}>
+        {dlg && (
           <div className="space-y-3 pb-1 text-sm">
-            <div className="space-y-1.5"><div className="text-xs font-medium text-muted">Comes under</div><CompactChips label="Comes under" options={[{ id: "", label: "None" }, ...parents.filter((p) => p.id !== editingAcc.id).map((p) => ({ id: p.id, label: p.name }))]} selected={[editParent]} onPick={(id) => { setEditParent(id); setEditError(null); }} /></div>
-            <p className="text-xs text-muted">Its transactions stay as they are; groupings and totals by payment method roll it up into the one it comes under.</p>
-            {editError && <p role="alert" className="text-danger">{editError}</p>}
-            <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => setEditingAcc(null)}>Cancel</Button><Button variant="primary" onClick={() => { const err = updateAccount(editingAcc.id, { parentId: editParent || null }); if (err) setEditError(err); else setEditingAcc(null); }}>Save</Button></div>
+            <Field label="Name" error={fError}><Input value={fName} onChange={(e) => { setFName(e.target.value); setFError(null); }} placeholder={isSub ? "e.g. Amazon Pay" : "e.g. Axis Magnus Credit Card"} maxLength={60} /></Field>
+            {isSub
+              ? <ChipGroup label="Type" options={subTypes.map((t) => ({ id: t, label: typeLabel[t] }))} value={subTypes.includes(fType) ? fType : "wallet"} onChange={setFType} />
+              : <ChipGroup label="Type" options={(Object.keys(typeLabel) as Account["type"][]).map((t) => ({ id: t, label: typeLabel[t] }))} value={fType} onChange={setFType} />}
+            {(canBeSub && parentOptions.length > 0) && (
+              <div className="space-y-1.5"><div className="text-xs font-medium text-muted">Sits inside</div><CompactChips label="Sits inside" options={[{ id: "", label: "Nothing (primary)" }, ...parentOptions.map((p) => ({ id: p.id, label: p.name }))]} selected={[fParent]} onPick={(id) => { setFParent(id); setFError(null); }} /><p className="text-xs text-muted">Pick a card or bank to make this a sub payment method, for example Amazon Pay inside your Amex.</p></div>
+            )}
+            {!isSub && fType === "credit_card" && (
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted">Card colour</div>
+                <CardMockup name={fName.trim() || "Your card"} theme={fTheme || undefined} />
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Card colour">
+                  {CARD_THEMES.map((t) => <button key={t} type="button" aria-label={THEME_STYLE[t].label} aria-pressed={(fTheme || themeFor(fName, undefined)) === t} onClick={() => setFTheme(t)} className={`size-9 rounded-full border-2 ${(fTheme || themeFor(fName, undefined)) === t ? "border-accent" : "border-transparent"}`} style={{ background: THEME_STYLE[t].bg }} />)}
+                </div>
+              </div>
+            )}
+            {fError && !fName.trim() ? null : fError && <p role="alert" className="text-danger">{fError}</p>}
+            {dlg.acc && (
+              <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+                <Button onClick={() => { const err = updateAccount(dlg.acc!.id, { archived: !dlg.acc!.archived }); if (err) setFError(err); else setDlg(null); }}>{dlg.acc.archived ? "Show again" : "Hide from lists"}</Button>
+                <Button variant="danger" onClick={() => setDeletingAcc(dlg.acc!)}>Delete…</Button>
+                <p className="w-full text-xs text-muted">Hiding keeps its transactions and removes it from the pick lists. Delete only works when nothing uses it.</p>
+              </div>
+            )}
+            <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => setDlg(null)}>Cancel</Button><Button variant="primary" disabled={!fName.trim()} onClick={saveDialog}>{dlg.acc ? "Save" : "Add"}</Button></div>
           </div>
         )}
       </Dialog>
+      <ConfirmDialog open={!!deletingAcc} onClose={() => setDeletingAcc(null)} title={`Delete ${deletingAcc?.name ?? "payment method"}?`} onConfirm={() => { if (!deletingAcc) return; const err = deleteAccount(deletingAcc.id); if (err) setFError(err); else setDlg(null); }}>
+        <p>{deletingAcc?.name} will be removed. This only works when no transaction, bill or import uses it; otherwise hide it instead.</p>
+      </ConfirmDialog>
       <ConfirmDialog open={!!removing && removeCheck?.ok === true} onClose={() => setRemoving(null)} title={`Remove ${removingPerson?.name ?? "this friend"}?`} confirmLabel="Remove friend" onConfirm={() => { if (removing) setRemoveError(deleteParticipant(removing)); }}>
         <p>{removingPerson?.name} is not in any transaction, split, settlement or recurring item, so nothing changes for anyone. They can be added again later.</p>
       </ConfirmDialog>

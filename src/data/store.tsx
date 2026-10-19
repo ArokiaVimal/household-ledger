@@ -15,7 +15,7 @@ import { summarize } from "@/domain/reports";
 import type { MerchantRule } from "@/domain/rules";
 import { scopeRecords, sharedToRecord } from "@/domain/sharing";
 import { OWNER_SHARE_BPS } from "@/domain/defaults";
-import type { Account, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
+import type { Account, CardBill, CardTheme, VoucherBrand, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
 import type { CoupleData } from "@/lib/data/couple";
 import type { HouseholdData } from "@/lib/data/load";
 import { pickMonth } from "@/domain/months";
@@ -97,9 +97,11 @@ interface Store {
   deleteCategory: (id: string, moveTo?: string) => string | null;
   addRule: (r: MerchantRule) => void;
   removeRule: (merchant: string) => void;
-  addAccount: (name: string, type: Account["type"], parentId?: string) => string | null;
+  addAccount: (name: string, type: Account["type"], parentId?: string, theme?: CardTheme) => string | null;
   /** Rename a payment method or put it under another (null takes it out). Returns an error message, or null. */
-  updateAccount: (id: string, patch: { name?: string; parentId?: string | null }) => string | null;
+  updateAccount: (id: string, patch: { name?: string; type?: Account["type"]; parentId?: string | null; theme?: CardTheme | null; archived?: boolean }) => string | null;
+  /** Delete a payment method nothing uses. Returns an error message (suggesting Hide) when something does. */
+  deleteAccount: (id: string) => string | null;
   addSuggestedAccounts: () => void;
   addParticipant: (name: string) => Added;
   /** Removes a friend (no account) that nothing refers to. Returns an error message, or null when removed. */
@@ -332,18 +334,18 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     if (accounts.some((a) => a.parentId === id)) return "Other payment methods are under this one, so it cannot go under another.";
     return null;
   }, [accounts]);
-  const addAccount = useCallback((name: string, type: Account["type"], parentId?: string) => {
+  const addAccount = useCallback((name: string, type: Account["type"], parentId?: string, theme?: CardTheme) => {
     const n = name.trim();
     if (!n || n.length > 60) return "Enter a name (up to 60 characters).";
     if (accounts.some((a) => a.name.toLowerCase() === n.toLowerCase())) return "You already have a payment method with that name.";
     let id = `${type === "credit_card" ? "cc" : type}_${slug(n)}`;
     for (let i = 2; accounts.some((a) => a.id === id); i++) id = `${id.replace(/-\d+$/, "")}-${i}`;
     if (parentId) { const bad = parentProblem(id, parentId); if (bad) return bad; }
-    setAccounts((as) => [...as, { id, name: n, type, ...(parentId ? { parentId } : {}) }]);
-    void send({ type: "account.add", id, name: n, accountType: type, ...(parentId ? { parentId } : {}) });
+    setAccounts((as) => [...as, { id, name: n, type, ...(parentId ? { parentId } : {}), ...(theme ? { theme } : {}) }]);
+    void send({ type: "account.add", id, name: n, accountType: type, ...(parentId ? { parentId } : {}), ...(theme ? { theme } : {}) });
     return null;
   }, [accounts, send, parentProblem]);
-  const updateAccount = useCallback((id: string, patch: { name?: string; parentId?: string | null }) => {
+  const updateAccount = useCallback((id: string, patch: { name?: string; type?: Account["type"]; parentId?: string | null; theme?: CardTheme | null; archived?: boolean }) => {
     const cur = accounts.find((a) => a.id === id);
     if (!cur) return "Payment method not found.";
     const next = { ...cur };
@@ -353,12 +355,36 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
       if (accounts.some((a) => a.id !== id && a.name.toLowerCase() === n.toLowerCase())) return "You already have a payment method with that name.";
       next.name = n;
     }
+    if (patch.type !== undefined && patch.type !== cur.type) {
+      if (patch.type !== "credit_card" && patch.type !== "bank" && accounts.some((a) => a.parentId === id)) return "Other payment methods are under this one, so it has to stay a card or a bank account.";
+      if (patch.type !== "credit_card" && cardBills.some((b) => b.accountId === id)) return "This card has bills, so it has to stay a credit card.";
+      next.type = patch.type;
+    }
     if (patch.parentId === null) delete next.parentId;
     else if (patch.parentId) { const bad = parentProblem(id, patch.parentId); if (bad) return bad; next.parentId = patch.parentId; }
+    if (patch.theme === null) delete next.theme; else if (patch.theme) next.theme = patch.theme;
+    if (patch.archived !== undefined) {
+      if (patch.archived && accounts.some((a) => a.parentId === id && !a.archived)) return "Hide the payment methods under it first.";
+      if (patch.archived) next.archived = true; else delete next.archived;
+    }
     setAccounts((as) => as.map((a) => (a.id === id ? next : a)));
-    void send({ type: "account.update", id, ...(patch.name !== undefined ? { name: next.name } : {}), ...(patch.parentId !== undefined ? { parentId: patch.parentId } : {}) });
+    void send({
+      type: "account.update", id,
+      ...(patch.name !== undefined ? { name: next.name } : {}), ...(patch.type !== undefined ? { accountType: patch.type } : {}), ...(patch.parentId !== undefined ? { parentId: patch.parentId } : {}),
+      ...(patch.theme !== undefined ? { theme: patch.theme } : {}), ...(patch.archived !== undefined ? { archived: patch.archived } : {}),
+    });
     return null;
-  }, [accounts, send, parentProblem]);
+  }, [accounts, cardBills, send, parentProblem]);
+  const deleteAccount = useCallback((id: string) => {
+    const cur = accounts.find((a) => a.id === id);
+    if (!cur) return "Payment method not found.";
+    const used = [...records, ...staged].filter((r) => r.accountId === id || r.fundedBy === id || r.paidCardId === id).length + cardBills.filter((b) => b.accountId === id).length + init.importBatches.filter((b) => b.accountId === id).length;
+    if (used > 0) return `${cur.name} is used by ${used} transaction${used === 1 ? "" : "s"}, bills or imports, so it cannot be deleted. Hide it instead.`;
+    if (accounts.some((a) => a.parentId === id)) return `Other payment methods are under ${cur.name}. Move or delete them first.`;
+    setAccounts((as) => as.filter((a) => a.id !== id));
+    void send({ type: "account.delete", id });
+    return null;
+  }, [accounts, records, staged, cardBills, init.importBatches, send]);
   const addSuggestedAccounts = useCallback(() => {
     setAccounts((as) => [...as, ...suggestedWithParents(SUGGESTED_ACCOUNTS.filter((s) => !as.some((a) => a.id === s.id)), as)]);
     void send({ type: "accounts.addSuggested" });
@@ -468,7 +494,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,

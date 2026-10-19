@@ -26,7 +26,7 @@ async function call<T>(payload: Record<string, unknown>): Promise<{ ok: boolean;
 /** Reads your bank emails (only from bank, card and UPI senders) into the review queue. Read-only access, revocable any time. */
 export function GmailCard() {
   const { accounts } = useStore();
-  const usable = accounts.filter((a) => a.type !== "cash");
+  const usable = accounts.filter((a) => a.type !== "cash" && !a.archived);
   const [s, setS] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);

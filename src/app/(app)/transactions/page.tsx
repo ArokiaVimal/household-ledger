@@ -114,7 +114,7 @@ function TransactionsView() {
 
   return (
     <>
-      <PageHeader title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
+      <PageHeader tip="Your approved transactions. Use Read notes with AI to let Claude use your notes to suggest categories; you review every suggestion before it applies." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
       <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-6">
         <Input className="col-span-2" placeholder="Search merchant, description, notes" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
         <Select aria-label="Category" value={get("category")} onChange={(e) => set("category", e.target.value)}>

@@ -46,7 +46,7 @@ function Stat({ label, value, tone = "" }: { label: string; value: number | stri
 export function LiveImport() {
   const { accounts, accountName, categoryName, importBatches, aiEnabled } = useStore();
   const router = useRouter();
-  const usable = accounts.filter((a) => a.type !== "cash");
+  const usable = accounts.filter((a) => a.type !== "cash" && !a.archived);
   const [src, setSrc] = useState<Src | null>(null);
   const [sign, setSign] = useState<"auto" | "out" | "in">("auto");
   const [preview, setPreview] = useState<Preview | null>(null);

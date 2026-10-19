@@ -215,6 +215,27 @@ describe("suggested accounts", () => {
     await fails(applyAction(repo, actor, { type: "account.update", id: "cc_amex", parentId: "bank_hdfc" }), "invalid"); // Amex has children, so it cannot go under another
     await fails(applyAction(repo, actor, { type: "account.update", id: "wl_a", name: "Some UPI" }), "conflict");
   });
+  it("payment methods can be recoloured, retyped, hidden and deleted, with the safety rules", async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "cc_amex", name: "Amex", type: "credit_card" });
+    await applyAction(repo, actor, { type: "account.add", id: "wl_a", name: "Amazon Pay", accountType: "wallet", parentId: "cc_amex" });
+    await applyAction(repo, actor, { type: "account.update", id: "cc_amex", theme: "gold" });
+    expect((await repo.accounts.get("cc_amex"))!.theme).toBe("gold");
+    await applyAction(repo, actor, { type: "account.update", id: "cc_amex", theme: null });
+    expect((await repo.accounts.get("cc_amex"))!.theme).toBeUndefined();
+    await fails(applyAction(repo, actor, { type: "account.update", id: "cc_amex", accountType: "upi" }), "invalid"); // a wallet sits under it
+    await fails(applyAction(repo, actor, { type: "account.update", id: "cc_amex", archived: true }), "invalid"); // visible child
+    await applyAction(repo, actor, { type: "account.update", id: "wl_a", archived: true });
+    await applyAction(repo, actor, { type: "account.update", id: "cc_amex", archived: true });
+    expect((await repo.accounts.get("cc_amex"))!.archived).toBe(true);
+    await applyAction(repo, actor, { type: "account.update", id: "cc_amex", archived: false });
+    expect((await repo.accounts.get("cc_amex"))!.archived).toBeUndefined();
+    await fails(applyAction(repo, actor, { type: "account.delete", id: "cc_amex" }), "conflict"); // has a child
+    await applyAction(repo, actor, { type: "account.delete", id: "wl_a" });
+    expect(await repo.accounts.get("wl_a")).toBeNull();
+    await applyAction(repo, actor, { type: "account.delete", id: "cc_amex" });
+    expect(await repo.accounts.get("cc_amex")).toBeNull();
+  });
 });
 
 describe("learning and deleting", () => {

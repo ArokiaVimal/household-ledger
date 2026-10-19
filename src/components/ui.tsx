@@ -1,17 +1,44 @@
 "use client";
 // Shared UI primitives (shadcn-style, token-driven). Compose screens from these.
 import { Children, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
-import { Check, ChevronDown, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Info, Plus, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
   return <section className={cn("rounded-[var(--radius-card)] bg-surface p-4 shadow-[0_1px_0_rgba(20,18,31,0.03)]", className)}>{children}</section>;
 }
 
-export function CardTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
+/** A small (i) that explains a feature. Tap, hover or focus shows the text; Escape or tapping elsewhere hides it. */
+export function InfoTip({ text, label = "More information" }: { text: string; label?: string }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const id = useId();
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => { if (e.target instanceof Node && !btn.current?.contains(e.target)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", away); document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  const show = () => {
+    const r = btn.current?.getBoundingClientRect();
+    if (r) { const w = Math.min(256, window.innerWidth - 24); setPos({ left: Math.max(12, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 12)), top: r.bottom + 6 }); }
+    setOpen(true);
+  };
+  return (
+    <span className="inline-flex align-middle">
+      <button ref={btn} type="button" aria-label={label} aria-describedby={open ? id : undefined} aria-expanded={open} onClick={() => (open ? setOpen(false) : show())} onMouseEnter={show} onMouseLeave={() => setOpen(false)}
+        className="grid size-6 place-items-center rounded-full text-muted hover:bg-background hover:text-foreground focus-visible:outline-2 focus-visible:outline-accent"><Info size={14} aria-hidden /></button>
+      {open && pos && <span id={id} role="tooltip" style={{ left: pos.left, top: pos.top, width: Math.min(256, typeof window === "undefined" ? 256 : window.innerWidth - 24) }} className="fixed z-[60] rounded-xl bg-foreground px-3 py-2 text-xs font-normal leading-relaxed text-background shadow-lg">{text}</span>}
+    </span>
+  );
+}
+
+export function CardTitle({ children, action, tip }: { children: ReactNode; action?: ReactNode; tip?: string }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-2">
-      <h2 className="text-sm font-medium text-muted">{children}</h2>
+      <h2 className="flex items-center gap-1 text-sm font-medium text-muted">{children}{tip && <InfoTip text={tip} />}</h2>
       {action}
     </div>
   );
@@ -130,11 +157,11 @@ export function Badge({ tone = "neutral", children }: { tone?: keyof typeof tone
   return <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", tones[tone])}>{children}</span>;
 }
 
-export function PageHeader({ title, sub, actions }: { title: string; sub?: string; actions?: ReactNode }) {
+export function PageHeader({ title, sub, actions, tip }: { title: string; sub?: string; actions?: ReactNode; tip?: string }) {
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="flex items-center gap-1 text-xl font-semibold tracking-tight">{title}{tip && <InfoTip text={tip} />}</h1>
         {sub && <p className="text-sm text-muted">{sub}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -204,10 +231,10 @@ export function ChipGroup<T extends string>({ label, options, value, onChange, t
 }
 
 /** Label on the left, control on the right: keeps forms to one line per field. */
-export function FormRow({ label, children }: { label: string; children: ReactNode }) {
+export function FormRow({ label, children, tip }: { label: string; children: ReactNode; tip?: string }) {
   return (
     <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1">
-      <div className="pt-2 text-xs font-medium text-muted">{label}</div>
+      <div className="flex items-center gap-0.5 pt-2 text-xs font-medium text-muted">{label}{tip && <InfoTip text={tip} />}</div>
       <div className="min-w-0">{children}</div>
     </div>
   );

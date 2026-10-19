@@ -2,6 +2,7 @@
 import { CalendarClock, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { MerchantAvatar } from "@/components/txn-row";
+import { CardChip } from "@/components/card-mockup";
 import { Badge, Button, Card, CompactChips, ConfirmDialog, Dialog, EmptyState, Field, FormRow, Input, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { cardViews, dueLabel, upcomingBills, type BillState, type BillStatus } from "@/domain/cardbills";
@@ -20,7 +21,7 @@ export default function Cards() {
   const views = cardViews(accounts, cardBills, records, today);
   const upcoming = upcomingBills(views);
   const totalToPay = upcoming.reduce((s, b) => s + b.remainingPaise, 0);
-  const cards = accounts.filter((a) => a.type === "credit_card");
+  const cards = accounts.filter((a) => a.type === "credit_card" && !a.archived);
 
   if (cards.length === 0) {
     return (
@@ -32,7 +33,7 @@ export default function Cards() {
   }
   return (
     <>
-      <PageHeader title="Card bills" sub="What to pay in full, and by when. We never show the minimum due." actions={<Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add bill</Button>} />
+      <PageHeader title="Card bills" sub="What to pay in full, and by when. We never show the minimum due." tip="Add each credit card statement's total due and due date, or let AI read them from an imported statement. Paying the bill from your bank is a transfer, never spending, so nothing is counted twice." actions={<Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add bill</Button>} />
       <Card className="mb-4 p-5">
         {upcoming.length === 0 ? (
           <div><div className="text-lg font-semibold text-good">You&apos;re all caught up</div><p className="text-sm text-muted">{cardBills.length === 0 ? "Add a bill to start tracking due dates." : "Every card bill you track is paid."}</p></div>
@@ -49,7 +50,7 @@ export default function Cards() {
         {views.map(({ card, current, earlier }) => (
           <li key={card.id}>
             <Card className="space-y-3 p-4">
-              <div className="flex items-center gap-3"><MerchantAvatar name={card.name} size={36} /><h2 className="min-w-0 flex-1 truncate font-semibold">{card.name}</h2>{current && <Badge tone={tone[current.state]}>{stateText[current.state]}</Badge>}</div>
+              <div className="flex items-center gap-3"><CardChip name={card.name} theme={card.theme} /><h2 className="min-w-0 flex-1 truncate font-semibold">{card.name}</h2>{current && <Badge tone={tone[current.state]}>{stateText[current.state]}</Badge>}</div>
               {current ? <BillBlock s={current} onEdit={() => setEditing(current.bill)} onRemove={() => setRemoving(current.bill)} onPaid={() => saveCardBill({ ...current.bill, paid: true })} /> : (
                 <div className="rounded-xl bg-background p-3 text-sm"><p className="text-muted">No bill added for this card yet.</p><Button className="mt-2" onClick={() => setEditing({ forCard: card.id })}><Plus size={14} aria-hidden />Add its bill</Button></div>
               )}
@@ -108,7 +109,7 @@ function BillDialog({ item, onClose }: { item: CardBill | "new" | { forCard: str
 
 function BillForm({ item, forCard, onClose }: { item: CardBill | null; forCard?: string; onClose: () => void }) {
   const { accounts, saveCardBill, today } = useStore();
-  const cards = accounts.filter((a) => a.type === "credit_card");
+  const cards = accounts.filter((a) => a.type === "credit_card" && !a.archived);
   const [accountId, setAccountId] = useState(item?.accountId ?? forCard ?? cards[0]?.id ?? "");
   const [statementDate, setStatementDate] = useState(item?.statementDate ?? today);
   const [dueDate, setDueDate] = useState(item?.dueDate ?? "");

@@ -36,7 +36,7 @@ export default function Vouchers() {
 
   return (
     <>
-      <PageHeader title="Voucher wallets" sub="Every voucher you buy tops up a wallet (Amazon, Swiggy and so on). The top-up is the one cash outflow. What you buy from a wallet can be split with your partner or friends, and is never counted as spending again." actions={<Button onClick={() => { setNewName(""); setAddError(null); setAdding(true); }}><Plus size={16} aria-hidden />Add voucher</Button>} />
+      <PageHeader tip="Buying a voucher (for example from Shopwise) loads a wallet like Amazon Pay or Swiggy Money. The top-up is the single cost; spending from the wallet later is tracked without counting that money twice." title="Voucher wallets" sub="Every voucher you buy tops up a wallet (Amazon, Swiggy and so on). The top-up is the one cash outflow. What you buy from a wallet can be split with your partner or friends, and is never counted as spending again." actions={<Button onClick={() => { setNewName(""); setAddError(null); setAdding(true); }}><Plus size={16} aria-hidden />Add voucher</Button>} />
 
       {!any ? (
         <Card><EmptyState title="No voucher purchases yet" hint="When a transaction from a voucher seller such as Shopwise (statement text CUST CAP SOLUTIONS) is imported, review asks which voucher you bought and it appears here." /></Card>

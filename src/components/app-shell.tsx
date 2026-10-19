@@ -1,5 +1,5 @@
 "use client";
-import { BarChart3, Bell, ChevronLeft, ChevronRight, ClipboardCheck, CreditCard, FileUp, LogOut, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Sparkles, Tags, Ticket, UserRound } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, LogOut, MoreHorizontal, Plus, Search, Settings, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -12,23 +12,9 @@ import { LogoMark } from "./logo";
 import { useProfile } from "./profile-context";
 import { OPEN_ADD_EVENT } from "./onboarding";
 import { TxnAddDialog } from "./txn-edit-dialog";
-import { ChipGroup } from "./ui";
+import { navFor } from "./nav-items";
+import { ChipGroup, Dialog } from "./ui";
 
-const nav = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, mobile: true },
-  { href: "/transactions", label: "Transactions", icon: List, mobile: true },
-  { href: "/recurring", label: "Recurring", icon: Repeat },
-  { href: "/cards", label: "Card bills", icon: CreditCard },
-  { href: "/vouchers", label: "Wallets", icon: Ticket },
-  { href: "/insights", label: "AI insights", icon: Sparkles },
-  { href: "/review", label: "Review", icon: ClipboardCheck },
-  { href: "/import", label: "Import", icon: FileUp, mobile: true },
-  { href: "/settlements", label: "Settle", icon: Handshake, mobile: true },
-  { href: "/receipts", label: "Receipts", icon: Receipt },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/categories", label: "Categories", icon: Tags },
-  { href: "/settings", label: "Settings", icon: Settings, mobile: true },
-];
 
 /** Previous / next month. The next month is disabled once you reach the current month. */
 function MonthStepper({ className }: { className?: string }) {
@@ -89,7 +75,10 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const router = useRouter();
   const { live, partner, participants, meId, previewing, staged, syncError, dismissSyncError } = useStore();
   // Solo use is complete on its own: settle-up and the Mine/Together switch appear once a partner is linked.
-  const visibleNav = nav.filter((n) => n.href !== "/settlements" || !live || !!partner || participants.some((p) => p.id !== meId));
+  const visibleNav = navFor(live, !!partner, participants.some((p) => p.id !== meId)).filter((n) => n.href !== "/profile");
+  const phoneBar = visibleNav.filter((n) => n.bar);
+  const phoneMore = navFor(live, !!partner, participants.some((p) => p.id !== meId)).filter((n) => !n.bar);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [q, setQ] = useState("");
   const { profile } = useProfile();
   const [adding, setAdding] = useState(false);
@@ -180,14 +169,31 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
         </div>
       )}
       {toast && <div role="status" className="fixed inset-x-0 bottom-[calc(var(--sab)+9rem)] z-40 mx-auto w-fit rounded-full bg-foreground px-4 py-2 text-sm text-white shadow-lg md:bottom-24">{toast}</div>}
-      <nav aria-label="Primary" style={{ gridTemplateColumns: `repeat(${visibleNav.filter((n) => n.mobile).length}, minmax(0, 1fr))` }} className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-surface pb-[var(--sab)] md:hidden">
-        {visibleNav.filter((n) => n.mobile).map(({ href, label, icon: I }) => (
+      <nav aria-label="Primary" style={{ gridTemplateColumns: `repeat(${phoneBar.length + 1}, minmax(0, 1fr))` }} className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-surface pb-[var(--sab)] md:hidden">
+        {phoneBar.map(({ href, label, icon: I }) => (
           <Link key={href} href={href} aria-current={active(href) ? "page" : undefined}
-            className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", active(href) ? "font-medium text-accent" : "text-muted")}>
+            className={cn("relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", active(href) ? "font-medium text-accent" : "text-muted")}>
             <I size={20} aria-hidden /> {label}
+            {href === "/review" && staged.length > 0 && <span aria-label={`${staged.length} waiting`} className="absolute right-[22%] top-1.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-semibold leading-4 text-white">{staged.length > 99 ? "99+" : staged.length}</span>}
           </Link>
         ))}
+        <button type="button" onClick={() => setMoreOpen(true)} aria-haspopup="dialog" aria-expanded={moreOpen}
+          className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", phoneMore.some((n) => active(n.href)) ? "font-medium text-accent" : "text-muted")}>
+          <MoreHorizontal size={20} aria-hidden /> More
+        </button>
       </nav>
+      <Dialog open={moreOpen} onClose={() => setMoreOpen(false)} title="Everything">
+        <ul className="grid grid-cols-3 gap-2 pb-4">
+          {phoneMore.map(({ href, label, icon: I, hint }) => (
+            <li key={href}>
+              <Link href={href} onClick={() => setMoreOpen(false)} aria-current={active(href) ? "page" : undefined} title={hint}
+                className={cn("flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-2xl border p-2 text-center text-xs", active(href) ? "border-accent bg-accent/10 font-medium text-accent" : "border-border bg-background")}>
+                <I size={22} aria-hidden /> <span className="leading-tight">{label}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </Dialog>
     </div>
   );
 }
