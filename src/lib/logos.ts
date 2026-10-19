@@ -7,7 +7,7 @@ const LOGOS: Record<string, string> = {
   decathlon: "decathlon", starbucks: "starbucks", rapido: "rapido", "cult.fit": "cultfit", "act fibernet": "act",
   "cafe coffee day": "ccd", "reliance fresh": "reliance",
   airtel: "airtel", hotstar: "hotstar", "disney hotstar": "hotstar", jiohotstar: "hotstar", "amazon prime": "primevideo", "prime video": "primevideo", meesho: "meesho", shell: "shell",
-  "bharat petroleum": "bpcl", bpcl: "bpcl", instamart: "swiggy",
+  "bharat petroleum": "bpcl", bpcl: "bpcl", instamart: "swiggy", myntra: "myntra",
 };
 
 // A renamed card still gets its bank's picture: "HDFC BizGrow Card" -> hdfc, "SBI OCTANE BPCL Credit Card" -> sbi.
