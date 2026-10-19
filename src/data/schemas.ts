@@ -112,5 +112,5 @@ export const MerchantMemorySchema = z.object({
 }) satisfies z.ZodType<MerchantMemory>;
 
 export const CardBillSchema = z.object({
-  id, accountId: id, statementDate: date, dueDate: date, totalDuePaise: paise.positive(), source: z.enum(["statement", "manual"]), batchId: id.optional(), paid: z.boolean().optional(),
+  id, accountId: id, statementDate: date, dueDate: date, totalDuePaise: paise.positive(), source: z.enum(["statement", "manual", "message"]), batchId: id.optional(), paid: z.boolean().optional(),
 }) satisfies z.ZodType<CardBill>;

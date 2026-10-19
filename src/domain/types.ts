@@ -245,7 +245,7 @@ export interface CardBill {
   dueDate: string;
   /** The full amount due on the statement, in paise. */
   totalDuePaise: Paise;
-  source: "statement" | "manual";
+  source: "statement" | "manual" | "message";
   /** Import this bill was read from, when there is one. */
   batchId?: string;
   /** Marked as paid by hand (for when the payment is not in your records). */

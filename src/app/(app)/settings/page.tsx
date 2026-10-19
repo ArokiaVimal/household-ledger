@@ -1,18 +1,19 @@
 "use client";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { Download, LayoutGrid, Repeat, Receipt, ShieldCheck, Sparkles, Tags, Trash2, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
+import { Download, Inbox, LayoutGrid, Repeat, Receipt, ShieldCheck, Sparkles, Tags, Trash2, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
 import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import type { Account } from "@/domain/types";
 import { MerchantAvatar } from "@/components/txn-row";
+import { CaptureCard } from "./capture-card";
 import { PartnerCard } from "./partner-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash" };
 
-const JUMP = [["methods", "Payment methods"], ["sharing", "Split with people"], ["ai", "Smart import"], ["shortcuts", "Make it yours"], ["data", "Your data"]] as const;
+const JUMP = [["methods", "Payment methods"], ["sharing", "Split with people"], ["ai", "Smart import"], ["capture", "Auto-capture"], ["shortcuts", "Make it yours"], ["data", "Your data"]] as const;
 const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
   { href: "/profile", label: "Your profile", hint: "Your name and photo, and how the app greets you.", icon: UserRound },
   { href: "/categories", label: "Categories and rules", hint: "Rename, add your own, and auto-sort favourite merchants.", icon: Tags },
@@ -137,6 +138,12 @@ export default function Settings() {
                 : "To switch it on, the app owner adds an Anthropic API key to the server settings. Until then, nothing is ever sent to AI."}</p>
               <Link href="/import" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Import</Link>
             </AiFeatureCard>
+          </Section>
+        )}
+
+        {live && (
+          <Section id="capture" icon={<Inbox size={20} aria-hidden />} title="Auto-capture" tagline="Let transactions arrive on their own. Bank messages add themselves to your review queue; you approve each one before it counts.">
+            <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2"><CaptureCard /></div>
           </Section>
         )}
 
