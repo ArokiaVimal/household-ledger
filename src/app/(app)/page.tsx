@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState, type ReactNode } from "react";
 import { DonutChart, TrendChart } from "@/components/charts";
-import { Onboarding } from "@/components/onboarding";
+import { Onboarding, SetupCard, setDeviceFlag, useDeviceFlag } from "@/components/onboarding";
 import { MerchantAvatar, TxnBadges, Amount } from "@/components/txn-row";
 import { CategoryGlyph, PersonGlyph } from "@/components/glyphs";
 import { Badge, Card, CardTitle, ConfirmDialog, EmptyState } from "@/components/ui";
@@ -121,6 +121,7 @@ function ReviewedNotice() {
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet, wallet: Wallet } as const;
 
 export default function Dashboard() {
+  const skipSetup = useDeviceFlag("pf-setup-open") === "1";
   const { live, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, balances, month, categoryName, nameOf, accountName, partner, groups, activeGroup, groupSummary, monthRecords, recurring, recurringSuggestions, attributionOf, allocatedByKey, categories, saveCardBill, markRecurringPaid } = useStore();
   const [paying, setPaying] = useState<{ kind: "bill"; bill: BillStatus } | { kind: "recurring"; id: string; name: string } | null>(null);
   const withPartner = !live || !!partner;
@@ -152,10 +153,11 @@ export default function Dashboard() {
 
   // The welcome guide is only for someone with no transactions at all (also after deleting everything, even if import history
   // remains). Once any transaction exists it gives way to the dashboard.
-  if (live && householdReady && records.length + staged.length === 0) return <Onboarding />;
+  if (live && householdReady && records.length + staged.length === 0 && !skipSetup) return <Onboarding onSkipAll={() => setDeviceFlag("pf-setup-open", "1")} />;
   if (scoped.length === 0) {
     return (
       <div className="space-y-4">
+        {live && householdReady && <SetupCard />}
         {live && !householdReady && (
           <Card className="space-y-2 text-sm"><CardTitle>Setting up your space</CardTitle><p>Your data space is not ready yet. Reload in a moment; if this stays, open <Link href="/settings" className="text-accent underline-offset-2 hover:underline">Settings</Link>.</p></Card>
         )}
@@ -167,6 +169,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-3 md:space-y-4">
       <Suspense fallback={null}><ReviewedNotice /></Suspense>
+      {live && householdReady && <SetupCard />}
       {staged.length > 0 && (
         <Link href="/review" className="flex min-h-12 items-center gap-3 rounded-[var(--radius-card)] bg-gradient-to-r from-accent to-violet-500 px-4 py-2.5 text-white shadow-lg shadow-accent/25 transition-transform active:scale-[0.99]">
           <ClipboardCheck size={20} aria-hidden />
