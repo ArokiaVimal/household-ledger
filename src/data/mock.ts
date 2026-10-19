@@ -6,9 +6,9 @@ export const MOCK_MONTH = "2026-09";
 
 export const participants: Participant[] = [
   { id: "me", name: "Vimal", userId: "u_me" },
-  { id: "wife", name: "Varru", userId: "u_wife" },
-  { id: "karthik", name: "Karthik", userId: null },
-  { id: "priya", name: "Priya", userId: null },
+  { id: "wife", name: "Varru", userId: "u_wife", relationship: "partner" },
+  { id: "karthik", name: "Karthik", userId: null, relationship: "friend", email: "karthik@example.com" },
+  { id: "priya", name: "Priya", userId: null, relationship: "friend" },
 ];
 
 export const accounts: Account[] = [

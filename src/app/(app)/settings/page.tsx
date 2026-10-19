@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { Download, LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, Trash2, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
+import { Download, LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
 import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
 import { THEME_STYLE, themeFor } from "@/components/card-mockup";
 import { useStore } from "@/data/store";
@@ -9,7 +9,6 @@ import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { CARD_THEMES, type Account, type CardTheme } from "@/domain/types";
 import { MerchantAvatar } from "@/components/txn-row";
-import { PersonGlyph } from "@/components/glyphs";
 import { SortableList } from "@/components/sortable";
 import { orderByUse, planUpiSetup } from "@/domain/accounts";
 import { CaptureCard } from "./capture-card";
@@ -17,10 +16,11 @@ import { GmailCard } from "./gmail-card";
 import { PartnerCard } from "./partner-card";
 import { IconsCard } from "./icons-card";
 import { GroupsCard } from "./groups-card";
+import { ContactsCard } from "./contacts-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet" };
 
-const JUMP = [["methods", "Payment methods"], ["groups", "Payment groups"], ["sharing", "Split with people"], ["ai", "Smart import"], ["integrations", "Integrations"], ["shortcuts", "Make it yours"], ["data", "Your data"]] as const;
+const JUMP = [["methods", "Payment methods"], ["groups", "Payment groups"], ["sharing", "Friends & Family"], ["ai", "Smart import"], ["integrations", "Integrations"], ["shortcuts", "Make it yours"], ["data", "Your data"]] as const;
 const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
   { href: "/profile", label: "Your profile", hint: "Your name and photo, and how the app greets you.", icon: UserRound },
   { href: "/categories", label: "Categories and rules", hint: "Rename, add your own, and auto-sort favourite merchants.", icon: Tags },
@@ -46,7 +46,7 @@ function Section({ id, icon, title, tagline, children }: { id: string; icon: Rea
 }
 
 export default function Settings() {
-  const { live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, deleteParticipant } = useStore();
+  const { live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, reorderAccounts, setupUpiApps, addSuggestedAccounts, deleteParticipant } = useStore();
   const [confirm, setConfirm] = useState(false);
   // One dialog adds and edits payment methods. `parent` is set when adding a sub payment method.
   const [dlg, setDlg] = useState<{ acc?: Account; parent?: string } | null>(null);
@@ -78,8 +78,6 @@ export default function Settings() {
       : addAccount(fName, type, fParent || undefined, type === "credit_card" && !isSub && fTheme ? fTheme : undefined);
     if (err) setFError(err); else setDlg(null);
   };
-  const [friend, setFriend] = useState("");
-  const [friendError, setFriendError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const removingPerson = participants.find((p) => p.id === removing);
@@ -97,7 +95,6 @@ export default function Settings() {
   };
 
   const usedBy = (id: string) => [...records, ...staged].filter((r) => r.accountId === id).length;
-  const friends = participants.filter((p) => !p.userId && !p.pendingEmail);
 
   return (
     <>
@@ -154,28 +151,10 @@ export default function Settings() {
           <GroupsCard />
         </Section>
 
-        <Section id="sharing" icon={<Users size={20} aria-hidden />} title="Split with people" tagline="Rent with your partner, a dinner with friends, a trip with the gang. Split it fairly, see who owes whom, and settle up without the awkward maths.">
+        <Section id="sharing" icon={<Users size={20} aria-hidden />} title="Friends & Family" tagline="Your partner, friends and family in one place. Add anyone you split with, with or without an account, and say how you know them.">
           <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2">
             <PartnerCard />
-            <Card className="space-y-3">
-              <CardTitle action={<span className="text-xs text-muted">{friends.length === 0 ? "None yet" : `${friends.length} added`}</span>}>Friends and family</CardTitle>
-              <p className="text-sm text-muted">Friends never need an account. Add them by name, include them in a split, and keep track of who has paid you back.</p>
-              <ul className="divide-y divide-border text-sm">
-                {participants.map((p) => (
-                  <li key={p.id} className="flex items-center justify-between gap-2 py-2.5">
-                    <span className="flex items-center gap-2.5 font-medium"><PersonGlyph name={p.name} id={p.id} size={32} />{p.name}{p.id === meId && <span className="font-normal text-muted"> (you)</span>}</span>
-                    <span className="flex items-center gap-2">
-                      {p.userId ? <Badge tone="good">Has an account</Badge> : p.pendingEmail ? <Badge tone="warn">Invited</Badge> : <><Badge>Friend</Badge><button type="button" aria-label={`Remove ${p.name}`} title="Remove friend" onClick={() => { setRemoving(p.id); setRemoveError(null); }} className="grid size-8 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={14} aria-hidden /></button></>}
-                    </span>
-                  </li>
-                ))}
-                {friends.length === 0 && <li className="py-3 text-muted">No friends added yet. Add one below to split your next outing.</li>}
-              </ul>
-              <form className="space-y-2 rounded-xl bg-background p-3" onSubmit={(e) => { e.preventDefault(); const err = addParticipant(friend).error ?? null; setFriendError(err); if (!err) setFriend(""); }}>
-                <Field label="Add a friend" error={friendError}><Input value={friend} onChange={(e) => { setFriend(e.target.value); setFriendError(null); }} placeholder="e.g. Karthik" maxLength={60} /></Field>
-                <Button type="submit" disabled={!friend.trim()}>Add friend</Button>
-              </form>
-            </Card>
+            <ContactsCard onRemove={(id) => { setRemoving(id); setRemoveError(null); }} />
           </div>
         </Section>
 

@@ -52,7 +52,16 @@ export interface Participant {
   inviterShareBps?: number;
   /** A small JPEG (data URL) picked for this person under People. Friends have no profile of their own, so it lives here. */
   photo?: string;
+  /** How this person is related to you. Shown as a heart for a partner. Has nothing to do with who can sign in. */
+  relationship?: Relationship;
+  /** Custom relationship wording, when `relationship` is "custom" (for example "Flatmate"). */
+  relationshipLabel?: string;
+  /** Contact email, lower-cased. A hint for matching a future sign-up; it never gives anyone access to anything by itself. */
+  email?: string;
 }
+
+export const RELATIONSHIPS = ["partner", "friend", "family", "parent", "custom"] as const;
+export type Relationship = (typeof RELATIONSHIPS)[number];
 
 export interface Account {
   id: string;

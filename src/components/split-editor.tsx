@@ -6,6 +6,7 @@ import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 import { computeShares, equalSplit, itemsExtra, itemSubtotals, ratioSplit, sameSplit, validateSplit } from "@/domain/splits";
 import type { Paise, SplitConfig, SplitItem, SplitMode } from "@/domain/types";
+import { relationshipText } from "@/domain/contacts";
 import { Dot, PersonGlyph } from "./glyphs";
 import { Button, CompactChips, FormRow, Input } from "./ui";
 
@@ -135,7 +136,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
   return (
     <div className="space-y-2">
       <FormRow label="Split with">
-        <CompactChips multi label="Split with" options={[{ id: ME, label: "Just me", icon: <PersonGlyph name="Me" id={meId} /> }, ...people.map((p) => ({ id: p.id, icon: <PersonGlyph name={nameOf(p.id)} id={p.id} />, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : p.userId === null ? `${nameOf(p.id)} (friend)` : nameOf(p.id) }))]} selected={others.length ? others : [ME]} onPick={pickPerson} adder={{ label: "Add a friend", placeholder: "Friend's name, e.g. Karthik", add: addParticipant }} />
+        <CompactChips multi label="Split with" options={[{ id: ME, label: "Just me", icon: <PersonGlyph name="Me" id={meId} /> }, ...people.map((p) => ({ id: p.id, icon: <PersonGlyph name={nameOf(p.id)} id={p.id} />, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : nameOf(p.id) }))]} selected={others.length ? others : [ME]} onPick={pickPerson} adder={{ label: "Add a friend", placeholder: "Friend's name, e.g. Karthik", add: addParticipant }} />
         {live && !partner && pendingPartner && others.includes(pendingPartner.id) && <p className="mt-1.5 text-xs text-muted">{pendingPartner.name} has not joined yet. This stays on your side and is shared once they accept.</p>}
         {live && !partner && !pendingPartner && <p className="mt-1.5 text-xs text-muted">Splitting with a partner? <Link href="/settings" className="text-accent underline">Link them in Settings</Link>. Until then everything stays private.</p>}
         {live && partner && !partner.active && <p className="mt-1.5 text-xs text-muted">You unlinked from {partner.name}, so nothing new can be shared with them.</p>}
@@ -187,7 +188,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
               <ul className="divide-y divide-border overflow-hidden rounded-2xl bg-surface" aria-label="Who is in this expense">
                 {participants.map((p) => {
                   const on = ids.includes(p.id);
-                  const tag = p.pendingEmail ? "invited" : p.userId === null ? "friend" : "";
+                  const tag = p.pendingEmail ? "invited" : p.id === partnerId || p.relationship === "partner" ? "" : p.userId === null ? relationshipText(p).toLowerCase() : "";
                   const values = value.values ?? {};
                   return (
                     <li key={p.id} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-sm transition-colors ${on ? "bg-accent/[0.04]" : ""}`}>

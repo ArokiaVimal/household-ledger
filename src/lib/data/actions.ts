@@ -8,6 +8,8 @@ import { ConflictError } from "@/data/repository";
 import { ExpenseRecordSchema, SplitConfigSchema, ruleId } from "@/data/schemas";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { validateSplit } from "@/domain/splits";
+import { checkContact, normalizeEmail } from "@/domain/contacts";
+import { RELATIONSHIPS } from "@/domain/types";
 import { validateAvatarDataUrl } from "@/lib/profile/profile";
 import { ICON_KEYS } from "@/domain/icons";
 import { planUpiSetup, suggestedWithParents } from "@/domain/accounts";
@@ -54,7 +56,8 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("icons.apply"), categories: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), accounts: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), merchants: z.array(z.object({ name: z.string().min(1).max(60), icon: z.enum(ICON_KEYS) })).max(300) }),
   z.object({ type: z.literal("accounts.reorder"), ids: z.array(id).min(1).max(200) }),
   z.object({ type: z.literal("accounts.addSuggested") }),
-  z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60) }),
+  z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60), email: z.string().max(200).nullable().optional(), relationship: z.enum(RELATIONSHIPS).optional(), relationshipLabel: z.string().max(30).nullable().optional() }),
+  z.object({ type: z.literal("participant.update"), id, name: z.string().min(1).max(60).optional(), email: z.string().max(200).nullable().optional(), relationship: z.enum(RELATIONSHIPS).optional(), relationshipLabel: z.string().max(30).nullable().optional() }),
   z.object({ type: z.literal("participant.delete"), id }),
   z.object({ type: z.literal("participant.photo"), id, photo: z.string().max(140_000).nullable() }),
   z.object({ type: z.literal("recurring.put"), item: z.object({ id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: z.number().int().safe().positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional(), accountId: id.optional(), until: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/).optional(), everyMonths: z.number().int().min(1).max(12).optional(), startMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(), amountVaries: z.boolean().optional(), changes: z.array(z.object({ from: z.string().regex(/^\d{4}-\d{2}$/), paise: z.number().int().safe().positive() })).max(60).optional() }) }),
@@ -493,8 +496,26 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
     }
     case "participant.add": {
       if (await repo.participants.get(a.id)) throw new ActionError("conflict", "That person already exists.");
-      await repo.participants.put({ id: a.id, name: a.name.trim(), userId: null });
-      await log("create", "household", a.id, `Added participant ${a.name.trim()}`);
+      const rel = a.relationship ?? "friend";
+      const bad = checkContact({ name: a.name, email: a.email, relationship: rel, relationshipLabel: a.relationshipLabel }, await repo.participants.list());
+      if (bad) throw new ActionError("invalid", bad);
+      await repo.participants.put({ id: a.id, name: a.name.trim(), userId: null, relationship: rel, ...(rel === "custom" && a.relationshipLabel?.trim() ? { relationshipLabel: a.relationshipLabel.trim() } : {}), ...(a.email?.trim() ? { email: normalizeEmail(a.email) } : {}) });
+      await log("create", "household", a.id, `Added contact ${a.name.trim()}`);
+      return;
+    }
+    case "participant.update": {
+      const cur = await repo.participants.get(a.id);
+      if (!cur) throw new ActionError("not_found", "That person was not found.");
+      if (cur.id === `u_${actor.uid}`) throw new ActionError("invalid", "Change your own details in your profile.");
+      if (cur.pendingEmail) throw new ActionError("conflict", `${cur.name} is an invited partner. Manage the invitation under Partner.`);
+      const linked = !!cur.userId; // someone with an account owns their name and email; only the relationship is yours to set
+      const next = { name: linked ? cur.name : (a.name ?? cur.name), email: linked ? cur.email : a.email === undefined ? cur.email : a.email, relationship: a.relationship ?? cur.relationship ?? "friend", relationshipLabel: a.relationshipLabel === undefined ? cur.relationshipLabel : a.relationshipLabel };
+      const others = (await repo.participants.list()).filter((p) => p.id !== a.id);
+      const bad = checkContact(next, others);
+      if (bad) throw new ActionError("invalid", bad);
+      const { email: _e, relationshipLabel: _l, relationship: _r, ...rest } = cur; void _e; void _l; void _r;
+      await repo.participants.put({ ...rest, name: next.name.trim(), relationship: next.relationship, ...(next.relationship === "custom" && next.relationshipLabel?.trim() ? { relationshipLabel: next.relationshipLabel.trim() } : {}), ...(next.email?.trim() ? { email: normalizeEmail(next.email) } : {}) });
+      await log("edit", "household", a.id, `Changed contact ${next.name.trim()}`);
       return;
     }
   }

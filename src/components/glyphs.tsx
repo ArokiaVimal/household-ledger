@@ -1,6 +1,6 @@
 "use client";
 // Small round pictures: a coloured icon for a category, and a coloured initial for a person. Decorative (the name is always next to them).
-import { Banknote, Baby, Beer, Bike, BookOpen, Briefcase, Bus, Camera, Car, Clapperboard, Coffee, Cookie, CreditCard, Droplets, Dumbbell, Flame, Fuel, Gamepad2, Gift, GraduationCap, Hammer, HeartPulse, Home, Landmark, Leaf, Music, Package, PawPrint, Pill, Pizza, Plane, Receipt, Repeat, Scissors, ShieldCheck, Shirt, ShoppingBag, ShoppingBasket, Smartphone, Sofa, Sparkles, Stethoscope, Store, Tag, Ticket, Train, TrendingUp, Truck, Tv, Utensils, Wallet, Wifi, Wrench, Zap, type LucideIcon } from "lucide-react";
+import { Banknote, Baby, Heart, Beer, Bike, BookOpen, Briefcase, Bus, Camera, Car, Clapperboard, Coffee, Cookie, CreditCard, Droplets, Dumbbell, Flame, Fuel, Gamepad2, Gift, GraduationCap, Hammer, HeartPulse, Home, Landmark, Leaf, Music, Package, PawPrint, Pill, Pizza, Plane, Receipt, Repeat, Scissors, ShieldCheck, Shirt, ShoppingBag, ShoppingBasket, Smartphone, Sofa, Sparkles, Stethoscope, Store, Tag, Ticket, Train, TrendingUp, Truck, Tv, Utensils, Wallet, Wifi, Wrench, Zap, type LucideIcon } from "lucide-react";
 import { useStore } from "@/data/store";
 import { useProfile } from "./profile-context";
 import { iconByName, isIconKey, type IconKey } from "@/domain/icons";
@@ -43,14 +43,18 @@ const hash = (s: string) => { let h = 0; for (const c of s) h = (h * 31 + c.char
 
 /** The person's photo when there is one (yours from your profile, a friend's from People), else a coloured circle with their initial. */
 export function PersonGlyph({ name, id, size = 24 }: { name: string; id?: string; size?: number }) {
-  const { participants, meId } = useStore();
+  const { participants, meId, partnerId } = useStore();
   const { profile } = useProfile();
-  const photo = id && id === meId ? profile?.avatarDataUrl ?? profile?.providerPhotoUrl ?? null : (id ? participants.find((p) => p.id === id)?.photo : null) ?? null;
-  if (photo) {
+  const person = id ? participants.find((p) => p.id === id) : undefined;
+  const photo = id && id === meId ? profile?.avatarDataUrl ?? profile?.providerPhotoUrl ?? null : person?.photo ?? null;
+  const partner = !!id && id !== meId && (person?.relationship === "partner" || id === partnerId);
+  const face = photo
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={photo} alt="" referrerPolicy="no-referrer" style={{ width: size, height: size }} className="shrink-0 rounded-full object-cover" />;
-  }
-  return <span aria-hidden style={{ width: size, height: size, fontSize: Math.round(size * 0.46) }} className={`grid shrink-0 place-items-center rounded-full font-semibold text-white ${PERSON_TONES[hash(id ?? name) % PERSON_TONES.length]}`}>{(name.trim()[0] ?? "?").toUpperCase()}</span>;
+    ? <img src={photo} alt="" referrerPolicy="no-referrer" style={{ width: size, height: size }} className="shrink-0 rounded-full object-cover" />
+    : <span aria-hidden style={{ width: size, height: size, fontSize: Math.round(size * 0.46) }} className={`grid shrink-0 place-items-center rounded-full font-semibold text-white ${PERSON_TONES[hash(id ?? name) % PERSON_TONES.length]}`}>{(name.trim()[0] ?? "?").toUpperCase()}</span>;
+  if (!partner || size < 28) return face;
+  // A small heart on the corner marks your partner.
+  return <span className="relative inline-flex shrink-0">{face}<span aria-hidden className="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-white shadow-sm"><Heart size={10} className="fill-rose-500 text-rose-500" /></span></span>;
 }
 
 /** A round tinted circle around any lucide icon, for option chips such as Type or Recurring. */

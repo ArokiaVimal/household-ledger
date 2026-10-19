@@ -470,3 +470,31 @@ describe("payment groups", () => {
     await fails(applyAction(repo, actor, { type: "group.delete", id: "g_wife" }), "not_found");
   });
 });
+
+describe("friends and family contacts", () => {
+  it("adds a contact with an email and relationship, edits it, and refuses clashes", async () => {
+    const repo = await setup();
+    await repo.participants.put({ id: "me", name: "Me", userId: "u1" });
+    await applyAction(repo, actor, { type: "participant.add", id: "p_k", name: "Karthik", email: " Karthik@Example.com ", relationship: "friend" });
+    expect(await repo.participants.get("p_k")).toMatchObject({ name: "Karthik", userId: null, email: "karthik@example.com", relationship: "friend" });
+    await fails(applyAction(repo, actor, { type: "participant.add", id: "p_k2", name: "karthik" }), "invalid");
+    await fails(applyAction(repo, actor, { type: "participant.add", id: "p_k3", name: "Other", email: "KARTHIK@example.com" }), "invalid");
+    await fails(applyAction(repo, actor, { type: "participant.add", id: "p_k4", name: "Flat", relationship: "custom" }), "invalid");
+    await applyAction(repo, actor, { type: "participant.add", id: "p_f", name: "Raj", relationship: "custom", relationshipLabel: "Flatmate" });
+    await applyAction(repo, actor, { type: "participant.update", id: "p_k", relationship: "partner", email: null });
+    expect(await repo.participants.get("p_k")).toMatchObject({ relationship: "partner" });
+    expect((await repo.participants.get("p_k"))!.email).toBeUndefined();
+    await fails(applyAction(repo, actor, { type: "participant.update", id: "p_k", name: "Raj" }), "invalid");
+    await fails(applyAction(repo, actor, { type: "participant.update", id: "nope", name: "X" }), "not_found");
+  });
+  it("lets someone with an account keep their own name and email, and protects you and invited partners", async () => {
+    const repo = await setup();
+    await repo.participants.put({ id: "u_u1", name: "Me", userId: "u1" });
+    await repo.participants.put({ id: "p_a", name: "Asha", userId: "u2", email: "asha@example.com" });
+    await repo.participants.put({ id: "p_inv", name: "Invitee", userId: null, pendingEmail: "i@example.com" });
+    await applyAction(repo, actor, { type: "participant.update", id: "p_a", name: "Hacked", email: "x@example.com", relationship: "family" });
+    expect(await repo.participants.get("p_a")).toMatchObject({ name: "Asha", email: "asha@example.com", relationship: "family" });
+    await fails(applyAction(repo, actor, { type: "participant.update", id: "u_u1", relationship: "friend" }), "invalid");
+    await fails(applyAction(repo, actor, { type: "participant.update", id: "p_inv", relationship: "friend" }), "conflict");
+  });
+});
