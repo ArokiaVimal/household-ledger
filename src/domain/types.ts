@@ -30,6 +30,8 @@ export interface SplitConfig {
   participantIds: string[];
   values?: Record<string, number>;
   items?: SplitItem[];
+  /** You paid for these people and do not expect it back: it counts for them but nobody owes you. */
+  gift?: boolean;
 }
 
 export interface SplitItem {

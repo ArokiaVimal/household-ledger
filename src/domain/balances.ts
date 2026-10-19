@@ -26,7 +26,7 @@ export function pairBalances(records: ExpenseRecord[], settlements: Settlement[]
   };
   for (const r of records) {
     const v = signedDebt(r);
-    if (v === 0) continue;
+    if (v === 0 || r.split.gift) continue; // a gift is paid for someone and never owed back
     const sign = v < 0 ? -1 : 1;
     for (const [pid, share] of Object.entries(computeShares(r.amountPaise, r.split))) {
       add(pid, r.payerId, sign * share);

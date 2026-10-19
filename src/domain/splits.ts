@@ -179,7 +179,7 @@ export function ratioSplit(leaderId: string, otherId: string, leaderBps: number)
 
 /** True when two configs mean the same split (order of people does not matter). */
 export function sameSplit(a: SplitConfig, b: SplitConfig): boolean {
-  if (a.mode !== b.mode || a.participantIds.length !== b.participantIds.length) return false;
+  if (a.mode !== b.mode || !!a.gift !== !!b.gift || a.participantIds.length !== b.participantIds.length) return false;
   if (!a.participantIds.every((id) => b.participantIds.includes(id))) return false;
   if (a.mode === "items") return JSON.stringify(a.items ?? []) === JSON.stringify(b.items ?? []);
   if (a.mode === "percent" || a.mode === "custom" || a.mode === "shares" || a.mode === "adjust") return a.participantIds.every((id) => (a.values?.[id] ?? 0) === (b.values?.[id] ?? 0));

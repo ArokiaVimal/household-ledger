@@ -18,6 +18,7 @@ export const SplitConfigSchema = z.object({
   participantIds: z.array(id),
   values: z.record(z.string(), z.number().int().safe()).optional(),
   items: z.array(SplitItemSchema).max(100).optional(),
+  gift: z.boolean().optional(),
 }) satisfies z.ZodType<SplitConfig>;
 
 export const ParticipantSchema = z.object({ id, name: z.string().min(1).max(80), userId: z.string().min(1).nullable(), pendingEmail: z.string().max(200).optional(), inviterShareBps: z.number().int().min(500).max(9500).optional(), photo: z.string().max(140_000).optional(), relationship: z.enum(["partner", "friend", "family", "parent", "custom"]).optional(), relationshipLabel: z.string().max(30).optional(), nickname: z.string().max(30).optional(), email: z.string().max(200).optional(), linkId: z.string().max(300).optional() }) satisfies z.ZodType<Participant>;

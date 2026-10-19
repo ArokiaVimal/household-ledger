@@ -52,8 +52,10 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   const usualWith = (o: string): SplitConfig => (o === partnerId && splitRatio.leaderBps !== 5000
     ? ratioSplit(ownerId, ownerId === meId ? o : meId, splitRatio.leaderBps)
     : { mode: "equal", participantIds: [meId, o] });
-  const withConfig = (who: string[]): SplitConfig => (who.length === 0 ? nobody : who.length === 1 ? usualWith(who[0]) : { mode: "equal", participantIds: [meId, ...who] });
+  const withConfig = (who: string[]): SplitConfig => (who.length === 0 ? nobody : value.gift ? { mode: "equal", participantIds: who, gift: true } : who.length === 1 ? usualWith(who[0]) : { mode: "equal", participantIds: [meId, ...who] });
   // How to split with the chosen people. One person gets the quick ratios; a group is split equally unless "More ways".
+  // "I paid for them": the expense is for these people alone, you are not part of the split, and nobody owes you.
+  const gift: { label: string; config: SplitConfig } = { label: "I paid for them", config: { mode: "equal", participantIds: others, gift: true } };
   const howOptions: { label: string; title?: string; config: SplitConfig }[] = others.length === 1 ? (() => {
     const o = others[0];
     const usual = usualWith(o);
@@ -62,8 +64,9 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
       { label: "50 / 50", config: { mode: "equal" as const, participantIds: [meId, o] } },
       { label: `${firstName(nameOf(o))} owes all`, config: { mode: "shares" as const, participantIds: [meId, o], values: { [meId]: 0, [o]: 1 } } },
       { label: "I owe all", config: { mode: "shares" as const, participantIds: [meId, o], values: { [meId]: 1, [o]: 0 } } },
+      gift,
     ];
-  })() : others.length > 1 ? [{ label: "Equally", config: { mode: "equal" as const, participantIds: [meId, ...others] } }] : [];
+  })() : others.length > 1 ? [{ label: "Equally", config: { mode: "equal" as const, participantIds: [meId, ...others] } }, gift] : [];
   const error = validateSplit(total, value);
   const ids = value.participantIds;
   const shares = error ? {} : computeShares(total, value);
@@ -71,7 +74,7 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   const isPair = (who: string[]) => !!otherId && who.length === 2 && who.includes(ownerId) && who.includes(otherId);
   const order = (who: string[]) => participants.map((p) => p.id).filter((id) => who.includes(id));
 
-  const build = (mode: SplitMode, who: string[]): SplitConfig => {
+  const buildRaw = (mode: SplitMode, who: string[]): SplitConfig => {
     const keep = mode === "personal" ? who.slice(0, 1) : who;
     switch (mode) {
       case "percent": return isPair(keep) ? ratioSplit(ownerId, otherId!, splitRatio.leaderBps) : { mode, participantIds: keep, values: evenBps(keep) };
@@ -85,6 +88,8 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
       default: return { mode, participantIds: keep };
     }
   };
+  // A gift stays a gift while you change who or how, until you go back to "Just me".
+  const build = (mode: SplitMode, who: string[]): SplitConfig => { const c = buildRaw(mode, who); return value.gift && mode !== "personal" && c.participantIds.length > 0 ? { ...c, gift: true } : c; };
 
   const toggle = (id: string) => {
     if (value.mode === "personal") return onChange(build("personal", [id]));
@@ -107,6 +112,7 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   /** One short line saying who pays what share, from the config alone (no amounts needed). */
   const describe = (c: SplitConfig) => {
     const who = c.participantIds.map((id) => firstName(nameOf(id)));
+    if (c.gift) return "They don't owe me";
     if (c.mode === "equal") return `${who.join(", ")} pay the same`;
     if (c.mode === "percent" && c.values) return c.participantIds.map((id) => `${firstName(nameOf(id))} ${pct(c.values?.[id] ?? 0)}%`).join(" · ");
     if (c.mode === "shares" && c.values) { const o = c.participantIds.filter((id) => (c.values?.[id] ?? 0) > 0); return o.length === 1 ? `${firstName(nameOf(o[0]))} pays it all` : who.join(", "); }
@@ -117,7 +123,7 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   const [newName, setNewName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   // Two one-tap splits ("Varru owes all", "I owe all"); every other way is the row of method icons.
-  const quick = howOptions.filter((p) => /owes all$|^I owe all$/.test(p.label));
+  const quick = howOptions.filter((p) => /owes all$|^I owe all$|^I paid for them$/.test(p.label));
   const owesAll = quick.some((p) => p.label === presetId);
   const showPanel = others.length > 0 && !owesAll && value.mode !== "equal";
   const summary = ids.map((id) => `${nameOf(id)} ${formatINR(shares[id] ?? 0)}`).join(" · ");

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { pairBalances } from "./balances";
 import { attribute, summarizeGroup, withMine } from "./groups";
 import type { ExpenseRecord, PaymentGroup, SplitConfig } from "./types";
 
@@ -49,5 +50,13 @@ describe("payment groups", () => {
     expect(withMine([]).map((g) => g.name)).toEqual(["Mine"]);
     expect(withMine([{ ...wife, order: 1 }, { ...parents, order: 0 }]).map((g) => g.name)).toEqual(["Mine", "Parents", "Wife & Me"]);
     expect(withMine([{ ...wife, order: 0 }, { ...mine, order: 1 }]).map((g) => g.name)).toEqual(["Wife & Me", "Mine"]);
+  });
+  it("a gift you paid for your parents counts for them and in Mine (you cover them), and nobody owes you", () => {
+    const gift = rec({ split: { mode: "equal", participantIds: ["mom", "dad"], gift: true } });
+    expect(attribute(gift, parents, groups, ME)).toMatchObject({ allocatedPaise: 300000, myPaise: 0, onBehalfPaise: 300000, paidPaise: 300000 });
+    expect(attribute(gift, mine, groups, ME)).toMatchObject({ allocatedPaise: 300000, onBehalfPaise: 300000 });
+    expect(pairBalances([gift], [])).toEqual([]);
+    // The same split without the flag is a debt.
+    expect(pairBalances([rec({ split: { mode: "equal", participantIds: ["mom", "dad"] } })], []).length).toBe(2);
   });
 });
