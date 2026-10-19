@@ -1,11 +1,13 @@
 "use client";
 import { ArrowLeftRight, Ban, Banknote, CalendarDays, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useStore } from "@/data/store";
 import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
 import { CategoryGlyph, Dot, PersonGlyph } from "@/components/glyphs";
 import { CategorySheet, ListSheet, MerchantSheet, PickerRow } from "@/components/pickers";
 import { attribute } from "@/domain/groups";
+import { inferCategory, merchantFromNotes } from "@/domain/categorize";
+import { COMMON_MERCHANTS, rankMerchants } from "@/domain/merchants";
 import { shortName, walletAccountFor, walletBrandFor } from "@/domain/accounts";
 import { knownVoucherSeller } from "@/domain/vouchers";
 import { formatINR, parseRupees } from "@/domain/money";
@@ -61,7 +63,7 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 }
 
 function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { meId, nameOf, groups, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
+  const { meId, nameOf, groups, rules, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
   const [deleting, setDeleting] = useState(false);
   const [sheet, setSheet] = useState<null | "pay" | "via" | "wallet" | "merchant" | "category">(null);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
@@ -127,6 +129,30 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const voucherProblem = promptVoucher && !voucherId && !voucherLater && record.status !== "reviewed" ? "Pick the wallet that was topped up, or choose Decide later" : voucherId && walletId ? "A payment cannot both buy a voucher and be paid with one" : null;
   const bad = splitError ?? missing ?? voucherProblem;
 
+  // Guesses from what was typed, no AI: the merchant from the note, the category from the merchant (your history and rules) or the words used.
+  // They only fill empty places and never replace something you chose yourself.
+  const autoCat = useRef(""), autoMerchant = useRef(""), catTouched = useRef(false), merchantTouched = useRef(false);
+  const [catHint, setCatHint] = useState<string | null>(null);
+  const [merchantHint, setMerchantHint] = useState<string | null>(null);
+  const knownMerchants = useMemo(() => [...rankMerchants([...records, ...staged]).all.map((m) => m.name), ...COMMON_MERCHANTS], [records, staged]);
+  const applyCategory = (m: string, n: string) => {
+    const g = inferCategory({ merchant: m, notes: n, records, rules, categories });
+    if (!g) return;
+    const free = !catTouched.current && (categoryId === "uncategorized" || categoryId === autoCat.current);
+    if (!free) return;
+    if (g.categoryId !== categoryId) setCategoryId(g.categoryId);
+    autoCat.current = g.categoryId; setCatHint(g.detail);
+  };
+  const onNotes = (v: string) => {
+    setNotes(v);
+    let m = merchant;
+    if (!merchantTouched.current && (!merchant.trim() || merchant === autoMerchant.current)) {
+      const found = merchantFromNotes(v, knownMerchants);
+      if (found && found !== merchant) { setMerchant(found); autoMerchant.current = found; setMerchantHint("From your note"); m = found; }
+    }
+    applyCategory(m, v);
+  };
+  const onPickMerchant = (name: string) => { merchantTouched.current = true; setMerchantHint(null); setMerchant(name); applyCategory(name, notes); };
   const onAmount = (v: string) => {
     setAmountText(v);
     const p = parseRupees(v) ?? 0;
@@ -168,26 +194,30 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   return (
     <div className="space-y-4">
       {adding ? (
-        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 rounded-2xl bg-gradient-to-br from-accent/10 to-accent/[0.04] p-4">
-          <label className="min-w-[10rem] flex-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted/80">Amount</span>
-            <span className="flex items-baseline gap-1.5"><span className="text-3xl font-semibold text-accent">₹</span>
-              <input autoFocus aria-label="Amount" inputMode="decimal" placeholder="0.00" className="num w-full min-w-0 bg-transparent text-4xl font-semibold tracking-tight placeholder:text-muted/40 focus:outline-none" value={amountText} onChange={(e) => onAmount(e.target.value)} /></span>
-          </label>
-          <label className="relative inline-flex min-h-10 items-center gap-2 rounded-full bg-surface px-3.5 text-sm font-medium shadow-sm focus-within:outline-2 focus-within:outline-accent">
-            <CalendarDays size={16} aria-hidden className="text-accent" />
-            <span className="num">{date ? new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "Pick a date"}</span>
-            <input aria-label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
-          </label>
+        <div className="rounded-2xl bg-gradient-to-br from-accent/10 to-accent/[0.04] p-4">
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="amount-input" className="text-[11px] font-semibold uppercase tracking-wide text-muted/80">Amount</label>
+            <label className="relative inline-flex min-h-8 items-center gap-1.5 rounded-full bg-surface px-2.5 text-xs font-medium shadow-sm focus-within:outline-2 focus-within:outline-accent">
+              <CalendarDays size={13} aria-hidden className="text-accent" />
+              <span className="num">{date ? new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Date"}</span>
+              <input aria-label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+            </label>
+          </div>
+          <span className="flex items-baseline gap-1.5"><span className="text-3xl font-semibold text-accent">₹</span>
+            <input id="amount-input" autoFocus aria-label="Amount" inputMode="decimal" placeholder="0.00" className="num w-full min-w-0 bg-transparent text-4xl font-semibold tracking-tight placeholder:text-muted/40 focus:outline-none" value={amountText} onChange={(e) => onAmount(e.target.value)} /></span>
+          <Input aria-label="Note" value={notes} onChange={(e) => onNotes(e.target.value)} maxLength={1000} placeholder="What was this for? (optional, fills in merchant and category)" className="mt-2 bg-surface" />
         </div>
       ) : (
-        <div className="rounded-xl bg-background p-3">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="num text-lg font-semibold">{formatINR(record.amountPaise)}</span>
-            <span className="text-xs text-muted">{record.date} · {accountName(record.accountId)}{record.fundedBy ? ` via ${accountName(record.fundedBy)}` : ""}</span>
+        <>
+          <div className="rounded-xl bg-background p-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="num text-lg font-semibold">{formatINR(record.amountPaise)}</span>
+              <span className="text-xs text-muted">{record.date} · {accountName(record.accountId)}{record.fundedBy ? ` via ${accountName(record.fundedBy)}` : ""}</span>
+            </div>
+            <div className="mt-1 truncate font-mono text-xs text-muted" title="Original bank text, never edited">{record.originalDescription}</div>
           </div>
-          <div className="mt-1 truncate font-mono text-xs text-muted" title="Original bank text, never edited">{record.originalDescription}</div>
-        </div>
+          <Input aria-label="Note" value={notes} onChange={(e) => onNotes(e.target.value)} maxLength={1000} placeholder="What was this for? (optional, fills in merchant and category)" />
+        </>
       )}
       {mode === "review" && (record.suggested === "ai" || record.suggested === "ai_unsure") && (
         <p className="flex items-center gap-2 text-xs text-muted"><AiBadge tone={record.suggested === "ai" ? "ai" : "unsure"}>{record.suggested === "ai" ? "AI-powered" : "AI unsure"}</AiBadge>The merchant name and category were suggested by AI. Approving confirms them and teaches the app.</p>
@@ -205,8 +235,8 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
           {paidWithId && <p className="-mt-2 px-1 text-xs text-muted">Paid from the {voucherBrands.find((b) => b.id === paidWithId)?.name} wallet, so it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
         </>
       )}
-      <PickerRow icon={merchant.trim() ? <MerchantAvatar name={merchant} size={32} /> : <Dot icon={Store} size={32} tone="bg-accent/10 text-accent" />} label="Merchant" value={merchant.trim() || "Where did you pay?"} muted={!merchant.trim()} onClick={() => setSheet("merchant")} />
-      <PickerRow icon={<CategoryGlyph name={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} icon={categories.find((c) => c.id === categoryId)?.icon} size={32} />} label="Category" value={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} muted={categoryId === "uncategorized"} onClick={() => setSheet("category")} />
+      <PickerRow icon={merchant.trim() ? <MerchantAvatar name={merchant} size={32} /> : <Dot icon={Store} size={32} tone="bg-accent/10 text-accent" />} label="Merchant" value={merchant.trim() || "Where did you pay?"} muted={!merchant.trim()} sub={merchantHint ?? undefined} onClick={() => setSheet("merchant")} />
+      <PickerRow icon={<CategoryGlyph name={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} icon={categories.find((c) => c.id === categoryId)?.icon} size={32} />} label="Category" value={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} muted={categoryId === "uncategorized"} sub={catHint ? `Suggested: ${catHint}` : undefined} onClick={() => setSheet("category")} />
       {promptVoucher && (
         <FormRow label="Wallet">
           <CompactChips label="Wallet topped up" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
@@ -219,16 +249,18 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         ? <p className="rounded-xl bg-background p-3 text-xs text-muted">A wallet top-up is your own money going into the wallet, so it is not split or shared. Split the purchases you make from the wallet instead.</p>
         : (
           <>
-            <PickerRow icon={<span className="flex -space-x-2">{(split.participantIds.length ? split.participantIds : [meId]).slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={28} /></span>)}</span>} label="Split with" value={split.mode === "personal" || split.participantIds.length <= 1 ? "Just me" : split.participantIds.map((id) => (id === meId ? "You" : nameOf(id).split(/\s+/)[0])).join(", ")} sub={splitError ? undefined : split.participantIds.length > 1 ? "Tap to change who and how" : "Tap to share with someone"} onClick={() => setSplitOpen(!splitOpen)} />
-            {(splitOpen || !!splitError) && <div className="rounded-2xl bg-background p-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>}
+            {splitOpen || splitError ? (
+              <div className="rounded-2xl border border-border bg-surface p-3">
+                <button type="button" onClick={() => setSplitOpen(false)} aria-expanded="true" className="mb-2 flex min-h-9 w-full items-center justify-between gap-2 text-left"><span className="text-[11px] font-semibold uppercase tracking-wide text-muted/80">Split with</span><ChevronDown size={16} aria-hidden className="rotate-180 text-muted" /></button>
+                <SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} peopleLabel="Who" />
+              </div>
+            ) : (
+              <PickerRow icon={<span className="flex -space-x-2">{(split.participantIds.length ? split.participantIds : [meId]).slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={28} /></span>)}</span>} label="Split with" value={split.mode === "personal" || split.participantIds.length <= 1 ? "Just me" : split.participantIds.map((id) => (id === meId ? "You" : nameOf(id).split(/\s+/)[0])).join(", ")} sub={split.participantIds.length > 1 ? "Tap to change who and how" : "Tap to share with someone"} onClick={() => setSplitOpen(true)} />
+            )}
             {countsIn.length > 0 && <p className="-mt-1 px-1 text-xs text-muted">Counts in <b className="font-medium text-foreground">{countsIn.join(" · ")}</b>. This follows who is in the split.</p>}
           </>
         )}
       {(sharing || !adding) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
-      <label className="block">
-        <span className="sr-only">Note (optional)</span>
-        <Input aria-label="Note" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} placeholder="Add a note (optional). Helps AI" />
-      </label>
       <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="group flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-border bg-surface px-3 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent">
         <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={26} />
         <span className="flex-1 text-sm font-semibold">More options</span>
@@ -263,8 +295,8 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       <ListSheet open={sheet === "pay"} onClose={() => setSheet(null)} title="Paid with" value={primaryId} options={primaries.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))} onPick={(id) => { setPrimaryId(id); setSubId(""); }} />
       <ListSheet open={sheet === "via"} onClose={() => setSheet(null)} title="Via" value={subId} options={[{ id: "", label: "Direct", hint: `Paid with ${accounts.find((a) => a.id === primaryId)?.name ?? "it"} itself`, icon: <Dot icon={Ban} size={32} /> }, ...subs.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setSubId} note="Pick a sub payment method only if the money went through it." />
       <ListSheet open={sheet === "wallet"} onClose={() => setSheet(null)} title="From wallet" value={paidWithId} options={[{ id: "", label: "No", icon: <Dot icon={Ban} size={32} /> }, ...voucherBrands.map((b) => ({ id: b.id, label: `${b.name} wallet`, icon: <MerchantAvatar name={b.name} size={32} /> }))]} onPick={setPaidWithId} />
-      <MerchantSheet open={sheet === "merchant"} onClose={() => setSheet(null)} value={merchant} onPick={(name, cat) => { setMerchant(name); if (adding && cat && categoryId === "uncategorized" && categories.some((c) => c.id === cat)) setCategoryId(cat); }} />
-      <CategorySheet open={sheet === "category"} onClose={() => setSheet(null)} value={categoryId} onPick={setCategoryId} />
+      <MerchantSheet open={sheet === "merchant"} onClose={() => setSheet(null)} value={merchant} onPick={onPickMerchant} />
+      <CategorySheet open={sheet === "category"} onClose={() => setSheet(null)} value={categoryId} onPick={(id) => { catTouched.current = true; setCatHint(null); setCategoryId(id); }} />
 
       <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center">
         {/* One clear main action; the rest sit quietly beside or below it. */}

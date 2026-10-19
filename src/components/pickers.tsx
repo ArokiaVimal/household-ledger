@@ -66,41 +66,50 @@ const Heading = ({ children }: { children: ReactNode }) => <h3 className="mb-1 m
  * appear only while history is thin; "See all" shows every merchant. A name that is not there yet can be added on the spot, and the
  * transaction being entered is untouched because this is only a sheet over the form.
  */
-export function MerchantSheet({ open, onClose, value, onPick }: { open: boolean; onClose: () => void; value: string; onPick: (name: string, categoryId?: string) => void }) {
-  const { records, staged, categoryName } = useStore();
+export function MerchantSheet({ open, onClose, value, onPick }: { open: boolean; onClose: () => void; value: string; onPick: (name: string) => void }) {
+  const { records, staged } = useStore();
   const [q, setQ] = useState("");
   const [all, setAll] = useState(false);
-  const s = useMemo(() => rankMerchants([...records, ...staged.filter((r) => r.merchant.trim())]), [records, staged]);
+  const s = useMemo(() => rankMerchants([...records, ...staged.filter((r) => r.merchant.trim())], { recent: 4, frequent: 4 }), [records, staged]);
   const hits = useMemo(() => searchMerchants(s, q), [s, q]);
   const typed = q.trim();
   const exact = hits.some((h) => h.name.toLowerCase() === typed.toLowerCase());
-  const pick = (name: string, categoryId?: string) => { onPick(name, categoryId); onClose(); setQ(""); setAll(false); };
-  const row = (name: string, categoryId?: string, hint?: string) => (
+  const close = () => { onClose(); setQ(""); setAll(false); };
+  const pick = (name: string) => { onPick(name); close(); };
+  // The ones you use most are just a logo and a short name, four to a row. Everything else is a name, two to a row.
+  const tile = (name: string) => (
     <li key={name}>
-      <button type="button" onClick={() => pick(name, categoryId)} className={cn("flex min-h-12 w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-left hover:bg-background", name === value && "bg-accent/5")}>
-        <MerchantAvatar name={name} size={36} />
-        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{name}</span>{(hint || categoryId) && <span className="block truncate text-xs text-muted">{hint ?? (categoryId ? categoryName(categoryId) : "")}</span>}</span>
-        {name === value && <Check size={16} aria-hidden className="text-accent" />}
+      <button type="button" onClick={() => pick(name)} aria-label={name} aria-pressed={name === value} className={cn("flex w-full flex-col items-center gap-1 rounded-2xl p-2 hover:bg-background", name === value && "bg-accent/10 ring-1 ring-accent")}>
+        <MerchantAvatar name={name} size={48} />
+        <span className="w-full truncate text-center text-[11px] leading-tight text-muted">{name}</span>
+      </button>
+    </li>
+  );
+  const chip = (name: string, hint?: string) => (
+    <li key={name}>
+      <button type="button" onClick={() => pick(name)} aria-pressed={name === value} className={cn("flex min-h-11 w-full items-center gap-2 rounded-xl border border-transparent bg-background px-2.5 py-1.5 text-left hover:border-border", name === value && "border-accent bg-accent/5")}>
+        <MerchantAvatar name={name} size={24} />
+        <span className="min-w-0 flex-1"><span className="block truncate text-sm">{name}</span>{hint && <span className="block truncate text-[11px] text-muted">{hint}</span>}</span>
       </button>
     </li>
   );
   return (
-    <Dialog open={open} onClose={() => { onClose(); setQ(""); setAll(false); }} title="Merchant">
+    <Dialog open={open} onClose={close} title="Merchant">
       <SearchBox value={q} onChange={setQ} placeholder="Search or type a merchant" />
       <div className="min-h-[50vh] pb-4">
         {typed ? (
-          <ul>
-            {hits.map((h) => row(h.name, h.categoryId, h.known ? undefined : "Common merchant"))}
-            {!exact && <li><button type="button" onClick={() => pick(typed)} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-left hover:bg-background"><span className="grid size-9 place-items-center rounded-full bg-accent/10 text-accent" aria-hidden><Plus size={16} /></span><span className="text-sm font-medium">Use “{typed}” as a new merchant</span></button></li>}
-          </ul>
+          <>
+            {hits.length > 0 && <ul className="grid grid-cols-2 gap-2">{hits.map((h) => chip(h.name, h.known ? undefined : "Common"))}</ul>}
+            {!exact && <button type="button" onClick={() => pick(typed)} className="mt-3 flex min-h-12 w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-left hover:bg-background"><span className="grid size-9 place-items-center rounded-full bg-accent/10 text-accent" aria-hidden><Plus size={16} /></span><span className="text-sm font-medium">Use “{typed}” as a new merchant</span></button>}
+          </>
         ) : (
           <>
-            {s.recent.length > 0 && <><Heading>Recent</Heading><ul>{s.recent.map((m) => row(m.name, m.categoryId))}</ul></>}
-            {s.frequent.length > 0 && <><Heading>Frequently used</Heading><ul>{s.frequent.map((m) => row(m.name, m.categoryId, `${m.count} payments`))}</ul></>}
-            {s.popular.length > 0 && <><Heading>Common</Heading><ul>{s.popular.map((n) => row(n))}</ul></>}
+            {s.recent.length > 0 && <><Heading>Recent</Heading><ul className="grid grid-cols-4 gap-1">{s.recent.map((m) => tile(m.name))}</ul></>}
+            {s.frequent.length > 0 && <><Heading>Frequently used</Heading><ul className="grid grid-cols-4 gap-1">{s.frequent.map((m) => tile(m.name))}</ul></>}
+            {s.popular.length > 0 && <><Heading>Common</Heading><ul className="grid grid-cols-4 gap-1">{s.popular.map((n) => tile(n))}</ul></>}
             {s.recent.length + s.frequent.length === 0 && s.popular.length === 0 && <p className="px-1 text-sm text-muted">Type a merchant above. The ones you use will show up here.</p>}
             {s.all.length > 0 && (all
-              ? <><Heading>All merchants</Heading><ul>{s.all.map((m) => row(m.name, m.categoryId))}</ul></>
+              ? <><Heading>All merchants</Heading><ul className="grid grid-cols-2 gap-2">{s.all.map((m) => chip(m.name))}</ul></>
               : <button type="button" onClick={() => setAll(true)} className="mt-3 flex min-h-10 w-full items-center justify-center rounded-xl bg-background text-sm font-medium text-accent">See all {s.all.length} merchants</button>)}
           </>
         )}
