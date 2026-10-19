@@ -6,6 +6,7 @@ import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 import { computeShares, equalSplit, itemsExtra, itemSubtotals, ratioSplit, sameSplit, validateSplit } from "@/domain/splits";
 import type { Paise, SplitConfig, SplitItem, SplitMode } from "@/domain/types";
+import { PersonGlyph } from "./glyphs";
 import { Button, CompactChips, FormRow, Input } from "./ui";
 
 const CUSTOM = "__custom";
@@ -121,7 +122,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
   return (
     <div className="space-y-2">
       <FormRow label="Split with">
-        <CompactChips multi label="Split with" options={[{ id: ME, label: "Just me" }, ...people.map((p) => ({ id: p.id, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : p.userId === null ? `${nameOf(p.id)} (friend)` : nameOf(p.id) }))]} selected={others.length ? others : [ME]} onPick={pickPerson} adder={{ label: "Add a friend", placeholder: "Friend's name, e.g. Karthik", add: addParticipant }} />
+        <CompactChips multi label="Split with" options={[{ id: ME, label: "Just me", icon: <PersonGlyph name="Me" id={meId} /> }, ...people.map((p) => ({ id: p.id, icon: <PersonGlyph name={nameOf(p.id)} id={p.id} />, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : p.userId === null ? `${nameOf(p.id)} (friend)` : nameOf(p.id) }))]} selected={others.length ? others : [ME]} onPick={pickPerson} adder={{ label: "Add a friend", placeholder: "Friend's name, e.g. Karthik", add: addParticipant }} />
         {live && !partner && pendingPartner && others.includes(pendingPartner.id) && <p className="mt-1.5 text-xs text-muted">{pendingPartner.name} has not joined yet. This stays on your side and is shared once they accept.</p>}
         {live && !partner && !pendingPartner && <p className="mt-1.5 text-xs text-muted">Splitting with a partner? <Link href="/settings" className="text-accent underline">Link them in Settings</Link>. Until then everything stays private.</p>}
         {live && partner && !partner.active && <p className="mt-1.5 text-xs text-muted">You unlinked from {partner.name}, so nothing new can be shared with them.</p>}

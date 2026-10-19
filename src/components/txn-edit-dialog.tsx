@@ -3,6 +3,7 @@ import { ChevronDown, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useStore } from "@/data/store";
 import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
+import { CategoryGlyph, PersonGlyph } from "@/components/glyphs";
 import { shortName, walletAccountFor, walletBrandFor } from "@/domain/accounts";
 import { knownVoucherSeller } from "@/domain/vouchers";
 import { formatINR, parseRupees } from "@/domain/money";
@@ -165,12 +166,12 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {adding ? (
-        <div className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-background p-3">
-          <label className="flex items-center gap-1.5"><span className="text-lg font-semibold">₹</span>
-            <Input autoFocus aria-label="Amount" inputMode="decimal" placeholder="0.00" className="text-lg font-semibold" value={amountText} onChange={(e) => onAmount(e.target.value)} /></label>
-          <Input aria-label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40" />
+        <div className="rounded-2xl bg-gradient-to-br from-accent/10 to-accent/[0.04] p-4">
+          <label className="mx-auto flex w-fit items-center gap-1.5"><span className="text-3xl font-semibold text-accent">₹</span>
+            <input autoFocus aria-label="Amount" inputMode="decimal" placeholder="0.00" className="num w-44 min-w-0 bg-transparent text-left text-4xl font-semibold tracking-tight placeholder:text-muted/40 focus:outline-none" value={amountText} onChange={(e) => onAmount(e.target.value)} /></label>
+          <div className="mt-2 flex justify-center"><Input aria-label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44 bg-surface text-center" /></div>
         </div>
       ) : (
         <div className="rounded-xl bg-background p-3">
@@ -213,7 +214,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       <FormRow label="Note">
         <Input aria-label="Note" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} placeholder="What was this for? Helps AI" />
       </FormRow>
-      <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[categoryId]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
+      <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} /> }))} selected={[categoryId]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
       {promptVoucher && (
         <FormRow label="Wallet">
           <CompactChips label="Wallet topped up" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
@@ -225,8 +226,8 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       {topUp
         ? <p className="border-t border-border pt-3 text-xs text-muted">A wallet top-up is your own money going into the wallet, so it is not split or shared. Split the purchases you make from the wallet instead.</p>
         : <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>}
-      {(sharing || !adding) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
-      <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="flex w-full items-center gap-1.5 border-t border-border pt-3 text-sm font-medium text-muted hover:text-foreground">
+      {(sharing || !adding) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
+      <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="flex min-h-11 w-full items-center gap-1.5 rounded-2xl bg-background px-3 text-sm font-medium text-muted hover:text-foreground">
         <ChevronDown size={16} aria-hidden className={more ? "" : "-rotate-90"} /> More options <span className="text-xs font-normal">type, recurring, exclude</span>
       </button>
       {more && (

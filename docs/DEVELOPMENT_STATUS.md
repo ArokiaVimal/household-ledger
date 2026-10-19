@@ -324,3 +324,7 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 
 ## Recurring: payment method with sub methods (added)
 - A recurring item can have its usual payment method (`accountId`), picked exactly like the transaction form: **Paid with** (primary methods, or Not set), then **Via** (Direct or a sub method) only after a primary that has sub methods is chosen. Shared component `PaymentPicker`. Shown on the row until a transaction is linked; a payment method used by a recurring item cannot be deleted (hide it instead).
+
+## Icons for categories and people, cleaner forms (added)
+- `CategoryGlyph` (coloured icon picked from the category's name; unknown names get a tag) and `PersonGlyph` (coloured initial, stable colour per person) in `src/components/glyphs.tsx`. Shown in the transaction and recurring forms (category, split with, paid by), the Categories page, People and Settings.
+- Forms: big centred amount on a soft tint, uppercase small labels, softer chips and inputs inside dialogs (page-level controls keep their outlined look), a calmer "More options" bar. Icons are picked by name only; choosing your own icon per category is not built.

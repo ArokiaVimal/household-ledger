@@ -2,6 +2,7 @@
 import { Bell, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { PersonGlyph } from "@/components/glyphs";
 import { Badge, Button, Card, CardTitle, ConfirmDialog, Dialog, EmptyState, Field, Input, PageHeader, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { personLedger, settlementFor } from "@/domain/ledger";
@@ -73,7 +74,7 @@ export default function People() {
                 return (
                   <li key={l.personId} className="flex items-center gap-2 py-1.5">
                     <Link href={`/settlements/${encodeURIComponent(l.personId)}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-2 hover:bg-background sm:px-2">
-                      <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/10 font-semibold text-accent">{name.slice(0, 1).toUpperCase()}</span>
+                      <PersonGlyph name={name} id={l.personId} size={40} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{name}</span>
                         <span className="block text-xs text-muted">{l.open.length === 0 ? (l.outstandingPaise === 0 ? (l.settled.length === 0 ? "Nothing shared yet" : "All settled") : "Balance from earlier payments") : `${l.open.length} payment${l.open.length === 1 ? "" : "s"} to settle`}</span>

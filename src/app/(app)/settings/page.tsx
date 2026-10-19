@@ -9,6 +9,7 @@ import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { CARD_THEMES, type Account, type CardTheme } from "@/domain/types";
 import { MerchantAvatar } from "@/components/txn-row";
+import { PersonGlyph } from "@/components/glyphs";
 import { SortableList } from "@/components/sortable";
 import { orderByUse, planUpiSetup } from "@/domain/accounts";
 import { CaptureCard } from "./capture-card";
@@ -156,7 +157,7 @@ export default function Settings() {
               <ul className="divide-y divide-border text-sm">
                 {participants.map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-2 py-2.5">
-                    <span className="font-medium">{p.name}{p.id === meId && <span className="font-normal text-muted"> (you)</span>}</span>
+                    <span className="flex items-center gap-2.5 font-medium"><PersonGlyph name={p.name} id={p.id} size={32} />{p.name}{p.id === meId && <span className="font-normal text-muted"> (you)</span>}</span>
                     <span className="flex items-center gap-2">
                       {p.userId ? <Badge tone="good">Has an account</Badge> : p.pendingEmail ? <Badge tone="warn">Invited</Badge> : <><Badge>Friend</Badge><button type="button" aria-label={`Remove ${p.name}`} title="Remove friend" onClick={() => { setRemoving(p.id); setRemoveError(null); }} className="grid size-8 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={14} aria-hidden /></button></>}
                     </span>

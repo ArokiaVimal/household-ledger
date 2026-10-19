@@ -60,7 +60,7 @@ export function Button({ variant = "ghost", className, ...p }: BtnProps) {
   );
 }
 
-const field = "min-h-9 w-full rounded-full border border-border bg-surface px-3.5 text-sm focus-visible:outline-2 focus-visible:outline-accent";
+const field = "min-h-10 w-full rounded-full border border-border bg-surface px-4 text-sm transition-colors placeholder:text-muted/70 focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-accent/40 [dialog_&]:border-transparent [dialog_&]:bg-background [dialog_&]:hover:border-border [dialog_&]:focus-visible:bg-surface";
 export const Input = (p: InputHTMLAttributes<HTMLInputElement>) => <input {...p} className={cn(field, p.className)} />;
 /**
  * A modern dropdown that takes <option> children like a native select. On a computer it opens a soft floating list under the
@@ -233,16 +233,16 @@ export function ChipGroup<T extends string>({ label, options, value, onChange, t
 /** Label on the left, control on the right: keeps forms to one line per field. */
 export function FormRow({ label, children, tip }: { label: string; children: ReactNode; tip?: string }) {
   return (
-    <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1">
-      <div className="flex items-center gap-0.5 pt-2 text-xs font-medium text-muted">{label}{tip && <InfoTip text={tip} />}</div>
+    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1">
+      <div className="flex items-center gap-0.5 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{label}{tip && <InfoTip text={tip} />}</div>
       <div className="min-w-0">{children}</div>
     </div>
   );
 }
 
 const chipClass = (on: boolean, icon = false) =>
-  cn("min-h-9 shrink-0 whitespace-nowrap rounded-full border px-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-accent", icon && "inline-flex items-center gap-1.5 pl-1.5",
-    on ? "border-accent bg-accent font-medium text-white" : "border-border bg-surface hover:bg-background");
+  cn("min-h-10 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-sm transition-all focus-visible:outline-2 focus-visible:outline-accent", icon && "inline-flex items-center gap-2 pl-2",
+    on ? "border-accent bg-accent font-medium text-white shadow-sm" : "border-border bg-surface hover:bg-background [dialog_&]:border-transparent [dialog_&]:bg-background [dialog_&]:hover:border-border [dialog_&]:hover:bg-surface");
 
 /**
  * One line of chips. Whatever does not fit collapses into a "+N" pill that opens

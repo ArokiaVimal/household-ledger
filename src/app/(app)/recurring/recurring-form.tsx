@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { CategoryGlyph, PersonGlyph } from "@/components/glyphs";
 import { PaymentPicker } from "@/components/payment-picker";
 import { SplitEditor } from "@/components/split-editor";
 import { Button, CompactChips, Dialog, Field, FormRow, Input, Select } from "@/components/ui";
@@ -93,13 +94,13 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
         </div>
       </FormRow>
       <PaymentPicker optional value={accountId} onChange={setAccountId} />
-      <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[category]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
+      <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} /> }))} selected={[category]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
       <Field label="Where (optional)">
         <Input list="recurring-places" value={place} onChange={(e) => setPlace(e.target.value)} placeholder="e.g. Our apartment, Parents' house" maxLength={120} />
         <datalist id="recurring-places">{places.map((p) => <option key={p} value={p} />)}</datalist>
       </Field>
       <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? expectedPaise : "s"} total={expectedPaise} value={split} onChange={(v) => { setSplit(v); setError(null); }} /></div>
-      {sharing && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
+      {sharing && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <Button onClick={onClose}>Cancel</Button>
