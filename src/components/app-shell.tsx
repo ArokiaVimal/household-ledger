@@ -13,7 +13,7 @@ import { useProfile } from "./profile-context";
 import { OPEN_ADD_EVENT } from "./onboarding";
 import { TxnAddDialog } from "./txn-edit-dialog";
 import { NAV } from "./nav-items";
-import { Dialog, Select } from "./ui";
+import { Dialog } from "./ui";
 
 
 /** Previous / next month. The next month is disabled once you reach the current month. */
@@ -33,14 +33,20 @@ function MonthStepper({ className }: { className?: string }) {
   );
 }
 
-/** The Payment Group on screen (Mine, Wife & Me, Parents…): set up per profile in Settings. Everything below follows it. */
+/** The Payment Group on screen (Mine, Wife & Me, Parents…): set up per profile in Settings. Everything below follows it. Every group is a visible tab; with many, the row scrolls sideways. */
 function GroupSwitch({ className }: { className?: string }) {
   const { groups, activeGroup, setGroupId } = useStore();
   return (
-    <div className={cn("[&_button]:font-semibold", className)}>
-      <Select aria-label="Payment group" value={activeGroup.id} onChange={(e) => setGroupId(e.target.value)}>
-        {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-      </Select>
+    <div role="tablist" aria-label="Payment group" className={cn("flex gap-1 overflow-x-auto rounded-full bg-surface p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}>
+      {groups.map((g) => {
+        const on = g.id === activeGroup.id;
+        return (
+          <button key={g.id} type="button" role="tab" aria-selected={on} onClick={() => setGroupId(g.id)}
+            className={cn("min-h-9 shrink-0 whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent", groups.length <= 3 && "flex-1", on ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-background")}>
+            {g.name}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -140,16 +146,16 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                   <input aria-label="Search transactions" placeholder="Search transactions…" value={q} onChange={(e) => setQ(e.target.value)} className="min-h-10 w-full bg-transparent text-sm outline-none" />
                 </form>
                 <MonthStepper className="hidden md:flex" />
-                <GroupSwitch className="hidden w-52 md:block" />
+                <GroupSwitch className="hidden max-w-lg md:flex" />
                 <Link href="/review" aria-label={`${staged.length} transactions awaiting review`} className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
                   <Bell size={18} aria-hidden />
                   {staged.length > 0 && <span className="absolute right-1.5 top-1.5 size-2.5 rounded-full bg-danger" />}
                 </Link>
                 {user && <AccountMenu onSignOut={signOut} />}
               </div>
-              <div className="mt-3 flex items-center gap-2 md:hidden">
-                <MonthStepper />
-                <GroupSwitch className="min-w-0 flex-1" />
+              <div className="mt-3 space-y-2 md:hidden">
+                <MonthStepper className="w-full" />
+                <GroupSwitch className="w-full" />
               </div>
             </header>
             {previewing && (
