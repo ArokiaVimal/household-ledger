@@ -145,7 +145,7 @@ export async function extractWithClaude(cfg: ClaudeConfig, text: string, mode: "
       }),
       signal: AbortSignal.timeout(cfg.timeoutMs ?? 45_000),
     });
-    let res = await request({ max_tokens: 8000, temperature: 0 });
+    let res = await request({ max_tokens: 8000 });
     // A 400 can be a setting this model dislikes (for example a very large output limit). Retry once with plainer settings;
     // if it is the text itself that is the problem, the second answer says so.
     if (res.status === 400) res = await request({ max_tokens: 4096 });

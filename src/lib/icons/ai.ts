@@ -55,7 +55,7 @@ export async function pickIcons(cfg: ClaudeConfig, wantsAll: IconWant[]): Promis
       body: JSON.stringify({ model: cfg.model || DEFAULT_MODEL, system: [{ type: "text", text: system(), cache_control: { type: "ephemeral" } }], tools: [TOOL], tool_choice: { type: "tool", name: "icons" }, messages: [{ role: "user", content }], ...extra }),
       signal: AbortSignal.timeout(cfg.timeoutMs ?? 45_000),
     });
-    let res = await request({ max_tokens: 4000, temperature: 0 });
+    let res = await request({ max_tokens: 4000 });
     if (res.status === 400) res = await request({ max_tokens: 4000 });
     if (!res.ok) return { picks: [], usage: { ...usage, error: await describeFailure(res) } };
     const body = (await res.json()) as { content?: { type: string; input?: unknown }[]; usage?: { input_tokens?: number; output_tokens?: number } };

@@ -48,11 +48,11 @@ describe("categoriseFromNotes", () => {
     expect(sent.text).toMatch(/gift for dad/);
     expect(r.usage).toMatchObject({ calls: 1, asked: 1 });
   });
-  it("retries once after a 400, reports Claude's reason, and never throws", async () => {
+  it("never sends temperature, reports Claude's reason, and never throws", async () => {
     let calls = 0;
     const picky = (async (_u: string, init: RequestInit) => { calls++; return "temperature" in JSON.parse(String(init.body)) ? new Response("{}", { status: 400 }) : reply([]); }) as typeof fetch;
     await categoriseFromNotes({ apiKey: "k", fetchImpl: picky }, [rec("a", "2026-09-01", "gift")], cats);
-    expect(calls).toBe(2);
+    expect(calls).toBe(1);
     const bad = (async () => new Response(JSON.stringify({ error: { message: "credit balance is too low" } }), { status: 400 })) as typeof fetch;
     expect((await categoriseFromNotes({ apiKey: "k", fetchImpl: bad }, [rec("a", "2026-09-01", "gift")], cats)).usage.error).toBe("Claude answered 400 (credit balance is too low)");
     const down = (async () => { throw new Error("x"); }) as typeof fetch;

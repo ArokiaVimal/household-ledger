@@ -47,7 +47,6 @@ describe("createClaudeSuggest", () => {
     expect(sent!.headers["x-api-key"]).toBe("sk-test");
     const body = sent!.body as { model: string; messages: { content: string }[]; system: { text: string; cache_control: unknown }[]; temperature: number; max_tokens: number };
     expect(body.model).toBe("claude-haiku-5-5");
-    expect(body.temperature).toBe(0);
     expect(body.messages[0].content).toBe("1|STORE 1 #####|123|dr");
     expect(JSON.stringify(body)).not.toContain("sk-test");
     expect(body.system[0].text).toContain("food=Food");

@@ -1,6 +1,6 @@
 // Asks Claude to label merchants the household has never been seen before. Kept deliberately small:
 // - only merchants missing from memory are sent, once each, with short ids instead of echoing text back;
-// - one forced tool call returns compact JSON; Haiku-class model, temperature 0, output capped by batch size;
+// - one forced tool call returns compact JSON; Haiku-class model, output capped by batch size;
 // - the instructions are a cached prefix, and results are remembered so a merchant is never sent twice.
 // Statement text is untrusted: the answer is validated against the household's own categories and kinds.
 import type { Category, MerchantMemory, TxnKind } from "@/domain/types";
@@ -91,7 +91,7 @@ export function createClaudeSuggest(cfg: ClaudeConfig): Suggest {
           method: "POST",
           headers: { "content-type": "application/json", "x-api-key": cfg.apiKey, "anthropic-version": "2023-06-01" },
           body: JSON.stringify({
-            model: cfg.model || DEFAULT_MODEL, max_tokens: 60 * batch.length + 200, temperature: 0, system,
+            model: cfg.model || DEFAULT_MODEL, max_tokens: 60 * batch.length + 200, system,
             tools: [TOOL], tool_choice: { type: "tool", name: "label" }, messages: [{ role: "user", content: lines }],
           }),
           signal: AbortSignal.timeout(cfg.timeoutMs ?? 25_000),

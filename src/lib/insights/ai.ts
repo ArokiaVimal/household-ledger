@@ -63,7 +63,7 @@ export async function analyzeMonth(cfg: ClaudeConfig, facts: InsightFacts): Prom
       }),
       signal: AbortSignal.timeout(cfg.timeoutMs ?? 40_000),
     });
-    let res = await request({ max_tokens: 2000, temperature: 0.3 });
+    let res = await request({ max_tokens: 2000 });
     if (res.status === 400) res = await request({ max_tokens: 2000 });
     if (!res.ok) return { analysis: null, usage: { ...usage, error: await describeFailure(res) } };
     const body = (await res.json()) as { content?: { type: string; input?: unknown }[]; usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } };
