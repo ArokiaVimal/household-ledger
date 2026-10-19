@@ -42,6 +42,7 @@ export const ExpenseRecordSchema = z
     excluded: z.boolean(),
     status: z.enum(["unreviewed", "reviewed"]),
     importSource: z.string().max(200),
+    batchId: id.optional(),
     referenceId: z.string().max(120).optional(),
     notes: z.string().max(1000).optional(),
     duplicateOf: id.optional(),
@@ -100,6 +101,7 @@ export const AuditEventSchema = z.object({
   id, at: z.string().datetime(), actorId: id,
   action: z.enum(["import", "approve", "reject", "edit", "create", "match", "unmatch", "settle", "void_settlement", "delete"]),
   entity: z.enum(["record", "settlement", "receipt", "recurring", "household"]), entityId: id, summary: z.string().max(500),
+  change: z.object({ before: z.record(z.string(), z.unknown()), after: z.record(z.string(), z.unknown()) }).refine((c) => JSON.stringify(c).length <= 8000, "change too large").optional(), undoes: id.optional(),
 }) satisfies z.ZodType<AuditEvent>;
 
 const count = z.number().int().min(0).max(1_000_000);
@@ -108,7 +110,7 @@ export const ImportBatchSchema = z.object({
   uploadedAt: z.string().datetime(), uploadedBy: id,
   counts: z.object({ rows: count, staged: count, skippedDuplicate: count, flaggedDuplicate: count, unreadable: count }),
   totals: z.object({ debitPaise: z.number().int().safe().min(0), creditPaise: z.number().int().safe().min(0) }),
-  checksPassed: z.boolean().optional(), acceptedMismatch: z.boolean().optional(), reimportOf: id.optional(),
+  checksPassed: z.boolean().optional(), acceptedMismatch: z.boolean().optional(), reimportOf: id.optional(), rolledBackAt: z.string().datetime().optional(), rolledBackBy: id.optional(),
 }) satisfies z.ZodType<ImportBatch>;
 
 export const RawTransactionSchema = z.object({

@@ -114,6 +114,8 @@ export interface ExpenseRecord {
   excluded: boolean;
   status: ReviewStatus;
   importSource: string;
+  /** The import batch this row came from (new imports; older rows are matched through importSource). */
+  batchId?: string;
   /** Bank reference / source id when available (dedupe key). */
   referenceId?: string;
   notes?: string;
@@ -231,6 +233,10 @@ export interface AuditEvent {
   entity: "record" | "settlement" | "receipt" | "recurring" | "household";
   entityId: string;
   summary: string;
+  /** Record edits only: the fields that changed, before and after (absent = null). This is what makes a change undoable. */
+  change?: { before: Record<string, unknown>; after: Record<string, unknown> };
+  /** Set on the event that reverses another one (the id of the event it undid). */
+  undoes?: string;
 }
 
 /** One uploaded statement file. The file itself is not stored; its SHA-256 is, so re-uploads can be refused. */
@@ -252,6 +258,9 @@ export interface ImportBatch {
   acceptedMismatch?: boolean;
   /** Set when the owner chose to read an already-imported file again: the earlier batch with the same file hash. */
   reimportOf?: string;
+  /** Set when the import was rolled back: its derived transactions were removed. The source rows and this batch are kept. */
+  rolledBackAt?: string;
+  rolledBackBy?: string;
 }
 
 /** A transaction row exactly as read from a statement. Write-once: the canonical expense may be edited, this never is. */

@@ -38,6 +38,8 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("record.create"), record: manualRecord }),
   z.object({ type: z.literal("record.update"), id, patch: editable }),
   z.object({ type: z.literal("record.approve"), id, patch: editable.optional() }),
+  z.object({ type: z.literal("audit.undo"), eventId: id }),
+  z.object({ type: z.literal("batch.rollback"), id }),
   z.object({ type: z.literal("record.reject"), id }),
   z.object({ type: z.literal("record.delete"), id }),
   z.object({ type: z.literal("settlement.create"), settlement: z.object({ id, date: z.string(), fromId: id, toId: id, amountPaise: money, note: z.string().max(500).optional(), recordIds: z.array(id).max(500).optional() }) }),
@@ -88,6 +90,19 @@ export interface CoupleContext {
   active: boolean;
 }
 
+/** The classification, split and status fields an undo can restore. Raw bank fields are never in this list. */
+const UNDO_FIELDS = ["categoryId", "merchant", "kind", "excluded", "status", "split", "shared", "payerId", "notes", "recurringId", "fundedBy", "paidCardId", "voucherBrandId", "paidWithVoucherId", "voucherPending", "recurringHint", "suggested", "receiptId"] as const;
+const sameValue = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/** What changed between two versions of a record, in the undoable fields only. Absent values are stored as null. */
+function changeOf(before: ExpenseRecord, after: ExpenseRecord): { before: Record<string, unknown>; after: Record<string, unknown> } | null {
+  const b: Record<string, unknown> = {}, n: Record<string, unknown> = {};
+  for (const k of UNDO_FIELDS) {
+    const x = (before as unknown as Record<string, unknown>)[k], y = (after as unknown as Record<string, unknown>)[k];
+    if (!sameValue(x, y)) { b[k] = x ?? null; n[k] = y ?? null; }
+  }
+  return Object.keys(b).length ? { before: b, after: n } : null;
+}
+
 const strip = <T extends object>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 const applyPatch = (r: ExpenseRecord, patch: z.infer<typeof editable>): ExpenseRecord => {
   const next: Record<string, unknown> = { ...r };
@@ -102,8 +117,8 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
   const parsed = ActionSchema.safeParse(raw);
   if (!parsed.success) throw new ActionError("invalid", "Invalid request.");
   const a = parsed.data;
-  const log = (action: AuditEvent["action"], entity: AuditEvent["entity"], entityId: string, summary: string) =>
-    repo.audit.append({ actorId: actor.uid, action, entity, entityId, summary: summary.slice(0, 480) });
+  const log = (action: AuditEvent["action"], entity: AuditEvent["entity"], entityId: string, summary: string, extra: Pick<AuditEvent, "change" | "undoes"> = {}) =>
+    repo.audit.append({ actorId: actor.uid, action, entity, entityId, summary: summary.slice(0, 480), ...extra });
   const money = (p: number) => `₹${(p / 100).toFixed(2)}`;
 
   /**
@@ -242,7 +257,48 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
         if (key) await repo.merchantMemory.put(learnFromUser(await repo.merchantMemory.get(memoryDocId(key)), { key, name: next.merchant.slice(0, 60), categoryId: next.categoryId, kind: next.kind, date: next.date, voucherSeller: !!next.voucherBrandId || !!next.voucherPending }));
       }
       const brandNote = next.voucherBrandId ? ` (voucher: ${(await repo.voucherBrands.get(next.voucherBrandId))?.name ?? next.voucherBrandId})` : next.paidWithVoucherId ? ` (paid with ${(await repo.voucherBrands.get(next.paidWithVoucherId))?.name ?? next.paidWithVoucherId} voucher)` : "";
-      await log(a.type === "record.approve" ? "approve" : "edit", "record", a.id, `${a.type === "record.approve" ? "Approved" : "Edited"} ${next.merchant} ${money(next.amountPaise)}${a.patch?.categoryId ? ` (category ${next.categoryId})` : ""}${brandNote}`);
+      const change = changeOf(cur, shared);
+      await log(a.type === "record.approve" ? "approve" : "edit", "record", a.id, `${a.type === "record.approve" ? "Approved" : "Edited"} ${next.merchant} ${money(next.amountPaise)}${a.patch?.categoryId ? ` (category ${next.categoryId})` : ""}${brandNote}`, change ? { change } : {});
+      return;
+    }
+    case "audit.undo": {
+      const events = await repo.audit.list();
+      const ix = events.findIndex((e) => e.id === a.eventId);
+      const ev = events[ix];
+      if (!ev || ev.entity !== "record" || !ev.change) throw new ActionError("not_found", "That change cannot be undone.");
+      if (events.some((e) => e.undoes === ev.id)) throw new ActionError("conflict", "That change was already undone.");
+      if (events.slice(ix + 1).some((e) => e.entity === "record" && e.entityId === ev.entityId && e.change)) throw new ActionError("conflict", "This transaction has changed since. Undo the newer change first.");
+      const cur = await repo.records.get(ev.entityId);
+      if (!cur) throw new ActionError("conflict", "That transaction no longer exists.");
+      const live = cur as unknown as Record<string, unknown>;
+      for (const [k, v] of Object.entries(ev.change.after)) if (!sameValue(live[k], v)) throw new ActionError("conflict", "This transaction was changed another way since, so the undo would overwrite it.");
+      const next = { ...live } as Record<string, unknown>;
+      for (const [k, v] of Object.entries(ev.change.before)) { if (v === null || v === undefined) delete next[k]; else next[k] = v; }
+      const rec = next as unknown as ExpenseRecord;
+      await checkVoucherRefs(rec);
+      const shared = await syncShare(rec);
+      await syncLinks(shared);
+      await repo.records.put(shared);
+      await log("edit", "record", ev.entityId, `Undid: ${ev.summary}`.slice(0, 480), { undoes: ev.id, change: { before: ev.change.after, after: ev.change.before } });
+      return;
+    }
+    case "batch.rollback": {
+      const batch = await repo.importBatches.get(a.id);
+      if (!batch) throw new ActionError("not_found", "That import was not found.");
+      if (batch.rolledBackAt) throw new ActionError("conflict", "That import was already rolled back.");
+      const tag = `(import ${batch.id.slice(0, 8)})`;
+      const rows = (await repo.records.list()).filter((r) => r.batchId === batch.id || r.importSource.endsWith(tag));
+      const settled = new Set((await repo.settlements.list()).filter((s) => !s.voided).flatMap((s) => s.recordIds ?? []));
+      const blocked = rows.filter((r) => settled.has(r.id));
+      if (blocked.length > 0) throw new ActionError("conflict", `${blocked.length} of this import's transactions are part of settlements. Void those settlements first, so nobody's balance changes by accident.`);
+      for (const r of rows) {
+        if (r.sharedWithPartner) await syncShare({ ...r, excluded: true });
+        await syncLinks({ ...r, excluded: true });
+        await repo.records.remove(r.id);
+      }
+      for (const b of (await repo.cardBills.list()).filter((x) => x.batchId === batch.id)) await repo.cardBills.remove(b.id);
+      await repo.importBatches.put({ ...batch, rolledBackAt: new Date().toISOString(), rolledBackBy: actor.uid });
+      await log("delete", "household", batch.id, `Rolled back import ${batch.filename}: removed ${rows.length} transaction${rows.length === 1 ? "" : "s"} (${rows.filter((r) => r.status === "reviewed").length} approved). The source rows are kept.`);
       return;
     }
     case "record.reject": {

@@ -498,3 +498,60 @@ describe("friends and family contacts", () => {
     await fails(applyAction(repo, actor, { type: "participant.update", id: "p_inv", relationship: "friend" }), "conflict");
   });
 });
+
+describe("undo, audit trail and import rollback", () => {
+  it("records what changed, who did it and when, and undoes an approval, a category edit and an exclusion", async () => {
+    const repo = await setup();
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { categoryId: "shopping", merchant: "Zepto" } });
+    const events = await repo.audit.list();
+    const ev = events.find((e) => e.action === "approve")!;
+    expect(ev).toMatchObject({ actorId: actor.uid, entity: "record", entityId: "imp1" });
+    expect(ev.change!.before).toMatchObject({ status: "unreviewed", categoryId: "groceries" });
+    expect(ev.change!.after).toMatchObject({ status: "reviewed", categoryId: "shopping" });
+    expect(Date.parse(ev.at)).toBeGreaterThan(0);
+    await applyAction(repo, actor, { type: "audit.undo", eventId: ev.id });
+    expect(await repo.records.get("imp1")).toMatchObject({ status: "unreviewed", categoryId: "groceries", merchant: "Zepto" });
+    expect((await repo.records.get("imp1"))!.amountPaise).toBe(64200); // raw fields untouched
+    await fails(applyAction(repo, actor, { type: "audit.undo", eventId: ev.id }), "conflict"); // already undone
+    // exclusion and category edit
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: {} });
+    await applyAction(repo, actor, { type: "record.update", id: "imp1", patch: { excluded: true } });
+    const ex = (await repo.audit.list()).filter((e) => e.change).pop()!;
+    await applyAction(repo, actor, { type: "audit.undo", eventId: ex.id });
+    expect((await repo.records.get("imp1"))!.excluded).toBe(false);
+    // undoing the undo (redo) works, and the trail keeps everything
+    const undo = (await repo.audit.list()).filter((e) => e.undoes).pop()!;
+    await applyAction(repo, actor, { type: "audit.undo", eventId: undo.id });
+    expect((await repo.records.get("imp1"))!.excluded).toBe(true);
+    expect((await repo.audit.list()).length).toBeGreaterThanOrEqual(6);
+  });
+  it("refuses an undo when a newer change exists or the record changed another way", async () => {
+    const repo = await setup();
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: {} });
+    await applyAction(repo, actor, { type: "record.update", id: "imp1", patch: { categoryId: "shopping" } });
+    const [approve, edit] = (await repo.audit.list()).filter((e) => e.change);
+    await fails(applyAction(repo, actor, { type: "audit.undo", eventId: approve.id }), "conflict"); // newer change first
+    const cur = (await repo.records.get("imp1"))!;
+    await repo.records.put({ ...cur, categoryId: "groceries" }); // changed behind the audit trail's back
+    await fails(applyAction(repo, actor, { type: "audit.undo", eventId: edit.id }), "conflict");
+    await fails(applyAction(repo, actor, { type: "audit.undo", eventId: "nope" }), "not_found");
+  });
+  it("rolls an import back without touching its source rows, and refuses when settlements use it", async () => {
+    const repo = await setup();
+    const batch = { id: "b1abcdefgh", accountId: "cc_hdfc", filename: "HDFC.csv", fileHash: "a".repeat(64), format: "csv" as const, uploadedAt: "2026-09-10T00:00:00.000Z", uploadedBy: "u1", counts: { rows: 1, staged: 1, skippedDuplicate: 0, flaggedDuplicate: 0, unreadable: 0 }, totals: { debitPaise: 64200, creditPaise: 0 } };
+    await repo.importBatches.put(batch);
+    await repo.rawTransactions.put({ id: "b1abcdefgh-1", batchId: "b1abcdefgh", line: 1, cells: ["x"] });
+    await repo.records.put({ ...(await repo.records.get("imp1"))!, batchId: "b1abcdefgh" });
+    await repo.participants.put({ id: "me", name: "Me", userId: "u1" });
+    await repo.participants.put({ id: "p_k", name: "K", userId: null });
+    await repo.settlements.put({ id: "s1", date: "2026-09-12", fromId: "p_k", toId: "me", amountPaise: 100, recordIds: ["imp1"] });
+    await fails(applyAction(repo, actor, { type: "batch.rollback", id: "b1abcdefgh" }), "conflict");
+    await applyAction(repo, actor, { type: "settlement.void", id: "s1" });
+    await applyAction(repo, actor, { type: "batch.rollback", id: "b1abcdefgh" });
+    expect(await repo.records.get("imp1")).toBeNull();
+    expect(await repo.rawTransactions.get("b1abcdefgh-1")).not.toBeNull();
+    expect((await repo.importBatches.get("b1abcdefgh"))!.rolledBackAt).toBeTruthy();
+    await fails(applyAction(repo, actor, { type: "batch.rollback", id: "b1abcdefgh" }), "conflict");
+    await fails(applyAction(repo, actor, { type: "batch.rollback", id: "nope" }), "not_found");
+  });
+});

@@ -225,7 +225,7 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
   if (!account) throw new ImportError("not_found", "Choose which payment method this statement is for.");
   // The same file again is not an error: entries from the first import may since have been rejected or removed, and
   // row-level duplicate detection below skips anything that is still there. It only needs the owner's say-so.
-  const prior = (await repo.importBatches.list()).filter((b) => b.fileHash === input.fileHash && b.accountId === input.accountId).sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))[0];
+  const prior = (await repo.importBatches.list()).filter((b) => b.fileHash === input.fileHash && b.accountId === input.accountId && !b.rolledBackAt).sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))[0];
 
   const positiveIsDebit = input.positiveIsDebit ?? account.type === "credit_card";
   let rows: ParsedRow[];
@@ -344,7 +344,7 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
     const rec: ExpenseRecord = {
       id: d.newId(), date: r.date, postedDate: r.parsed.postedDate, merchant: r.merchant, originalDescription: r.description.slice(0, 500), amountPaise: r.amountPaise, currency: "INR",
       accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), ...(r.paidCardId ? { paidCardId: r.paidCardId } : {}), ...(r.recurring ? { recurringHint: true } : {}), ...(r.voucher ? { voucherPending: true } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
-      excluded: false, status: "unreviewed", suggested: r.suggested, importSource: `${input.filename.slice(0, 150)} (import ${batchId.slice(0, 8)})`, referenceId: r.referenceId, duplicateOf: r.status !== "new" ? r.matchId : undefined,
+      excluded: false, status: "unreviewed", suggested: r.suggested, importSource: `${input.filename.slice(0, 150)} (import ${batchId.slice(0, 8)})`, batchId, referenceId: r.referenceId, duplicateOf: r.status !== "new" ? r.matchId : undefined,
     };
     await repo.records.put(JSON.parse(JSON.stringify(rec)) as ExpenseRecord);
   }

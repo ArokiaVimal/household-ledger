@@ -43,5 +43,5 @@ export interface Repository {
   rules: Collection<RuleDoc>;
   /** What the import has learned about merchants (names, categories, payment types). Written by the server only. */
   merchantMemory: Collection<MerchantMemory>;
-  audit: Pick<AppendOnly<AuditEvent>, "list"> & { append(event: Omit<AuditEvent, "id" | "at"> & { at?: string }): Promise<AuditEvent> };
+  audit: Pick<AppendOnly<AuditEvent>, "list"> & { append(event: Omit<AuditEvent, "id" | "at"> & { at?: string; id?: string }): Promise<AuditEvent> };
 }

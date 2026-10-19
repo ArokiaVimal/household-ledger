@@ -72,7 +72,7 @@ export function createFirestoreRepository(householdId: string, db: Firestore = g
     audit: {
       async list() { return (await audit.list()).sort((a, b) => a.at.localeCompare(b.at)); },
       async append(e) {
-        const ev = AuditEventSchema.parse({ ...e, id: randomUUID(), at: e.at ?? new Date().toISOString() });
+        const ev = AuditEventSchema.parse({ ...e, id: e.id ?? randomUUID(), at: e.at ?? new Date().toISOString() });
         return audit.put(ev);
       },
     },

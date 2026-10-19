@@ -72,7 +72,7 @@ export function createMemoryRepository(householdId: string, seed: Seed = {}): Re
     audit: {
       async list() { return structuredClone(audit); },
       async append(e) {
-        const ev = AuditEventSchema.parse({ ...e, id: `a${++n}`, at: e.at ?? new Date().toISOString() });
+        const ev = AuditEventSchema.parse({ ...e, id: e.id ?? `a${++n}`, at: e.at ?? new Date().toISOString() });
         audit.push(ev);
         return structuredClone(ev);
       },

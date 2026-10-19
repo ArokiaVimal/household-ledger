@@ -1,4 +1,4 @@
-import { BarChart3, CalendarClock, ClipboardCheck, CreditCard, FileUp, LayoutDashboard, List, Receipt, Repeat, Settings, Sparkles, Tags, Ticket, UserRound, Users, type LucideIcon } from "lucide-react";
+import { BarChart3, History, CalendarClock, ClipboardCheck, CreditCard, FileUp, LayoutDashboard, List, Receipt, Repeat, Settings, Sparkles, Tags, Ticket, UserRound, Users, type LucideIcon } from "lucide-react";
 
 export interface NavItem { href: string; label: string; icon: LucideIcon; /** One line shown in the phone menu. */ hint?: string; /** Lives in the phone's bottom bar; everything else is under "More". */ bar?: boolean }
 
@@ -16,6 +16,7 @@ export const NAV: NavItem[] = [
   { href: "/insights", label: "AI", icon: Sparkles, hint: "Insights and all AI tools" },
   { href: "/reports", label: "Reports", icon: BarChart3, hint: "Where it all went" },
   { href: "/categories", label: "Categories", icon: Tags, hint: "Names and rules" },
+  { href: "/activity", label: "Activity", icon: History, hint: "Changes, undo, import history" },
   { href: "/receipts", label: "Receipts", icon: Receipt, hint: "Match receipts" },
   { href: "/settings", label: "Settings", icon: Settings, hint: "Payment methods, sharing, integrations" },
   { href: "/profile", label: "Profile", icon: UserRound, hint: "Your name and photo" },
