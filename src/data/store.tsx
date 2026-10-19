@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { pairBalances } from "@/domain/balances";
 import { categoryUsage, checkDelete, cleanCategoryName, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
+import { suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { recurringStatuses } from "@/domain/recurring";
 import { summarize } from "@/domain/reports";
@@ -96,7 +97,9 @@ interface Store {
   deleteCategory: (id: string, moveTo?: string) => string | null;
   addRule: (r: MerchantRule) => void;
   removeRule: (merchant: string) => void;
-  addAccount: (name: string, type: Account["type"]) => string | null;
+  addAccount: (name: string, type: Account["type"], parentId?: string) => string | null;
+  /** Rename a payment method or put it under another (null takes it out). Returns an error message, or null. */
+  updateAccount: (id: string, patch: { name?: string; parentId?: string | null }) => string | null;
   addSuggestedAccounts: () => void;
   addParticipant: (name: string) => Added;
   /** Removes a friend (no account) that nothing refers to. Returns an error message, or null when removed. */
@@ -321,18 +324,43 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     void send({ type: "rule.remove", merchant });
   }, [send]);
 
-  const addAccount = useCallback((name: string, type: Account["type"]) => {
+  const parentProblem = useCallback((id: string, parentId: string): string | null => {
+    const parent = accounts.find((a) => a.id === parentId);
+    if (!parent || parent.id === id) return "Pick a different payment method to put it under.";
+    if (parent.parentId) return `${parent.name} is itself under another payment method.`;
+    if (parent.type !== "credit_card" && parent.type !== "bank") return "Only a card or a bank account can have payment methods under it.";
+    if (accounts.some((a) => a.parentId === id)) return "Other payment methods are under this one, so it cannot go under another.";
+    return null;
+  }, [accounts]);
+  const addAccount = useCallback((name: string, type: Account["type"], parentId?: string) => {
     const n = name.trim();
     if (!n || n.length > 60) return "Enter a name (up to 60 characters).";
     if (accounts.some((a) => a.name.toLowerCase() === n.toLowerCase())) return "You already have a payment method with that name.";
     let id = `${type === "credit_card" ? "cc" : type}_${slug(n)}`;
     for (let i = 2; accounts.some((a) => a.id === id); i++) id = `${id.replace(/-\d+$/, "")}-${i}`;
-    setAccounts((as) => [...as, { id, name: n, type }]);
-    void send({ type: "account.add", id, name: n, accountType: type });
+    if (parentId) { const bad = parentProblem(id, parentId); if (bad) return bad; }
+    setAccounts((as) => [...as, { id, name: n, type, ...(parentId ? { parentId } : {}) }]);
+    void send({ type: "account.add", id, name: n, accountType: type, ...(parentId ? { parentId } : {}) });
     return null;
-  }, [accounts, send]);
+  }, [accounts, send, parentProblem]);
+  const updateAccount = useCallback((id: string, patch: { name?: string; parentId?: string | null }) => {
+    const cur = accounts.find((a) => a.id === id);
+    if (!cur) return "Payment method not found.";
+    const next = { ...cur };
+    if (patch.name !== undefined) {
+      const n = patch.name.trim();
+      if (!n || n.length > 60) return "Enter a name (up to 60 characters).";
+      if (accounts.some((a) => a.id !== id && a.name.toLowerCase() === n.toLowerCase())) return "You already have a payment method with that name.";
+      next.name = n;
+    }
+    if (patch.parentId === null) delete next.parentId;
+    else if (patch.parentId) { const bad = parentProblem(id, patch.parentId); if (bad) return bad; next.parentId = patch.parentId; }
+    setAccounts((as) => as.map((a) => (a.id === id ? next : a)));
+    void send({ type: "account.update", id, ...(patch.name !== undefined ? { name: next.name } : {}), ...(patch.parentId !== undefined ? { parentId: patch.parentId } : {}) });
+    return null;
+  }, [accounts, send, parentProblem]);
   const addSuggestedAccounts = useCallback(() => {
-    setAccounts((as) => [...as, ...SUGGESTED_ACCOUNTS.filter((s) => !as.some((a) => a.id === s.id))]);
+    setAccounts((as) => [...as, ...suggestedWithParents(SUGGESTED_ACCOUNTS.filter((s) => !as.some((a) => a.id === s.id)), as)]);
     void send({ type: "accounts.addSuggested" });
   }, [send]);
   const addParticipant = useCallback((name: string) => {
@@ -440,7 +468,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,

@@ -3,6 +3,7 @@ import { ChevronDown, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useStore } from "@/data/store";
 import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
+import { walletAccountFor, walletBrandFor } from "@/domain/accounts";
 import { knownVoucherSeller } from "@/domain/vouchers";
 import { formatINR, parseRupees } from "@/domain/money";
 import { equalSplit, validateSplit } from "@/domain/splits";
@@ -81,6 +82,9 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [paidWithId, setPaidWithId] = useState(record.paidWithVoucherId ?? "");
   // A top-up of a wallet is the owner's own outflow: never split. A purchase made from a wallet is split like any other.
   const topUp = promptVoucher || !!voucherId;
+  // Choosing a wallet payment method (Amazon Pay, Swiggy Money) means paying from that voucher wallet.
+  const impliedBrand = walletBrandFor(accounts.find((a) => a.id === accountId), voucherBrands);
+  const walletId = paidWithId || impliedBrand?.id || "";
   const brandOptions = [
     ...voucherBrands.map((b) => ({ id: b.id, label: b.name })),
     ...SUGGESTED_VOUCHER_BRANDS.filter((n) => !voucherBrands.some((b) => b.name.toLowerCase() === n.toLowerCase())).map((n) => ({ id: `suggest:${n}`, label: n })),
@@ -110,7 +114,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const splitError = topUp ? null : validateSplit(amountPaise, split);
   const missing = adding ? (!accountId ? "Add a payment method first (Settings)" : amountPaise <= 0 ? "Enter an amount" : !merchant.trim() ? "Enter a merchant" : !/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Pick a date" : null) : null;
   // New rows must say which voucher (or decide later). Editing something that is already approved is never blocked by it.
-  const voucherProblem = promptVoucher && !voucherId && !voucherLater && record.status !== "reviewed" ? "Pick the wallet that was topped up, or choose Decide later" : voucherId && paidWithId ? "A payment cannot both buy a voucher and be paid with one" : null;
+  const voucherProblem = promptVoucher && !voucherId && !voucherLater && record.status !== "reviewed" ? "Pick the wallet that was topped up, or choose Decide later" : voucherId && walletId ? "A payment cannot both buy a voucher and be paid with one" : null;
   const bad = splitError ?? missing ?? voucherProblem;
 
   const onAmount = (v: string) => {
@@ -128,12 +132,14 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       if (err) { setRecurringError(err); setMore(true); return; }
     }
     const fields = {
-      merchant: merchant.trim(), categoryId, kind: voucherId ? ("purchase" as const) : kind, voucherBrandId: voucherId || undefined, paidWithVoucherId: paidWithId || undefined, voucherPending: voucherLater && !voucherId ? true : undefined, payerId, split: topUp ? { mode: "personal" as const, participantIds: [payerId] } : split, shared: topUp ? false : split.mode !== "personal", notes: notes || undefined, excluded,
+      merchant: merchant.trim(), categoryId, kind: voucherId ? ("purchase" as const) : kind, voucherBrandId: voucherId || undefined, paidWithVoucherId: walletId || undefined, voucherPending: voucherLater && !voucherId ? true : undefined, payerId, split: topUp ? { mode: "personal" as const, participantIds: [payerId] } : split, shared: topUp ? false : split.mode !== "personal", notes: notes || undefined, excluded,
       recurringId: linkId || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, recurringHint: undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
     };
     if (adding) {
       // Bought from a wallet: it belongs to the card that topped the wallet up last (the wallet itself is the funding source).
-      const topUpAccount = paidWithId ? [...records].filter((r) => r.voucherBrandId === paidWithId).sort((a, b) => b.date.localeCompare(a.date))[0]?.accountId : undefined;
+      // The wallet's own payment method when there is one (Amazon Pay under Amex), otherwise the card that last topped it up.
+      const brand = voucherBrands.find((b) => b.id === paidWithId);
+      const topUpAccount = paidWithId ? walletAccountFor(brand, accounts)?.id ?? [...records].filter((r) => r.voucherBrandId === paidWithId).sort((a, b) => b.date.localeCompare(a.date))[0]?.accountId : undefined;
       addRecord({ ...record, ...fields, date, accountId: topUpAccount ?? accountId, amountPaise });
       onAdded?.(`Added ${fields.merchant} ${formatINR(amountPaise)}`);
       if (action === "another") onAnother?.(); else onClose();
@@ -174,7 +180,8 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Approve only if this is a separate purchase; otherwise reject it.</p>
       )}
       {adding && !paidWithId && <FormRow label="Paid with"><CompactChips label="Payment method" options={accounts.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={setAccountId} /></FormRow>}
-      {voucherBrands.length > 0 && !topUp && kind === "purchase" && (
+      {adding && impliedBrand && <p className="-mt-1 rounded-xl bg-accent/5 px-3 py-2 text-xs text-muted">Paid from the {impliedBrand.name} wallet: it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
+      {voucherBrands.length > 0 && !topUp && !impliedBrand && kind === "purchase" && (
         <FormRow label="From wallet">
           <CompactChips label="Paid from a voucher wallet" options={[{ id: "", label: "No" }, ...voucherBrands.map((b) => ({ id: b.id, label: `${b.name} wallet` }))]} selected={[paidWithId]} onPick={setPaidWithId} />
           {paidWithId && <p className="mt-1.5 text-xs text-muted">Paid from the {voucherBrands.find((b) => b.id === paidWithId)?.name} wallet, so it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
@@ -210,7 +217,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       {more && (
         <div className="space-y-2.5">
           <FormRow label="Type"><CompactChips label="Type" options={kinds} selected={[kind]} onPick={setKind} /></FormRow>
-          {!promptVoucher && kind === "purchase" && !paidWithId && (
+          {!promptVoucher && kind === "purchase" && !walletId && (
             <FormRow label="Tops up wallet"><CompactChips label="Wallet topped up" options={[{ id: "", label: "No" }, ...brandOptions]} selected={[voucherId]} onPick={(id) => pickBrand(id, setVoucherId)} adder={voucherAdder} /></FormRow>
           )}
           {kind === "cc_payment" && (

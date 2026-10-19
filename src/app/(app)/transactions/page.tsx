@@ -7,6 +7,7 @@ import { TxnEditDialog } from "@/components/txn-edit-dialog";
 import { NotesAi } from "./notes-ai";
 import { Badge, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
+import { rootOf } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
 import { groupNet, summarize } from "@/domain/reports";
 import { needsVoucherBrand } from "@/domain/vouchers";
@@ -28,7 +29,7 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
   const { accounts, nameOf, categoryName, accountName, recurringName } = useStore();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const bankOf = (r: ExpenseRecord) => r.fundedBy ?? (accounts.find((a) => a.id === r.accountId)?.type === "bank" ? r.accountId : "");
-  const keyOf = (r: ExpenseRecord) => (view === "account" ? r.accountId : view === "bank" ? bankOf(r) : view === "recurring" ? (r.recurringId ?? "") : view === "merchant" ? r.merchant : view === "category" ? r.categoryId : r.payerId);
+  const keyOf = (r: ExpenseRecord) => (view === "account" ? rootOf(accounts, r.accountId) : view === "bank" ? bankOf(r) : view === "recurring" ? (r.recurringId ?? "") : view === "merchant" ? r.merchant : view === "category" ? r.categoryId : r.payerId);
   const label = (k: string) => (view === "account" || view === "bank" ? accountName(k) : view === "recurring" ? recurringName(k) : view === "category" ? categoryName(k) : view === "payer" ? nameOf(k) : k);
   const scope = view === "bank" ? rows.filter((r) => bankOf(r)) : view === "recurring" ? rows.filter((r) => r.recurringId) : rows;
   const totals = groupNet(scope, keyOf);
@@ -58,7 +59,7 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
                       <MerchantAvatar name={r.merchant} size={32} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{r.merchant}</div>
-                        <div className="flex flex-wrap items-center gap-1 text-xs text-muted">{r.date.slice(5)} · {view === "category" ? accountName(r.accountId) : categoryName(r.categoryId)}{r.fundedBy && view !== "bank" ? ` · via ${accountName(r.fundedBy)}` : ""}{r.fundedBy && view === "bank" ? ` · paid with ${accountName(r.accountId)}` : ""}<TxnBadges r={r} /></div>
+                        <div className="flex flex-wrap items-center gap-1 text-xs text-muted">{r.date.slice(5)} · {view === "category" ? accountName(r.accountId) : categoryName(r.categoryId)}{view === "account" && r.accountId !== k ? ` · via ${accountName(r.accountId)}` : ""}{r.fundedBy && view !== "bank" ? ` · via ${accountName(r.fundedBy)}` : ""}{r.fundedBy && view === "bank" ? ` · paid with ${accountName(r.accountId)}` : ""}<TxnBadges r={r} /></div>
                       </div>
                       <Amount r={r} />
                     </button>
@@ -95,7 +96,8 @@ function TransactionsView() {
       .filter((r) => !get("merchant") || r.merchant === get("merchant"))
       .filter((r) => !get("status") || r.status === get("status"))
       .filter((r) => !get("kind") || r.kind === get("kind"))
-      .filter((r) => !get("account") || r.accountId === get("account"))
+      // A payment method includes the ones under it (Amex includes Amazon Pay and Swiggy Money).
+      .filter((r) => !get("account") || r.accountId === get("account") || rootOf(accounts, r.accountId) === get("account"))
       .filter((r) => !get("recurring") || (get("recurring") === "1" ? !!r.recurringId : r.recurringId === get("recurring")))
       .filter((r) => !get("shared") || r.shared === (get("shared") === "1"))
       // Vouchers: ?voucher=<brand> (bought), 1 (any bought), none (bought, brand not chosen yet); ?paidWith=<brand> or 1 (paid with a voucher).

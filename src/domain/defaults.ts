@@ -20,6 +20,9 @@ export const SUGGESTED_ACCOUNTS: Account[] = [
   { id: "upi_paytm", name: "Paytm", type: "upi" },
   { id: "bank_hdfc", name: "HDFC Bank", type: "bank" },
   { id: "bank_icici", name: "ICICI Bank", type: "bank" },
+  // Wallets topped up with Amex purchases (see Vouchers): they sit under the Amex card.
+  { id: "wl_amazonpay", name: "Amazon Pay", type: "wallet", parentId: "cc_amex" },
+  { id: "wl_swiggymoney", name: "Swiggy Money", type: "wallet", parentId: "cc_amex" },
 ];
 
 /** The usual split between the two partners: the household owner bears 64%, the partner 36% (basis points). */

@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { Download, LayoutGrid, Lock, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, Trash2, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
-import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
+import { Download, LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, Trash2, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
+import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
@@ -12,7 +12,7 @@ import { CaptureCard } from "./capture-card";
 import { GmailCard } from "./gmail-card";
 import { PartnerCard } from "./partner-card";
 
-const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash" };
+const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet" };
 
 const JUMP = [["methods", "Payment methods"], ["sharing", "Split with people"], ["ai", "Smart import"], ["integrations", "Integrations"], ["shortcuts", "Make it yours"], ["data", "Your data"]] as const;
 const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
@@ -40,11 +40,18 @@ function Section({ id, icon, title, tagline, children }: { id: string; icon: Rea
 }
 
 export default function Settings() {
-  const { live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, addSuggestedAccounts, addParticipant, deleteParticipant } = useStore();
+  const { live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, updateAccount, addSuggestedAccounts, addParticipant, deleteParticipant } = useStore();
   const [confirm, setConfirm] = useState(false);
   const [accName, setAccName] = useState("");
   const [accType, setAccType] = useState<Account["type"]>("credit_card");
   const [accError, setAccError] = useState<string | null>(null);
+  const [accParent, setAccParent] = useState("");
+  const [editingAcc, setEditingAcc] = useState<Account | null>(null);
+  const [editParent, setEditParent] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+  const parents = accounts.filter((a) => (a.type === "credit_card" || a.type === "bank") && !a.parentId);
+  // Roots first, each followed by the payment methods under it.
+  const ordered = [...accounts.filter((a) => !a.parentId || !accounts.some((x) => x.id === a.parentId)).flatMap((a) => [a, ...accounts.filter((c) => c.parentId === a.id)])];
   const [friend, setFriend] = useState("");
   const [friendError, setFriendError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -79,12 +86,13 @@ export default function Settings() {
             <Card className="space-y-3">
               <CardTitle action={<span className="text-xs text-muted">{accounts.length} added</span>}>Your payment methods</CardTitle>
               <ul className="divide-y divide-border text-sm">
-                {accounts.map((a) => {
+                {ordered.map((a) => {
                   const n = usedBy(a.id);
+                  const parent = accounts.find((x) => x.id === a.parentId);
                   return (
-                    <li key={a.id} className="flex items-center justify-between gap-2 py-2.5">
-                      <span className="flex min-w-0 items-center gap-2.5"><MerchantAvatar name={a.name} size={32} /><span className="min-w-0"><span className="block truncate font-medium">{a.name}</span><span className="block text-xs text-muted">{n === 0 ? "No transactions yet" : `${n} transaction${n === 1 ? "" : "s"}`}</span></span></span>
-                      <Badge>{typeLabel[a.type]}</Badge>
+                    <li key={a.id} className={`flex items-center justify-between gap-2 py-2.5 ${parent ? "ml-6 border-l-2 border-accent/20 pl-3" : ""}`}>
+                      <span className="flex min-w-0 items-center gap-2.5"><MerchantAvatar name={a.name} size={32} /><span className="min-w-0"><span className="block truncate font-medium">{a.name}</span><span className="block text-xs text-muted">{parent ? `Under ${parent.name} · ` : ""}{n === 0 ? "No transactions yet" : `${n} transaction${n === 1 ? "" : "s"}`}</span></span></span>
+                      <span className="flex shrink-0 items-center gap-1.5"><Badge>{typeLabel[a.type]}</Badge>{a.type !== "credit_card" && a.type !== "bank" || a.parentId ? <button type="button" aria-label={`Edit ${a.name}`} title="Edit" onClick={() => { setEditingAcc(a); setEditParent(a.parentId ?? ""); setEditError(null); }} className="grid size-9 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={14} aria-hidden /></button> : null}</span>
                     </li>
                   );
                 })}
@@ -94,9 +102,12 @@ export default function Settings() {
             </Card>
             <Card>
               <CardTitle>Add one of your own</CardTitle>
-              <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); const err = addAccount(accName, accType); setAccError(err); if (!err) setAccName(""); }}>
+              <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); const err = addAccount(accName, accType, accType === "credit_card" || accType === "bank" ? undefined : accParent || undefined); setAccError(err); if (!err) { setAccName(""); setAccParent(""); } }}>
                 <Field label="Name" error={accError}><Input value={accName} onChange={(e) => { setAccName(e.target.value); setAccError(null); }} placeholder="e.g. Axis Magnus Credit Card" maxLength={60} /></Field>
                 <ChipGroup label="Type" options={(Object.keys(typeLabel) as Account["type"][]).map((t) => ({ id: t, label: typeLabel[t] }))} value={accType} onChange={setAccType} />
+                {accType !== "credit_card" && accType !== "bank" && parents.length > 0 && (
+                  <div className="space-y-1.5"><div className="text-xs font-medium text-muted">Comes under (optional)</div><CompactChips label="Comes under" options={[{ id: "", label: "None" }, ...parents.map((p) => ({ id: p.id, label: p.name }))]} selected={[accParent]} onPick={setAccParent} /><p className="text-xs text-muted">For example Amazon Pay under your Amex: it then rolls up into Amex in your groupings.</p></div>
+                )}
                 <Button type="submit" variant="primary" disabled={!accName.trim()}>Add payment method</Button>
               </form>
             </Card>
@@ -168,6 +179,16 @@ export default function Settings() {
         </Section>
       </div>
 
+      <Dialog open={!!editingAcc} onClose={() => setEditingAcc(null)} title={editingAcc ? `Edit ${editingAcc.name}` : "Edit payment method"}>
+        {editingAcc && (
+          <div className="space-y-3 pb-1 text-sm">
+            <div className="space-y-1.5"><div className="text-xs font-medium text-muted">Comes under</div><CompactChips label="Comes under" options={[{ id: "", label: "None" }, ...parents.filter((p) => p.id !== editingAcc.id).map((p) => ({ id: p.id, label: p.name }))]} selected={[editParent]} onPick={(id) => { setEditParent(id); setEditError(null); }} /></div>
+            <p className="text-xs text-muted">Its transactions stay as they are; groupings and totals by payment method roll it up into the one it comes under.</p>
+            {editError && <p role="alert" className="text-danger">{editError}</p>}
+            <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => setEditingAcc(null)}>Cancel</Button><Button variant="primary" onClick={() => { const err = updateAccount(editingAcc.id, { parentId: editParent || null }); if (err) setEditError(err); else setEditingAcc(null); }}>Save</Button></div>
+          </div>
+        )}
+      </Dialog>
       <ConfirmDialog open={!!removing && removeCheck?.ok === true} onClose={() => setRemoving(null)} title={`Remove ${removingPerson?.name ?? "this friend"}?`} confirmLabel="Remove friend" onConfirm={() => { if (removing) setRemoveError(deleteParticipant(removing)); }}>
         <p>{removingPerson?.name} is not in any transaction, split, settlement or recurring item, so nothing changes for anyone. They can be added again later.</p>
       </ConfirmDialog>

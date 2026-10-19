@@ -176,15 +176,44 @@ describe("accounts, participants and input safety", () => {
 });
 
 describe("suggested accounts", () => {
-  it("adds the ten starting payment methods once and skips ones that exist", async () => {
+  it("adds the twelve starting payment methods once and skips ones that exist", async () => {
     const repo = await setup();
     await repo.accounts.put({ id: "cc_hdfc", name: "My HDFC", type: "credit_card" });
     await applyAction(repo, actor, { type: "accounts.addSuggested" });
     const list = await repo.accounts.list();
-    expect(list).toHaveLength(10);
+    expect(list).toHaveLength(12);
     expect(list.find((a) => a.id === "cc_hdfc")!.name).toBe("My HDFC");
+    expect(list.filter((a) => a.type === "wallet").map((a) => [a.name, a.parentId])).toEqual([["Amazon Pay", "cc_amex"], ["Swiggy Money", "cc_amex"]]);
     await applyAction(repo, actor, { type: "accounts.addSuggested" });
-    expect(await repo.accounts.list()).toHaveLength(10);
+    expect(await repo.accounts.list()).toHaveLength(12);
+  });
+  it("puts the wallets under YOUR Amex card even when it has another id, and under nothing when you have none", async () => {
+    const mine = await setup();
+    await mine.accounts.put({ id: "card-amex-1", name: "American Express Platinum", type: "credit_card" });
+    await applyAction(mine, actor, { type: "accounts.addSuggested" });
+    expect((await mine.accounts.get("wl_amazonpay"))!.parentId).toBe("card-amex-1");
+    const none = await setup();
+    await applyAction(none, actor, { type: "accounts.addSuggested" });
+    expect((await none.accounts.get("wl_swiggymoney"))!.parentId).toBe("cc_amex"); // the suggested Amex is added in the same step
+    const bare = await setup();
+    await bare.accounts.put({ id: "bank_x", name: "Some Bank", type: "bank" });
+    await applyAction(bare, actor, { type: "accounts.addSuggested" });
+  });
+  it("a payment method can be added under a card or bank, changed, and taken out; bad parents are refused", async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "cc_amex", name: "Amex", type: "credit_card" });
+    await repo.accounts.put({ id: "upi_x", name: "Some UPI", type: "upi" });
+    await applyAction(repo, actor, { type: "account.add", id: "wl_a", name: "Amazon Pay", accountType: "wallet", parentId: "cc_amex" });
+    expect(await repo.accounts.get("wl_a")).toEqual({ id: "wl_a", name: "Amazon Pay", type: "wallet", parentId: "cc_amex" });
+    await fails(applyAction(repo, actor, { type: "account.add", id: "wl_b", name: "B", accountType: "wallet", parentId: "wl_a" }), "invalid"); // under a child
+    await fails(applyAction(repo, actor, { type: "account.add", id: "wl_c", name: "C", accountType: "wallet", parentId: "upi_x" }), "invalid"); // under a UPI app
+    await fails(applyAction(repo, actor, { type: "account.add", id: "wl_d", name: "D", accountType: "wallet", parentId: "nope" }), "invalid");
+    await applyAction(repo, actor, { type: "account.update", id: "wl_a", parentId: null });
+    expect((await repo.accounts.get("wl_a"))!.parentId).toBeUndefined();
+    await applyAction(repo, actor, { type: "account.update", id: "wl_a", parentId: "cc_amex", name: "Amazon Pay wallet" });
+    expect(await repo.accounts.get("wl_a")).toMatchObject({ name: "Amazon Pay wallet", parentId: "cc_amex" });
+    await fails(applyAction(repo, actor, { type: "account.update", id: "cc_amex", parentId: "bank_hdfc" }), "invalid"); // Amex has children, so it cannot go under another
+    await fails(applyAction(repo, actor, { type: "account.update", id: "wl_a", name: "Some UPI" }), "conflict");
   });
 });
 

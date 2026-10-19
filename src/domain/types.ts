@@ -55,7 +55,9 @@ export interface Participant {
 export interface Account {
   id: string;
   name: string;
-  type: "credit_card" | "bank" | "upi" | "cash";
+  type: "credit_card" | "bank" | "upi" | "cash" | "wallet";
+  /** Sits under another payment method (Amazon Pay under Amex). Reports and groupings roll it up into the parent. */
+  parentId?: string;
 }
 
 export interface Category {

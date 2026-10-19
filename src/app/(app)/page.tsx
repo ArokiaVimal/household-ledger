@@ -9,6 +9,7 @@ import { MerchantAvatar, TxnBadges, Amount } from "@/components/txn-row";
 import { Badge, Card, CardTitle, EmptyState } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { cardViews, dueLabel, upcomingBills } from "@/domain/cardbills";
+import { rootOf } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
 import { byCategory, byMerchant, byMonth, groupNet, summarize } from "@/domain/reports";
 import { cn } from "@/lib/cn";
@@ -43,7 +44,7 @@ function ReviewedNotice() {
   );
 }
 
-const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet } as const;
+const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet, wallet: Wallet } as const;
 
 export default function Dashboard() {
   const { live, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView, partner } = useStore();
@@ -118,15 +119,24 @@ export default function Dashboard() {
         <Card className="bg-accent-soft">
           <CardTitle>Accounts this month</CardTitle>
           <ul className="space-y-2">
-            {accounts.filter((a) => scoped.some((r) => r.accountId === a.id)).map((a) => {
+            {accounts.filter((a) => !a.parentId || !accounts.some((x) => x.id === a.parentId)).filter((a) => scoped.some((r) => rootOf(accounts, r.accountId) === a.id)).map((a) => {
               const I = acctIcon[a.type];
+              const kids = accounts.filter((c) => c.parentId === a.id && scoped.some((r) => r.accountId === c.id));
+              const total = (perAccount[a.id] ?? 0) + kids.reduce((s, c) => s + (perAccount[c.id] ?? 0), 0);
               return (
                 <li key={a.id}>
                   <Link href={`/transactions?${q}&account=${a.id}`} className="flex items-center gap-3 rounded-2xl bg-surface/70 p-3 hover:bg-surface">
                     {logoFor(a.name) ? <MerchantAvatar name={a.name} size={36} /> : <span className="grid size-9 place-items-center rounded-full bg-accent text-white" aria-hidden><I size={16} /></span>}
-                    <span className="flex-1 text-sm font-medium">{accountName(a.id)}</span>
-                    <span className="num text-sm">{formatINR(perAccount[a.id] ?? 0)}</span>
+                    <span className="flex-1 text-sm font-medium">{accountName(a.id)}{kids.length > 0 && <span className="block text-xs font-normal text-muted">includes {kids.map((c) => c.name).join(", ")}</span>}</span>
+                    <span className="num text-sm">{formatINR(total)}</span>
                   </Link>
+                  {kids.length > 0 && (
+                    <ul className="ml-8 mt-1 space-y-1 border-l-2 border-accent/20 pl-3">
+                      {kids.map((c) => (
+                        <li key={c.id}><Link href={`/transactions?${q}&account=${c.id}`} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm text-muted hover:bg-surface/70"><span className="flex-1">{c.name}</span><span className="num">{formatINR(perAccount[c.id] ?? 0)}</span></Link></li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               );
             })}

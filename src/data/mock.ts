@@ -22,6 +22,8 @@ export const accounts: Account[] = [
   { id: "upi_paytm", name: "Paytm", type: "upi" },
   { id: "bank_hdfc", name: "HDFC Bank", type: "bank" },
   { id: "bank_icici", name: "ICICI Bank", type: "bank" },
+  { id: "wl_amazonpay", name: "Amazon Pay", type: "wallet", parentId: "cc_amex" },
+  { id: "wl_swiggymoney", name: "Swiggy Money", type: "wallet", parentId: "cc_amex" },
 ];
 
 export const categories: Category[] = [
@@ -170,7 +172,7 @@ export const voucherRecords: ExpenseRecord[] = [
   voucherRec("vv2", "2026-09-05", 2000, { voucherBrandId: "vb_swiggy", referenceId: "VV2" }),
   voucherRec("vv3", "2026-09-18", 5000, { voucherBrandId: "vb_myntra", referenceId: "VV3" }),
   voucherRec("vv4", "2026-09-22", 1500, { status: "unreviewed", voucherPending: true, referenceId: "VV4" }),
-  voucherRec("vu1", "2026-09-10", 1299, { merchant: "Amazon", originalDescription: "Amazon order (paid with Amazon voucher)", paidWithVoucherId: "vb_amazon", importSource: "Manual entry", categoryId: "shopping", shared: true, split: { mode: "equal", participantIds: [ME, "wife"] } }), // bought from the wallet and split with the wife: she owes her half
-  voucherRec("vu2", "2026-09-12", 450, { merchant: "Swiggy", originalDescription: "Swiggy order (paid with Swiggy voucher)", paidWithVoucherId: "vb_swiggy", importSource: "Manual entry", categoryId: "food_delivery" }),
+  voucherRec("vu1", "2026-09-10", 1299, { merchant: "Amazon", originalDescription: "Amazon order (paid with Amazon voucher)", paidWithVoucherId: "vb_amazon", accountId: "wl_amazonpay", importSource: "Manual entry", categoryId: "shopping", shared: true, split: { mode: "equal", participantIds: [ME, "wife"] } }), // bought from the wallet and split with the wife: she owes her half
+  voucherRec("vu2", "2026-09-12", 450, { merchant: "Swiggy", originalDescription: "Swiggy order (paid with Swiggy voucher)", paidWithVoucherId: "vb_swiggy", accountId: "wl_swiggymoney", importSource: "Manual entry", categoryId: "food_delivery" }),
 ];
 

@@ -8,6 +8,7 @@ import { ConflictError } from "@/data/repository";
 import { ExpenseRecordSchema, SplitConfigSchema, ruleId } from "@/data/schemas";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { validateSplit } from "@/domain/splits";
+import { suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
 import { buildShared, planShare, SharingError } from "@/domain/sharing";
@@ -41,7 +42,8 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("category.delete"), id, moveTo: id.optional() }),
   z.object({ type: z.literal("rule.put"), merchant: z.string().max(100), categoryId: id }),
   z.object({ type: z.literal("rule.remove"), merchant: z.string().max(100) }),
-  z.object({ type: z.literal("account.add"), id, name: z.string().min(1).max(60), accountType: z.enum(["credit_card", "bank", "upi", "cash"]) }),
+  z.object({ type: z.literal("account.add"), id, name: z.string().min(1).max(60), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]), parentId: id.optional() }),
+  z.object({ type: z.literal("account.update"), id, name: z.string().min(1).max(60).optional(), parentId: id.nullable().optional() }),
   z.object({ type: z.literal("accounts.addSuggested") }),
   z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60) }),
   z.object({ type: z.literal("participant.delete"), id }),
@@ -135,6 +137,15 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
   const findSettlement = async (id: string): Promise<{ repo: Repository; cur: NonNullable<Awaited<ReturnType<Repository["settlements"]["get"]>>> } | null> => {
     for (const r of couple === undefined ? [repo] : [...(couple ? [couple.repo] : []), repo]) { const cur = await r.settlements.get(id); if (cur) return { repo: r, cur }; }
     return null;
+  };
+
+  /** A payment method can sit under one other (not itself, not one that is already under another), and only under a card or bank account. */
+  const checkParent = async (id: string, parentId: string) => {
+    const parent = await repo.accounts.get(parentId);
+    if (!parent || parent.id === id) throw new ActionError("invalid", "Pick a different payment method to put it under.");
+    if (parent.parentId) throw new ActionError("invalid", `${parent.name} is itself under another payment method.`);
+    if (parent.type !== "credit_card" && parent.type !== "bank") throw new ActionError("invalid", "Only a card or a bank account can have payment methods under it.");
+    if ((await repo.accounts.list()).some((x) => x.parentId === id)) throw new ActionError("invalid", "Other payment methods are under this one, so it cannot go under another.");
   };
 
   /** A voucher brand named on a record must exist. (Exclusivity and "purchase only" are enforced by the record schema.) */
@@ -292,13 +303,31 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
     }
     case "account.add": {
       if (await repo.accounts.get(a.id)) throw new ActionError("conflict", "That account already exists.");
-      await repo.accounts.put({ id: a.id, name: a.name.trim(), type: a.accountType });
-      await log("create", "household", a.id, `Added payment method ${a.name.trim()}`);
+      if (a.parentId) await checkParent(a.id, a.parentId);
+      await repo.accounts.put({ id: a.id, name: a.name.trim(), type: a.accountType, ...(a.parentId ? { parentId: a.parentId } : {}) });
+      await log("create", "household", a.id, `Added payment method ${a.name.trim()}${a.parentId ? ` under ${(await repo.accounts.get(a.parentId))?.name}` : ""}`);
+      return;
+    }
+    case "account.update": {
+      const cur = await repo.accounts.get(a.id);
+      if (!cur) throw new ActionError("not_found", "Payment method not found.");
+      const next = { ...cur };
+      if (a.name !== undefined) {
+        const name = a.name.trim();
+        if (!name) throw new ActionError("invalid", "Enter a name.");
+        if ((await repo.accounts.list()).some((x) => x.id !== a.id && x.name.toLowerCase() === name.toLowerCase())) throw new ActionError("conflict", "You already have a payment method with that name.");
+        next.name = name;
+      }
+      if (a.parentId === null) delete next.parentId;
+      else if (a.parentId) { await checkParent(a.id, a.parentId); next.parentId = a.parentId; }
+      await repo.accounts.put(next);
+      await log("edit", "household", a.id, `Changed payment method ${next.name}${a.parentId ? ` (now under ${(await repo.accounts.get(a.parentId))?.name})` : a.parentId === null ? " (no longer under another)" : ""}`);
       return;
     }
     case "accounts.addSuggested": {
-      const have = new Set((await repo.accounts.list()).map((x) => x.id));
-      const add = SUGGESTED_ACCOUNTS.filter((x) => !have.has(x.id));
+      const existing = await repo.accounts.list();
+      const have = new Set(existing.map((x) => x.id));
+      const add = suggestedWithParents(SUGGESTED_ACCOUNTS.filter((x) => !have.has(x.id)), existing);
       for (const acc of add) await repo.accounts.put(acc);
       await log("create", "household", "accounts", `Added ${add.length} suggested payment methods`);
       return;
