@@ -7,7 +7,7 @@ import { categoryUsage, checkDelete, MAX_CATEGORY_NAME } from "@/domain/categori
 import { PROTECTED_CATEGORY_IDS } from "@/domain/categories";
 
 export default function Categories() {
-  const { recurringItems, categories, rules, records, staged, updateStaged, categoryName, addCategory, renameCategory, deleteCategory, addRule, removeRule } = useStore();
+  const { live, recurringItems, categories, rules, records, staged, updateStaged, categoryName, addCategory, renameCategory, deleteCategory, addRule, removeRule } = useStore();
   const [name, setName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
@@ -57,24 +57,24 @@ export default function Categories() {
 
   return (
     <>
-      <PageHeader title="Categories & rules" sub="Your categories. Add your own, rename any, delete ones you don't use." actions={<Badge tone="warn">Not persisted yet</Badge>} />
-      <div className="grid gap-4 md:grid-cols-2">
+      <PageHeader title="Categories & rules" sub="Your categories. Add your own, rename any, delete ones you don't use." actions={live ? undefined : <Badge tone="warn">Prototype</Badge>} />
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2">
         <Card className="space-y-3">
           <CardTitle>Categories</CardTitle>
           <form onSubmit={add} className="space-y-1">
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Input aria-label="New category name" placeholder="New category, e.g. Pet care" maxLength={MAX_CATEGORY_NAME + 5} value={name} onChange={(e) => { setName(e.target.value); setAddError(null); }} />
-              <Button type="submit" variant="primary" disabled={!name.trim()}>Add</Button>
+              <Button type="submit" variant="primary" disabled={!name.trim()} className="sm:shrink-0">Add category</Button>
             </div>
             {addError && <p role="alert" className="text-xs text-danger">{addError}</p>}
           </form>
           <ul className="divide-y divide-border">
             {categories.map((x) => (
-              <li key={x.id} className="flex items-center gap-2 py-2 text-sm">
+              <li key={x.id} className="flex min-h-12 items-center gap-2 py-1.5 text-sm">
                 {editing?.id === x.id ? (
                   <div className="flex flex-1 flex-col gap-1">
-                    <div className="flex gap-2">
-                      <Input aria-label={`Rename ${x.name}`} autoFocus value={editing.value} onChange={(e) => { setEditing({ id: x.id, value: e.target.value }); setEditError(null); }} onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(null); }} />
+                    <div className="flex flex-wrap gap-2">
+                      <Input className="min-w-0 flex-1 basis-40" aria-label={`Rename ${x.name}`} autoFocus value={editing.value} onChange={(e) => { setEditing({ id: x.id, value: e.target.value }); setEditError(null); }} onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(null); }} />
                       <Button variant="primary" onClick={saveEdit}>Save</Button>
                       <Button onClick={() => { setEditing(null); setEditError(null); }}>Cancel</Button>
                     </div>
@@ -82,10 +82,10 @@ export default function Categories() {
                   </div>
                 ) : (
                   <>
-                    <span className="flex-1">{x.name}{PROTECTED_CATEGORY_IDS.includes(x.id) && <span className="ml-1.5 text-xs text-muted">fallback</span>}</span>
-                    <span className="num text-xs text-muted">{usage(x.id)} used</span>
-                    <button aria-label={`Rename ${x.name}`} title="Rename" onClick={() => { setEditing({ id: x.id, value: x.name }); setEditError(null); }} className="grid size-8 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={14} aria-hidden /></button>
-                    {!PROTECTED_CATEGORY_IDS.includes(x.id) && <button aria-label={`Delete ${x.name}`} title="Delete" onClick={() => { setDeleting(x.id); setMoveTo(""); setDelError(null); }} className="grid size-8 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={14} aria-hidden /></button>}
+                    <span className="min-w-0 flex-1 truncate font-medium">{x.name}{PROTECTED_CATEGORY_IDS.includes(x.id) && <span className="ml-1.5 text-xs font-normal text-muted">fallback</span>}</span>
+                    <span className="num shrink-0 text-xs text-muted">{usage(x.id)}<span className="hidden sm:inline"> used</span></span>
+                    <button aria-label={`Rename ${x.name}`} title="Rename" onClick={() => { setEditing({ id: x.id, value: x.name }); setEditError(null); }} className="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-background sm:size-8"><Pencil size={14} aria-hidden /></button>
+                    {!PROTECTED_CATEGORY_IDS.includes(x.id) && <button aria-label={`Delete ${x.name}`} title="Delete" onClick={() => { setDeleting(x.id); setMoveTo(""); setDelError(null); }} className="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger sm:size-8"><Trash2 size={14} aria-hidden /></button>}
                   </>
                 )}
               </li>
@@ -98,9 +98,9 @@ export default function Categories() {
           <p className="text-xs text-muted">A rule pre-fills the category for a merchant in the review queue. You still approve each row.</p>
           <ul className="divide-y divide-border">
             {rules.map((r) => (
-              <li key={r.merchant} className="flex items-center justify-between py-2 text-sm">
-                <span>{r.merchant} → <b>{categoryName(r.categoryId)}</b></span>
-                <Button variant="danger" onClick={() => setRemovingRule(r.merchant)}>Remove</Button>
+              <li key={r.merchant} className="flex min-h-12 items-center justify-between gap-2 py-1.5 text-sm">
+                <span className="min-w-0 truncate">{r.merchant} → <b>{categoryName(r.categoryId)}</b></span>
+                <Button variant="danger" className="shrink-0" onClick={() => setRemovingRule(r.merchant)}>Remove</Button>
               </li>
             ))}
             {rules.length === 0 && <li className="py-2 text-sm text-muted">No rules yet.</li>}
@@ -108,9 +108,9 @@ export default function Categories() {
           <div className="space-y-2 rounded-xl bg-background p-3">
             <Field label="Merchant"><Input value={m} onChange={(e) => setM(e.target.value)} placeholder="e.g. Swiggy" /></Field>
             <CompactChips label="Rule category" options={categories.map((x) => ({ id: x.id, label: x.name }))} selected={[c]} onPick={setC} />
-            <Button disabled={!m.trim()} onClick={() => { addRule({ merchant: m.trim(), categoryId: c }); setM(""); }}>Add rule</Button>
+            <Button className="w-full sm:w-auto" disabled={!m.trim()} onClick={() => { addRule({ merchant: m.trim(), categoryId: c }); setM(""); }}>Add rule</Button>
           </div>
-          <div><Button variant="primary" onClick={apply}>Apply to review queue</Button> {msg && <span role="status" className="ml-2 text-xs text-muted">{msg}</span>}</div>
+          <div className="space-y-2"><Button variant="primary" className="w-full sm:w-auto" onClick={apply}>Apply to review queue</Button>{msg && <p role="status" className="text-xs text-muted">{msg}</p>}</div>
         </Card>
       </div>
 

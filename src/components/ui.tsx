@@ -1,7 +1,7 @@
 "use client";
 // Shared UI primitives (shadcn-style, token-driven). Compose screens from these.
-import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
-import { X } from "lucide-react";
+import { Children, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
+import { Check, ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
@@ -35,7 +35,80 @@ export function Button({ variant = "ghost", className, ...p }: BtnProps) {
 
 const field = "min-h-9 w-full rounded-full border border-border bg-surface px-3.5 text-sm focus-visible:outline-2 focus-visible:outline-accent";
 export const Input = (p: InputHTMLAttributes<HTMLInputElement>) => <input {...p} className={cn(field, p.className)} />;
-export const Select = (p: SelectHTMLAttributes<HTMLSelectElement>) => <select {...p} className={cn(field, p.className)} />;
+/**
+ * A modern dropdown that takes <option> children like a native select. On a computer it opens a soft floating list under the
+ * button (arrow keys, Enter, Escape and type-to-jump all work); on a phone it opens a bottom sheet with big tap targets.
+ * `onChange` receives `{ target: { value } }`, so existing handlers keep working.
+ */
+interface SelectProps { value?: string; defaultValue?: string; onChange?: (e: { target: { value: string } }) => void; children: ReactNode; className?: string; disabled?: boolean; placeholder?: string; "aria-label"?: string; id?: string }
+export function Select({ value, defaultValue, onChange, children, className, disabled, placeholder = "Choose", ...rest }: SelectProps) {
+  const options = Children.toArray(children).flatMap((c) => {
+    if (!isValidElement(c)) return [];
+    const p = c.props as { value?: string | number; children?: ReactNode; disabled?: boolean };
+    const label = Children.toArray(p.children).join("");
+    return [{ value: String(p.value ?? label), label, disabled: !!p.disabled }];
+  });
+  const [inner, setInner] = useState(defaultValue ?? options[0]?.value ?? "");
+  const current = value ?? inner;
+  const selected = options.find((o) => o.value === current);
+  const [open, setOpen] = useState(false);
+  const [sheet, setSheet] = useState(false);
+  const [active, setActive] = useState(0);
+  const wrap = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const listId = useId();
+
+  const choose = (v: string) => { if (value === undefined) setInner(v); onChange?.({ target: { value: v } }); setOpen(false); };
+  const show = () => {
+    if (disabled) return;
+    setSheet(typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches);
+    setActive(Math.max(0, options.findIndex((o) => o.value === current)));
+    setOpen(true);
+  };
+  useEffect(() => {
+    if (!open || sheet) return;
+    const away = (e: PointerEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open, sheet]);
+  useEffect(() => { if (open && !sheet) (list.current?.children[active] as HTMLElement | undefined)?.scrollIntoView({ block: "nearest" }); }, [open, sheet, active]);
+
+  const move = (d: number) => { let i = active; for (let n = 0; n < options.length; n++) { i = (i + d + options.length) % options.length; if (!options[i].disabled) break; } setActive(i); };
+  const onKey = (e: React.KeyboardEvent) => {
+    if (!open) { if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) { e.preventDefault(); show(); } return; }
+    if (e.key === "Escape") { e.preventDefault(); setOpen(false); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
+    else if (e.key === "Enter") { e.preventDefault(); if (options[active] && !options[active].disabled) choose(options[active].value); }
+    else if (e.key.length === 1) { const i = options.findIndex((o, n) => n > active && o.label.toLowerCase().startsWith(e.key.toLowerCase())); const j = i >= 0 ? i : options.findIndex((o) => o.label.toLowerCase().startsWith(e.key.toLowerCase())); if (j >= 0) setActive(j); }
+  };
+  const row = (o: (typeof options)[number], i: number, big: boolean) => (
+    <li key={o.value} role="option" aria-selected={o.value === current} aria-disabled={o.disabled || undefined} onPointerEnter={() => setActive(i)} onClick={() => { if (!o.disabled) choose(o.value); }}
+      className={cn("flex cursor-pointer items-center justify-between gap-3 rounded-xl px-3 text-sm", big ? "min-h-12" : "min-h-9", i === active && !big && "bg-background", o.value === current && "font-medium text-accent", o.disabled && "cursor-not-allowed opacity-40")}>
+      <span className="truncate">{o.label}</span>{o.value === current && <Check size={16} aria-hidden className="shrink-0" />}
+    </li>
+  );
+
+  return (
+    <div ref={wrap} className="relative">
+      <button type="button" id={rest.id} role="combobox" aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} aria-label={rest["aria-label"]} disabled={disabled} onClick={() => (open ? setOpen(false) : show())} onKeyDown={onKey}
+        className={cn(field, "flex items-center justify-between gap-2 text-left transition-colors hover:bg-background disabled:cursor-not-allowed", open && "border-accent ring-2 ring-accent/20", className)}>
+        <span className={cn("truncate", !selected && "text-muted")}>{selected?.label ?? placeholder}</span>
+        <ChevronDown size={16} aria-hidden className={cn("shrink-0 text-muted transition-transform", open && "rotate-180")} />
+      </button>
+      {open && !sheet && (
+        <ul ref={list} id={listId} role="listbox" aria-label={rest["aria-label"]} className="absolute left-0 right-0 z-50 mt-1.5 max-h-64 min-w-40 overflow-auto rounded-2xl bg-surface p-1.5 shadow-[0_12px_32px_rgba(20,18,31,0.16)] ring-1 ring-border">
+          {options.map((o, i) => row(o, i, false))}
+        </ul>
+      )}
+      {sheet && (
+        <Dialog open={open} onClose={() => setOpen(false)} title={rest["aria-label"] ?? placeholder}>
+          <ul id={listId} role="listbox" className="max-h-[60vh] space-y-0.5 overflow-auto pb-4">{options.map((o, i) => row(o, i, true))}</ul>
+        </Dialog>
+      )}
+    </div>
+  );
+}
 
 export function Field({ label, children, error }: { label: string; children: ReactNode; error?: string | null }) {
   return (

@@ -203,3 +203,7 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - Duplicates: each row that matches an entry you already have shows what it matches (merchant, date, approved or waiting) with **Skip / Add anyway**, plus Skip all / Add all anyway. Exact repeats default to Skip; close matches default to Add (flagged). The server applies `decisions` (`{line: "import"|"skip"}`) in `prepare`; forced rows are marked `duplicateOf`. The review queue banner names the months.
 - Not verified in a browser (the live import screen needs a signed-in session); covered by service tests.
 
+## Categories on phones and modern dropdowns (added)
+- Categories & rules is laid out for phones: single column, stacked "Add category", larger tap targets (40px icons), rename row wraps, rules truncate instead of overflowing, full-width buttons; the stale "Not persisted yet" badge now shows only in the prototype.
+- `Select` (`src/components/ui.tsx`) is a custom dropdown with the same `<option>` children API: a soft floating list under the button on desktop (arrow keys, Enter, Escape, type-to-jump, checkmark on the current choice), and a bottom sheet with 48px rows on phones. Used by Transactions filters, Reports and Settle up. The Type filter now reads "Purchases / Card bill payments" instead of raw codes.
+

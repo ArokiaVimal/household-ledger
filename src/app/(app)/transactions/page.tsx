@@ -114,7 +114,7 @@ function TransactionsView() {
           <option value="">All categories</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
         <Select aria-label="Type" value={get("kind")} onChange={(e) => set("kind", e.target.value)}>
-          <option value="">All types</option>{["purchase", "refund", "income", "transfer", "cc_payment", "fee"].map((k) => <option key={k}>{k}</option>)}
+          <option value="">All types</option>{([["purchase", "Purchases"], ["refund", "Refunds"], ["income", "Income"], ["transfer", "Transfers"], ["cc_payment", "Card bill payments"], ["fee", "Fees"]] as const).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </Select>
         <Select aria-label="Account" value={get("account")} onChange={(e) => set("account", e.target.value)}>
           <option value="">All accounts</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
