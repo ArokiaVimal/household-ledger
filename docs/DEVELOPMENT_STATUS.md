@@ -215,3 +215,6 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 ## "Repeat every month" from any transaction (added)
 - The Recurring row in the add/edit/review form now ends with **Repeat every month**. Choosing it creates a recurring item from the payment (name = merchant, usual amount, due day = the payment's day, category, payer, split) and links the payment to it, so it shows under Recurring as paid. Before, the row only offered "None" until recurring items had been created by hand. Checked in a browser (demo): the payment shows under Recurring as Paid.
 
+## Add a category or a friend without leaving the form (added)
+- `CompactChips` takes an optional `adder`: a "+" next to the chips opens the full list with a small form at the bottom ("Add category", "Add a friend"). The new item is created, selected and the popup closes (for "Split with" it stays open so you can add more). Used for **Category** (transaction form, review dialog, recurring form) and **Split with**. `addCategory` and `addParticipant` now return `{ id }` or `{ error }`. Checked in a browser (demo).
+

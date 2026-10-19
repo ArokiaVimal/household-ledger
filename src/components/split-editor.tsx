@@ -31,7 +31,7 @@ const firstName = (s: string) => s.trim().split(/\s+/)[0] || s;
 
 /** Controlled editor. Amounts shown come from computeShares, never recomputed here. */
 export function SplitEditor({ total, value, onChange }: { total: Paise; value: SplitConfig; onChange: (v: SplitConfig) => void }) {
-  const { nameOf, participants, meId, splitRatio, partnerId, pendingPartner, live, partner } = useStore();
+  const { nameOf, participants, meId, splitRatio, partnerId, pendingPartner, live, partner, addParticipant } = useStore();
   // The couple's usual two-way split (set in Settings). Anchored to the person it names, not to whoever is signed in,
   // so the same expense is split the same way on both phones.
   const ownerId = participants.some((p) => p.id === splitRatio.leaderId) ? splitRatio.leaderId : meId;
@@ -121,7 +121,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
   return (
     <div className="space-y-2">
       <FormRow label="Split with">
-        <CompactChips multi label="Split with" options={[{ id: ME, label: "Just me" }, ...people.map((p) => ({ id: p.id, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : p.userId === null ? `${nameOf(p.id)} (friend)` : nameOf(p.id) }))]} selected={others.length ? others : [ME]} onPick={pickPerson} />
+        <CompactChips multi label="Split with" options={[{ id: ME, label: "Just me" }, ...people.map((p) => ({ id: p.id, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : p.userId === null ? `${nameOf(p.id)} (friend)` : nameOf(p.id) }))]} selected={others.length ? others : [ME]} onPick={pickPerson} adder={{ label: "Add a friend", placeholder: "Friend's name, e.g. Karthik", add: addParticipant }} />
         {live && !partner && pendingPartner && others.includes(pendingPartner.id) && <p className="mt-1.5 text-xs text-muted">{pendingPartner.name} has not joined yet. This stays on your side and is shared once they accept.</p>}
         {live && !partner && !pendingPartner && <p className="mt-1.5 text-xs text-muted">Splitting with a partner? <Link href="/settings" className="text-accent underline">Link them in Settings</Link>. Until then everything stays private.</p>}
         {live && partner && !partner.active && <p className="mt-1.5 text-xs text-muted">You unlinked from {partner.name}, so nothing new can be shared with them.</p>}

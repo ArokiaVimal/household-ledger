@@ -88,7 +88,7 @@ interface Store {
   categories: Category[];
   rules: MerchantRule[];
   /** Each returns an error message, or null on success. */
-  addCategory: (name: string) => string | null;
+  addCategory: (name: string) => Added;
   renameCategory: (id: string, name: string) => string | null;
   /** If the category is in use, `moveTo` says where its records and rules go. */
   deleteCategory: (id: string, moveTo?: string) => string | null;
@@ -96,7 +96,7 @@ interface Store {
   removeRule: (merchant: string) => void;
   addAccount: (name: string, type: Account["type"]) => string | null;
   addSuggestedAccounts: () => void;
-  addParticipant: (name: string) => string | null;
+  addParticipant: (name: string) => Added;
   /** Removes a friend (no account) that nothing refers to. Returns an error message, or null when removed. */
   deleteParticipant: (id: string) => string | null;
   /** Adds or changes a recurring commitment (new when `id` is omitted). Returns an error message, or null when saved. */
@@ -138,6 +138,9 @@ function toWirePatch(patch: Partial<ExpenseRecord>) {
   for (const k of EDITABLE) if (k in patch) out[k] = patch[k] === undefined ? null : patch[k];
   return out;
 }
+
+/** Result of adding something by name: its new id, or what is wrong with the name. */
+export type Added = { id: string; error?: undefined } | { id?: undefined; error: string };
 
 const slug = (s: string) => s.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 30) || "item";
 
@@ -264,11 +267,11 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
 
   const addCategory = useCallback((name: string) => {
     const err = validateCategoryName(name, categories);
-    if (err) return err;
+    if (err) return { error: err };
     const id = makeCategoryId(name, categories.map((c) => c.id));
     setCategories((cs) => [...cs, { id, name: cleanCategoryName(name) }]);
     void send({ type: "category.add", id, name });
-    return null;
+    return { id };
   }, [categories, send]);
   const renameCategory = useCallback((id: string, name: string) => {
     const err = validateCategoryName(name, categories, id);
@@ -317,12 +320,12 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   }, [send]);
   const addParticipant = useCallback((name: string) => {
     const n = name.trim();
-    if (!n || n.length > 60) return "Enter a name (up to 60 characters).";
-    if (participants.some((p) => p.name.toLowerCase() === n.toLowerCase())) return "Someone with that name already exists.";
+    if (!n || n.length > 60) return { error: "Enter a name (up to 60 characters)." };
+    if (participants.some((p) => p.name.toLowerCase() === n.toLowerCase())) return { error: "Someone with that name already exists." };
     const id = `p_${slug(n)}-${uuid().slice(0, 6)}`;
     setParticipants((ps) => [...ps, { id, name: n, userId: null }]);
     void send({ type: "participant.add", id, name: n });
-    return null;
+    return { id };
   }, [participants, send]);
 
   const deleteParticipant = useCallback((id: string) => {

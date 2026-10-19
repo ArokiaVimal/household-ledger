@@ -25,7 +25,7 @@ export default function Categories() {
 
   const add = (e: React.FormEvent) => {
     e.preventDefault();
-    const err = addCategory(name);
+    const err = addCategory(name).error ?? null;
     setAddError(err);
     if (!err) setName("");
   };

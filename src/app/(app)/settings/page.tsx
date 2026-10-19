@@ -118,7 +118,7 @@ export default function Settings() {
                 ))}
                 {friends.length === 0 && <li className="py-3 text-muted">No friends added yet. Add one below to split your next outing.</li>}
               </ul>
-              <form className="space-y-2 rounded-xl bg-background p-3" onSubmit={(e) => { e.preventDefault(); const err = addParticipant(friend); setFriendError(err); if (!err) setFriend(""); }}>
+              <form className="space-y-2 rounded-xl bg-background p-3" onSubmit={(e) => { e.preventDefault(); const err = addParticipant(friend).error ?? null; setFriendError(err); if (!err) setFriend(""); }}>
                 <Field label="Add a friend" error={friendError}><Input value={friend} onChange={(e) => { setFriend(e.target.value); setFriendError(null); }} placeholder="e.g. Karthik" maxLength={60} /></Field>
                 <Button type="submit" disabled={!friend.trim()}>Add friend</Button>
               </form>

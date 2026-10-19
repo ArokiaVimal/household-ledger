@@ -1,7 +1,7 @@
 "use client";
 // Shared UI primitives (shadcn-style, token-driven). Compose screens from these.
 import { Children, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Plus, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
@@ -222,7 +222,12 @@ const chipClass = (on: boolean, icon = false) =>
  * the full list in a pop-up. Selected options are always kept visible.
  * `multi` keeps the pop-up open for several picks.
  */
-export function CompactChips<T extends string>({ label, options, selected, onPick, multi }: { label: string; options: ChipOption<T>[]; selected: T[]; onPick: (id: T) => void; multi?: boolean }) {
+/** Lets a chip list grow in place: a "+" next to the chips opens the full list with a small form to add a new one. */
+export interface ChipAdder { label: string; placeholder: string; add: (name: string) => { id?: string; error?: string } }
+
+export function CompactChips<T extends string>({ label, options, selected, onPick, multi, adder }: { label: string; options: ChipOption<T>[]; selected: T[]; onPick: (id: T) => void; multi?: boolean; adder?: ChipAdder }) {
+  const [newName, setNewName] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const meas = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState(options.length);
@@ -230,7 +235,7 @@ export function CompactChips<T extends string>({ label, options, selected, onPic
 
   useLayoutEffect(() => {
     const compute = () => {
-      const w = wrap.current?.clientWidth ?? 0;
+      const w = (wrap.current?.clientWidth ?? 0) - (adder ? 42 : 0);
       const kids = Array.from(meas.current?.children ?? []) as HTMLElement[];
       const total = kids.length - 1; // last child is the "+N" pill
       if (total <= 0 || w === 0) return;
@@ -252,7 +257,7 @@ export function CompactChips<T extends string>({ label, options, selected, onPic
     const ro = new ResizeObserver(compute);
     if (wrap.current) ro.observe(wrap.current);
     return () => ro.disconnect();
-  }, [options]);
+  }, [options, adder]);
 
   const ids = options.map((o) => o.id);
   const visible = ids.slice(0, fit);
@@ -272,13 +277,16 @@ export function CompactChips<T extends string>({ label, options, selected, onPic
 
   return (
     <div ref={wrap} role={multi ? "group" : "radiogroup"} aria-label={label} className="relative">
-      <div className="flex gap-1.5 overflow-hidden">
-        {visible.map(chip)}
-        {overflow.length > 0 && (
-          <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className={cn(chipClass(false), "border-dashed text-accent")}>
-            {more(overflow.length)} more
-          </button>
-        )}
+      <div className="flex items-start gap-1.5">
+        <div className="flex min-w-0 flex-1 gap-1.5 overflow-hidden">
+          {visible.map(chip)}
+          {overflow.length > 0 && (
+            <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className={cn(chipClass(false), "border-dashed text-accent")}>
+              {more(overflow.length)} more
+            </button>
+          )}
+        </div>
+        {adder && <button type="button" aria-label={adder.label} title={adder.label} onClick={() => setOpen(true)} className="grid size-9 shrink-0 place-items-center rounded-full border border-dashed border-accent/50 text-accent hover:bg-accent/5"><Plus size={16} aria-hidden /></button>}
       </div>
       <div aria-hidden className="pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden">
         <div ref={meas} className="flex w-max gap-1.5">
@@ -293,6 +301,19 @@ export function CompactChips<T extends string>({ label, options, selected, onPic
               onClick={() => { onPick(id); if (!multi) setOpen(false); }} className={chipClass(selected.includes(id), !!byId(id).icon)}>{byId(id).icon}{byId(id).label}</button>
           ))}
         </div>
+        {adder && (
+          <form className="mb-4 space-y-1.5 rounded-xl bg-background p-3" onSubmit={(e) => {
+            e.preventDefault();
+            const r = adder.add(newName);
+            if (r.error || !r.id) return setAddError(r.error ?? "Could not add that.");
+            setNewName(""); setAddError(null);
+            onPick(r.id as T);
+            if (!multi) setOpen(false);
+          }}>
+            <div className="flex gap-2"><Input aria-label={adder.label} placeholder={adder.placeholder} value={newName} maxLength={60} onChange={(e) => { setNewName(e.target.value); setAddError(null); }} /><Button type="submit" variant="primary" disabled={!newName.trim()} className="shrink-0"><Plus size={14} aria-hidden />{adder.label}</Button></div>
+            {addError && <p role="alert" className="text-xs text-danger">{addError}</p>}
+          </form>
+        )}
         {multi && <div className="sticky bottom-0 -mx-4 flex justify-end border-t border-border bg-surface px-4 py-3"><Button variant="primary" onClick={() => setOpen(false)}>Done</Button></div>}
       </Dialog>
     </div>

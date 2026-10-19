@@ -19,7 +19,7 @@ export function RecurringDialog({ item, onClose }: { item: RecurringItem | "new"
 }
 
 function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => void }) {
-  const { categories, participants, recurringItems, meId, saveRecurring } = useStore();
+  const { categories, participants, recurringItems, meId, saveRecurring, addCategory } = useStore();
   const [name, setName] = useState(item?.name ?? "");
   const [amount, setAmount] = useState(item ? (item.expectedPaise / 100).toFixed(2) : "");
   const [dueDay, setDueDay] = useState(String(item?.dueDay ?? 1));
@@ -55,7 +55,7 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
           {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => <option key={d} value={String(d)}>{ordinal(d)} of the month</option>)}
         </Select>
       </FormRow>
-      <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[category]} onPick={setCategoryId} /></FormRow>
+      <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[category]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
       <Field label="Where (optional)">
         <Input list="recurring-places" value={place} onChange={(e) => setPlace(e.target.value)} placeholder="e.g. Our apartment, Parents' house" maxLength={120} />
         <datalist id="recurring-places">{places.map((p) => <option key={p} value={p} />)}</datalist>
