@@ -11,7 +11,6 @@ import { Dot, PersonGlyph } from "./glyphs";
 import { TileGrid } from "./pickers";
 import { Button, Input } from "./ui";
 
-const CUSTOM = "__custom";
 const ADD = "__add";
 
 /** Every way to split, with one plain sentence each so nobody has to guess what a mode means. */
@@ -114,19 +113,18 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
     return who.join(", ");
   };
   const presetId = howOptions.find((p) => sameSplit(p.config, value))?.label ?? "";
-  const [advanced, setAdvanced] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
-  const showAdvanced = others.length > 0 && (advanced || !presetId);
+  // Two one-tap splits ("Varru owes all", "I owe all"); every other way is the row of method icons.
+  const quick = howOptions.filter((p) => /owes all$|^I owe all$/.test(p.label));
+  const owesAll = quick.some((p) => p.label === presetId);
+  const showPanel = others.length > 0 && !owesAll && value.mode !== "equal";
   const summary = ids.map((id) => `${nameOf(id)} ${formatINR(shares[id] ?? 0)}`).join(" · ");
   const pickPreset = (label: string) => {
-    if (label === CUSTOM) return setAdvanced(true);
-    setAdvanced(false);
     onChange(structuredClone(howOptions.find((p) => p.label === label)!.config));
   };
   const pickPerson = (id: string) => {
-    setAdvanced(false);
     if (id === ME) return onChange(nobody);
     onChange(withConfig(others.includes(id) ? others.filter((x) => x !== id) : [...others, id]));
   };
@@ -159,25 +157,20 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
       {others.length > 0 && (
         <section aria-label="How">
           <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">How</h3>
-          <TileGrid label="How to split" columns={2}
-            options={[...howOptions.map((p) => ({ id: p.label, label: p.title ?? p.label, icon: modeDot(p.config.mode), hint: describe(p.config) })), { id: CUSTOM, label: "Custom", icon: <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={32} />, hint: "Amounts, %, shares, by item" }]}
-            selected={showAdvanced ? [CUSTOM] : [presetId]} onPick={pickPreset} />
-          {!showAdvanced && !error && ids.length > 1 && total > 0 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
+          <div role="radiogroup" aria-label="Split method" className="flex gap-1 rounded-2xl bg-background p-1">
+            {MODES.filter((m) => m.id !== "personal").map((m) => { const on = value.mode === m.id && !owesAll; const [I] = MODE_ICON[m.id]; return (
+              <button key={m.id} type="button" role="radio" aria-checked={on} aria-label={m.label} title={m.label} onClick={() => { onChange(build(m.id, ids.length ? ids : [meId])); }}
+                className={`grid min-h-10 flex-1 place-items-center rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-accent ${on ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-surface hover:text-foreground"}`}><I size={18} aria-hidden /></button>
+            ); })}
+          </div>
+          <p className="mt-1.5 text-xs text-muted"><b className="font-medium text-foreground">{owesAll ? howOptions.find((p) => p.label === presetId)?.label : mode.label}</b>. {owesAll ? howOptions.find((p) => p.label === presetId) && describe(howOptions.find((p) => p.label === presetId)!.config) : mode.hint}</p>
+          {quick.length > 0 && <div className="mt-2"><TileGrid label="Quick splits" columns={2} options={quick.map((p) => ({ id: p.label, label: p.label, icon: modeDot(p.config.mode), hint: describe(p.config) }))} selected={owesAll ? [presetId] : []} onPick={pickPreset} /></div>}
+          {!showPanel && !error && ids.length > 1 && total > 0 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
         </section>
       )}
 
-      {showAdvanced && (
+      {showPanel && (
         <div className="space-y-3 border-t border-border pt-3">
-          <div className="space-y-1.5">
-            <div role="radiogroup" aria-label="Split method" className="flex gap-1 rounded-2xl bg-background p-1">
-              {MODES.map((m) => { const on = value.mode === m.id; const [I] = MODE_ICON[m.id]; return (
-                <button key={m.id} type="button" role="radio" aria-checked={on} aria-label={m.label} title={m.label} onClick={() => onChange(build(m.id, ids.length ? ids : [meId]))}
-                  className={`grid min-h-10 flex-1 place-items-center rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-accent ${on ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-surface hover:text-foreground"}`}><I size={18} aria-hidden /></button>
-              ); })}
-            </div>
-            <p className="text-xs text-muted"><b className="font-medium text-foreground">{mode.label}</b>. {mode.hint}</p>
-          </div>
-
           {value.mode === "items" ? (
             <div className="space-y-2">
               <ul className="space-y-2" aria-label="Items">
