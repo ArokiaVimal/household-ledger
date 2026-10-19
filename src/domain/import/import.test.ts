@@ -3,7 +3,7 @@ import { classifyRow, extractMerchant } from "./classify";
 import { parseAmount } from "./amount";
 import { detectLayout } from "./columns";
 import { parseCsv } from "./csv";
-import { parseStatementDate } from "./date";
+import { detectDateOrder, parseStatementDate } from "./date";
 import { extractRows } from "./rows";
 
 describe("parseAmount", () => {
@@ -24,6 +24,21 @@ describe("parseAmount", () => {
   });
   it("refuses blanks, junk and more than two decimals", () => {
     for (const bad of ["", "  ", "abc", "12.345", "1.2.3", "--5", null, undefined]) expect(parseAmount(bad as never)).toBeNull();
+  });
+});
+
+describe("US-style dates", () => {
+  const table = [["Date", "Description", "Amount"], ["10/17/2026", "SHOP A", "100.00"], ["10/02/2026", "SHOP B", "50.00"], ["10/11/2026", "SHOP C", "20.00"]];
+  it("reads a month-first file as month-first, so 10/02 is 2 October", () => {
+    const r = extractRows(table);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.data.rows.map((x) => x.date)).toEqual(["2026-10-17", "2026-10-02", "2026-10-11"]);
+  });
+  it("keeps day-first when a day above 12 shows it, and when all dates are ambiguous", () => {
+    const r = extractRows([["Date", "Description", "Amount"], ["17/10/2026", "A", "1.00"], ["02/10/2026", "B", "2.00"]]);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.data.rows.map((x) => x.date)).toEqual(["2026-10-17", "2026-10-02"]);
+    expect(detectDateOrder(["03/09/2026", "04/09/2026"])).toBe("dmy");
   });
 });
 
