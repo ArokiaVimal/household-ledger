@@ -240,7 +240,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       {more && (
         <div className="space-y-2.5">
           <FormRow label="Type"><CompactChips label="Type" options={kinds} selected={[kind]} onPick={setKind} /></FormRow>
-          {!promptVoucher && kind === "purchase" && !walletId && (
+          {!promptVoucher && kind === "purchase" && !walletId && (!!voucherId || !accounts.some((x) => x.type === "wallet" && !x.archived)) && (
             <FormRow label="Tops up wallet"><CompactChips label="Wallet topped up" options={[{ id: "", label: "No", icon: <Dot icon={Ban} /> }, ...brandOptions]} selected={[voucherId]} onPick={(id) => pickBrand(id, setVoucherId)} adder={voucherAdder} /></FormRow>
           )}
           {kind === "cc_payment" && (
