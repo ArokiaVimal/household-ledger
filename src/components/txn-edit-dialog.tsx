@@ -282,7 +282,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       )}
       {adding && filled.length > 0 && <p className="-mt-2 px-1 text-xs text-muted">Filled in for you: <b className="font-medium text-foreground">{filled.join(", ")}</b>. Change anything you like.</p>}
       {mode === "review" && (record.suggested === "ai" || record.suggested === "ai_unsure") && (
-        <p className="flex items-center gap-2 text-xs text-muted"><AiBadge tone={record.suggested === "ai" ? "ai" : "unsure"}>{record.suggested === "ai" ? "AI-powered" : "AI unsure"}</AiBadge>The merchant name and category were suggested by AI. Approving confirms them and teaches the app.</p>
+        <p className="flex items-start gap-2 text-xs text-muted"><AiBadge tone={record.suggested === "ai" ? "ai" : "unsure"}>{record.suggested === "ai" ? "AI-powered" : "AI unsure"}</AiBadge>Merchant and category suggested by AI. Approving confirms them and teaches the app.</p>
       )}
       {mode === "review" && record.suggested === "memory" && <p className="text-xs text-muted">Filled in from what you approved before.</p>}
       {mode === "review" && dupOf && (
