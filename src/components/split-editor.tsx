@@ -169,13 +169,13 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
       {showAdvanced && (
         <div className="space-y-3 border-t border-border pt-3">
           <div className="space-y-1.5">
-            <div role="radiogroup" aria-label="Split method" className="flex flex-wrap gap-1.5">
+            <div role="radiogroup" aria-label="Split method" className="flex gap-1 rounded-2xl bg-background p-1">
               {MODES.map((m) => { const on = value.mode === m.id; const [I] = MODE_ICON[m.id]; return (
-                <button key={m.id} type="button" role="radio" aria-checked={on} onClick={() => onChange(build(m.id, ids.length ? ids : [meId]))}
-                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors ${on ? "border-accent bg-accent font-medium text-white shadow-sm" : "border-transparent bg-background hover:border-border"}`}><I size={14} aria-hidden />{m.label}</button>
+                <button key={m.id} type="button" role="radio" aria-checked={on} aria-label={m.label} title={m.label} onClick={() => onChange(build(m.id, ids.length ? ids : [meId]))}
+                  className={`grid min-h-10 flex-1 place-items-center rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-accent ${on ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-surface hover:text-foreground"}`}><I size={18} aria-hidden /></button>
               ); })}
             </div>
-            <p className="text-xs text-muted">{mode.hint}</p>
+            <p className="text-xs text-muted"><b className="font-medium text-foreground">{mode.label}</b>. {mode.hint}</p>
           </div>
 
           {value.mode === "items" ? (
