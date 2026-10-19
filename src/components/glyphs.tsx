@@ -1,5 +1,8 @@
+"use client";
 // Small round pictures: a coloured icon for a category, and a coloured initial for a person. Decorative (the name is always next to them).
 import { Banknote, Baby, Beer, Bike, BookOpen, Briefcase, Bus, Camera, Car, Clapperboard, Coffee, Cookie, CreditCard, Droplets, Dumbbell, Flame, Fuel, Gamepad2, Gift, GraduationCap, Hammer, HeartPulse, Home, Landmark, Leaf, Music, Package, PawPrint, Pill, Pizza, Plane, Receipt, Repeat, Scissors, ShieldCheck, Shirt, ShoppingBag, ShoppingBasket, Smartphone, Sofa, Sparkles, Stethoscope, Store, Tag, Ticket, Train, TrendingUp, Truck, Tv, Utensils, Wallet, Wifi, Wrench, Zap, type LucideIcon } from "lucide-react";
+import { useStore } from "@/data/store";
+import { useProfile } from "./profile-context";
 import { iconByName, isIconKey, type IconKey } from "@/domain/icons";
 
 const ICON_MAP: Record<IconKey, { icon: LucideIcon; tone: string }> = {
@@ -38,8 +41,15 @@ export function CategoryGlyph({ name, icon, size = 24 }: { name: string; icon?: 
 const PERSON_TONES = ["bg-violet-500", "bg-sky-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-teal-500", "bg-fuchsia-500", "bg-indigo-500"];
 const hash = (s: string) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 
-/** A coloured circle with the person's initial; the colour stays the same for the same person. */
+/** The person's photo when there is one (yours from your profile, a friend's from People), else a coloured circle with their initial. */
 export function PersonGlyph({ name, id, size = 24 }: { name: string; id?: string; size?: number }) {
+  const { participants, meId } = useStore();
+  const { profile } = useProfile();
+  const photo = id && id === meId ? profile?.avatarDataUrl ?? profile?.providerPhotoUrl ?? null : (id ? participants.find((p) => p.id === id)?.photo : null) ?? null;
+  if (photo) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={photo} alt="" referrerPolicy="no-referrer" style={{ width: size, height: size }} className="shrink-0 rounded-full object-cover" />;
+  }
   return <span aria-hidden style={{ width: size, height: size, fontSize: Math.round(size * 0.46) }} className={`grid shrink-0 place-items-center rounded-full font-semibold text-white ${PERSON_TONES[hash(id ?? name) % PERSON_TONES.length]}`}>{(name.trim()[0] ?? "?").toUpperCase()}</span>;
 }
 

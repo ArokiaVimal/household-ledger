@@ -50,6 +50,8 @@ export interface Participant {
   pendingEmail?: string;
   /** Pending partner only: the share (basis points, 6400 = 64%) the inviter usually carries when they split with this person. */
   inviterShareBps?: number;
+  /** A small JPEG (data URL) picked for this person under People. Friends have no profile of their own, so it lives here. */
+  photo?: string;
 }
 
 export interface Account {

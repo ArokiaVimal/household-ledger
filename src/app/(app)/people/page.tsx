@@ -73,7 +73,7 @@ export default function People() {
                 const owes = l.outstandingPaise > 0;
                 return (
                   <li key={l.personId} className="flex items-center gap-2 py-1.5">
-                    <Link href={`/settlements/${encodeURIComponent(l.personId)}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-2 hover:bg-background sm:px-2">
+                    <Link href={`/people/${encodeURIComponent(l.personId)}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-2 hover:bg-background sm:px-2">
                       <PersonGlyph name={name} id={l.personId} size={40} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{name}</span>

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { pairBalances } from "@/domain/balances";
 import { categoryUsage, checkDelete, cleanCategoryName, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
+import { validateAvatarDataUrl } from "@/lib/profile/profile";
 import { planUpiSetup, sortAccounts, suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { recurringStatuses } from "@/domain/recurring";
@@ -105,6 +106,8 @@ interface Store {
   updateAccount: (id: string, patch: { name?: string; type?: Account["type"]; parentId?: string | null; theme?: CardTheme | null; archived?: boolean }) => string | null;
   /** Delete a payment method nothing uses. Returns an error message (suggesting Hide) when something does. */
   deleteAccount: (id: string) => string | null;
+  /** Sets (or with null removes) the photo of a person other than yourself. Returns an error message when it is refused. */
+  setParticipantPhoto: (id: string, photo: string | null) => string | null;
   /** Icons by lowercase name for payment methods and merchants that have no brand logo. */
   iconsByName: Record<string, string>;
   /** Saves icon choices (from the AI refresh) for categories, payment methods and merchants. */
@@ -447,6 +450,14 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     return { id };
   }, [participants, send]);
 
+  const setParticipantPhoto = useCallback((id: string, photo: string | null) => {
+    const cur = participants.find((p) => p.id === id);
+    if (!cur) return "That person was not found.";
+    if (photo) { const bad = validateAvatarDataUrl(photo); if (bad) return bad; }
+    setParticipants((ps) => ps.map((p) => { if (p.id !== id) return p; const { photo: _o, ...rest } = p; void _o; return { ...rest, ...(photo ? { photo } : {}) }; }));
+    void send({ type: "participant.photo", id, photo });
+    return null;
+  }, [participants, send]);
   const deleteParticipant = useCallback((id: string) => {
     const check = checkFriendDelete(participants.find((p) => p.id === id), meId, friendUsage(id, { records: [...records, ...staged], settlements, recurring: recurringItems }));
     if (!check.ok) return check.reason;
@@ -548,7 +559,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, markRecurringPaid, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, setParticipantPhoto, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, markRecurringPaid, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,

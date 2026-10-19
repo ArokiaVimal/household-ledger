@@ -1,9 +1,11 @@
 "use client";
-import { ArrowLeft, Bell } from "lucide-react";
+import { ArrowLeft, Bell, Camera } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Badge, Button, Card, ChipGroup, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
+import { PersonGlyph } from "@/components/glyphs";
+import { toSquareJpeg } from "@/lib/profile/image";
 import { useStore } from "@/data/store";
 import { personLedger, settlementFor, type LedgerEntry } from "@/domain/ledger";
 import { formatINR } from "@/domain/money";
@@ -12,7 +14,8 @@ import { formatINR } from "@/domain/money";
 export default function PersonSettle() {
   const { id: raw } = useParams<{ id: string }>();
   const personId = decodeURIComponent(raw);
-  const { participants, meId, ledgerRecords, settlements, addSettlement, voidSettlement, nameOf, today, live, partner, voucherBrands } = useStore();
+  const { participants, meId, ledgerRecords, settlements, addSettlement, voidSettlement, nameOf, today, live, partner, voucherBrands, setParticipantPhoto } = useStore();
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [tab, setTab] = useState<"open" | "settled">("open");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<"selected" | "everything" | null>(null);
@@ -30,6 +33,12 @@ export default function PersonSettle() {
     );
   }
   const name = person.name;
+  // Friends (no account) and demo people can have a photo set here; yourself and a linked partner come from their own profiles.
+  const canEditPhoto = personId !== meId && (!live || person.userId === null);
+  const pickPhoto = async (file: File) => {
+    setPhotoError(null);
+    try { setPhotoError(setParticipantPhoto(personId, await toSquareJpeg(file, 192))); } catch { setPhotoError("Could not use that image. Try a JPEG or PNG photo."); }
+  };
   const out = ledger.outstandingPaise;
   const rows: LedgerEntry[] = tab === "open" ? ledger.open : ledger.settled;
   const chosen = ledger.open.filter((e) => picked.has(e.record.id));
@@ -50,7 +59,23 @@ export default function PersonSettle() {
   return (
     <>
       <Link href="/people" className="mb-2 inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"><ArrowLeft size={14} aria-hidden />People</Link>
-      <PageHeader title={name} sub="Everything you share, in one place." />
+      <div className="mb-4 flex items-center gap-4">
+        <PersonGlyph name={name} id={personId} size={64} />
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-xl font-semibold tracking-tight">{name}</h1>
+          <p className="text-sm text-muted">Everything you share, in one place.</p>
+          {canEditPhoto && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <label className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-sm font-medium hover:bg-background focus-within:outline-2 focus-within:outline-accent">
+                <Camera size={14} aria-hidden />{person.photo ? "Change photo" : "Add photo"}
+                <input type="file" accept="image/*" className="sr-only" aria-label={`Upload a photo of ${name}`} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void pickPhoto(f); }} />
+              </label>
+              {person.photo && <button type="button" onClick={() => setPhotoError(setParticipantPhoto(personId, null))} className="min-h-9 px-2 text-sm font-medium text-muted hover:text-danger">Remove</button>}
+            </div>
+          )}
+          {photoError && <p role="alert" className="mt-1 text-xs text-danger">{photoError}</p>}
+        </div>
+      </div>
 
       <Card className="mb-4 space-y-3 p-5">
         <div>

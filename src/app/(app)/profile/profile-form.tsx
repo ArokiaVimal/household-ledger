@@ -6,24 +6,8 @@ import { useForm, useWatch } from "react-hook-form";
 import { Avatar } from "@/components/avatar";
 import { useProfile } from "@/components/profile-context";
 import { Button, Card, CardTitle, ChipGroup, Field, Input, PageHeader } from "@/components/ui";
-import { MAX_AVATAR_BYTES, ProfileInputSchema, validateAvatarDataUrl, type Profile, type ProfileInput } from "@/lib/profile/profile";
-
-/** Centre-crop to a square and re-encode as a small JPEG, so the stored photo is tiny and always a JPEG. */
-async function toSquareJpeg(file: File, size = 256): Promise<string> {
-  const bmp = await createImageBitmap(file);
-  const side = Math.min(bmp.width, bmp.height);
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("canvas");
-  ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, size, size);
-  bmp.close();
-  for (const q of [0.85, 0.7, 0.55]) {
-    const url = canvas.toDataURL("image/jpeg", q);
-    if (Math.floor(((url.length - 23) * 3) / 4) <= MAX_AVATAR_BYTES) return url;
-  }
-  throw new Error("too large");
-}
+import { toSquareJpeg } from "@/lib/profile/image";
+import { ProfileInputSchema, validateAvatarDataUrl, type Profile, type ProfileInput } from "@/lib/profile/profile";
 
 export function ProfileForm() {
   const { profile, status, setProfile } = useProfile();

@@ -333,3 +333,8 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - Type, Tops up wallet, Recurring and Reports now have icons. Wallet brands use the merchant picture (logo, chosen icon or initial).
 - **Refresh icons with AI** (Settings, Smart import; live mode with an API key, `/api/icons`): finds categories, payment methods and merchants that have no icon, no name match and no brand logo, sends only their names, and proposes an icon for each. Claude can only answer with a key from the built-in set (`src/domain/icons.ts`), so nothing is fetched from outside the app (brand logos stay committed files) and nothing invented can render. You review the list, then Save (`icons.apply`). Stored on `Category.icon`, `Account.icon`, `MerchantMemory.icon`; renaming a category resets its icon.
 - The button only works with a real API key in live mode; verified here with unit tests and a fake Claude, not against the real API.
+
+## Photos for people, calmer split pickers (added)
+- A friend's photo can be uploaded (or removed) on their page under People (`participant.photo`, a small square JPEG stored on the participant). `PersonGlyph` shows it everywhere a person appears (Paid by, Split with, split rows, People); you appear with your profile photo. A linked partner's and your own photo come from their profiles, so the upload only shows for friends (and in demo mode).
+- Split pickers: "How to split" opens as a list of rows (icon, name, one line on who pays what, a tick on the current one); the advanced modes have icons; people rows have a round tick, their picture and name, and pill inputs with the % or ₹ inside. Zero amounts are hidden until there is a total.
+- The person link on People now goes to /people/<id> (old links redirect).

@@ -241,6 +241,17 @@ describe("suggested accounts", () => {
     expect((await repo.merchantMemory.get("mm_zepto"))!.icon).toBe("store");
     await fails(applyAction(repo, actor, { type: "icons.apply", categories: [{ id: "groceries", icon: "http://x" as never }], accounts: [], merchants: [] }), "invalid");
   });
+  it("sets and removes a friend's photo, and refuses anything that is not a small JPEG", async () => {
+    const repo = await setup();
+    await repo.participants.put({ id: "p_k", name: "Karthik", userId: null });
+    const jpeg = `data:image/jpeg;base64,/9j/${"A".repeat(40)}`;
+    await applyAction(repo, actor, { type: "participant.photo", id: "p_k", photo: jpeg });
+    expect((await repo.participants.get("p_k"))!.photo).toBe(jpeg);
+    await applyAction(repo, actor, { type: "participant.photo", id: "p_k", photo: null });
+    expect((await repo.participants.get("p_k"))!.photo).toBeUndefined();
+    await fails(applyAction(repo, actor, { type: "participant.photo", id: "p_k", photo: "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" }), "invalid");
+    await fails(applyAction(repo, actor, { type: "participant.photo", id: "nope", photo: null }), "not_found");
+  });
   it("payment methods can be put in the user's own order; unknown ids are refused", async () => {
     const repo = await setup();
     await repo.accounts.put({ id: "a1", name: "One", type: "credit_card" });

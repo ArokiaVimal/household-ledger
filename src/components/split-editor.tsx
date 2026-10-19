@@ -1,17 +1,22 @@
 "use client";
-import { Minus, Plus, Trash2 } from "lucide-react";
+import { Check, Equal, IndianRupee, ListChecks, Minus, Percent, PieChart, Plus, SlidersHorizontal, Trash2, User, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 import { computeShares, equalSplit, itemsExtra, itemSubtotals, ratioSplit, sameSplit, validateSplit } from "@/domain/splits";
 import type { Paise, SplitConfig, SplitItem, SplitMode } from "@/domain/types";
-import { PersonGlyph } from "./glyphs";
+import { Dot, PersonGlyph } from "./glyphs";
 import { Button, CompactChips, FormRow, Input } from "./ui";
 
 const CUSTOM = "__custom";
 
 /** Every way to split, with one plain sentence each so nobody has to guess what a mode means. */
+const MODE_ICON: Record<SplitMode, [LucideIcon, string]> = {
+  equal: [Equal, "bg-sky-100 text-sky-700"], custom: [IndianRupee, "bg-emerald-100 text-emerald-700"], percent: [Percent, "bg-violet-100 text-violet-700"], shares: [PieChart, "bg-amber-100 text-amber-700"],
+  adjust: [SlidersHorizontal, "bg-pink-100 text-pink-700"], items: [ListChecks, "bg-orange-100 text-orange-700"], personal: [User, "bg-slate-100 text-slate-600"],
+};
+const modeDot = (m: SplitMode) => { const [I, tone] = MODE_ICON[m]; return <Dot icon={I} tone={tone} />; };
 const MODES: { id: SplitMode; label: string; hint: string }[] = [
   { id: "equal", label: "Equally", hint: "Everyone ticked pays the same." },
   { id: "custom", label: "Exact amounts", hint: "Type what each person owes. It must add up to the total." },
@@ -97,6 +102,14 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
     patchItem(item.id, { participantIds: has ? item.participantIds.filter((x) => x !== pid) : [...item.participantIds, pid] });
   };
 
+  /** One short line saying who pays what share, from the config alone (no amounts needed). */
+  const describe = (c: SplitConfig) => {
+    const who = c.participantIds.map((id) => firstName(nameOf(id)));
+    if (c.mode === "equal") return `${who.join(", ")} pay the same`;
+    if (c.mode === "percent" && c.values) return c.participantIds.map((id) => `${firstName(nameOf(id))} ${pct(c.values?.[id] ?? 0)}%`).join(" · ");
+    if (c.mode === "shares" && c.values) { const o = c.participantIds.filter((id) => (c.values?.[id] ?? 0) > 0); return o.length === 1 ? `${firstName(nameOf(o[0]))} pays it all` : who.join(", "); }
+    return who.join(", ");
+  };
   const presetId = howOptions.find((p) => sameSplit(p.config, value))?.label ?? "";
   const [advanced, setAdvanced] = useState(false);
   const showAdvanced = others.length > 0 && (advanced || !presetId);
@@ -129,15 +142,15 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
       </FormRow>
       {others.length > 0 && (
         <FormRow label="How">
-          <CompactChips label="How to split" options={[...howOptions.map((p) => ({ id: p.label, label: p.label })), { id: CUSTOM, label: "More ways" }]} selected={showAdvanced ? [CUSTOM] : [presetId]} onPick={pickPreset} />
-          {!showAdvanced && !error && ids.length > 1 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
+          <CompactChips list label="How to split" options={[...howOptions.map((p) => ({ id: p.label, label: p.label, icon: modeDot(p.config.mode === "shares" ? "shares" : p.config.mode), hint: describe(p.config) })), { id: CUSTOM, label: "More ways", icon: <Dot icon={SlidersHorizontal} tone="bg-white text-accent" />, hint: "Exact amounts, percentages, shares, by item…" }]} selected={showAdvanced ? [CUSTOM] : [presetId]} onPick={pickPreset} />
+          {!showAdvanced && !error && ids.length > 1 && total > 0 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
         </FormRow>
       )}
 
       {showAdvanced && (
-        <div className="space-y-3 rounded-xl bg-background p-3">
+        <div className="space-y-3 rounded-2xl bg-background p-3">
           <div className="space-y-1.5">
-            <CompactChips label="How to split" options={MODES.map((m) => ({ id: m.id, label: m.label }))} selected={[value.mode]} onPick={(m) => onChange(build(m, ids.length ? ids : [meId]))} />
+            <CompactChips list label="How to split" options={MODES.map((m) => ({ id: m.id, label: m.label, icon: modeDot(m.id), hint: m.hint }))} selected={[value.mode]} onPick={(m) => onChange(build(m, ids.length ? ids : [meId]))} />
             <p className="text-xs text-muted">{mode.hint}</p>
           </div>
 
@@ -171,24 +184,26 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
             </div>
           ) : (
             <>
-              <ul className="divide-y divide-border rounded-xl bg-surface" aria-label="Who is in this expense">
+              <ul className="divide-y divide-border overflow-hidden rounded-2xl bg-surface" aria-label="Who is in this expense">
                 {participants.map((p) => {
                   const on = ids.includes(p.id);
                   const tag = p.pendingEmail ? "invited" : p.userId === null ? "friend" : "";
                   const values = value.values ?? {};
                   return (
-                    <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 text-sm">
+                    <li key={p.id} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-sm transition-colors ${on ? "bg-accent/[0.04]" : ""}`}>
                       <label className="flex min-w-0 flex-1 items-center gap-2.5">
-                        <input type={value.mode === "personal" ? "radio" : "checkbox"} name="split-people" checked={on} onChange={() => toggle(p.id)} className="size-4 shrink-0 accent-[var(--accent)]" />
+                        <input type={value.mode === "personal" ? "radio" : "checkbox"} name="split-people" checked={on} onChange={() => toggle(p.id)} className="peer sr-only" />
+                        <span aria-hidden className="grid size-5 shrink-0 place-items-center rounded-full border border-border text-transparent transition-colors peer-checked:border-accent peer-checked:bg-accent peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-accent"><Check size={12} strokeWidth={3} /></span>
+                        <PersonGlyph name={nameOf(p.id)} id={p.id} size={32} />
                         <span className="truncate font-medium">{nameOf(p.id)}{p.id === meId && <span className="font-normal text-muted"> (you)</span>}</span>
                         {tag && <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted">{tag}</span>}
                       </label>
                       {on && value.mode === "percent" && (
-                        <span className="flex items-center gap-1"><Input aria-label={`${nameOf(p.id)} percent`} inputMode="decimal" className="w-20 text-right"
-                          value={String((values[p.id] ?? 0) / 100)} onChange={(e) => onChange({ ...value, values: { ...values, [p.id]: Math.round((Number(e.target.value) || 0) * 100) } })} />%</span>
+                        <span className="relative"><Input aria-label={`${nameOf(p.id)} percent`} inputMode="decimal" className="w-[5.5rem] pr-8 text-right"
+                          value={String((values[p.id] ?? 0) / 100)} onChange={(e) => onChange({ ...value, values: { ...values, [p.id]: Math.round((Number(e.target.value) || 0) * 100) } })} /><span aria-hidden className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-muted">%</span></span>
                       )}
                       {on && value.mode === "custom" && (
-                        <span className="flex items-center gap-1">₹<Input aria-label={`${nameOf(p.id)} amount`} inputMode="decimal" className="w-28 text-right"
+                        <span className="relative"><span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">₹</span><Input aria-label={`${nameOf(p.id)} amount`} inputMode="decimal" className="w-32 pl-8 text-right"
                           defaultValue={((values[p.id] ?? 0) / 100).toFixed(2)} onChange={(e) => onChange({ ...value, values: { ...values, [p.id]: parseRupees(e.target.value) ?? 0 } })} /></span>
                       )}
                       {on && value.mode === "shares" && (
@@ -202,7 +217,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
                         <span className="flex items-center gap-1">±₹<Input aria-label={`${nameOf(p.id)} adjustment`} inputMode="decimal" placeholder="0" className="w-24 text-right"
                           defaultValue={values[p.id] ? (values[p.id] / 100).toFixed(2) : ""} onChange={(e) => { const v = signedRupees(e.target.value); if (v !== null) onChange({ ...value, values: { ...values, [p.id]: v } }); }} /></span>
                       )}
-                      {on && !error && value.mode !== "custom" && ids.length > 1 && <span className="num w-24 text-right text-muted">{formatINR(shares[p.id] ?? 0)}</span>}
+                      {on && !error && total > 0 && value.mode !== "custom" && ids.length > 1 && <span className="num w-24 text-right text-muted">{formatINR(shares[p.id] ?? 0)}</span>}
                     </li>
                   );
                 })}

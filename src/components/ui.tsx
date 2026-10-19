@@ -252,7 +252,7 @@ const chipClass = (on: boolean, icon = false) =>
 /** Lets a chip list grow in place: a "+" next to the chips opens the full list with a small form to add a new one. */
 export interface ChipAdder { label: string; placeholder: string; add: (name: string) => { id?: string; error?: string } }
 
-export function CompactChips<T extends string>({ label, options, selected, onPick, multi, adder }: { label: string; options: ChipOption<T>[]; selected: T[]; onPick: (id: T) => void; multi?: boolean; adder?: ChipAdder }) {
+export function CompactChips<T extends string>({ label, options, selected, onPick, multi, adder, list }: { label: string; options: ChipOption<T>[]; selected: T[]; onPick: (id: T) => void; multi?: boolean; adder?: ChipAdder; /** The pop-up shows each option as a row with its hint, instead of chips. */ list?: boolean }) {
   const [newName, setNewName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
@@ -322,12 +322,31 @@ export function CompactChips<T extends string>({ label, options, selected, onPic
         </div>
       </div>
       <Dialog open={open} onClose={() => setOpen(false)} title={label}>
+        {list ? (
+          <ul className="space-y-1.5 pb-4">
+            {ids.map((id) => {
+              const on = selected.includes(id);
+              const o = byId(id);
+              return (
+                <li key={id}>
+                  <button type="button" aria-pressed={on} onClick={() => { onPick(id); if (!multi) setOpen(false); }}
+                    className={cn("flex min-h-14 w-full items-center gap-3 rounded-2xl border px-3 py-2 text-left transition-colors", on ? "border-accent bg-accent/5" : "border-transparent bg-background hover:border-border")}>
+                    {o.icon}
+                    <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{o.label}</span>{o.hint && <span className="block text-xs text-muted">{o.hint}</span>}</span>
+                    {on && <Check size={18} aria-hidden className="shrink-0 text-accent" />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
         <div className="flex flex-wrap gap-1.5 pb-4">
           {ids.map((id) => (
             <button key={id} type="button" aria-pressed={selected.includes(id)}
               onClick={() => { onPick(id); if (!multi) setOpen(false); }} className={chipClass(selected.includes(id), !!byId(id).icon)}>{byId(id).icon}{byId(id).label}</button>
           ))}
         </div>
+        )}
         {adder && (
           <form className="mb-4 space-y-1.5 rounded-xl bg-background p-3" onSubmit={(e) => {
             e.preventDefault();
