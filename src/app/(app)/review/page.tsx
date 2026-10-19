@@ -1,16 +1,31 @@
 "use client";
-import { ClipboardCheck, Sparkles, Trash2 } from "lucide-react";
+import { ClipboardCheck, Search, Sparkles, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { MerchantAvatar, Amount } from "@/components/txn-row";
 import { TxnReviewDialog } from "@/components/txn-edit-dialog";
-import { AiBadge, AiFeatureCard, Badge, Button, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
+import { AiBadge, AiFeatureCard, Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
+import { formatINR } from "@/domain/money";
 import type { ExpenseRecord } from "@/domain/types";
+import { needsVoucherBrand } from "@/domain/vouchers";
 
 /** Set the first time the owner clears the review queue, so the jump to the dashboard happens only once on this device. */
 const FIRST_REVIEW_KEY = "pf:first-review-done";
+
+type Quick = "all" | "dups" | "nocat" | "aicheck" | "remembered" | "voucher" | "monthly" | "shared";
+const QUICK: { id: Quick; label: string; test: (r: ExpenseRecord) => boolean }[] = [
+  { id: "all", label: "All", test: () => true },
+  { id: "dups", label: "Possible duplicates", test: (r) => !!r.duplicateOf },
+  { id: "nocat", label: "Needs a category", test: (r) => !r.suggested && r.categoryId === "uncategorized" },
+  { id: "aicheck", label: "AI to check", test: (r) => r.suggested === "ai" || r.suggested === "ai_unsure" },
+  { id: "remembered", label: "Remembered", test: (r) => r.suggested === "memory" },
+  { id: "voucher", label: "Vouchers", test: (r) => needsVoucherBrand(r) || !!r.voucherPending },
+  { id: "monthly", label: "Looks monthly", test: (r) => !!r.recurringHint },
+  { id: "shared", label: "Shared", test: (r) => r.shared },
+];
+const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en", { month: "short", year: "numeric", timeZone: "UTC" });
 
 export default function Review() {
   return <Suspense fallback={null}><ReviewQueue /></Suspense>;
@@ -30,12 +45,30 @@ function ReviewQueue() {
   const [confirm, setConfirm] = useState(false);
   const [deleting, setDeleting] = useState<ExpenseRecord[] | null>(null);
 
-  const pending = staged.filter((r) => r.id !== open?.id);
+  // Search and filters narrow what you see and what "Start reviewing", "Select all" and the bulk actions work on.
+  const [q, setQ] = useState("");
+  const [acct, setAcct] = useState("");
+  const [cat, setCat] = useState("");
+  const [mon, setMon] = useState("");
+  const [quick, setQuick] = useState<Quick>("all");
+  const needle = q.trim().toLowerCase();
+  const shown = useMemo(() => staged.filter((r) =>
+    (!acct || r.accountId === acct) && (!cat || r.categoryId === cat) && (!mon || r.date.startsWith(mon)) && QUICK.find((x) => x.id === quick)!.test(r) &&
+    (!needle || `${r.merchant} ${r.originalDescription} ${r.notes ?? ""} ${formatINR(r.amountPaise)} ${(r.amountPaise / 100).toFixed(2)}`.toLowerCase().includes(needle)),
+  ), [staged, acct, cat, mon, quick, needle]);
+  const filtered = !!(needle || acct || cat || mon || quick !== "all");
+  const accountsIn = [...new Set(staged.map((r) => r.accountId))];
+  const categoriesIn = [...new Set(staged.map((r) => r.categoryId))];
+  const monthsIn = [...new Set(staged.map((r) => r.date.slice(0, 7)))].sort().reverse();
+  const clearFilters = () => { setQ(""); setAcct(""); setCat(""); setMon(""); setQuick("all"); setPicked(new Set()); };
+  const narrow = (set: () => void) => { set(); setPicked(new Set()); };
+
+  const pending = shown.filter((r) => r.id !== open?.id);
   const next = open ? { remaining: pending.length, open: () => setOpen(pending[0] ?? null) } : undefined;
   const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const chosen = staged.filter((r) => picked.has(r.id));
+  const chosen = shown.filter((r) => picked.has(r.id));
   // Rows the app is confident about: remembered from your own approvals, or Claude was sure. Possible duplicates always need you.
-  const confident = staged.filter((r) => (r.suggested === "memory" || r.suggested === "ai") && !r.duplicateOf);
+  const confident = shown.filter((r) => (r.suggested === "memory" || r.suggested === "ai") && !r.duplicateOf);
   const fillable = staged.filter((r) => !r.suggested).length;
   const fillWithAi = async () => {
     setBusy(true); setNote(null);
@@ -93,17 +126,37 @@ function ReviewQueue() {
             </AiFeatureCard>
           )}
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Badge tone="warn">{staged.length} awaiting review</Badge>
-            <Button onClick={() => setOpen(staged[0])} variant="primary"><ClipboardCheck size={16} aria-hidden />Start reviewing</Button>
-            <Button onClick={() => setPicked(picked.size === staged.length ? new Set() : new Set(staged.map((r) => r.id)))}>{picked.size === staged.length ? "Clear selection" : "Select all"}</Button>
+            <Badge tone="warn">{filtered ? `${shown.length} of ${staged.length} shown` : `${staged.length} awaiting review`}</Badge>
+            <Button onClick={() => shown[0] && setOpen(shown[0])} variant="primary" disabled={shown.length === 0}><ClipboardCheck size={16} aria-hidden />Start reviewing</Button>
+            <Button disabled={shown.length === 0} onClick={() => setPicked(picked.size === shown.length ? new Set() : new Set(shown.map((r) => r.id)))}>{picked.size === shown.length && shown.length > 0 ? "Clear selection" : filtered ? `Select these ${shown.length}` : "Select all"}</Button>
             {live && fillable > 0 && <Button onClick={fillWithAi} disabled={busy}><Sparkles size={15} aria-hidden />{busy ? "Asking AI…" : `Fill in ${fillable} with AI`}<AiBadge>AI</AiBadge></Button>}
             {confident.length > 0 && <Button onClick={() => setPicked(new Set(confident.map((r) => r.id)))}><Sparkles size={15} aria-hidden />Select {confident.length} confident ones</Button>}
             {picked.size > 0 && <Button onClick={() => setConfirm(true)}>Approve {picked.size} as they are…</Button>}
             {picked.size > 0 && <Button variant="danger" onClick={() => setDeleting(chosen)}><Trash2 size={15} aria-hidden />Delete {picked.size}…</Button>}
           </div>
+          <div className="mb-3 space-y-2" role="search" aria-label="Search and filter the review queue">
+            <div className="relative">
+              <Search size={16} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+              <Input aria-label="Search the review queue" placeholder="Search merchant, text or amount" value={q} onChange={(e) => narrow(() => setQ(e.target.value))} className="pl-10 pr-10" />
+              {q && <button type="button" aria-label="Clear search" onClick={() => narrow(() => setQ(""))} className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-muted hover:bg-background"><X size={14} aria-hidden /></button>}
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <Select aria-label="Payment method" value={acct} onChange={(e) => narrow(() => setAcct(e.target.value))}><option value="">All payment methods</option>{accountsIn.map((id) => <option key={id} value={id}>{accountName(id)}</option>)}</Select>
+              <Select aria-label="Category" value={cat} onChange={(e) => narrow(() => setCat(e.target.value))}><option value="">All categories</option>{categoriesIn.map((id) => <option key={id} value={id}>{categoryName(id)}</option>)}</Select>
+              <Select aria-label="Month" value={mon} onChange={(e) => narrow(() => setMon(e.target.value))}><option value="">All months</option>{monthsIn.map((m) => <option key={m} value={m}>{monthName(m)}</option>)}</Select>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Quick filters">
+              {QUICK.filter((x) => x.id === "all" || staged.some(x.test)).map((x) => {
+                const n = staged.filter(x.test).length;
+                return <button key={x.id} type="button" aria-pressed={quick === x.id} onClick={() => narrow(() => setQuick(x.id))} className={`min-h-8 rounded-full border px-3 text-sm ${quick === x.id ? "border-accent bg-accent text-white" : "border-border bg-surface text-muted hover:text-foreground"}`}>{x.label}{x.id !== "all" && <span className="ml-1.5 text-xs opacity-80">{n}</span>}</button>;
+              })}
+              {filtered && <button type="button" onClick={clearFilters} className="ml-1 text-sm text-accent underline-offset-2 hover:underline">Clear filters</button>}
+            </div>
+          </div>
           {note && <p role="status" className="mb-3 rounded-xl bg-accent/5 p-3 text-sm">{note}</p>}
+          {shown.length === 0 && <p role="status" className="rounded-[var(--radius-card)] bg-surface p-6 text-center text-sm text-muted">Nothing in the queue matches. <button type="button" onClick={clearFilters} className="text-accent underline underline-offset-2">Clear filters</button></p>}
           <ul className="space-y-2">
-            {staged.map((r) => (
+            {shown.map((r) => (
               <li key={r.id} className="flex items-center gap-3 rounded-[var(--radius-card)] bg-surface p-3">
                 <input type="checkbox" aria-label={`Select ${r.merchant}`} checked={picked.has(r.id)} onChange={() => toggle(r.id)} className="size-4 accent-[var(--accent)]" />
                 <button onClick={() => setOpen(r)} className="flex min-w-0 flex-1 items-center gap-3 text-left">

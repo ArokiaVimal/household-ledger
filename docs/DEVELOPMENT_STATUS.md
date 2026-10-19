@@ -266,3 +266,6 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 ## Voucher seller recognised on existing rows too (fix)
 - Rows imported before voucher tracking existed (no flag) now also ask which voucher: a purchase whose statement text is a known voucher seller (`CUST CAP SOLUTIONS` or the printed variant `CUSTCAP SOLUTIONS PVT L`) is treated as a voucher purchase waiting for its brand in the review dialog, the Vouchers screen (Waiting for a brand), the "Does it add up?" check and the Transactions filter. Editing an already approved row is never blocked by the prompt. A merchant name you already confirmed (for example "Shopwise Voucher") is kept.
 
+## Search and filters in the review queue (added)
+- Review has a search box (merchant, statement text, notes, amount), dropdowns for payment method, category and month (only values present in the queue), and quick-filter chips with counts (Possible duplicates, Needs a category, AI to check, Remembered, Vouchers, Looks monthly, Shared; chips with nothing in them are hidden), plus Clear filters. Everything works on what is shown: "N of M shown", Start reviewing walks through the filtered rows, Select all / Select confident / Approve / Delete only touch visible rows, and changing a filter clears the selection so nothing hidden is approved by accident. Checked in a browser (demo).
+
