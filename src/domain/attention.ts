@@ -25,12 +25,12 @@ export function needsAttention(i: AttentionInput): AttentionItem[] {
   const dueSoon = i.bills.filter((b) => b.state !== "overdue" && b.daysLeft <= soon).length;
   const overdueRecurring = i.recurring.filter((r) => r.state === "overdue").length;
   const items: AttentionItem[] = [
-    { key: "review", label: "waiting for review", count: i.waiting, href: "/review", tone: "warn" },
-    { key: "bills-overdue", label: "overdue card bills", count: overdueBills, href: "/cards", tone: "bad" },
-    { key: "bills-soon", label: `card bills due within ${soon} days`, count: dueSoon, href: "/cards", tone: "warn" },
-    { key: "recurring-overdue", label: "overdue recurring payments", count: overdueRecurring, href: "/recurring", tone: "bad" },
-    { key: "suggestions", label: "recurring suggestions to confirm", count: i.suggestions ?? 0, href: "/recurring#suggestions", tone: "warn" },
-    { key: "uncategorized", label: "without a category", count: i.uncategorized, href: "/transactions?category=uncategorized", tone: "warn" },
+    { key: "review", label: "to review", count: i.waiting, href: "/review", tone: "warn" },
+    { key: "bills-overdue", label: "bills overdue", count: overdueBills, href: "/cards", tone: "bad" },
+    { key: "bills-soon", label: `bills due in ${soon} days`, count: dueSoon, href: "/cards", tone: "warn" },
+    { key: "recurring-overdue", label: "recurring overdue", count: overdueRecurring, href: "/recurring", tone: "bad" },
+    { key: "suggestions", label: "suggested recurring", count: i.suggestions ?? 0, href: "/recurring#suggestions", tone: "warn" },
+    { key: "uncategorized", label: "uncategorised", count: i.uncategorized, href: "/transactions?category=uncategorized", tone: "warn" },
   ];
   return items.filter((x) => x.count > 0);
 }

@@ -46,19 +46,22 @@ export function DonutChart({ data, total, href }: { data: Datum[]; total: number
   const top = data.slice(0, 5);
   const rest = data.slice(5).reduce((s, d) => s + d.value, 0);
   const slices = rest > 0 ? [...top, { key: "", label: "Other", value: rest }] : top;
+  const sum = slices.reduce((t, d) => t + d.value, 0);
+  const pctOf = (v: number) => (sum > 0 ? Math.round((v / sum) * 100) : 0);
   return (
     <div className="flex flex-wrap items-center gap-4">
       <ul className="min-w-32 flex-1 space-y-2 text-sm">
         {slices.map((d, i) => (
           <li key={d.label}>
-            <button disabled={!d.key} onClick={() => router.push(href(d.key))} className="flex items-center gap-2 text-left hover:underline disabled:no-underline">
-              <span className="size-2.5 rounded-full" style={{ background: PALETTE[i % PALETTE.length] }} />
-              {d.label}
+            <button disabled={!d.key} onClick={() => router.push(href(d.key))} className="flex w-full items-center gap-2 text-left hover:underline disabled:no-underline">
+              <span className="size-2.5 shrink-0 rounded-full" style={{ background: PALETTE[i % PALETTE.length] }} />
+              <span className="min-w-0 flex-1 truncate">{d.label}</span>
+              <span className="num text-xs text-muted">{pctOf(d.value)}%</span>
             </button>
           </li>
         ))}
       </ul>
-      <div className="relative size-40" role="img" aria-label="Category donut chart. Select a slice to open transactions">
+      <div className="relative size-36 shrink-0" role="img" aria-label="Category donut chart. Select a slice to open transactions">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie data={slices} dataKey="value" nameKey="label" innerRadius={52} outerRadius={74} paddingAngle={2} cornerRadius={4} stroke="none"
