@@ -1,9 +1,11 @@
 "use client";
-import { ArrowLeftRight, Ban, Banknote, CalendarDays, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeftRight, Ban, Banknote, CalendarDays, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useStore } from "@/data/store";
 import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
 import { CategoryGlyph, Dot, PersonGlyph } from "@/components/glyphs";
+import { CategorySheet, ListSheet, MerchantSheet, PickerRow } from "@/components/pickers";
+import { attribute } from "@/domain/groups";
 import { shortName, walletAccountFor, walletBrandFor } from "@/domain/accounts";
 import { knownVoucherSeller } from "@/domain/vouchers";
 import { formatINR, parseRupees } from "@/domain/money";
@@ -14,6 +16,7 @@ import { MerchantAvatar } from "./txn-row";
 import { AiBadge, Button, CompactChips, ConfirmDialog, Dialog, FormRow, Input } from "./ui";
 
 const NEW_RECURRING = "__new_recurring";
+const typeText = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet" } as const;
 const kinds: { id: TxnKind; label: string; icon: ReactNode }[] = [
   { id: "purchase", label: "Purchase", icon: <Dot icon={ShoppingBag} tone="bg-pink-100 text-pink-700" /> },
   { id: "refund", label: "Refund", icon: <Dot icon={Undo2} tone="bg-emerald-100 text-emerald-700" /> },
@@ -58,8 +61,9 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 }
 
 function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { meId, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, addCategory, voucherBrands, addVoucherBrand } = useStore();
+  const { meId, nameOf, groups, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
   const [deleting, setDeleting] = useState(false);
+  const [sheet, setSheet] = useState<null | "pay" | "via" | "wallet" | "merchant" | "category">(null);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";
   const [merchant, setMerchant] = useState(record.merchant);
@@ -108,21 +112,16 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const changed = [kind !== "purchase", !!recurringId, excluded].filter(Boolean).length;
   const dueDay = Math.min(28, Math.max(1, Number(date.slice(8, 10)) || 1));
   const amountPaise = adding ? (parseRupees(amountText) ?? 0) : record.amountPaise;
-  // Quick picks for manual entry: the places you pay most often, with the category you used last time.
-  const quick = useMemo(() => {
-    if (!adding) return [];
-    const seen = new Map<string, { merchant: string; categoryId: string; n: number }>();
-    for (const r of [...records].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 300)) {
-      if (r.kind !== "purchase" || !r.merchant.trim()) continue;
-      const k = r.merchant.toLowerCase();
-      const cur = seen.get(k);
-      if (cur) cur.n++; else seen.set(k, { merchant: r.merchant, categoryId: r.categoryId, n: 1 });
-    }
-    return [...seen.values()].sort((a, b) => b.n - a.n).slice(0, 5);
-  }, [adding, records]);
   const sharing = split.mode !== "personal" || payerId !== meId;
+  const [splitOpen, setSplitOpen] = useState(sharing);
   const isUpi = accounts.find((a) => a.id === accountId)?.type === "upi";
   const splitError = topUp ? null : validateSplit(amountPaise, split);
+  // Which of your Payment Groups this transaction counts in, from who is in the split (the groups are views, so there is nothing to set).
+  const countsIn = useMemo(() => {
+    if (topUp || amountPaise <= 0 || kind !== "purchase") return [];
+    const probe = { ...record, amountPaise, split, payerId, kind, excluded: false, status: "reviewed" as const } as ExpenseRecord;
+    return groups.filter((g) => attribute(probe, g, groups, meId)).map((g) => g.name);
+  }, [topUp, amountPaise, kind, record, split, payerId, groups, meId]);
   const missing = adding ? (!accountId ? "Add a payment method first (Settings)" : amountPaise <= 0 ? "Enter an amount" : !merchant.trim() ? "Enter a merchant" : !/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Pick a date" : null) : null;
   // New rows must say which voucher (or decide later). Editing something that is already approved is never blocked by it.
   const voucherProblem = promptVoucher && !voucherId && !voucherLater && record.status !== "reviewed" ? "Pick the wallet that was topped up, or choose Decide later" : voucherId && walletId ? "A payment cannot both buy a voucher and be paid with one" : null;
@@ -197,32 +196,17 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       {mode === "review" && dupOf && (
         <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Approve only if this is a separate purchase; otherwise reject it.</p>
       )}
-      {adding && !paidWithId && <FormRow label="Paid with"><CompactChips label="Payment method" options={primaries.map((a) => ({ id: a.id, label: shortName(a.name), icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[primaryId]} onPick={(id) => { setPrimaryId(id); setSubId(""); }} /></FormRow>}
-      {adding && !paidWithId && subs.length > 0 && (
-        <FormRow label="Via">
-          <CompactChips label="Sub payment method" options={[{ id: "", label: "Direct" }, ...subs.map((a) => ({ id: a.id, label: shortName(a.name), icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[subId]} onPick={setSubId} />
-          <p className="mt-1.5 text-xs text-muted">{subId ? "" : `Direct means paid with ${accounts.find((a) => a.id === primaryId)?.name} itself. `}Pick a sub payment method only if the money went through it.</p>
-        </FormRow>
-      )}
+      {adding && !paidWithId && <PickerRow icon={<MerchantAvatar name={accounts.find((a) => a.id === primaryId)?.name ?? "?"} size={32} />} label="Paid with" value={accounts.find((a) => a.id === primaryId) ? shortName(accounts.find((a) => a.id === primaryId)!.name) : "Choose"} sub={accounts.find((a) => a.id === primaryId) ? typeText[accounts.find((a) => a.id === primaryId)!.type] : undefined} onClick={() => setSheet("pay")} />}
+      {adding && !paidWithId && subs.length > 0 && <PickerRow icon={subId ? <MerchantAvatar name={accounts.find((a) => a.id === subId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="Via (optional)" value={subId ? shortName(accounts.find((a) => a.id === subId)?.name ?? "") : "Direct"} muted={!subId} sub={subId ? undefined : `Paid with ${shortName(accounts.find((a) => a.id === primaryId)?.name ?? "it")} itself`} onClick={() => setSheet("via")} />}
       {adding && impliedBrand && <p className="-mt-1 rounded-xl bg-accent/5 px-3 py-2 text-xs text-muted">Paid from the {impliedBrand.name} wallet: it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
       {voucherBrands.length > 0 && !topUp && !impliedBrand && kind === "purchase" && (!!paidWithId || !accounts.some((a) => a.type === "wallet" && !a.archived)) && (
-        <FormRow label="From wallet">
-          <CompactChips label="Paid from a voucher wallet" options={[{ id: "", label: "No" }, ...voucherBrands.map((b) => ({ id: b.id, label: `${b.name} wallet` }))]} selected={[paidWithId]} onPick={setPaidWithId} />
-          {paidWithId && <p className="mt-1.5 text-xs text-muted">Paid from the {voucherBrands.find((b) => b.id === paidWithId)?.name} wallet, so it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
-        </FormRow>
+        <>
+          <PickerRow icon={paidWithId ? <MerchantAvatar name={voucherBrands.find((b) => b.id === paidWithId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="From wallet (optional)" value={paidWithId ? `${voucherBrands.find((b) => b.id === paidWithId)?.name} wallet` : "No"} muted={!paidWithId} onClick={() => setSheet("wallet")} />
+          {paidWithId && <p className="-mt-2 px-1 text-xs text-muted">Paid from the {voucherBrands.find((b) => b.id === paidWithId)?.name} wallet, so it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
+        </>
       )}
-      <FormRow label="Merchant">
-        <Input value={merchant} onChange={(e) => setMerchant(e.target.value)} placeholder="Where did you pay?" />
-        {adding && !merchant && quick.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1.5" aria-label="Places you pay often">
-            {quick.map((q) => <button key={q.merchant} type="button" onClick={() => { setMerchant(q.merchant); setCategoryId(q.categoryId); }} className="rounded-full bg-background px-2.5 py-1 text-xs text-muted hover:text-foreground">{q.merchant}</button>)}
-          </div>
-        )}
-      </FormRow>
-      <FormRow label="Note">
-        <Input aria-label="Note" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} placeholder="What was this for? Helps AI" />
-      </FormRow>
-      <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} icon={c.icon} /> }))} selected={[categoryId]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
+      <PickerRow icon={merchant.trim() ? <MerchantAvatar name={merchant} size={32} /> : <Dot icon={Store} size={32} tone="bg-accent/10 text-accent" />} label="Merchant" value={merchant.trim() || "Where did you pay?"} muted={!merchant.trim()} onClick={() => setSheet("merchant")} />
+      <PickerRow icon={<CategoryGlyph name={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} icon={categories.find((c) => c.id === categoryId)?.icon} size={32} />} label="Category" value={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} muted={categoryId === "uncategorized"} onClick={() => setSheet("category")} />
       {promptVoucher && (
         <FormRow label="Wallet">
           <CompactChips label="Wallet topped up" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
@@ -232,9 +216,19 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         </FormRow>
       )}
       {topUp
-        ? <p className="border-t border-border pt-3 text-xs text-muted">A wallet top-up is your own money going into the wallet, so it is not split or shared. Split the purchases you make from the wallet instead.</p>
-        : <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>}
+        ? <p className="rounded-xl bg-background p-3 text-xs text-muted">A wallet top-up is your own money going into the wallet, so it is not split or shared. Split the purchases you make from the wallet instead.</p>
+        : (
+          <>
+            <PickerRow icon={<span className="flex -space-x-2">{(split.participantIds.length ? split.participantIds : [meId]).slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={28} /></span>)}</span>} label="Split with" value={split.mode === "personal" || split.participantIds.length <= 1 ? "Just me" : split.participantIds.map((id) => (id === meId ? "You" : nameOf(id).split(/\s+/)[0])).join(", ")} sub={splitError ? undefined : split.participantIds.length > 1 ? "Tap to change who and how" : "Tap to share with someone"} onClick={() => setSplitOpen(!splitOpen)} />
+            {(splitOpen || !!splitError) && <div className="rounded-2xl bg-background p-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>}
+            {countsIn.length > 0 && <p className="-mt-1 px-1 text-xs text-muted">Counts in <b className="font-medium text-foreground">{countsIn.join(" · ")}</b>. This follows who is in the split.</p>}
+          </>
+        )}
       {(sharing || !adding) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
+      <label className="block">
+        <span className="sr-only">Note (optional)</span>
+        <Input aria-label="Note" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} placeholder="Add a note (optional). Helps AI" />
+      </label>
       <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="group flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-border bg-surface px-3 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent">
         <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={26} />
         <span className="flex-1 text-sm font-semibold">More options</span>
@@ -265,6 +259,12 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
           </FormRow>
         </div>
       )}
+
+      <ListSheet open={sheet === "pay"} onClose={() => setSheet(null)} title="Paid with" value={primaryId} options={primaries.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))} onPick={(id) => { setPrimaryId(id); setSubId(""); }} />
+      <ListSheet open={sheet === "via"} onClose={() => setSheet(null)} title="Via" value={subId} options={[{ id: "", label: "Direct", hint: `Paid with ${accounts.find((a) => a.id === primaryId)?.name ?? "it"} itself`, icon: <Dot icon={Ban} size={32} /> }, ...subs.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setSubId} note="Pick a sub payment method only if the money went through it." />
+      <ListSheet open={sheet === "wallet"} onClose={() => setSheet(null)} title="From wallet" value={paidWithId} options={[{ id: "", label: "No", icon: <Dot icon={Ban} size={32} /> }, ...voucherBrands.map((b) => ({ id: b.id, label: `${b.name} wallet`, icon: <MerchantAvatar name={b.name} size={32} /> }))]} onPick={setPaidWithId} />
+      <MerchantSheet open={sheet === "merchant"} onClose={() => setSheet(null)} value={merchant} onPick={(name, cat) => { setMerchant(name); if (adding && cat && categoryId === "uncategorized" && categories.some((c) => c.id === cat)) setCategoryId(cat); }} />
+      <CategorySheet open={sheet === "category"} onClose={() => setSheet(null)} value={categoryId} onPick={setCategoryId} />
 
       <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center">
         {/* One clear main action; the rest sit quietly beside or below it. */}
