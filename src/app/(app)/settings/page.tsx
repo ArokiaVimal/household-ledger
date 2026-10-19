@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { Download, LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
+import { LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
 import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
 import { THEME_STYLE, themeFor } from "@/components/card-mockup";
 import { useStore } from "@/data/store";
@@ -17,6 +17,7 @@ import { GmailCard } from "./gmail-card";
 import { PartnerCard } from "./partner-card";
 import { IconsCard } from "./icons-card";
 import { SyncCard } from "./sync-card";
+import { DataCard } from "./data-card";
 import { GroupsCard } from "./groups-card";
 import { ContactsCard } from "./contacts-card";
 
@@ -48,8 +49,7 @@ function Section({ id, icon, title, tagline, children }: { id: string; icon: Rea
 }
 
 export default function Settings() {
-  const { today, live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, reorderAccounts, setupUpiApps, addSuggestedAccounts, deleteParticipant } = useStore();
-  const [confirm, setConfirm] = useState(false);
+  const { today, live, aiEnabled, records, staged, settlements, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, reorderAccounts, setupUpiApps, addSuggestedAccounts, deleteParticipant } = useStore();
   // One dialog adds and edits payment methods. `parent` is set when adding a sub payment method.
   const [dlg, setDlg] = useState<{ acc?: Account; parent?: string } | null>(null);
   const [fName, setFName] = useState("");
@@ -91,15 +91,6 @@ export default function Settings() {
   const removeCheck = removing ? checkFriendDelete(removingPerson, meId, friendUsage(removing, { records: [...records, ...staged], settlements, recurring: recurringItems })) : null;
   const missingSuggested = SUGGESTED_ACCOUNTS.filter((s) => !accounts.some((a) => a.id === s.id)).length;
 
-  const exportJson = () => {
-    const payload = { schemaVersion: 1, note: live ? "Basic export. Full export/restore arrives later." : "MOCK DATA export", exportedAt: new Date().toISOString(), participants, accounts, categories, rules, recurringItems, records: [...records, ...staged], sharedWithPartner: sharedRecords.map(({ originalDescription: _o, accountId: _a, importSource: _i, ...r }) => { void _o; void _a; void _i; return r; }), settlements, receipts };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = live ? "personal-finance-export.json" : "ledger-mock-export.json";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
 
   const usedBy = (id: string) => [...records, ...staged].filter((r) => r.accountId === id).length;
 
@@ -200,10 +191,7 @@ export default function Settings() {
 
         <Section id="data" icon={<ShieldCheck size={20} aria-hidden />} title="Your data" tagline="It is your money and your data. Take a copy whenever you like.">
           <SyncCard />
-          <Card className="space-y-3">
-            <p className="text-sm text-muted">{live ? "Download everything as a file you keep: transactions, people, categories, rules and settlements. A fuller export with CSV and restore is on the way." : "Exports the sample data in this prototype as a file."}</p>
-            <div className="flex flex-wrap gap-2"><Button onClick={exportJson}><Download size={16} aria-hidden />Download my data</Button><Button variant="danger" onClick={() => setConfirm(true)}>Delete all my data…</Button></div>
-          </Card>
+          <DataCard />
         </Section>
       </div>
 
@@ -255,10 +243,6 @@ export default function Settings() {
         <div className="sticky bottom-0 -mx-4 mt-4 flex justify-end border-t border-border bg-surface px-4 py-3"><Button onClick={() => setRemoving(null)}>Close</Button></div>
       </Dialog>
       {removeError && <p role="alert" className="mt-3 text-sm text-danger">{removeError}</p>}
-      <Dialog open={confirm} onClose={() => setConfirm(false)} title="Delete all my data?">
-        <p className="text-sm">{live ? "Deleting your data from the app is not built yet, so nothing was removed. When it is, it will permanently delete every record and uploaded file after a typed confirmation." : "The prototype holds only mock data, so nothing is deleted."}</p>
-        <div className="sticky bottom-0 -mx-4 mt-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => setConfirm(false)}>Close</Button></div>
-      </Dialog>
     </>
   );
 }
