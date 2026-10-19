@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { intakeFile } from "@/lib/import/intake";
 import { MAX_FILE_BYTES } from "@/lib/import/service";
-import { authorize, runImport, sha256 } from "./shared";
+import { authorize, parseDecisions, runImport, sha256 } from "./shared";
 
 // Claude may be asked to read an unfamiliar layout, which can take a while on a long statement.
 export const maxDuration = 60;
@@ -26,6 +26,6 @@ export async function POST(req: Request) {
   const accountId = String(form.get("accountId") ?? "") || undefined;
   return runImport(who, form.get("mode") === "commit" ? "commit" : "preview", form.get("ai") === "1", (o) => intakeFile(bytes, file.name, {
     ...o, accountId,
-    base: { filename: cleanName(file.name), fileHash: sha256(bytes), acceptMismatch: form.get("acceptMismatch") === "1", allowReimport: form.get("reimport") === "1", positiveIsDebit: sign === "true" ? true : sign === "false" ? false : undefined },
+    base: { filename: cleanName(file.name), fileHash: sha256(bytes), acceptMismatch: form.get("acceptMismatch") === "1", allowReimport: form.get("reimport") === "1", decisions: parseDecisions(form.get("decisions")), positiveIsDebit: sign === "true" ? true : sign === "false" ? false : undefined },
   }));
 }

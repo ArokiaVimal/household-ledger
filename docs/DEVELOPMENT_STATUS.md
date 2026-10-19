@@ -198,3 +198,8 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 ## "Split with" then "How" (added)
 - The split row in the transaction form is now two steps: **Split with** (Just me, or tick one or more people) then **How** (for one person: the usual ratio such as "Vimal 64 · Varru 36", 50 / 50, "X owes all", "I owe all", More ways; for a group: Equally, More ways). An invited partner who has no saved share falls back to 64/36 as the usual split.
 
+## Import screen: simpler, months and duplicate choices (added)
+- Import screen decluttered: three plain entry cards (AI, choose bank then file, paste or describe), AI privacy notes moved into one "How AI is used here" disclosure, a short "Earlier imports" list. After reading, the preview leads with three numbers (will be added / already have / could not read), a **Goes into** strip showing each month the statement touches with counts (a 15 Aug to 15 Sep statement lands in Aug and Sep, because every transaction counts in the month it was paid), a duplicates panel, then the send button; rows, totals and AI details sit in a collapsed "See all rows".
+- Duplicates: each row that matches an entry you already have shows what it matches (merchant, date, approved or waiting) with **Skip / Add anyway**, plus Skip all / Add all anyway. Exact repeats default to Skip; close matches default to Add (flagged). The server applies `decisions` (`{line: "import"|"skip"}`) in `prepare`; forced rows are marked `duplicateOf`. The review queue banner names the months.
+- Not verified in a browser (the live import screen needs a signed-in session); covered by service tests.
+

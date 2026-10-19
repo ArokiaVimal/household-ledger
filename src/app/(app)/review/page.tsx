@@ -21,6 +21,7 @@ function ReviewQueue() {
   const params = useSearchParams();
   const imported = Number(params.get("imported") || 0);
   const skipped = Number(params.get("skipped") || 0);
+  const months = (params.get("months") ?? "").split(",").filter((m) => /^\d{4}-\d{2}$/.test(m)).map((m) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en", { month: "short", year: "numeric", timeZone: "UTC" }));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const { live, aiEnabled, records, staged, nameOf, categoryName, accountName, approveStaged, deleteRecords } = useStore();
@@ -77,7 +78,7 @@ function ReviewQueue() {
         actions={<Link href="/import" className="rounded-full border border-border bg-surface px-3 py-2 text-sm">Import</Link>} />
       {imported > 0 && staged.length > 0 && (
         <div role="status" className="mb-3 rounded-2xl bg-good-soft p-3 text-sm text-good">
-          <b>{imported}</b> transaction{imported === 1 ? "" : "s"} imported{skipped > 0 ? `, ${skipped} already-imported row${skipped === 1 ? "" : "s"} skipped` : ""}. Check each one and approve it. Once you approve the last one you will land on your dashboard.
+          <b>{imported}</b> transaction{imported === 1 ? "" : "s"} imported{months.length > 0 ? ` for ${months.join(" and ")}` : ""}{skipped > 0 ? `, ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}. Each one counts in the month it was paid, once you approve it. Check each one and approve it. Once you approve the last one you will land on your dashboard.
         </div>
       )}
       {arriving ? (

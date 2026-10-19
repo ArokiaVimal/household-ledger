@@ -31,7 +31,7 @@ describe("preview", () => {
   it("classifies, categorises and totals without writing anything", async () => {
     const repo = await setup();
     const p = await previewImport(repo, file(bankCsv), deps);
-    expect(p.counts).toEqual({ rows: 3, new: 3, duplicate: 0, possible: 0, unreadable: 0 });
+    expect(p.counts).toEqual({ rows: 3, new: 3, duplicate: 0, possible: 0, unreadable: 0, toImport: 3 });
     expect(p.rows.map((r) => [r.kind, r.categoryId, r.merchant])).toEqual([["purchase", "food_delivery", "Swiggy"], ["income", "income", "Neft Cr-Acme Ltd-Salary Sep"], ["cc_payment", "transfers", "Payment to HDFC Credit Card"]]);
     expect(p.totals).toMatchObject({ debitPaise: 61200 + 1850000, creditPaise: 18500000 });
     expect(await repo.records.list()).toEqual([]);
@@ -191,5 +191,33 @@ describe("smart routing and text input", () => {
     const [rec] = await repo.records.list();
     expect(rec).toMatchObject({ status: "unreviewed", amountPaise: 45000 });
     expect((await repo.importBatches.list())[0]).toMatchObject({ format: "text", readBy: "ai" });
+  });
+});
+
+describe("duplicate decisions", () => {
+  it("skips exact duplicates by default, shows what they match, and imports them anyway only when told to", async () => {
+    const repo = await setup();
+    const actor = { uid: "u1", participantId: "p1" };
+    await commitImport(repo, actor, file(bankCsv), deps);
+    const again = { ...file(bankCsv), fileHash: "f".repeat(64) }; // same rows, different file
+    const p = await previewImport(repo, again, deps);
+    expect(p.rows.every((r) => r.status === "duplicate" && r.action === "skip" && !!r.match)).toBe(true);
+    expect(p.counts).toMatchObject({ duplicate: 3, toImport: 0 });
+    const line = p.rows[0].line;
+    const forced = await previewImport(repo, { ...again, decisions: { [String(line)]: "import" } }, deps);
+    expect(forced.counts.toImport).toBe(1);
+    const res = await commitImport(repo, actor, { ...again, decisions: { [String(line)]: "import" } }, deps);
+    expect(res.counts).toMatchObject({ staged: 1, skipped: 2 });
+    const staged = (await repo.records.list()).filter((r) => r.importSource.includes("hdfc_sep") && r.duplicateOf);
+    expect(staged).toHaveLength(1); // the forced one is flagged as a duplicate of the existing entry
+  });
+  it("a possible duplicate is added (flagged) by default and can be skipped", async () => {
+    const repo = await setup();
+    await commitImport(repo, { uid: "u1", participantId: "p1" }, file(bankCsv), deps);
+    const rows = [{ line: 1, date: "2026-09-01", description: "UPI-SWIGGY-OTHER", amountPaise: 61200, direction: "debit" as const, raw: ["x"] }];
+    const input = { accountId: "bank_hdfc", filename: "t", fileHash: "9".repeat(64), format: "text" as const, readBy: "parser" as const, rows };
+    const p = await previewImport(repo, input, deps);
+    expect(p.rows[0]).toMatchObject({ status: "possible", action: "import" });
+    expect((await previewImport(repo, { ...input, decisions: { "1": "skip" } }, deps)).counts.toImport).toBe(0);
   });
 });

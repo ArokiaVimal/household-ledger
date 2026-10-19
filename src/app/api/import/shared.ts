@@ -13,6 +13,16 @@ import { FileError } from "@/lib/import/files";
 import type { Intake, IntakeOpts } from "@/lib/import/intake";
 import { commitImport, ImportError, previewImport, type ImportDeps } from "@/lib/import/service";
 
+/** Your choices for lines that look like entries you already have: { "12": "skip", "13": "import" }. Anything else is ignored. */
+export function parseDecisions(raw: unknown): Record<string, "import" | "skip"> | undefined {
+  let v = raw;
+  if (typeof raw === "string") { try { v = JSON.parse(raw); } catch { return undefined; } }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const out: Record<string, "import" | "skip"> = {};
+  for (const [k, d] of Object.entries(v as Record<string, unknown>).slice(0, 2000)) if (/^\d{1,7}$/.test(k) && (d === "import" || d === "skip")) out[k] = d;
+  return out;
+}
+
 export const sha256 = (s: string | Uint8Array) => createHash("sha256").update(s).digest("hex");
 const deps = (): ImportDeps => ({ sha256: (s) => sha256(s), now: () => Date.now(), newId: () => randomUUID(), suggest: suggesterFromEnv(process.env) });
 const status = { invalid: 400, not_found: 404, already_imported: 409, too_large: 413, check_failed: 422 } as const;

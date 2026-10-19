@@ -23,7 +23,7 @@ export interface IntakeOpts {
   claude: ClaudeConfig | null;
   today: string;
   /** Fields shared by every input: filename, fileHash, flags. */
-  base: { filename: string; fileHash: string; acceptMismatch?: boolean; allowReimport?: boolean; positiveIsDebit?: boolean };
+  base: { filename: string; fileHash: string; acceptMismatch?: boolean; allowReimport?: boolean; positiveIsDebit?: boolean; decisions?: Record<string, "import" | "skip"> };
 }
 export type Intake =
   | { kind: "ready"; input: ImportInput; ai?: AiUsage }

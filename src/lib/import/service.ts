@@ -44,6 +44,10 @@ export interface PreviewRow {
   accountId: string;
   /** The bank that paid, when the row went through a UPI app. */
   fundedBy?: string;
+  /** What will happen: skipped duplicates are not added. Defaults to skipping exact duplicates only; your decision overrides it. */
+  action: "import" | "skip";
+  /** The existing entry this duplicates or resembles (absent when it only repeats another line of the same file). */
+  match?: { merchant: string; date: string; amountPaise: number; reviewed: boolean };
 }
 
 export interface Preview {
@@ -68,7 +72,7 @@ export interface Preview {
   rows: PreviewRow[];
   skipped: { line: number; reason: string; text: string }[];
   totals: { debitPaise: number; creditPaise: number; debitCount: number; creditCount: number };
-  counts: { rows: number; new: number; duplicate: number; possible: number; unreadable: number };
+  counts: { rows: number; new: number; duplicate: number; possible: number; unreadable: number; /** Rows that will be sent to the review queue with your decisions applied. */ toImport: number };
   /** How the guesses were made, so the cost and the benefit are visible. */
   smart: SmartReport;
   /** Set when this exact file (same bytes, same payment method) was imported before. Reading it again needs the owner's consent. */
@@ -105,6 +109,8 @@ interface ImportBase {
   allowReimport?: boolean;
   /** How the payment method was decided (for the preview). */
   detected?: Preview["detected"];
+  /** Your decision for lines that look like entries you already have, keyed by the row's line number. */
+  decisions?: Record<string, "import" | "skip">;
 }
 export type ImportInput = ImportBase & (
   | { format: "csv" | "xlsx"; table: string[][] }
@@ -239,12 +245,16 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
   const out = withRef.map((p, i) => {
     const dup = plan[i].dup;
     const status: PreviewRow["status"] = dup.status === "exact" ? "duplicate" : dup.status === "possible" ? "possible" : "new";
+    const chosen = input.decisions?.[String(p.r.line)];
+    const action: PreviewRow["action"] = status === "new" ? "import" : chosen ?? (status === "duplicate" ? "skip" : "import");
+    const found = dup.status === "none" ? undefined : records.find((x) => x.id === dup.matchId);
     return {
+      action, match: found ? { merchant: found.merchant, date: found.date, amountPaise: found.amountPaise, reviewed: found.status === "reviewed" } : undefined,
       line: p.r.line, date: p.r.date, description: p.r.description, merchant: p.merchant, amountPaise: p.r.amountPaise, direction: p.r.direction,
       kind: p.kind, categoryId: p.categoryId, suggested: p.suggested, status, accountId: p.accountId, fundedBy: p.fundedBy, matchId: dup.status === "none" ? undefined : dup.matchId, referenceId: p.referenceId, parsed: p.r,
     };
   });
-  const counts = { rows: out.length, new: out.filter((x) => x.status === "new").length, duplicate: out.filter((x) => x.status === "duplicate").length, possible: out.filter((x) => x.status === "possible").length, unreadable: skipped.length };
+  const counts = { rows: out.length, new: out.filter((x) => x.status === "new").length, duplicate: out.filter((x) => x.status === "duplicate").length, possible: out.filter((x) => x.status === "possible").length, unreadable: skipped.length, toImport: out.filter((x) => x.action === "import").length };
   const smart: SmartReport = {
     aiEnabled: !!d.suggest, ai,
     fromMemory: out.filter((x) => x.suggested === "memory").length,
@@ -265,7 +275,7 @@ export async function previewImport(repo: Repository, input: ImportInput, d: Imp
   return (await prepare(repo, input, d)).preview;
 }
 
-export interface CommitResult { batchId: string; counts: Preview["counts"] & { staged: number } }
+export interface CommitResult { batchId: string; counts: Preview["counts"] & { staged: number; skipped: number } }
 
 /**
  * Saves the batch: an import-history entry, every row as the bank wrote it (immutable), and the new/possible rows as
@@ -281,11 +291,11 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
     throw new ImportError("check_failed", `The statement's own totals do not match what was read (${failed.map((c) => c.name).join("; ")}). Nothing was imported. Review the differences, then confirm you want to import anyway.`);
   }
   const batchId = d.newId();
-  const stage = rows.filter((r) => r.status !== "duplicate");
+  const stage = rows.filter((r) => r.action === "import");
   const batch: ImportBatch = {
     id: batchId, accountId: input.accountId, filename: input.filename.slice(0, 200), fileHash: input.fileHash, format: input.format, readBy: preview.readBy,
     uploadedAt: new Date(d.now()).toISOString(), uploadedBy: actor.uid,
-    counts: { rows: preview.counts.rows, staged: stage.length, skippedDuplicate: preview.counts.duplicate, flaggedDuplicate: preview.counts.possible, unreadable: preview.counts.unreadable },
+    counts: { rows: preview.counts.rows, staged: stage.length, skippedDuplicate: rows.filter((r) => r.action === "skip").length, flaggedDuplicate: stage.filter((r) => r.status !== "new").length, unreadable: preview.counts.unreadable },
     totals: { debitPaise: preview.totals.debitPaise, creditPaise: preview.totals.creditPaise },
     ...(preview.checks.length > 0 ? { checksPassed: failed.length === 0, acceptedMismatch: failed.length > 0 } : {}),
     ...(preview.previousImport ? { reimportOf: preview.previousImport.batchId } : {}),
@@ -298,13 +308,13 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
     const rec: ExpenseRecord = {
       id: d.newId(), date: r.date, postedDate: r.parsed.postedDate, merchant: r.merchant, originalDescription: r.description.slice(0, 500), amountPaise: r.amountPaise, currency: "INR",
       accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
-      excluded: false, status: "unreviewed", suggested: r.suggested, importSource: `${input.filename.slice(0, 150)} (import ${batchId.slice(0, 8)})`, referenceId: r.referenceId, duplicateOf: r.status === "possible" ? r.matchId : undefined,
+      excluded: false, status: "unreviewed", suggested: r.suggested, importSource: `${input.filename.slice(0, 150)} (import ${batchId.slice(0, 8)})`, referenceId: r.referenceId, duplicateOf: r.status !== "new" ? r.matchId : undefined,
     };
     await repo.records.put(JSON.parse(JSON.stringify(rec)) as ExpenseRecord);
   }
   await repo.importBatches.put(batch);
-  await repo.audit.append({ actorId: actor.uid, action: "import", entity: "household", entityId: batchId, summary: `${preview.previousImport ? `RE-IMPORTED (first imported ${preview.previousImport.uploadedAt.slice(0, 10)}) ` : ""}Imported ${input.filename}: ${stage.length} to review, ${preview.counts.duplicate} duplicates skipped, ${preview.counts.possible} possible duplicates, ${preview.counts.unreadable} unreadable rows${failed.length > 0 ? `; IMPORTED DESPITE FAILED CHECKS (${failed.map((c) => c.name).join("; ")})` : ""}` });
-  return { batchId, counts: { ...preview.counts, staged: stage.length } };
+  await repo.audit.append({ actorId: actor.uid, action: "import", entity: "household", entityId: batchId, summary: `${preview.previousImport ? `RE-IMPORTED (first imported ${preview.previousImport.uploadedAt.slice(0, 10)}) ` : ""}Imported ${input.filename}: ${stage.length} to review, ${rows.filter((r) => r.action === "skip").length} duplicates skipped, ${stage.filter((r) => r.status !== "new").length} added despite looking like an existing entry, ${preview.counts.unreadable} unreadable rows${failed.length > 0 ? `; IMPORTED DESPITE FAILED CHECKS (${failed.map((c) => c.name).join("; ")})` : ""}` });
+  return { batchId, counts: { ...preview.counts, staged: stage.length, skipped: rows.length - stage.length } };
 }
 
 export interface RefreshResult { checked: number; filled: number; needYou: number; ai: AiUsage; aiEnabled: boolean }
