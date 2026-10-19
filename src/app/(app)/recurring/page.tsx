@@ -53,6 +53,7 @@ export default function Recurring() {
                             {r.item.until && <span>{r.state === "ended" ? "Ended" : "Until"} {monthLabel(r.item.until.slice(0, 7))}</span>}
                             {(r.item.everyMonths ?? 1) > 1 && <span>Every {r.item.everyMonths} months</span>}
                             {r.item.amountVaries && <span>Amount varies</span>}
+                            {r.item.accountId && !rec && <span>{accountName(r.item.accountId)}</span>}
                             <span>{categoryName(r.item.categoryId)}</span>
                             <span>{r.item.split.mode === "personal" ? `Mine` : `Split with ${r.item.split.participantIds.filter((i) => i !== meId).map(nameOf).join(", ")}`}</span>
                             {rec && <span>{accountName(rec.accountId)}{rec.fundedBy ? ` via ${accountName(rec.fundedBy)}` : ""}</span>}

@@ -87,7 +87,7 @@ export const ReceiptSchema = z.object({ id, merchant: z.string().min(1), date, a
 
 export const RecurringItemSchema = z.object({
   id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: paise.positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional(),
-  until: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/).optional(), everyMonths: z.number().int().min(1).max(12).optional(), startMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(), amountVaries: z.boolean().optional(), changes: z.array(z.object({ from: z.string().regex(/^\d{4}-\d{2}$/), paise: paise.positive() })).max(60).optional(), paidMonths: z.array(z.string().regex(/^\d{4}-\d{2}$/)).max(600).optional(),
+  accountId: id.optional(), until: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/).optional(), everyMonths: z.number().int().min(1).max(12).optional(), startMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(), amountVaries: z.boolean().optional(), changes: z.array(z.object({ from: z.string().regex(/^\d{4}-\d{2}$/), paise: paise.positive() })).max(60).optional(), paidMonths: z.array(z.string().regex(/^\d{4}-\d{2}$/)).max(600).optional(),
 }) satisfies z.ZodType<RecurringItem>;
 
 /** Merchant rule document. The id is derived from the merchant so a merchant has at most one rule. */

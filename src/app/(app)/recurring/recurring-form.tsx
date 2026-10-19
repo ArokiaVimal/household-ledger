@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { PaymentPicker } from "@/components/payment-picker";
 import { SplitEditor } from "@/components/split-editor";
 import { Button, CompactChips, Dialog, Field, FormRow, Input, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
@@ -27,6 +28,7 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
   const [dueDay, setDueDay] = useState(String(item?.dueDay ?? 1));
   const [categoryId, setCategoryId] = useState(item?.categoryId ?? "rent");
   const [place, setPlace] = useState(item?.place ?? "");
+  const [accountId, setAccountId] = useState(item?.accountId ?? "");
   const [until, setUntil] = useState(item?.until?.slice(0, 7) ?? "");
   const [forever, setForever] = useState(!item?.until);
   const [every, setEvery] = useState(String(item?.everyMonths ?? 1));
@@ -57,7 +59,7 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
       else { base = item.expectedPaise; changes = [...(item.changes ?? []).filter((c) => c.from !== changeFrom), { from: changeFrom, paise: expectedPaise }].sort((a, b) => a.from.localeCompare(b.from)); }
     }
     if (!forever && !until) return setError("Pick the last month, or choose Forever.");
-    const err = saveRecurring({ id: item?.id, name, categoryId: category, dueDay: Number(dueDay), expectedPaise: base, payerId, split, place, ...(!forever && until ? { until } : {}), ...(Number(every) > 1 ? { everyMonths: Number(every), startMonth } : {}), ...(varies ? { amountVaries: true } : {}), ...(changes?.length ? { changes } : {}) });
+    const err = saveRecurring({ id: item?.id, name, categoryId: category, dueDay: Number(dueDay), expectedPaise: base, payerId, split, place, ...(accountId ? { accountId } : {}), ...(!forever && until ? { until } : {}), ...(Number(every) > 1 ? { everyMonths: Number(every), startMonth } : {}), ...(varies ? { amountVaries: true } : {}), ...(changes?.length ? { changes } : {}) });
     if (err) return setError(err);
     onClose();
   };
@@ -90,6 +92,7 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
           {!forever && <Input type="month" aria-label="Recurring until" value={until} onChange={(e) => setUntil(e.target.value)} className="max-w-44" />}
         </div>
       </FormRow>
+      <PaymentPicker optional value={accountId} onChange={setAccountId} />
       <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[category]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
       <Field label="Where (optional)">
         <Input list="recurring-places" value={place} onChange={(e) => setPlace(e.target.value)} placeholder="e.g. Our apartment, Parents' house" maxLength={120} />

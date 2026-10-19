@@ -50,7 +50,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("accounts.addSuggested") }),
   z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60) }),
   z.object({ type: z.literal("participant.delete"), id }),
-  z.object({ type: z.literal("recurring.put"), item: z.object({ id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: z.number().int().safe().positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional(), until: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/).optional(), everyMonths: z.number().int().min(1).max(12).optional(), startMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(), amountVaries: z.boolean().optional(), changes: z.array(z.object({ from: z.string().regex(/^\d{4}-\d{2}$/), paise: z.number().int().safe().positive() })).max(60).optional() }) }),
+  z.object({ type: z.literal("recurring.put"), item: z.object({ id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: z.number().int().safe().positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional(), accountId: id.optional(), until: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/).optional(), everyMonths: z.number().int().min(1).max(12).optional(), startMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(), amountVaries: z.boolean().optional(), changes: z.array(z.object({ from: z.string().regex(/^\d{4}-\d{2}$/), paise: z.number().int().safe().positive() })).max(60).optional() }) }),
   z.object({ type: z.literal("recurring.markPaid"), id, month: z.string().regex(/^\d{4}-\d{2}$/), paid: z.boolean() }),
   z.object({ type: z.literal("recurring.delete"), id }),
   z.object({ type: z.literal("cardbill.put"), bill: z.object({ id, accountId: id, statementDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), totalDuePaise: z.number().int().safe().positive(), source: z.enum(["statement", "manual", "message"]), batchId: id.optional(), paid: z.boolean().optional() }) }),
@@ -344,8 +344,8 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
     case "account.delete": {
       const cur = await repo.accounts.get(a.id);
       if (!cur) throw new ActionError("not_found", "Payment method not found.");
-      const [records, bills, batches, all] = await Promise.all([repo.records.list(), repo.cardBills.list(), repo.importBatches.list(), repo.accounts.list()]);
-      const used = records.filter((r) => r.accountId === a.id || r.fundedBy === a.id || r.paidCardId === a.id).length + bills.filter((b) => b.accountId === a.id).length + batches.filter((b) => b.accountId === a.id).length;
+      const [records, bills, batches, all, recurringAll] = await Promise.all([repo.records.list(), repo.cardBills.list(), repo.importBatches.list(), repo.accounts.list(), repo.recurring.list()]);
+      const used = records.filter((r) => r.accountId === a.id || r.fundedBy === a.id || r.paidCardId === a.id).length + bills.filter((b) => b.accountId === a.id).length + batches.filter((b) => b.accountId === a.id).length + recurringAll.filter((x) => x.accountId === a.id).length;
       if (used > 0) throw new ActionError("conflict", `${cur.name} is used by ${used} transaction${used === 1 ? "" : "s"}, bills or imports, so it cannot be deleted. Hide it instead.`);
       if (all.some((x) => x.parentId === a.id)) throw new ActionError("conflict", `Other payment methods are under ${cur.name}. Move or delete them first.`);
       await repo.accounts.remove(a.id);
@@ -384,9 +384,10 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const splitError = validateSplit(it.expectedPaise, it.split);
       if (splitError) throw new ActionError("invalid", splitError);
       if (it.everyMonths && it.everyMonths > 1 && !it.startMonth) throw new ActionError("invalid", "Say which month the first bill is due.");
+      if (it.accountId && !(await repo.accounts.get(it.accountId))) throw new ActionError("invalid", "Unknown payment method.");
       const before = await repo.recurring.get(it.id);
       const place = it.place?.trim();
-      await repo.recurring.put({ id: it.id, name, categoryId: it.categoryId, dueDay: it.dueDay, expectedPaise: it.expectedPaise, payerId: it.payerId, split: it.split, ...(place ? { place } : {}), ...(it.until ? { until: it.until.slice(0, 7) } : {}), ...(it.everyMonths && it.everyMonths > 1 ? { everyMonths: it.everyMonths, startMonth: it.startMonth } : {}), ...(it.amountVaries ? { amountVaries: true } : {}), ...(it.changes?.length ? { changes: it.changes } : {}), ...(before?.paidMonths?.length ? { paidMonths: before.paidMonths } : {}) });
+      await repo.recurring.put({ id: it.id, name, categoryId: it.categoryId, dueDay: it.dueDay, expectedPaise: it.expectedPaise, payerId: it.payerId, split: it.split, ...(place ? { place } : {}), ...(it.accountId ? { accountId: it.accountId } : {}), ...(it.until ? { until: it.until.slice(0, 7) } : {}), ...(it.everyMonths && it.everyMonths > 1 ? { everyMonths: it.everyMonths, startMonth: it.startMonth } : {}), ...(it.amountVaries ? { amountVaries: true } : {}), ...(it.changes?.length ? { changes: it.changes } : {}), ...(before?.paidMonths?.length ? { paidMonths: before.paidMonths } : {}) });
       await log(before ? "edit" : "create", "recurring", it.id, `${before ? "Changed" : "Added"} recurring ${name} ${money(it.expectedPaise)} due on ${it.dueDay}`);
       return;
     }

@@ -321,3 +321,6 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - **Different each bill** (`amountVaries`): the typed amount is a first guess; each later month expects about the last linked bill (shown as "about, from last bill"). Real amounts always come from linked or imported transactions.
 - **Amount changes** (rent increase): editing the amount asks "from which month"; earlier months keep the old amount (`changes`). "I mistyped" fixes all months instead.
 - No "exclude from reports" option was added to recurring items.
+
+## Recurring: payment method with sub methods (added)
+- A recurring item can have its usual payment method (`accountId`), picked exactly like the transaction form: **Paid with** (primary methods, or Not set), then **Via** (Direct or a sub method) only after a primary that has sub methods is chosen. Shared component `PaymentPicker`. Shown on the row until a transaction is linked; a payment method used by a recurring item cannot be deleted (hide it instead).

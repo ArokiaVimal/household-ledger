@@ -400,13 +400,13 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const deleteAccount = useCallback((id: string) => {
     const cur = accounts.find((a) => a.id === id);
     if (!cur) return "Payment method not found.";
-    const used = [...records, ...staged].filter((r) => r.accountId === id || r.fundedBy === id || r.paidCardId === id).length + cardBills.filter((b) => b.accountId === id).length + init.importBatches.filter((b) => b.accountId === id).length;
+    const used = [...records, ...staged].filter((r) => r.accountId === id || r.fundedBy === id || r.paidCardId === id).length + cardBills.filter((b) => b.accountId === id).length + init.importBatches.filter((b) => b.accountId === id).length + recurringItems.filter((x) => x.accountId === id).length;
     if (used > 0) return `${cur.name} is used by ${used} transaction${used === 1 ? "" : "s"}, bills or imports, so it cannot be deleted. Hide it instead.`;
     if (accounts.some((a) => a.parentId === id)) return `Other payment methods are under ${cur.name}. Move or delete them first.`;
     setAccounts((as) => as.filter((a) => a.id !== id));
     void send({ type: "account.delete", id });
     return null;
-  }, [setAccounts, accounts, records, staged, cardBills, init.importBatches, send]);
+  }, [setAccounts, accounts, records, staged, cardBills, init.importBatches, recurringItems, send]);
   const reorderAccounts = useCallback((ids: string[]) => {
     setAccounts((as) => as.map((a) => (ids.includes(a.id) ? { ...a, order: ids.indexOf(a.id) } : a)));
     void send({ type: "accounts.reorder", ids });
@@ -451,11 +451,11 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     const id = draft.id ?? `rc_${slug(name)}-${uuid().slice(0, 6)}`;
     const place = draft.place?.trim();
     const prior = recurringItems.find((x) => x.id === id);
-    const item: RecurringItem = { id, name, categoryId: draft.categoryId, dueDay: draft.dueDay, expectedPaise: draft.expectedPaise, payerId: draft.payerId, split: draft.split, ...(place ? { place } : {}), ...(draft.until ? { until: draft.until.slice(0, 7) } : {}), ...(draft.everyMonths && draft.everyMonths > 1 ? { everyMonths: draft.everyMonths, startMonth: draft.startMonth } : {}), ...(draft.amountVaries ? { amountVaries: true } : {}), ...(draft.changes?.length ? { changes: draft.changes } : {}), ...(prior?.paidMonths?.length ? { paidMonths: prior.paidMonths } : {}) };
+    const item: RecurringItem = { id, name, categoryId: draft.categoryId, dueDay: draft.dueDay, expectedPaise: draft.expectedPaise, payerId: draft.payerId, split: draft.split, ...(place ? { place } : {}), ...(draft.accountId && accounts.some((a) => a.id === draft.accountId) ? { accountId: draft.accountId } : {}), ...(draft.until ? { until: draft.until.slice(0, 7) } : {}), ...(draft.everyMonths && draft.everyMonths > 1 ? { everyMonths: draft.everyMonths, startMonth: draft.startMonth } : {}), ...(draft.amountVaries ? { amountVaries: true } : {}), ...(draft.changes?.length ? { changes: draft.changes } : {}), ...(prior?.paidMonths?.length ? { paidMonths: prior.paidMonths } : {}) };
     setRecurringItems((xs) => (xs.some((x) => x.id === id) ? xs.map((x) => (x.id === id ? item : x)) : [...xs, item]));
     void send({ type: "recurring.put", item });
     return null;
-  }, [send, recurringItems]);
+  }, [send, recurringItems, accounts]);
   const markRecurringPaid = useCallback((id: string, month: string, paid: boolean) => {
     setRecurringItems((xs) => xs.map((x) => { if (x.id !== id) return x; const set = new Set(x.paidMonths ?? []); if (paid) set.add(month); else set.delete(month); const { paidMonths: _o, ...rest } = x; void _o; return { ...rest, ...(set.size ? { paidMonths: [...set].sort() } : {}) }; }));
     void send({ type: "recurring.markPaid", id, month, paid });

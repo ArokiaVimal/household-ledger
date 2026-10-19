@@ -160,6 +160,8 @@ export interface RecurringItem {
   split: SplitConfig;
   /** Where it applies, e.g. the apartment or parents' house. */
   place?: string;
+  /** The payment method it is usually paid with (a sub method such as a wallet when it goes through one). */
+  accountId?: string;
   /** Last month it applies (YYYY-MM; an old YYYY-MM-DD still reads as its month). Empty means it runs until the user stops it. */
   until?: string;
   /** Billed every this many months (2 for a bill that comes every two months). Left out means every month. */
