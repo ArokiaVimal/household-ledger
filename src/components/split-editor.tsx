@@ -47,16 +47,18 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   const ME = "__me";
   const nobody: SplitConfig = { mode: "personal", participantIds: [meId] };
   const others = value.participantIds.filter((id) => id !== meId);
+  // You can be left out of the split: you paid, but the expense is for the others only.
+  const excludeMe = others.length > 0 && !value.participantIds.includes(meId);
   const people = participants.filter((p) => p.id !== meId);
   // The usual way to split with one person: your couple ratio with your partner, otherwise down the middle.
   const usualWith = (o: string): SplitConfig => (o === partnerId && splitRatio.leaderBps !== 5000
     ? ratioSplit(ownerId, ownerId === meId ? o : meId, splitRatio.leaderBps)
     : { mode: "equal", participantIds: [meId, o] });
-  const withConfig = (who: string[]): SplitConfig => (who.length === 0 ? nobody : value.gift ? { mode: "equal", participantIds: who, gift: true } : who.length === 1 ? usualWith(who[0]) : { mode: "equal", participantIds: [meId, ...who] });
+  const withConfig = (who: string[]): SplitConfig => (who.length === 0 ? nobody : excludeMe ? { mode: "equal", participantIds: who, ...(value.gift ? { gift: true } : {}) } : value.gift ? { mode: "equal", participantIds: who, gift: true } : who.length === 1 ? usualWith(who[0]) : { mode: "equal", participantIds: [meId, ...who] });
   // How to split with the chosen people. One person gets the quick ratios; a group is split equally unless "More ways".
   // "I paid for them": the expense is for these people alone, you are not part of the split, and nobody owes you.
   const gift: { label: string; config: SplitConfig } = { label: "I paid for them", config: { mode: "equal", participantIds: others, gift: true } };
-  const howOptions: { label: string; title?: string; config: SplitConfig }[] = others.length === 1 ? (() => {
+  const howOptions: { label: string; title?: string; config: SplitConfig }[] = excludeMe ? [{ label: "Equally", config: { mode: "equal" as const, participantIds: others } }, gift] : others.length === 1 ? (() => {
     const o = others[0];
     const usual = usualWith(o);
     return [
@@ -160,6 +162,14 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
         {live && !partner && !pendingPartner && <p className="mt-1.5 text-xs text-muted">Splitting with a partner? <Link href="/settings" className="text-accent underline">Link them in Settings</Link>. Until then everything stays private.</p>}
         {live && partner && !partner.active && <p className="mt-1.5 text-xs text-muted">You unlinked from {partner.name}, so nothing new can be shared with them.</p>}
       </section>
+      {others.length > 0 && (
+        <button type="button" role="switch" aria-checked={!excludeMe} onClick={() => {
+          if (excludeMe) { const { gift: _gift, ...rest } = build(value.mode, [meId, ...others]); void _gift; onChange(rest); } else onChange(build(value.mode === "personal" ? "equal" : value.mode, others));
+        }} className="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-background px-3.5 text-left text-sm focus-visible:outline-2 focus-visible:outline-accent">
+          <span className="min-w-0 flex-1"><span className="block font-medium">Include me in the split</span><span className="block text-xs text-muted">{excludeMe ? "You paid, but it is only for them" : "You share the cost"}</span></span>
+          <span aria-hidden className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${excludeMe ? "bg-border" : "bg-accent"}`}><span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${excludeMe ? "left-0.5" : "left-[1.15rem]"}`} /></span>
+        </button>
+      )}
       {others.length > 0 && (
         <section aria-label="How">
           <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">How</h3>

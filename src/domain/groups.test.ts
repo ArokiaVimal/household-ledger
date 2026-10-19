@@ -59,4 +59,8 @@ describe("payment groups", () => {
     // The same split without the flag is a debt.
     expect(pairBalances([rec({ split: { mode: "equal", participantIds: ["mom", "dad"] } })], []).length).toBe(2);
   });
+  it("paying for two friends without being in the split: each owes you half", () => {
+    const r = rec({ amountPaise: 100000, split: { mode: "equal", participantIds: ["a", "b"] } });
+    expect(pairBalances([r], []).map((x) => [x.from, x.to, x.outstanding]).sort()).toEqual([["a", ME, 50000], ["b", ME, 50000]]);
+  });
 });
