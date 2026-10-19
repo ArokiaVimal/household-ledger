@@ -9,6 +9,7 @@ import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import type { Account } from "@/domain/types";
 import { MerchantAvatar } from "@/components/txn-row";
 import { CaptureCard } from "./capture-card";
+import { GmailCard } from "./gmail-card";
 import { PartnerCard } from "./partner-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash" };
@@ -142,8 +143,8 @@ export default function Settings() {
         )}
 
         {live && (
-          <Section id="capture" icon={<Inbox size={20} aria-hidden />} title="Auto-capture" tagline="Let transactions arrive on their own. Bank messages add themselves to your review queue; you approve each one before it counts.">
-            <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2"><CaptureCard /></div>
+          <Section id="capture" icon={<Inbox size={20} aria-hidden />} title="Auto-capture" tagline="Let transactions arrive on their own. Bank texts and bank emails add themselves to your review queue; you approve each one before it counts.">
+            <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2"><CaptureCard /><GmailCard /></div>
           </Section>
         )}
 

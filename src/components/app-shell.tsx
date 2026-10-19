@@ -93,6 +93,13 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const { profile } = useProfile();
   const [adding, setAdding] = useState(false);
   const [round, setRound] = useState(0);
+  // Quiet Gmail check once per tab session when the app opens (the server skips it when Gmail is not connected or was checked recently).
+  useEffect(() => {
+    if (!live) return;
+    try { if (sessionStorage.getItem("gmail-auto")) return; sessionStorage.setItem("gmail-auto", "1"); } catch { /* storage unavailable: still fine */ }
+    void fetch("/api/gmail", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "sync", auto: true }) })
+      .then((r) => r.json()).then((d: { counts?: { added: number; bills: number } }) => { if (d?.counts && d.counts.added + d.counts.bills > 0) router.refresh(); }).catch(() => undefined);
+  }, [live, router]);
   useEffect(() => {
     const open = () => setAdding(true);
     window.addEventListener(OPEN_ADD_EVENT, open);
