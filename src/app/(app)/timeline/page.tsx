@@ -37,7 +37,7 @@ export default function Timeline() {
             <ul className="mt-1 space-y-0.5 text-xs text-muted">{t.recorded.accounts.map((a) => <li key={a.id}>{a.name}: {money(a.amountPaise)} as of {prettyDate(a.asOf)}</li>)}</ul>
           </>) : (<>
             <div className="mt-2 text-sm text-muted">None yet.</div>
-            <Link href="/settings#methods" className="mt-1 inline-block text-xs font-medium text-accent underline">Add a balance in Payment methods</Link>
+            <Link href="/settings?s=methods" className="mt-1 inline-block text-xs font-medium text-accent underline">Add a balance in Payment methods</Link>
           </>)}
         </Card>
         <Card className="border border-dashed border-border bg-background p-4">

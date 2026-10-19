@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
-import { LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, UserRound, Users, Wallet, BarChart3, ChevronLeft, ChevronRight, ClipboardCheck, type LucideIcon } from "lucide-react";
 import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
 import { THEME_STYLE, themeFor } from "@/components/card-mockup";
 import { useStore } from "@/data/store";
@@ -23,7 +23,16 @@ import { ContactsCard } from "./contacts-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet" };
 
-const JUMP = [["methods", "Payment methods"], ["groups", "Payment groups"], ["sharing", "Friends & Family"], ["ai", "Smart import"], ["integrations", "Integrations"], ["shortcuts", "Make it yours"], ["data", "Your data"]] as const;
+const MENU: { id: string; label: string; hint: string; icon: LucideIcon; liveOnly?: boolean }[] = [
+  { id: "methods", label: "Payment methods", hint: "Cards, UPI apps, bank accounts", icon: Wallet },
+  { id: "groups", label: "Payment groups", hint: "View spending by person", icon: LayoutGrid },
+  { id: "sharing", label: "Friends & Family", hint: "People you split with", icon: Users },
+  { id: "ai", label: "Smart import", hint: "AI and import help", icon: Sparkles, liveOnly: true },
+  { id: "integrations", label: "Integrations", hint: "SMS and Gmail capture", icon: Plug, liveOnly: true },
+  { id: "shortcuts", label: "Make it yours", hint: "Profile, categories, icons", icon: Tags },
+  { id: "data", label: "Your data", hint: "Back up, restore, delete", icon: ShieldCheck },
+];
+const OpenSection = createContext<string | null>(null);
 const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
   { href: "/profile", label: "Your profile", hint: "Your name and photo, and how the app greets you.", icon: UserRound },
   { href: "/categories", label: "Categories and rules", hint: "Rename, add and auto-sort.", icon: Tags },
@@ -34,6 +43,7 @@ const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }
 ];
 
 function Section({ id, icon, title, tagline, children }: { id: string; icon: ReactNode; title: string; tagline: string; children: ReactNode }) {
+  if (useContext(OpenSection) !== id) return null;
   return (
     <section id={id} aria-labelledby={`${id}-h`} className="min-w-0 scroll-mt-4 space-y-4">
       <div className="flex items-start gap-3">
@@ -51,6 +61,14 @@ function Section({ id, icon, title, tagline, children }: { id: string; icon: Rea
 export default function Settings() {
   const { today, live, aiEnabled, records, staged, settlements, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, reorderAccounts, setupUpiApps, addSuggestedAccounts, deleteParticipant } = useStore();
   // One dialog adds and edits payment methods. `parent` is set when adding a sub payment method.
+  const [open, setOpenRaw] = useState<string | null>(null);
+  useEffect(() => {
+    const read = () => setOpenRaw(new URLSearchParams(window.location.search).get("s"));
+    read(); window.addEventListener("popstate", read);
+    return () => window.removeEventListener("popstate", read);
+  }, []);
+  const go = (id: string | null) => { window.history.pushState(null, "", id ? `?s=${id}` : window.location.pathname); setOpenRaw(id); window.scrollTo({ top: 0 }); };
+  const current = MENU.find((m) => m.id === open && (live || !m.liveOnly));
   const [dlg, setDlg] = useState<{ acc?: Account; parent?: string } | null>(null);
   const [fName, setFName] = useState("");
   const [fType, setFType] = useState<Account["type"]>("credit_card");
@@ -96,11 +114,24 @@ export default function Settings() {
 
   return (
     <>
-      <PageHeader title="Settings" sub="Payment methods, people and import settings." actions={!live ? <Badge tone="warn">Prototype</Badge> : undefined} />
-      <nav aria-label="Jump to a section" className="mb-5 max-w-full flex gap-1.5 overflow-x-auto px-1 pb-1">
-        {JUMP.filter(([id]) => live || (id !== "ai" && id !== "integrations")).map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm hover:bg-background">{label}</a>)}
-      </nav>
+      {current ? (
+        <button type="button" onClick={() => go(null)} className="mb-3 inline-flex min-h-9 items-center gap-1 rounded-full pr-3 text-sm font-medium text-accent hover:underline"><ChevronLeft size={16} aria-hidden />Settings</button>
+      ) : (
+        <>
+          <PageHeader title="Settings" actions={!live ? <Badge tone="warn">Prototype</Badge> : undefined} />
+          <nav aria-label="Settings menu" className="grid grid-cols-[minmax(0,1fr)] gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {MENU.filter((m) => live || !m.liveOnly).map(({ id, label, hint, icon: I }) => (
+              <button key={id} type="button" onClick={() => go(id)} className="group flex min-h-16 items-center gap-3 rounded-[var(--radius-card)] bg-surface p-3.5 text-left transition-shadow hover:shadow-md">
+                <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/10 text-accent"><I size={18} /></span>
+                <span className="min-w-0 flex-1"><span className="block font-medium">{label}</span><span className="block truncate text-sm text-muted">{hint}</span></span>
+                <ChevronRight size={18} aria-hidden className="shrink-0 text-muted" />
+              </button>
+            ))}
+          </nav>
+        </>
+      )}
 
+      <OpenSection.Provider value={current?.id ?? null}>
       <div className="min-w-0 space-y-10">
         <Section id="methods" icon={<Wallet size={20} aria-hidden />} title="Payment methods" tagline="Cards, UPI apps and bank accounts.">
           <Card className="space-y-3">
@@ -194,6 +225,7 @@ export default function Settings() {
           <DataCard />
         </Section>
       </div>
+      </OpenSection.Provider>
 
       <Dialog open={!!dlg} onClose={() => setDlg(null)} title={dlg?.acc ? `Edit ${dlg.acc.name}` : isSub ? "Add a sub payment method" : "Add a primary payment method"}>
         {dlg && (

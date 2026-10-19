@@ -153,7 +153,7 @@ export default function Insights() {
           <li><AiTool icon={ClipboardCheck} title="Name and sort merchants" where="Also in Review" blurb="Names merchants and suggests categories for imported rows, marked with an AI badge until you approve them. It remembers what you approve, so each month needs less review."><Link href="/review" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Review</Link></AiTool></li>
         </ul>
         {off && <p className="px-1 text-xs text-muted">{off}</p>}
-        <p className="px-1 text-xs text-muted">Privacy: only text you send leaves the app. Account numbers, emails and phone numbers are hidden first.<Link href="/settings#ai" className="text-accent underline">AI settings</Link></p>
+        <p className="px-1 text-xs text-muted">Privacy: only text you send leaves the app. Account numbers, emails and phone numbers are hidden first.<Link href="/settings?s=ai" className="text-accent underline">AI settings</Link></p>
       </section>
     </>
   );
