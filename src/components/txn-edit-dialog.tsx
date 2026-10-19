@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeftRight, Ban, Banknote, CalendarDays, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeftRight, Ban, Banknote, CalendarDays, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Trash2, Undo2 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useStore } from "@/data/store";
 import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
@@ -105,6 +105,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [excluded, setExcluded] = useState(record.excluded);
   const [recurringError, setRecurringError] = useState<string | null>(null);
   const [more, setMore] = useState(!!record.recurringId || !!record.recurringHint || record.excluded || record.kind !== "purchase");
+  const changed = [kind !== "purchase", !!recurringId, excluded].filter(Boolean).length;
   const dueDay = Math.min(28, Math.max(1, Number(date.slice(8, 10)) || 1));
   const amountPaise = adding ? (parseRupees(amountText) ?? 0) : record.amountPaise;
   // Quick picks for manual entry: the places you pay most often, with the category you used last time.
@@ -234,8 +235,11 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         ? <p className="border-t border-border pt-3 text-xs text-muted">A wallet top-up is your own money going into the wallet, so it is not split or shared. Split the purchases you make from the wallet instead.</p>
         : <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>}
       {(sharing || !adding) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
-      <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="flex min-h-11 w-full items-center gap-1.5 rounded-2xl bg-background px-3 text-sm font-medium text-muted hover:text-foreground">
-        <ChevronDown size={16} aria-hidden className={more ? "" : "-rotate-90"} /> More options <span className="text-xs font-normal">type, recurring, exclude</span>
+      <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="group flex min-h-14 w-full items-center gap-3 rounded-2xl border border-border bg-surface px-3 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent">
+        <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={32} />
+        <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">More options</span><span className="block truncate text-xs text-muted">Type, recurring, hide from reports</span></span>
+        {!more && changed > 0 && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">{changed} set</span>}
+        <ChevronDown size={18} aria-hidden className={`shrink-0 text-muted transition-transform ${more ? "rotate-180" : ""}`} />
       </button>
       {more && (
         <div className="space-y-2.5">
