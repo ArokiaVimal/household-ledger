@@ -195,7 +195,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const [cardBills, setCardBills] = useState<CardBill[]>(init.cardBills);
   const [voucherBrands, setVoucherBrands] = useState<VoucherBrand[]>(init.voucherBrands);
   const today = live?.today ?? MOCK_TODAY;
-  const [month, setMonth] = useState(() => pickMonth(today, [...init.records, ...init.staged].map((r) => r.date)));
+  const [month, setMonth] = useState(() => today.slice(0, 7)); // always open on the current month, even before it has data
   const [view, setView] = useState<View>(initialView);
   const [syncError, setSyncError] = useState<string | null>(null);
   const meId = live?.meId ?? ME;
