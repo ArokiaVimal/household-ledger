@@ -47,6 +47,7 @@ export const ExpenseRecordSchema = z
     receiptId: id.optional(),
     fundedBy: id.optional(),
     paidCardId: id.optional(),
+    recurringHint: z.boolean().optional(),
     recurringId: id.optional(),
     suggested: z.enum(["memory", "ai", "ai_unsure"]).optional(),
     sharedWithPartner: z.boolean().optional(),

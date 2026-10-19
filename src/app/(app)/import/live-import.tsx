@@ -111,7 +111,7 @@ export function LiveImport() {
     if (r.needAccount) { setPreview(null); return setNeed(r.needAccount); }
     setPreview(r.preview ?? null);
     setTrackBill(true);
-    setBillDue(r.preview?.summary?.dueDate ?? "");
+    setBillDue(r.preview?.statementBill?.dueDate ?? "");
   };
 
   const pickFile = (f: File | undefined, ai: boolean, accountId?: string) => {
@@ -234,6 +234,9 @@ export function LiveImport() {
                 </div>
               )}
 
+              {adding.some((r) => r.recurring) && (
+                <p className="rounded-xl bg-good-soft p-3 text-sm text-good"><b>{adding.filter((r) => r.recurring).length}</b> look like monthly payments (EMI, rent, premium or similar). While you review them, each one can be added to Recurring with a tap.</p>
+              )}
               {lookalikes.length > 0 && (
                 <div className="space-y-3 rounded-xl border border-warn/30 bg-warn-soft/50 p-4" role="group" aria-label="Entries you may already have">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -260,9 +263,9 @@ export function LiveImport() {
                 </div>
               )}
 
-              {preview.format === "pdf" && !!preview.summary?.closingPaise && preview.summary.closingPaise > 0 && accounts.find((a) => a.id === preview.accountId)?.type === "credit_card" && (
+              {!!preview.statementBill && accounts.find((a) => a.id === preview.accountId)?.type === "credit_card" && (
                 <div className="space-y-2 rounded-xl bg-accent/5 p-4 text-sm" role="group" aria-label="Card bill">
-                  <label className="flex items-start gap-2"><input type="checkbox" checked={trackBill} onChange={(e) => setTrackBill(e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" /><span><b>Track this bill under Card bills.</b> Full amount due <b className="num">{formatINR(preview.summary.closingPaise)}</b>.</span></label>
+                  <label className="flex items-start gap-2"><input type="checkbox" checked={trackBill} onChange={(e) => setTrackBill(e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" /><span><b>Track this bill under Card bills.</b> Full amount due <b className="num">{formatINR(preview.statementBill.totalDuePaise)}</b>{preview.readBy === "ai" ? " (read by AI, check it)" : ""}.</span></label>
                   {trackBill && (
                     <label className="flex flex-wrap items-center gap-2 pl-6"><span className="text-muted">Payment due date</span><input type="date" value={billDue} onChange={(e) => setBillDue(e.target.value)} aria-label="Payment due date" className="min-h-9 rounded-full border border-border bg-surface px-3" />{!billDue && <span className="text-xs text-warn">Add the date printed on the statement to track it.</span>}</label>
                   )}
@@ -310,6 +313,7 @@ export function LiveImport() {
                         <div className="min-w-0 flex-1"><div className="truncate font-medium">{r.merchant}</div><div className="truncate text-xs text-muted">{r.description}</div></div>
                         {r.accountId !== preview.accountId && <span title={r.fundedBy ? `Paid from ${accountName(r.fundedBy)}` : undefined}><Badge>via {accountName(r.accountId)}</Badge></span>}
                         <Badge>{kindLabel[r.kind]}</Badge><span className="hidden text-xs text-muted sm:inline">{categoryName(r.categoryId)}</span>
+                        {r.recurring && action(r) === "import" && <Badge tone="good">Looks monthly</Badge>}
                         {action(r) === "skip" && <Badge tone="bad">Skipped</Badge>}
                         {r.status === "possible" && action(r) === "import" && <Badge tone="warn">Possible duplicate</Badge>}
                         <span className={`num w-28 text-right font-medium ${r.direction === "credit" ? "text-good" : ""}`}>{r.direction === "credit" ? "+" : ""}{formatINR(r.amountPaise)}</span>

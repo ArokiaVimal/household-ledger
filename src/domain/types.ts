@@ -95,6 +95,8 @@ export interface ExpenseRecord {
   fundedBy?: string;
   /** For a card-bill payment (kind cc_payment) made from a bank: the credit card that was paid. */
   paidCardId?: string;
+  /** Import only: looks like a monthly commitment (EMI, rent, premium). Pre-selects "Repeat every month" in review; cleared on approval. */
+  recurringHint?: boolean;
   /** Recurring commitment this payment fulfils (rent, EMI, insurance...). */
   recurringId?: string;
   /** Set when a redacted copy of this expense was shared with the partner (see SharedExpense). */

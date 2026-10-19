@@ -87,3 +87,16 @@ describe("extractWithClaude", () => {
   });
 });
 
+
+describe("recurring and bill sensing", () => {
+  const source = "SBI Card statement\nTotal Amount Due 41,250.00 Minimum Amount Due 2,060.00\n02/10/2026 SBI LOAN EMI 4471 18,500.00 Dr\n03/10/2026 SWIGGY 450.00 Dr";
+  it("keeps the repeats flag on rows and reads the full amount due, never the minimum", () => {
+    const r = validateExtraction({ items: [item({ description: "SBI LOAN EMI 4471", amount: "18,500.00", repeats: true }), item({ description: "SWIGGY", amount: "450.00", date: "2026-10-03", repeats: false })], bill: { totalDue: "41,250.00", dueDate: "2026-10-22", statementDate: "2026-10-05" } }, source, "statement", ctx);
+    expect(r.rows.map((x) => !!x.recurringHint)).toEqual([true, false]);
+    expect(r.bill).toEqual({ totalDuePaise: 4125000, dueDate: "2026-10-22", statementDate: "2026-10-05" });
+  });
+  it("drops a bill whose amount is not in the text, and bad dates", () => {
+    expect(validateExtraction({ items: [], bill: { totalDue: "99,999.00", dueDate: "2026-10-22" } }, source, "statement", ctx).bill).toBeUndefined();
+    expect(validateExtraction({ items: [], bill: { totalDue: "41,250.00", dueDate: "22/10/2026" } }, source, "statement", ctx).bill).toEqual({ totalDuePaise: 4125000 });
+  });
+});

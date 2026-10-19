@@ -221,3 +221,28 @@ describe("duplicate decisions", () => {
     expect((await previewImport(repo, { ...input, decisions: { "1": "skip" } }, deps)).counts.toImport).toBe(0);
   });
 });
+
+describe("monthly commitments", () => {
+  const textInput = (rows: { description: string; amountPaise: number; recurringHint?: boolean }[]) => ({
+    accountId: "bank_hdfc", filename: "t", fileHash: "7".repeat(64), format: "text" as const, readBy: "parser" as const,
+    rows: rows.map((r, i) => ({ line: i + 1, date: "2026-09-05", description: r.description, amountPaise: r.amountPaise, direction: "debit" as const, raw: [r.description], recurringHint: r.recurringHint })),
+  });
+  it("flags EMIs and AI-sensed commitments, leaves ordinary purchases, and stages the hint for review", async () => {
+    const repo = await setup();
+    const input = textInput([{ description: "ACH D- HDFC BANK LTD-EMI 4471", amountPaise: 1850000 }, { description: "SWIGGY ORDER 991", amountPaise: 45000 }, { description: "CITY GYM", amountPaise: 300000, recurringHint: true }]);
+    const p = await previewImport(repo, input, deps);
+    expect(p.rows.map((r) => !!r.recurring)).toEqual([true, false, true]);
+    await commitImport(repo, { uid: "u1", participantId: "p1" }, input, deps);
+    const staged = await repo.records.list();
+    expect(staged.filter((r) => r.recurringHint).map((r) => r.originalDescription).sort()).toEqual(["ACH D- HDFC BANK LTD-EMI 4471", "CITY GYM"]);
+  });
+  it("flags a payment that appeared at the same amount in two earlier months", async () => {
+    const repo = await setup();
+    for (const [i, date] of ["2026-07-05", "2026-08-05"].entries()) {
+      await repo.records.put({ id: `h${i}`, date, merchant: "Gym", originalDescription: "CITY GYM CLUB", amountPaise: 300000, currency: "INR", accountId: "bank_hdfc", categoryId: "health", kind: "purchase", payerId: "p1", shared: false, split: { mode: "personal", participantIds: ["p1"] }, excluded: false, status: "reviewed", importSource: "x", referenceId: `H${i}` });
+    }
+    const p = await previewImport(repo, textInput([{ description: "CITY GYM CLUB", amountPaise: 300000 }]), deps);
+    expect(p.rows[0].recurring).toBe(true);
+  });
+});
+

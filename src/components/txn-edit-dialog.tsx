@@ -66,13 +66,16 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [kind, setKind] = useState(record.kind);
   const [payerId, setPayerId] = useState(record.payerId);
   const [split, setSplit] = useState<SplitConfig>(record.split);
-  const [recurringId, setRecurringId] = useState(record.recurringId ?? "");
+  // An import that looks like a monthly commitment starts with "Repeat every month" selected (or its existing recurring item),
+  // so approving it adds it to Recurring. You can switch to None before approving.
+  const sameItem = recurringItems.find((i) => { const a = i.name.toLowerCase(), b = record.merchant.toLowerCase(); return !!b && (a.includes(b) || b.includes(a)); });
+  const [recurringId, setRecurringId] = useState(record.recurringId ?? (record.recurringHint ? sameItem?.id ?? NEW_RECURRING : ""));
   const [fundedBy, setFundedBy] = useState(record.fundedBy ?? "");
   const [paidCardId, setPaidCardId] = useState(record.paidCardId ?? "");
   const [notes, setNotes] = useState(record.notes ?? "");
   const [excluded, setExcluded] = useState(record.excluded);
   const [recurringError, setRecurringError] = useState<string | null>(null);
-  const [more, setMore] = useState(!!record.recurringId || record.excluded || record.kind !== "purchase");
+  const [more, setMore] = useState(!!record.recurringId || !!record.recurringHint || record.excluded || record.kind !== "purchase");
   const dueDay = Math.min(28, Math.max(1, Number(date.slice(8, 10)) || 1));
   const amountPaise = adding ? (parseRupees(amountText) ?? 0) : record.amountPaise;
   // Quick picks for manual entry: the places you pay most often, with the category you used last time.
@@ -109,7 +112,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
     }
     const fields = {
       merchant: merchant.trim(), categoryId, kind, payerId, split, shared: split.mode !== "personal", notes: notes || undefined, excluded,
-      recurringId: linkId || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
+      recurringId: linkId || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, recurringHint: undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
     };
     if (adding) {
       addRecord({ ...record, ...fields, date, accountId, amountPaise });
@@ -177,6 +180,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
           )}
           <FormRow label="Recurring">
             <CompactChips label="Recurring commitment" options={[{ id: "", label: "None" }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name })), { id: NEW_RECURRING, label: "Repeat every month" }]} selected={[recurringId]} onPick={(v) => { setRecurringId(v); setRecurringError(null); }} />
+            {record.recurringHint && !record.recurringId && <p className="mt-1.5 text-xs text-muted">This looks like a monthly payment (EMI, rent, premium or similar). Approving it adds it to Recurring; choose None if it is not.</p>}
             {recurringId === NEW_RECURRING && <p className="mt-1.5 text-xs text-muted">Adds “{merchant.trim() || "this payment"}” to Recurring: {formatINR(amountPaise)} due on the {dueDay}{[11, 12, 13].includes(dueDay) ? "th" : ["th", "st", "nd", "rd"][dueDay % 10 < 4 ? dueDay % 10 : 0]} each month, split the same way. You can change it later under Recurring.</p>}
             {recurringError && <p role="alert" className="mt-1.5 text-xs text-danger">{recurringError}</p>}
           </FormRow>

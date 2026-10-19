@@ -1,5 +1,5 @@
 "use client";
-import { BarChart3, Bell, ChevronLeft, ChevronRight, ClipboardCheck, CreditCard, FileUp, LogOut, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Tags, UserRound } from "lucide-react";
+import { BarChart3, Bell, ChevronLeft, ChevronRight, ClipboardCheck, CreditCard, FileUp, LogOut, Plus, Handshake, Repeat, LayoutDashboard, List, Receipt, Search, Settings, Sparkles, Tags, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -19,6 +19,7 @@ const nav = [
   { href: "/transactions", label: "Transactions", icon: List, mobile: true },
   { href: "/recurring", label: "Recurring", icon: Repeat },
   { href: "/cards", label: "Card bills", icon: CreditCard },
+  { href: "/insights", label: "AI insights", icon: Sparkles },
   { href: "/review", label: "Review", icon: ClipboardCheck },
   { href: "/import", label: "Import", icon: FileUp, mobile: true },
   { href: "/settlements", label: "Settle", icon: Handshake, mobile: true },

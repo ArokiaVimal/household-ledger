@@ -1,5 +1,5 @@
 "use client";
-import { CreditCard, Landmark, Smartphone, TrendingDown, TrendingUp, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
+import { CreditCard, Landmark, Smartphone, Sparkles, TrendingDown, TrendingUp, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, type ReactNode } from "react";
@@ -107,6 +107,12 @@ export default function Dashboard() {
           </ul>
         </Card>
       )}
+
+      <Link href="/insights" className="flex items-center gap-3 rounded-[var(--radius-card)] bg-gradient-to-br from-accent/10 via-surface to-surface p-4 ring-1 ring-accent/20 transition-shadow hover:shadow-md">
+        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-white"><Sparkles size={18} /></span>
+        <span className="min-w-0 flex-1"><span className="block font-medium">AI insights for {new Date(`${month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" })}</span><span className="block text-sm text-muted">Tips and a plain-English look at your month. Only runs when you ask.</span></span>
+        <span className="text-sm font-medium text-accent">Open</span>
+      </Link>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="bg-accent-soft">

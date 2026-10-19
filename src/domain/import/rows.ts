@@ -14,6 +14,8 @@ export interface ParsedRow {
   balancePaise?: number;
   /** The row's cells as they appeared, kept as the immutable raw record. */
   raw: string[];
+  /** Looks like a monthly commitment (EMI, rent, premium, subscription). Set by the AI reader; other rows are judged in the import service. */
+  recurringHint?: boolean;
 }
 export interface SkippedRow { line: number; reason: string; text: string }
 export interface Extracted {
