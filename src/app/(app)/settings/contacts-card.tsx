@@ -3,6 +3,7 @@ import { Heart, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { PersonGlyph } from "@/components/glyphs";
 import { Badge, Button, Card, CardTitle, ChipGroup, Dialog, Field, Input } from "@/components/ui";
+import { CheckLinksButton, LinkProposals, UnlinkButton } from "@/components/links";
 import { useStore } from "@/data/store";
 import { RELATIONSHIP_LABEL, relationshipText } from "@/domain/contacts";
 import { RELATIONSHIPS, type Participant, type Relationship } from "@/domain/types";
@@ -33,7 +34,7 @@ export function ContactsCard({ onRemove }: { onRemove: (id: string) => void }) {
     if (err) setError(err); else setDlg(null);
   };
   const isPartner = (p: Participant) => p.relationship === "partner" || p.id === partnerId;
-  const status = (p: Participant) => (p.userId ? <Badge tone="good">Has an account</Badge> : p.pendingEmail ? <Badge tone="warn">Invited</Badge> : null);
+  const status = (p: Participant) => (p.userId ? <Badge tone="good">Has an account</Badge> : p.linkId ? <Badge tone="good">Linked</Badge> : p.pendingEmail ? <Badge tone="warn">Invited</Badge> : null);
 
   return (
     <Card className="space-y-3">
@@ -49,14 +50,17 @@ export function ContactsCard({ onRemove }: { onRemove: (id: string) => void }) {
                 <div className="truncate text-xs text-muted">{isPartner(p) ? "Partner" : relationshipText(p)}{p.email ? ` · ${p.email}` : p.pendingEmail ? ` · ${p.pendingEmail}` : ""}</div>
               </div>
               {status(p)}
+              {p.linkId && <UnlinkButton linkKey={p.linkId} name={p.name} />}
               {canEdit && <button type="button" aria-label={`Edit ${p.name}`} title="Edit" onClick={() => open(p)} className="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={15} aria-hidden /></button>}
-              {!p.userId && !p.pendingEmail && <button type="button" aria-label={`Remove ${p.name}`} title="Remove" onClick={() => onRemove(p.id)} className="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={15} aria-hidden /></button>}
+              {!p.userId && !p.pendingEmail && !p.linkId && <button type="button" aria-label={`Remove ${p.name}`} title="Remove" onClick={() => onRemove(p.id)} className="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={15} aria-hidden /></button>}
             </li>
           );
         })}
         {others.length === 0 && <li className="py-3 text-muted">No one yet. Add your partner, a friend or family so you can split with them.</li>}
       </ul>
+      <LinkProposals />
       <Button variant="primary" onClick={() => open()}>+ Add a contact</Button>
+      <CheckLinksButton />
 
       <Dialog open={!!dlg} onClose={() => setDlg(null)} title={dlg?.person ? `Edit ${dlg.person.name}` : "Add a contact"}>
         {dlg && (

@@ -17,6 +17,7 @@ import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
 import { buildShared, planShare, SharingError } from "@/domain/sharing";
 import type { AuditEvent, ExpenseRecord } from "@/domain/types";
+import { syncRecordToLinks, syncSettlement, type ActionLink } from "@/lib/links/sync";
 
 const id = z.string().min(1).max(128);
 const money = z.number().int().safe();
@@ -97,7 +98,7 @@ const applyPatch = (r: ExpenseRecord, patch: z.infer<typeof editable>): ExpenseR
   return next as unknown as ExpenseRecord;
 };
 
-async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: CoupleContext | null): Promise<void> {
+async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: CoupleContext | null, links: ActionLink[] = []): Promise<void> {
   const parsed = ActionSchema.safeParse(raw);
   if (!parsed.success) throw new ActionError("invalid", "Invalid request.");
   const a = parsed.data;
@@ -132,6 +133,14 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       return rest;
     }
     return rec;
+  };
+  /**
+   * Keeps every active Friends & Family link in step with a record: its pair-scoped copy is created, updated or withdrawn.
+   * Only the link space is written; the record itself is never touched here. Copies carry the record id, so a retry is safe.
+   */
+  const syncLinks = async (rec: ExpenseRecord): Promise<void> => {
+    if (links.length === 0) return;
+    await syncRecordToLinks(links, rec, (await repo.categories.get(rec.categoryId))?.name ?? rec.categoryId);
   };
   /**
    * Where a settlement lives. Between you and your linked partner it is in the couple space (both see it); with anyone else
@@ -209,7 +218,9 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
         ...strip(a.record), currency: "INR", status: "reviewed", importSource: "Manual entry", originalDescription: "Entered manually",
       });
       await checkVoucherRefs(rec as ExpenseRecord);
-      await repo.records.put(await syncShare(rec as ExpenseRecord));
+      const shared = await syncShare(rec as ExpenseRecord);
+      await syncLinks(shared);
+      await repo.records.put(shared);
       await log("create", "record", a.record.id, `Added ${a.record.merchant} ${money(a.record.amountPaise)} on ${a.record.date}`);
       return;
     }
@@ -221,7 +232,9 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const next = applyPatch(cur, a.patch ?? {});
       if (a.type === "record.approve") { next.status = "reviewed"; delete next.suggested; }
       await checkVoucherRefs(next);
-      await repo.records.put(await syncShare(next));
+      const shared = await syncShare(next);
+      await syncLinks(shared);
+      await repo.records.put(shared);
       // What you decide here is what the import will suggest next month.
       const decided = a.type === "record.approve" || !!(a.patch && ("categoryId" in a.patch || "merchant" in a.patch || "kind" in a.patch));
       if (decided && next.status === "reviewed") {
@@ -244,6 +257,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const cur = await repo.records.get(a.id);
       if (!cur) throw new ActionError("not_found", "Record not found.");
       if (cur.sharedWithPartner) await syncShare({ ...cur, excluded: true }); // deleting withdraws the partner's copy first
+      await syncLinks({ ...cur, excluded: true }); // and any linked friend's or family member's copy
       await repo.records.remove(a.id);
       await log("delete", "record", a.id, `Deleted ${cur.merchant} ${money(cur.amountPaise)} on ${cur.date} (${cur.status}) from ${cur.importSource}`);
       return;
@@ -254,6 +268,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       if (couple !== undefined && !(await repo.participants.get(a.settlement.fromId === meParticipant ? a.settlement.toId : a.settlement.fromId)) && !(couple && [couple.partnerId].includes(a.settlement.fromId === meParticipant ? a.settlement.toId : a.settlement.fromId))) throw new ActionError("invalid", "Unknown person.");
       if (await target.settlements.get(a.settlement.id)) throw new ActionError("conflict", "That settlement already exists.");
       await target.settlements.put(a.settlement);
+      if (target === repo) for (const l of links) await syncSettlement(l, a.settlement); // a payment between you and a linked contact is mirrored
       await target.audit.append({ actorId: actor.uid, action: "settle", entity: "settlement", entityId: a.settlement.id, summary: `${a.settlement.fromId} paid ${a.settlement.toId} ${money(a.settlement.amountPaise)}` });
       return;
     }
@@ -263,6 +278,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const { repo: target, cur } = found;
       if (cur.voided) return;
       await target.settlements.put({ ...cur, voided: true });
+      if (target === repo) for (const l of links) await syncSettlement(l, { ...cur, voided: true });
       await target.audit.append({ actorId: actor.uid, action: "void_settlement", entity: "settlement", entityId: a.id, summary: `Voided settlement of ${money(cur.amountPaise)}` });
       return;
     }
@@ -481,6 +497,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const check = checkFriendDelete(p ?? undefined, `u_${actor.uid}`, friendUsage(a.id, { records, settlements, recurring }));
       if (!p) throw new ActionError("not_found", "That person was not found.");
       if (!check.ok) throw new ActionError("conflict", check.reason);
+      if (p.linkId) throw new ActionError("conflict", `${p.name} is linked to an account. Unlink first (Settings, Friends & Family), then you can remove them.`);
       await repo.participants.remove(a.id);
       await log("delete", "household", a.id, `Removed friend ${p.name}`);
       return;
@@ -522,9 +539,9 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
 }
 
 /** Entry point. Maps validation and invariant failures from the repository to ActionError so callers show a clean message. */
-export async function applyAction(repo: Repository, actor: ActionActor, raw: unknown, couple?: CoupleContext | null): Promise<void> {
+export async function applyAction(repo: Repository, actor: ActionActor, raw: unknown, couple?: CoupleContext | null, links: ActionLink[] = []): Promise<void> {
   try {
-    await run(repo, actor, raw, couple);
+    await run(repo, actor, raw, couple, links);
   } catch (e) {
     if (e instanceof ActionError) throw e;
     if (e instanceof z.ZodError) throw new ActionError("invalid", e.issues[0]?.message ?? "Invalid data.");

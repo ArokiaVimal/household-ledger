@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PersonGlyph } from "@/components/glyphs";
 import { Badge, Button, Card, CardTitle, ConfirmDialog, Dialog, EmptyState, Field, Input, PageHeader, Select } from "@/components/ui";
+import { LinkedWithYou } from "@/components/links";
 import { useStore } from "@/data/store";
 import { personLedger, settlementFor } from "@/domain/ledger";
 import { formatINR, parseRupees } from "@/domain/money";
@@ -47,6 +48,7 @@ export default function People() {
     return (
       <>
         <PageHeader title="People" />
+        <LinkedWithYou />
         <Card><EmptyState title="No one here yet" hint="Add a friend or invite your partner in Settings, then split an expense with them." /><Link href="/settings" className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white">Open Settings</Link></Card>
       </>
     );
@@ -55,6 +57,7 @@ export default function People() {
     <>
       <PageHeader title="People" tip="Everyone you share expenses with, and what is owed either way. Settling up records the payment between you; it never creates a new expense." sub="See everything you share with each person, pick payments and settle them. Settling never creates an expense." actions={canRecord ? <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button> : undefined} />
 
+      <LinkedWithYou />
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="p-4"><div className="text-xs text-muted">You are owed</div><div className="num text-xl font-semibold text-good">{formatINR(owedToMe)}</div></Card>
         <Card className="p-4"><div className="text-xs text-muted">You owe</div><div className="num text-xl font-semibold">{formatINR(iOwe)}</div></Card>

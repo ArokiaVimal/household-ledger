@@ -201,3 +201,60 @@ describe("couple space privacy", () => {
     }
   });
 });
+
+describe("link space privacy (Friends & Family account links)", () => {
+  const copy = { ownerUid: OWNER, payerId: `u_${OWNER}`, date: "2026-09-05", merchant: "Dinner", amountPaise: 100000, kind: "purchase", categoryId: "food", categoryName: "Food", split: { mode: "custom", participantIds: [`u_${OWNER}`, `u_${OTHER}`], values: { [`u_${OWNER}`]: 50000, [`u_${OTHER}`]: 50000 } }, createdAt: "2026-09-05T00:00:00.000Z", updatedAt: "2026-09-05T00:00:00.000Z" };
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "households/p-owner"), { name: "Owner", ownerUid: OWNER, kind: "personal" });
+      await setDoc(doc(db, `households/p-owner/members/${OWNER}`), { role: "owner" });
+      await setDoc(doc(db, "households/p-owner/records/r1"), record());
+      await setDoc(doc(db, "households/p-owner/participants/p_friend"), { name: "Friend", userId: null, email: "o@x.com" });
+      await setDoc(doc(db, "households/l1"), { name: "Link", ownerUid: OWNER, kind: "link" });
+      await setDoc(doc(db, `households/l1/members/${OWNER}`), { role: "owner" });
+      await setDoc(doc(db, `households/l1/members/${OTHER}`), { role: "member" });
+      await setDoc(doc(db, "households/l1/sharedExpenses/r1"), copy);
+      await setDoc(doc(db, "households/l1/settlements/s1"), settlement({ fromId: `u_${OTHER}`, toId: `u_${OWNER}` }));
+      await setDoc(doc(db, "contactLinks/p"), { uids: [OWNER, OTHER], sides: {} });
+    });
+  });
+  it("the linked person reads the copies and settlements, but nothing in the owner's personal space", async () => {
+    await assertSucceeds(getDoc(doc(as(OTHER), "households/l1/sharedExpenses/r1")));
+    await assertSucceeds(getDoc(doc(as(OTHER), "households/l1/settlements/s1")));
+    await assertFails(getDoc(doc(as(OTHER), "households/p-owner")));
+    await assertFails(getDoc(doc(as(OTHER), "households/p-owner/records/r1")));
+    await assertFails(getDoc(doc(as(OTHER), "households/p-owner/participants/p_friend")));
+  });
+  it("outsiders read nothing in a link space", async () => {
+    for (const db of [as(SPOUSE), as(STRANGER), anon()]) {
+      await assertFails(getDoc(doc(db, "households/l1/sharedExpenses/r1")));
+      await assertFails(getDoc(doc(db, "households/l1/settlements/s1")));
+      await assertFails(getDoc(doc(db, "households/l1")));
+    }
+  });
+  it("no client, not even a member, writes anything in a link space", async () => {
+    for (const uid of [OWNER, OTHER]) {
+      const db = as(uid);
+      await assertFails(setDoc(doc(db, "households/l1/sharedExpenses/new"), copy));
+      await assertFails(updateDoc(doc(db, "households/l1/sharedExpenses/r1"), { amountPaise: 1 }));
+      await assertFails(deleteDoc(doc(db, "households/l1/sharedExpenses/r1")));
+      await assertFails(setDoc(doc(db, "households/l1/settlements/new"), settlement({ fromId: "a", toId: "b" })));
+      await assertFails(updateDoc(doc(db, "households/l1/settlements/s1"), { voided: true }));
+      await assertFails(setDoc(doc(db, "households/l1/records/x"), record()));
+      await assertFails(setDoc(doc(db, "households/l1/participants/x"), { name: "x", userId: null }));
+      await assertFails(setDoc(doc(db, "households/l1/categories/x"), { name: "x" }));
+      await assertFails(setDoc(doc(db, "households/l1/auditEvents/x"), { at: "2026-09-01T00:00:00Z", actorId: uid, action: "a", entity: "record", entityId: "r", summary: "s" }));
+      await assertFails(setDoc(doc(db, `households/l1/members/${uid}x`), { role: "member" }));
+    }
+  });
+  it("link records are closed to every client, so a person cannot read or forge who is linked to whom", async () => {
+    for (const db of [as(OWNER), as(OTHER), as(STRANGER), anon()]) {
+      await assertFails(getDoc(doc(db, "contactLinks/p")));
+      await assertFails(setDoc(doc(db, "contactLinks/p2"), { uids: [OWNER, STRANGER] }));
+    }
+  });
+  it("the owner still writes their own personal space normally", async () => {
+    await assertSucceeds(setDoc(doc(as(OWNER), "households/p-owner/participants/p_new"), { name: "New", userId: null }));
+  });
+});

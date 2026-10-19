@@ -6,10 +6,11 @@ export interface SplitRatio { leaderUid: string; leaderBps: number }
 /**
  * personal = one person's private space (the default; never has a second member).
  * couple = created when two partners link: shared expenses, settlements and the split ratio live here.
+ * link = one per linked Friends & Family pair: only redacted, pair-scoped copies (docs/FRIENDS_FAMILY_LINKING.md).
  */
 export interface Household {
   id: string; name: string; ownerUid: string; createdAt: string;
-  kind?: "personal" | "couple";
+  kind?: "personal" | "couple" | "link";
   /** Couple space only. */
   splitRatio?: SplitRatio;
   /** Couple space only: set when either partner unlinked. The space stays readable, but nothing new can be shared. */

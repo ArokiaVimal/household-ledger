@@ -20,3 +20,6 @@ Paths: `households/{id}/{records|settlements|receipts|recurring|participants|acc
 
 ## Couple space (added)
 `users/{uid}`: `householdId` (personal space) and `coupleId` (couple space, kept after unlinking). `households/{id}`: `kind` ("personal" | "couple"), couple only: `splitRatio {leaderUid, leaderBps}` (absent until chosen), `endedAt`, `endedBy`. Couple subcollections: `members`, `participants` (ids `u_<uid>`, the same ids used in each personal space), `sharedExpenses` (`SharedExpense`: id = source record id, ownerUid, payerId, date, merchant, amountPaise, kind, categoryId, categoryName, split, note?, voided?, createdAt, updatedAt), `settlements`, `auditEvents`. `ExpenseRecord` gains `sharedWithPartner` and `shareNote`.
+
+## Account links (added)
+`contactLinks/{pairKey}` (server only; `pairKey` = sorted uids joined by `__`): `uids`, `spaceId?`, `sides{uid: {householdId, contactIds, contactId?, email, status proposed|active|declined|ended, proposedAt, confirmedAt?, endedAt?, endedBy?}}`. `households/{id}` with `kind: "link"` holds only `members`, `sharedExpenses` (pair-scoped: custom split of the two shares, payer `u_<uid>`), `settlements`, `auditEvents`. `Participant.linkId` marks a linked contact (separate from `userId`). Needs the collection-group field override on `participants.email` (`firestore.indexes.json`).

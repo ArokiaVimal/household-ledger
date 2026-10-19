@@ -1,5 +1,13 @@
 # Development status
 
+## Friends & Family account linking (built; unit, action and emulator tests pass; not exercised with two real accounts)
+- Design written first: `docs/FRIENDS_FAMILY_LINKING.md`. Decision: the couple space stays as it is (one partner, Together view); the shared-space *mechanism* is generalised into a per-pair **link space** (`kind: "link"`) with pair-scoped redacted copies. Nothing about the partner flow changed.
+- Built: `src/domain/links.ts` (matching, what a link may mirror), `src/lib/links/*` (stores for memory and Firestore, sync, service), `POST /api/links` (check, confirm, decline, unlink), sync hooks in `applyAction` (record create/update/approve/delete, settlement create/void), contact-side match on saving a contact email (`/api/data`), account-side match at sign-in (`/api/session`), UI: proposals + Unlink in Settings → Friends & Family, "Shared through linked accounts" on People. `Participant.linkId`, session `emailVerified`, rules (`contactLinks` closed, link spaces read-only), `firestore.indexes.json`.
+- Behaviour: verified email only; owner confirms (never silent); conflicts need a choice; linking mirrors existing qualifying expenses and settlements with no change to the owner's ledger; new/edited/deleted expenses sync automatically; unlink keeps history and stops sync; account deletion function removes link spaces (no delete-account screen exists yet to call it).
+- Tests: domain 9, service/actions 22 (memory), rules +5, Firestore adapters against the emulator 2 (`pnpm test:rules`; needs Java: this machine has one at ~/.local/java). Full suite 448 passed, 18 skipped (opt-in real-Firestore); lint, typecheck and build pass.
+- Not verified: a real two-account run (sign-in hook, Firebase Auth lookup, collection-group index once deployed), the screens against live data (checked with a temporary preview page at 375px and desktop, since removed).
+- Limits / next: the linked person cannot record a settlement themselves (the owner records it and it is mirrored); no comments or disputes on a mirrored expense; the linked person's view is read-only and separate from their own ledger; deploy `firestore.indexes.json` with the rules before relying on the sign-in match; no email notification to the contact owner (the proposal appears in Settings → Friends & Family).
+
 Updated: 2026-10-18 · Branch `feat/slice5-persistence` · Stage 3 slices 1–5 built and tested; slices 6–8 not started (see `STAGE3_PLAN.md`). Signed-in users now see and save REAL household data; demo mode (no Firebase configured) still shows fictional September 2026 data.
 
 ## Implemented and verified

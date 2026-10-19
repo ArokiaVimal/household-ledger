@@ -44,7 +44,7 @@ export type LinkMatch =
 export function matchAccount(contacts: Participant[], account: { email: string | null | undefined; emailVerified: boolean }): LinkMatch {
   if (!account.emailVerified || !account.email) return { status: "unverified" };
   const email = normalizeEmail(account.email);
-  const hits = contacts.filter((p) => !p.userId && !p.pendingEmail && p.email && normalizeEmail(p.email) === email);
+  const hits = contacts.filter((p) => !p.userId && !p.pendingEmail && !p.linkId && p.email && normalizeEmail(p.email) === email);
   if (hits.length === 0) return { status: "none" };
   return hits.length === 1 ? { status: "unique", contact: hits[0] } : { status: "conflict", contacts: hits };
 }

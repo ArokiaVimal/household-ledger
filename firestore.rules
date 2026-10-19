@@ -8,6 +8,9 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function memberPath(hid) { return /databases/$(database)/documents/households/$(hid)/members/$(request.auth.uid); }
     function isMember(hid) { return signedIn() && exists(memberPath(hid)); }
+    // A link space (one per linked Friends & Family pair) only ever holds server-written, redacted copies: clients may read, never write.
+    function isLink(hid) { return get(/databases/$(database)/documents/households/$(hid)).data.get('kind', '') == 'link'; }
+    function canWrite(hid) { return isMember(hid) && !isLink(hid); }
 
     // ---- data validation helpers (money is integer paise, never floats) ----
     function isPaise(v) { return v is int && v > 0; }
@@ -61,6 +64,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Account links between a contact owner and a linked account: server only.
+    match /contactLinks/{key} {
+      allow read, write: if false;
+    }
+
     match /households/{hid} {
       allow read: if isMember(hid);
       allow write: if false;
@@ -72,15 +80,15 @@ service cloud.firestore {
 
       match /records/{id} {
         allow read: if isMember(hid);
-        allow create: if isMember(hid) && validRecord(request.resource.data);
-        allow update: if isMember(hid) && validRecord(request.resource.data) && rawUnchanged(resource.data, request.resource.data);
+        allow create: if canWrite(hid) && validRecord(request.resource.data);
+        allow update: if canWrite(hid) && validRecord(request.resource.data) && rawUnchanged(resource.data, request.resource.data);
         allow delete: if false; // never destroy financial records; exclude them instead
       }
 
       // Immutable copy of what the bank said.
       match /rawTransactions/{id} {
         allow read: if isMember(hid);
-        allow create: if isMember(hid) && smallDoc(request.resource.data);
+        allow create: if canWrite(hid) && smallDoc(request.resource.data);
         allow update, delete: if false;
       }
 
@@ -98,9 +106,9 @@ service cloud.firestore {
 
       match /settlements/{id} {
         allow read: if isMember(hid);
-        allow create: if isMember(hid) && validSettlement(request.resource.data);
+        allow create: if canWrite(hid) && validSettlement(request.resource.data);
         // Corrections void the old entry (and add a new one); amounts never change in place.
-        allow update: if isMember(hid)
+        allow update: if canWrite(hid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['voided'])
           && request.resource.data.voided == true;
         allow delete: if false;
@@ -114,22 +122,22 @@ service cloud.firestore {
 
       match /auditEvents/{id} {
         allow read: if isMember(hid);
-        allow create: if isMember(hid) && validAudit(request.resource.data);
+        allow create: if canWrite(hid) && validAudit(request.resource.data);
         allow update, delete: if false;
       }
 
       // Configuration the household edits together.
-      match /categories/{id} { allow read: if isMember(hid); allow create, update: if isMember(hid) && smallDoc(request.resource.data); allow delete: if isMember(hid); }
-      match /recurring/{id} { allow read: if isMember(hid); allow create, update: if isMember(hid) && smallDoc(request.resource.data); allow delete: if isMember(hid); }
+      match /categories/{id} { allow read: if isMember(hid); allow create, update: if canWrite(hid) && smallDoc(request.resource.data); allow delete: if canWrite(hid); }
+      match /recurring/{id} { allow read: if isMember(hid); allow create, update: if canWrite(hid) && smallDoc(request.resource.data); allow delete: if canWrite(hid); }
       // Card bills are written by the server only.
       match /cardBills/{id} { allow read: if isMember(hid); allow write: if false; }
       match /voucherBrands/{id} { allow read: if isMember(hid); allow write: if false; }
       // Payment groups (per-profile lenses on spending) are written by the server only.
       match /paymentGroups/{id} { allow read: if isMember(hid); allow write: if false; }
-      match /receipts/{id} { allow read: if isMember(hid); allow create, update: if isMember(hid) && smallDoc(request.resource.data); allow delete: if isMember(hid); }
+      match /receipts/{id} { allow read: if isMember(hid); allow create, update: if canWrite(hid) && smallDoc(request.resource.data); allow delete: if canWrite(hid); }
       // Participants and accounts are referenced by history, so they are archived, not deleted.
-      match /participants/{id} { allow read: if isMember(hid); allow create, update: if isMember(hid) && smallDoc(request.resource.data); allow delete: if false; }
-      match /accounts/{id} { allow read: if isMember(hid); allow create, update: if isMember(hid) && smallDoc(request.resource.data); allow delete: if false; }
+      match /participants/{id} { allow read: if isMember(hid); allow create, update: if canWrite(hid) && smallDoc(request.resource.data); allow delete: if false; }
+      match /accounts/{id} { allow read: if isMember(hid); allow create, update: if canWrite(hid) && smallDoc(request.resource.data); allow delete: if false; }
     }
 
     // Everything else is closed.
