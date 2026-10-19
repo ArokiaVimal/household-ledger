@@ -196,7 +196,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         </FormRow>
       )}
       {adding && impliedBrand && <p className="-mt-1 rounded-xl bg-accent/5 px-3 py-2 text-xs text-muted">Paid from the {impliedBrand.name} wallet: it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
-      {voucherBrands.length > 0 && !topUp && !impliedBrand && kind === "purchase" && (
+      {voucherBrands.length > 0 && !topUp && !impliedBrand && kind === "purchase" && (!!paidWithId || !accounts.some((a) => a.type === "wallet" && !a.archived)) && (
         <FormRow label="From wallet">
           <CompactChips label="Paid from a voucher wallet" options={[{ id: "", label: "No" }, ...voucherBrands.map((b) => ({ id: b.id, label: `${b.name} wallet` }))]} selected={[paidWithId]} onPick={setPaidWithId} />
           {paidWithId && <p className="mt-1.5 text-xs text-muted">Paid from the {voucherBrands.find((b) => b.id === paidWithId)?.name} wallet, so it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
