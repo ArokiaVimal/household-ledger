@@ -18,6 +18,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // The commit this build was made from, so the app can tell whether a newer version is live.
+  env: { NEXT_PUBLIC_BUILD_ID: process.env.VERCEL_GIT_COMMIT_SHA ?? "dev" },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

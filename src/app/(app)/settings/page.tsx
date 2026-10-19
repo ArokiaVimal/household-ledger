@@ -16,6 +16,7 @@ import { CaptureCard } from "./capture-card";
 import { GmailCard } from "./gmail-card";
 import { PartnerCard } from "./partner-card";
 import { IconsCard } from "./icons-card";
+import { SyncCard } from "./sync-card";
 import { GroupsCard } from "./groups-card";
 import { ContactsCard } from "./contacts-card";
 
@@ -198,6 +199,7 @@ export default function Settings() {
         </Section>
 
         <Section id="data" icon={<ShieldCheck size={20} aria-hidden />} title="Your data" tagline="It is your money and your data. Take a copy whenever you like.">
+          <SyncCard />
           <Card className="space-y-3">
             <p className="text-sm text-muted">{live ? "Download everything as a file you keep: transactions, people, categories, rules and settlements. A fuller export with CSV and restore is on the way." : "Exports the sample data in this prototype as a file."}</p>
             <div className="flex flex-wrap gap-2"><Button onClick={exportJson}><Download size={16} aria-hidden />Download my data</Button><Button variant="danger" onClick={() => setConfirm(true)}>Delete all my data…</Button></div>
