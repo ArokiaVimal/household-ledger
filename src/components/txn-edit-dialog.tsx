@@ -300,15 +300,14 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       <PickerRow icon={merchant.trim() ? <MerchantAvatar name={merchant} size={32} /> : <Dot icon={Store} size={32} tone="bg-accent/10 text-accent" />} label="Merchant" value={merchant.trim() || "Where did you pay?"} muted={!merchant.trim()} sub={merchantHint ?? undefined} onClick={() => setSheet("merchant")} />
       {!topUp && <PickerRow icon={<CategoryGlyph name={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} icon={categories.find((c) => c.id === categoryId)?.icon} size={32} />} label="Category" value={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} muted={categoryId === "uncategorized"} sub={catHint ? `Suggested: ${catHint}` : undefined} onClick={() => setSheet("category")} />}
       {promptVoucher && (
-        <FormRow label="Wallet">
+        <FormRow label="Wallet" tip="Adds to that wallet's balance and counts once as spending. A top-up is never split; split wallet purchases instead.">
           <CompactChips label="Wallet topped up" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
             onPick={(id) => { if (id === "__later") { setVoucherLater(true); setVoucherId(""); } else { setVoucherLater(false); pickBrand(id, setVoucherId); } }} adder={voucherAdder} />
-          <p className="mt-1.5 text-xs text-muted">Which wallet is this topping up? It is recorded under {accountName(accountId)} › {merchant || "this merchant"} › the wallet you pick, adds to that wallet&apos;s balance, and counts once as money spent. It is never split. Statement text is never changed.</p>
-          {!voucherId && !voucherLater && record.status !== "reviewed" && <p role="alert" className="mt-1 text-xs font-medium text-warn">Choose a wallet to continue.</p>}
+          {!voucherId && !voucherLater && record.status !== "reviewed" && <p role="alert" className="mt-2 text-xs font-medium text-warn">Pick a wallet to continue.</p>}
         </FormRow>
       )}
       {topUp
-        ? <p className="rounded-xl bg-background p-3 text-xs text-muted">A top-up is your own money, so it isn&apos;t split. Split wallet purchases instead.</p>
+        ? null
         : (
           <>
             <PickerRow icon={<span className="flex -space-x-2">{(split.participantIds.length ? split.participantIds : [meId]).slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={26} /></span>)}</span>} label="Split with" value={split.mode === "personal" || split.participantIds.length <= 1 ? "Just me" : split.participantIds.map((id) => (id === meId ? "You" : nameOf(id))).join(", ")} sub={splitError ?? (split.participantIds.length > 1 ? "Tap to change who and how" : "Tap to share with someone")} onClick={() => { touch("split"); setSplitOpen(true); }} />
