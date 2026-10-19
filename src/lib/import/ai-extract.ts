@@ -7,7 +7,7 @@
 // - The text is untrusted data: the prompt says never to follow instructions inside it, and the answer is validated.
 import { parseAmount } from "@/domain/import/amount";
 import type { ParsedRow } from "@/domain/import/rows";
-import { DEFAULT_MODEL, type AiUsage, type ClaudeConfig } from "./ai";
+import { DEFAULT_MODEL, describeFailure, type AiUsage, type ClaudeConfig } from "./ai";
 
 export const MAX_TEXT_CHARS = 60_000;
 export const MAX_NOTE_CHARS = 4_000;
@@ -116,17 +116,21 @@ export async function extractWithClaude(cfg: ClaudeConfig, text: string, mode: "
   const sent = redactStatement(text.slice(0, limit));
   const f = cfg.fetchImpl ?? fetch;
   try {
-    const res = await f("https://api.anthropic.com/v1/messages", {
+    const request = (extra: Record<string, unknown>) => f("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": cfg.apiKey, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
-        model: cfg.model || DEFAULT_MODEL, max_tokens: 8000, temperature: 0,
+        model: cfg.model || DEFAULT_MODEL,
         system: [{ type: "text", text: system(mode, ctx), cache_control: { type: "ephemeral" } }],
-        tools: [TOOL], tool_choice: { type: "tool", name: "transactions" }, messages: [{ role: "user", content: sent }],
+        tools: [TOOL], tool_choice: { type: "tool", name: "transactions" }, messages: [{ role: "user", content: sent }], ...extra,
       }),
       signal: AbortSignal.timeout(cfg.timeoutMs ?? 45_000),
     });
-    if (!res.ok) return { rows: [], unverified: [], accountId: null, usage: { ...usage, error: `Claude answered ${res.status}` }, warnings };
+    let res = await request({ max_tokens: 8000, temperature: 0 });
+    // A 400 can be a setting this model dislikes (for example a very large output limit). Retry once with plainer settings;
+    // if it is the text itself that is the problem, the second answer says so.
+    if (res.status === 400) res = await request({ max_tokens: 4096 });
+    if (!res.ok) return { rows: [], unverified: [], accountId: null, usage: { ...usage, error: await describeFailure(res) }, warnings };
     const body = (await res.json()) as { content?: { type: string; input?: unknown }[]; stop_reason?: string; usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } };
     usage.calls = 1;
     usage.inputTokens = (body.usage?.input_tokens ?? 0) + (body.usage?.cache_creation_input_tokens ?? 0) + (body.usage?.cache_read_input_tokens ?? 0);

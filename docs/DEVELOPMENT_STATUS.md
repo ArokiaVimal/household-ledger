@@ -229,3 +229,6 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - **Paid detection:** card-bill payments (`kind cc_payment`) dated on or after the statement date count towards the bill when they are on the card itself or made from a bank with the card named (`paidCardId`, set by import routing "Payment to <card>" or chosen under "Which card" in the transaction form). The same payment seen on both sides counts once. Partial payments show progress and the remaining amount.
 - Code: `src/domain/cardbills.ts` (tests), actions `cardbill.put/delete`, import service `cardBill`, pages `src/app/(app)/cards`. Checked in a browser (demo, phone width). The due-date reader is tested on invented layouts only; a real statement may need a tweak.
 
+## AI read failures now explain themselves (added)
+- A Claude error used to show only "Claude answered 400". It now includes the API's own reason (for example "prompt is too long"), never our text, in both the statement reader and the merchant labeller (`describeFailure`). The statement reader also retries once with plainer settings (no `temperature`, `max_tokens` 4096) after a 400 before giving up. Found with an SBI PDF on the live site (layout not parsed natively, Claude fallback answered 400); the real cause is still to be read from the new message.
+

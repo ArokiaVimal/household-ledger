@@ -16,6 +16,14 @@ export const MAX_BATCHES = 3;
 const KINDS: TxnKind[] = ["purchase", "fee", "refund", "income", "transfer", "cc_payment"];
 const EXAMPLES = 12;
 
+/** What went wrong with a Claude call, in one short line: the status and the API's own explanation (it never echoes our text). */
+export async function describeFailure(res: Response): Promise<string> {
+  let detail = "";
+  try { detail = String(((await res.json()) as { error?: { message?: string } })?.error?.message ?? ""); } catch { /* no body */ }
+  detail = detail.replace(/\s+/g, " ").trim().slice(0, 160);
+  return `Claude answered ${res.status}${detail ? ` (${detail})` : ""}`;
+}
+
 export interface ClaudeConfig { apiKey: string; model?: string; fetchImpl?: typeof fetch; timeoutMs?: number }
 
 /** Digits that could be account, card or phone numbers never leave the server. */
@@ -88,7 +96,7 @@ export function createClaudeSuggest(cfg: ClaudeConfig): Suggest {
           }),
           signal: AbortSignal.timeout(cfg.timeoutMs ?? 25_000),
         });
-        if (!res.ok) { usage.error = `Claude answered ${res.status}`; break; }
+        if (!res.ok) { usage.error = await describeFailure(res); break; }
         const body = (await res.json()) as { content?: { type: string; input?: unknown }[]; usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } };
         usage.calls++;
         usage.asked += batch.length;
