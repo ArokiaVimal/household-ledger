@@ -9,6 +9,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { pairBalances } from "@/domain/balances";
 import { categoryUsage, checkDelete, cleanCategoryName, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
 import { validateAvatarDataUrl } from "@/lib/profile/profile";
+import { detectRecurring, trackedAlerts, type Suggestion, type TrackedAlert } from "@/domain/recurring-detect";
 import { checkContact, normalizeEmail } from "@/domain/contacts";
 import { allocatedBy, attribute, inGroup, summarizeGroup, withMine, type Attribution, type GroupSummary } from "@/domain/groups";
 import { planUpiSetup, sortAccounts, suggestedWithParents } from "@/domain/accounts";
@@ -24,7 +25,7 @@ import type { HouseholdData } from "@/lib/data/load";
 import { pickMonth } from "@/domain/months";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { validateSplit } from "@/domain/splits";
-import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, paymentGroups as mockPaymentGroups, participants as mockParticipants, recurringItems as mockRecurring, cardBills as mockCardBills, voucherBrands as mockVoucherBrands, voucherRecords as mockVoucherRecords, trendHistory as mockTrend } from "./mock";
+import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, historyRecords, initialRecords, initialSettlements, merchantRules, paymentGroups as mockPaymentGroups, participants as mockParticipants, recurringItems as mockRecurring, cardBills as mockCardBills, voucherBrands as mockVoucherBrands, voucherRecords as mockVoucherRecords, trendHistory as mockTrend } from "./mock";
 
 export type View = "household" | "personal";
 
@@ -147,6 +148,14 @@ interface Store {
   saveRecurring: (item: Omit<RecurringItem, "id"> & { id?: string }) => string | null;
   /** Removes a recurring item; the payments linked to it stay but are unlinked. */
   deleteRecurring: (id: string) => void;
+  /** Likely subscriptions and bills found in approved history. Suggestions only: nothing is added until confirmed. */
+  recurringSuggestions: Suggestion[];
+  /** Price increases, missing payments and duplicate charges on items already in Recurring. */
+  recurringAlerts: TrackedAlert[];
+  /** Adds a suggestion to Recurring and links the payments it was found from. Returns an error message when refused. */
+  confirmRecurringSuggestion: (s: Suggestion) => string | null;
+  /** "Not recurring": the suggestion is not shown again on this device. */
+  dismissRecurringSuggestion: (key: string) => void;
   /** Marks a month paid by hand (or undoes it). A transaction linked to the item counts as paid on its own. */
   markRecurringPaid: (id: string, month: string, paid: boolean) => void;
   /** Credit-card bills: the full amount due and the due date. */
@@ -213,7 +222,7 @@ function seed(live?: LiveInit) {
     };
   }
   return {
-    records: [...initialRecords, ...mockVoucherRecords].filter((r) => r.status === "reviewed"), staged: [...initialRecords, ...mockVoucherRecords].filter((r) => r.status === "unreviewed"), categories: mockCategories, rules: merchantRules,
+    records: [...initialRecords, ...mockVoucherRecords, ...historyRecords].filter((r) => r.status === "reviewed"), staged: [...initialRecords, ...mockVoucherRecords].filter((r) => r.status === "unreviewed"), categories: mockCategories, rules: merchantRules,
     settlements: initialSettlements, shared: [] as SharedExpense[], receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[], cardBills: mockCardBills, voucherBrands: mockVoucherBrands, paymentGroups: mockPaymentGroups, merchantIcons: {} as Record<string, string>,
   };
 }
@@ -322,6 +331,22 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const allocatedByKey = useCallback((key: (r: ExpenseRecord) => string) => allocatedBy(groupBase, activeGroup, groups, meId, key), [groupBase, activeGroup, groups, meId]);
   const summary = useMemo(() => summarize(scoped, meId), [scoped, meId]);
   const recurring = useMemo(() => recurringStatuses(recurringItems, records, month, today), [recurringItems, records, month, today]);
+  // Recurring suggestions come from approved history by rules; "not recurring" answers are remembered on this device.
+  const [dismissedRecurring, setDismissedRecurring] = useState<string[]>([]);
+  useEffect(() => {
+    let saved: string[] = [];
+    try { saved = JSON.parse(localStorage.getItem("pf-recurring-dismissed") ?? "[]") as string[]; } catch { /* storage unavailable */ }
+    if (Array.isArray(saved) && saved.length) Promise.resolve().then(() => setDismissedRecurring(saved.filter((x) => typeof x === "string")));
+  }, []);
+  const recurringSuggestions = useMemo(() => detectRecurring(records, recurringItems, today, new Set(dismissedRecurring)), [records, recurringItems, today, dismissedRecurring]);
+  const recurringAlerts = useMemo(() => trackedAlerts(recurringItems, records, month, today, (it) => recurring.find((r) => r.item.id === it.id)?.state ?? ""), [recurringItems, records, month, today, recurring]);
+  const dismissRecurringSuggestion = useCallback((key: string) => {
+    setDismissedRecurring((d) => {
+      const next = d.includes(key) ? d : [...d, key];
+      try { localStorage.setItem("pf-recurring-dismissed", JSON.stringify(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  }, []);
   // Everything that can make one person owe another: what is shared with your partner (couple space) plus what you split with
   // friends and an invited partner (your own space). A record already shared with your partner is counted once, from the couple copy.
   const ledgerRecords = useMemo(() => (live ? [...sharedRecords, ...records.filter((r) => !r.sharedWithPartner && r.split.participantIds.some((id) => id !== meId))] : records), [live, sharedRecords, records, meId]);
@@ -591,6 +616,20 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     setRecurringItems((xs) => xs.map((x) => { if (x.id !== id) return x; const set = new Set(x.paidMonths ?? []); if (paid) set.add(month); else set.delete(month); const { paidMonths: _o, ...rest } = x; void _o; return { ...rest, ...(set.size ? { paidMonths: [...set].sort() } : {}) }; }));
     void send({ type: "recurring.markPaid", id, month, paid });
   }, [send]);
+  const confirmRecurringSuggestion = useCallback((s: Suggestion) => {
+    const last = s.lastDate.slice(0, 7);
+    const id = `rc_${slug(s.merchant)}-${uuid().slice(0, 6)}`;
+    const err = saveRecurring({
+      id, name: s.merchant, categoryId: s.categoryId, dueDay: s.dueDay, expectedPaise: s.amountPaise, payerId: meId, split: { mode: "personal", participantIds: [meId] },
+      ...(accounts.some((a) => a.id === s.accountId) ? { accountId: s.accountId } : {}),
+      ...(s.cadence === "bimonthly" ? { everyMonths: 2, startMonth: last } : s.cadence === "yearly" ? { everyMonths: 12, startMonth: last } : {}),
+      ...(s.fixed ? {} : { amountVaries: true }),
+    });
+    if (err) return err;
+    // The payments that formed the pattern become its history, so the item shows as paid for those months.
+    for (const rid of s.recordIds) updateRecord(rid, { recurringId: id });
+    return null;
+  }, [saveRecurring, meId, accounts, updateRecord]);
   const deleteRecurring = useCallback((id: string) => {
     setRecurringItems((xs) => xs.filter((x) => x.id !== id));
     setRecords((rs) => rs.map((r) => { if (r.recurringId !== id) return r; const { recurringId: _gone, ...rest } = r; void _gone; return rest; }));
@@ -664,7 +703,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, setParticipantPhoto, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, setParticipantPhoto, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, recurringSuggestions, recurringAlerts, confirmRecurringSuggestion, dismissRecurringSuggestion, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,

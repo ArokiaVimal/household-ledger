@@ -101,6 +101,20 @@ export const initialRecords: ExpenseRecord[] = [
   t("2026-09-09", "TNEB (Park 63, Parents)", "TNEB ELECTRICITY BILL PARK63", 1240, "upi_cred", "utilities", { ref: "UPI7009", fundedBy: "bank_icici", rec: "eb_parents", notes: "Parents' house, Perungalathur" }),
 ];
 
+/** A little earlier history so the sample can show recurring detection (price rise, a missing payment, a bimonthly bill). */
+const h = (date: string, merchant: string, rupees: number, accountId: string, categoryId: string): ExpenseRecord => ({
+  id: `h${String(++hn).padStart(2, "0")}`, date, merchant, originalDescription: merchant.toUpperCase(), amountPaise: r(rupees), currency: "INR", accountId, categoryId, kind: "purchase", payerId: "me",
+  shared: false, split: personal("me"), excluded: false, status: "reviewed", importSource: `${accountId}_history (mock)`,
+});
+let hn = 0;
+export const historyRecords: ExpenseRecord[] = [
+  h("2026-06-04", "Netflix", 499, "cc_sbi", "subscriptions"), h("2026-07-04", "Netflix", 499, "cc_sbi", "subscriptions"), h("2026-08-04", "Netflix", 499, "cc_sbi", "subscriptions"),
+  h("2026-06-04", "Spotify", 119, "cc_sbi", "subscriptions"), h("2026-07-04", "Spotify", 119, "cc_sbi", "subscriptions"), h("2026-08-04", "Spotify", 119, "cc_sbi", "subscriptions"),
+  h("2026-06-02", "Hotstar", 299, "cc_hdfc", "subscriptions"), h("2026-07-02", "Hotstar", 299, "cc_hdfc", "subscriptions"), h("2026-08-02", "Hotstar", 299, "cc_hdfc", "subscriptions"),
+  h("2026-05-10", "TNEB", 1840, "bank_hdfc", "utilities"), h("2026-07-10", "TNEB", 2110, "bank_hdfc", "utilities"), h("2026-09-10", "TNEB", 1960, "bank_hdfc", "utilities"),
+];
+
+
 export const initialSettlements: Settlement[] = [
   { id: "s1", date: "2026-09-18", fromId: "karthik", toId: "me", amountPaise: r(1000), note: "Part payment for dinner (UPI)" },
   { id: "s2", date: "2026-09-25", fromId: "wife", toId: "me", amountPaise: r(15000), note: "Towards shared expenses (UPI)" },

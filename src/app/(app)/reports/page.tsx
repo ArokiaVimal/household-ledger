@@ -20,7 +20,7 @@ export default function Reports() {
   const year = useMemo(() => {
     const months = [...new Set(records.map((r) => r.date.slice(0, 7)))];
     const own = Object.fromEntries(months.map((m) => [m, groupRecords(m).reduce((t, r) => t + (attributionOf(r)?.allocatedPaise ?? 0), 0)]));
-    const all = { ...(activeGroup.kind === "mine" ? trendHistory : {}), ...own };
+    const all = { ...own, ...(activeGroup.kind === "mine" ? trendHistory : {}) };
     return Object.keys(all).sort().map((m) => ({ key: m, label: m.slice(5), value: all[m] }));
   }, [records, trendHistory, groupRecords, attributionOf, activeGroup.kind]);
   const link = (extra: string) => router.push(`/transactions?month=${month}${acct ? `&account=${acct}` : ""}${extra}`);

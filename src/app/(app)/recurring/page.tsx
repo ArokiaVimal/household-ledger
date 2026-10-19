@@ -12,12 +12,13 @@ import type { RecurringState } from "@/domain/recurring";
 import type { RecurringItem } from "@/domain/types";
 import { RecurringDialog } from "./recurring-form";
 import { LinkPaymentDialog } from "./link-payment";
+import { Suggestions } from "./suggestions";
 
 const tone: Record<RecurringState, "good" | "warn" | "bad" | "neutral"> = { paid: "good", upcoming: "warn", overdue: "bad", ended: "neutral", notdue: "neutral" };
 const text: Record<RecurringState, string> = { paid: "Paid", upcoming: "Upcoming", overdue: "Overdue", ended: "Ended", notdue: "Not due" };
 
 export default function Recurring() {
-  const { live, recurring, month, nameOf, categoryName, accountName, recurringItems, meId, deleteRecurring, markRecurringPaid } = useStore();
+  const { live, recurring, month, nameOf, categoryName, accountName, recurringItems, meId, deleteRecurring, markRecurringPaid, recurringAlerts } = useStore();
   const [linking, setLinking] = useState<RecurringItem | null>(null);
   const [editing, setEditing] = useState<RecurringItem | "new" | null>(null);
   const [removing, setRemoving] = useState<RecurringItem | null>(null);
@@ -34,6 +35,7 @@ export default function Recurring() {
         <Card><div className="text-xs text-muted">Paid this month</div><div className="num text-xl font-semibold text-good">{formatINR(paid)}</div></Card>
         <Card><div className="text-xs text-muted">Still to pay</div><div className="num text-xl font-semibold">{formatINR(left)}</div><div className="text-xs text-muted">based on expected amounts</div></Card>
       </div>
+      <Suggestions />
       {recurringItems.length === 0 ? <Card className="space-y-3 text-center"><EmptyState title="No recurring payments yet" hint="Add rent, EMIs, insurance and bills once. Each month you will see what is paid, what is due and what is late." /><div><Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add your first</Button></div></Card> : (
         <div className="space-y-4">
           {groups.map((place) => (
@@ -53,6 +55,7 @@ export default function Recurring() {
                             {r.item.until && <span>{r.state === "ended" ? "Ended" : "Until"} {monthLabel(r.item.until.slice(0, 7))}</span>}
                             {(r.item.everyMonths ?? 1) > 1 && <span>Every {r.item.everyMonths} months</span>}
                             {r.item.amountVaries && <span>Amount varies</span>}
+                            {recurringAlerts.filter((a) => a.itemId === r.item.id).map((a) => <Badge key={a.flag} tone={a.flag === "price_up" ? "warn" : "bad"}>{a.flag === "price_up" ? "Price went up" : a.flag === "duplicate" ? "Charged twice" : "Payment missing"}</Badge>)}
                             {r.item.accountId && !rec && <span>{accountName(r.item.accountId)}</span>}
                             <span>{categoryName(r.item.categoryId)}</span>
                             <span>{r.item.split.mode === "personal" ? `Mine` : `Split with ${r.item.split.participantIds.filter((i) => i !== meId).map(nameOf).join(", ")}`}</span>
