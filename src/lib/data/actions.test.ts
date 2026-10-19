@@ -215,6 +215,19 @@ describe("suggested accounts", () => {
     await fails(applyAction(repo, actor, { type: "account.update", id: "cc_amex", parentId: "bank_hdfc" }), "invalid"); // Amex has children, so it cannot go under another
     await fails(applyAction(repo, actor, { type: "account.update", id: "wl_a", name: "Some UPI" }), "conflict");
   });
+  it("a recurring item can have an end date and be marked paid for a month, and editing keeps the marks", async () => {
+    const repo = await setup();
+    await repo.participants.put({ id: "me", name: "Me", userId: "u1" });
+    const item = { id: "rc_emi", name: "Car EMI", categoryId: "groceries", dueDay: 5, expectedPaise: 1000000, payerId: "me", split: { mode: "personal" as const, participantIds: ["me"] }, until: "2027-03-31" };
+    await applyAction(repo, actor, { type: "recurring.put", item });
+    await applyAction(repo, actor, { type: "recurring.markPaid", id: "rc_emi", month: "2026-10", paid: true });
+    expect(await repo.recurring.get("rc_emi")).toMatchObject({ until: "2027-03-31", paidMonths: ["2026-10"] });
+    await applyAction(repo, actor, { type: "recurring.put", item: { ...item, expectedPaise: 1100000 } });
+    expect((await repo.recurring.get("rc_emi"))!.paidMonths).toEqual(["2026-10"]);
+    await applyAction(repo, actor, { type: "recurring.markPaid", id: "rc_emi", month: "2026-10", paid: false });
+    expect((await repo.recurring.get("rc_emi"))!.paidMonths).toBeUndefined();
+    await fails(applyAction(repo, actor, { type: "recurring.markPaid", id: "nope", month: "2026-10", paid: true }), "not_found");
+  });
   it("payment methods can be put in the user's own order; unknown ids are refused", async () => {
     const repo = await setup();
     await repo.accounts.put({ id: "a1", name: "One", type: "credit_card" });

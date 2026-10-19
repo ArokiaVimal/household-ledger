@@ -308,3 +308,9 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - GPay, CRED, Paytm and BHIM now live under every bank as sub payment methods named for it ("GPay HDFC UPI"). Settings has **Put UPI apps under each bank** (action `accounts.setupUpi`, plan in `planUpiSetup`): adds the missing ones and hides the old stand-alone UPI apps (hidden, not deleted, so history stays). New users' suggested list already uses this shape.
 - Import routing prefers the app under the paying bank, so a GPay row on an HDFC statement files under "GPay HDFC UPI", funded by HDFC.
 - Not yet run against your live account; the button is the one-time migration.
+
+## Recurring: end date, mark paid, link imports (added)
+- `RecurringItem.until` ("Until" in the form): after that month the item shows as Ended and drops out of the monthly commitment and yearly estimate (the yearly figure counts only the months left).
+- Each month can be **Mark paid** by hand (`paidMonths`, action `recurring.markPaid`, with Undo). A linked transaction always wins: once an imported or added transaction is linked, the item is paid by it and the hand mark is irrelevant.
+- **Link payment** on an unpaid item lists this month's unlinked transactions (closest amount first), including rows still in Review (they count once approved). Linking sets `recurringId`, so it stays in sync with the transaction. Linking from the transaction form (More options) still works.
+- Not yet tried with real data.

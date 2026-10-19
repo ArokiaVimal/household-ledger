@@ -10,17 +10,20 @@ import { formatINR } from "@/domain/money";
 import type { RecurringState } from "@/domain/recurring";
 import type { RecurringItem } from "@/domain/types";
 import { RecurringDialog } from "./recurring-form";
+import { LinkPaymentDialog } from "./link-payment";
 
-const tone: Record<RecurringState, "good" | "warn" | "bad"> = { paid: "good", upcoming: "warn", overdue: "bad" };
-const text: Record<RecurringState, string> = { paid: "Paid", upcoming: "Upcoming", overdue: "Overdue" };
+const tone: Record<RecurringState, "good" | "warn" | "bad" | "neutral"> = { paid: "good", upcoming: "warn", overdue: "bad", ended: "neutral" };
+const text: Record<RecurringState, string> = { paid: "Paid", upcoming: "Upcoming", overdue: "Overdue", ended: "Ended" };
+const untilLabel = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 export default function Recurring() {
-  const { live, recurring, month, nameOf, categoryName, accountName, recurringItems, meId, deleteRecurring } = useStore();
+  const { live, recurring, month, nameOf, categoryName, accountName, recurringItems, meId, deleteRecurring, markRecurringPaid } = useStore();
+  const [linking, setLinking] = useState<RecurringItem | null>(null);
   const [editing, setEditing] = useState<RecurringItem | "new" | null>(null);
   const [removing, setRemoving] = useState<RecurringItem | null>(null);
-  const totals = commitmentTotals(recurringItems);
-  const paid = recurring.filter((r) => r.state === "paid").reduce((s, r) => s + r.actualPaise, 0);
-  const left = recurring.filter((r) => r.state !== "paid").reduce((s, r) => s + r.item.expectedPaise, 0);
+  const totals = commitmentTotals(recurringItems, month);
+  const paid = recurring.filter((r) => r.state === "paid").reduce((s, r) => s + (r.marked ? r.item.expectedPaise : r.actualPaise), 0);
+  const left = recurring.filter((r) => r.state !== "paid" && r.state !== "ended").reduce((s, r) => s + r.item.expectedPaise, 0);
   const groups = [...new Set(recurring.map((r) => r.item.place ?? "Personal"))];
 
   return (
@@ -47,6 +50,7 @@ export default function Recurring() {
                           <div className="font-medium">{r.item.name}</div>
                           <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
                             <span className="inline-flex items-center gap-1"><CalendarClock size={12} aria-hidden />Due on {r.item.dueDay}</span>
+                            {r.item.until && <span>{r.state === "ended" ? "Ended" : "Until"} {untilLabel(r.item.until)}</span>}
                             <span>{categoryName(r.item.categoryId)}</span>
                             <span>{r.item.split.mode === "personal" ? `Mine` : `Split with ${r.item.split.participantIds.filter((i) => i !== meId).map(nameOf).join(", ")}`}</span>
                             {rec && <span>{accountName(rec.accountId)}{rec.fundedBy ? ` via ${accountName(rec.fundedBy)}` : ""}</span>}
@@ -54,13 +58,15 @@ export default function Recurring() {
                         </div>
                         <div className="ml-auto flex items-center gap-3">
                         <div className="num text-right">
-                          <div className="font-semibold">{formatINR(r.state === "paid" ? r.actualPaise : r.item.expectedPaise)}</div>
-                          <div className="text-xs text-muted">{r.state === "paid" ? (r.variancePaise === 0 ? "as expected" : `${r.variancePaise > 0 ? "+" : "−"}${formatINR(Math.abs(r.variancePaise))} vs expected`) : "expected"}</div>
+                          <div className="font-semibold">{formatINR(r.state === "paid" && !r.marked ? r.actualPaise : r.item.expectedPaise)}</div>
+                          <div className="text-xs text-muted">{r.state === "paid" ? (r.marked ? "marked paid" : r.variancePaise === 0 ? "as expected" : `${r.variancePaise > 0 ? "+" : "−"}${formatINR(Math.abs(r.variancePaise))} vs expected`) : "expected"}</div>
                         </div>
                         <Badge tone={tone[r.state]}>{text[r.state]}</Badge>
                         </div>
                       </Link>
-                      <div className="flex justify-end gap-1 px-2 pb-2 sm:p-0">
+                      <div className="flex flex-wrap items-center justify-end gap-1 px-2 pb-2 sm:p-0">
+                      {r.state !== "ended" && r.state !== "paid" && <><Button onClick={() => markRecurringPaid(r.item.id, month, true)} aria-label={`Mark ${r.item.name} paid for ${month}`}>Mark paid</Button><Button onClick={() => setLinking(r.item)} aria-label={`Link a payment to ${r.item.name}`}>Link payment</Button></>}
+                      {r.marked && <Button onClick={() => markRecurringPaid(r.item.id, month, false)} aria-label={`Undo paid mark for ${r.item.name}`}>Undo</Button>}
                       <button type="button" aria-label={`Edit ${r.item.name}`} title="Edit" onClick={() => setEditing(r.item)} className="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={15} aria-hidden /></button>
                       <button type="button" aria-label={`Remove ${r.item.name}`} title="Remove" onClick={() => setRemoving(r.item)} className="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={15} aria-hidden /></button>
                       </div>
@@ -73,6 +79,7 @@ export default function Recurring() {
         </div>
       )}
       <RecurringDialog item={editing} onClose={() => setEditing(null)} />
+      <LinkPaymentDialog item={linking} month={month} onClose={() => setLinking(null)} />
       <ConfirmDialog open={!!removing} onClose={() => setRemoving(null)} title={`Remove ${removing?.name ?? "this"}?`} confirmLabel="Remove" onConfirm={() => removing && deleteRecurring(removing.id)}>
         <p>It stops being tracked each month. Payments already linked to it stay in your transactions; they just are not tied to a recurring item any more.</p>
       </ConfirmDialog>

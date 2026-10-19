@@ -50,7 +50,8 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("accounts.addSuggested") }),
   z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60) }),
   z.object({ type: z.literal("participant.delete"), id }),
-  z.object({ type: z.literal("recurring.put"), item: z.object({ id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: z.number().int().safe().positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional() }) }),
+  z.object({ type: z.literal("recurring.put"), item: z.object({ id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: z.number().int().safe().positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional(), until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }) }),
+  z.object({ type: z.literal("recurring.markPaid"), id, month: z.string().regex(/^\d{4}-\d{2}$/), paid: z.boolean() }),
   z.object({ type: z.literal("recurring.delete"), id }),
   z.object({ type: z.literal("cardbill.put"), bill: z.object({ id, accountId: id, statementDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), totalDuePaise: z.number().int().safe().positive(), source: z.enum(["statement", "manual", "message"]), batchId: id.optional(), paid: z.boolean().optional() }) }),
   z.object({ type: z.literal("cardbill.delete"), id }),
@@ -384,8 +385,18 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       if (splitError) throw new ActionError("invalid", splitError);
       const before = await repo.recurring.get(it.id);
       const place = it.place?.trim();
-      await repo.recurring.put({ id: it.id, name, categoryId: it.categoryId, dueDay: it.dueDay, expectedPaise: it.expectedPaise, payerId: it.payerId, split: it.split, ...(place ? { place } : {}) });
+      await repo.recurring.put({ id: it.id, name, categoryId: it.categoryId, dueDay: it.dueDay, expectedPaise: it.expectedPaise, payerId: it.payerId, split: it.split, ...(place ? { place } : {}), ...(it.until ? { until: it.until } : {}), ...(before?.paidMonths?.length ? { paidMonths: before.paidMonths } : {}) });
       await log(before ? "edit" : "create", "recurring", it.id, `${before ? "Changed" : "Added"} recurring ${name} ${money(it.expectedPaise)} due on ${it.dueDay}`);
+      return;
+    }
+    case "recurring.markPaid": {
+      const item = await repo.recurring.get(a.id);
+      if (!item) throw new ActionError("not_found", "That recurring item was not found.");
+      const months = new Set(item.paidMonths ?? []);
+      if (a.paid) months.add(a.month); else months.delete(a.month);
+      const { paidMonths: _old, ...rest } = item; void _old;
+      await repo.recurring.put({ ...rest, ...(months.size ? { paidMonths: [...months].sort() } : {}) });
+      await log("edit", "recurring", a.id, `${a.paid ? "Marked" : "Unmarked"} ${item.name} paid for ${a.month}`);
       return;
     }
     case "cardbill.put": {

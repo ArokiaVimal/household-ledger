@@ -160,6 +160,10 @@ export interface RecurringItem {
   split: SplitConfig;
   /** Where it applies, e.g. the apartment or parents' house. */
   place?: string;
+  /** Last day it applies (YYYY-MM-DD). After that month it no longer counts or shows as due. */
+  until?: string;
+  /** Months (YYYY-MM) the user marked paid by hand, when no transaction is linked. A linked transaction always wins. */
+  paidMonths?: string[];
 }
 
 export interface Settlement {

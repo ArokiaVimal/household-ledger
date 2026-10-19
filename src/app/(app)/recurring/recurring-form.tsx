@@ -25,6 +25,7 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
   const [dueDay, setDueDay] = useState(String(item?.dueDay ?? 1));
   const [categoryId, setCategoryId] = useState(item?.categoryId ?? "rent");
   const [place, setPlace] = useState(item?.place ?? "");
+  const [until, setUntil] = useState(item?.until ?? "");
   const [payerId, setPayerId] = useState(item?.payerId ?? meId);
   const [split, setSplit] = useState<SplitConfig>(item?.split ?? { mode: "personal", participantIds: [meId] });
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +40,7 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
     if (split.mode === "custom" && p > 0) setSplit({ ...split, values: equalSplit(p, split.participantIds) });
   };
   const save = () => {
-    const err = saveRecurring({ id: item?.id, name, categoryId: category, dueDay: Number(dueDay), expectedPaise, payerId, split, place });
+    const err = saveRecurring({ id: item?.id, name, categoryId: category, dueDay: Number(dueDay), expectedPaise, payerId, split, place, ...(until ? { until } : {}) });
     if (err) return setError(err);
     onClose();
   };
@@ -54,6 +55,9 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
         <Select aria-label="Due day" value={dueDay} onChange={(e) => setDueDay(e.target.value)} className="max-w-40">
           {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => <option key={d} value={String(d)}>{ordinal(d)} of the month</option>)}
         </Select>
+      </FormRow>
+      <FormRow label="Until" tip="The last day this payment applies, for example when an EMI or a lease ends. After that month it stops showing as due and stops counting in your monthly commitment. Leave empty if it has no end.">
+        <div className="flex items-center gap-2"><Input type="date" aria-label="Recurring until" value={until} onChange={(e) => setUntil(e.target.value)} className="max-w-48" />{until && <button type="button" onClick={() => setUntil("")} className="min-h-9 px-2 text-xs font-medium text-accent hover:underline">No end date</button>}</div>
       </FormRow>
       <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[category]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
       <Field label="Where (optional)">

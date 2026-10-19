@@ -117,6 +117,8 @@ interface Store {
   saveRecurring: (item: Omit<RecurringItem, "id"> & { id?: string }) => string | null;
   /** Removes a recurring item; the payments linked to it stay but are unlinked. */
   deleteRecurring: (id: string) => void;
+  /** Marks a month paid by hand (or undoes it). A transaction linked to the item counts as paid on its own. */
+  markRecurringPaid: (id: string, month: string, paid: boolean) => void;
   /** Credit-card bills: the full amount due and the due date. */
   cardBills: CardBill[];
   /** Adds or changes a bill (new when `id` is omitted). Returns an error message, or null when saved. */
@@ -447,10 +449,15 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     if (splitError) return splitError;
     const id = draft.id ?? `rc_${slug(name)}-${uuid().slice(0, 6)}`;
     const place = draft.place?.trim();
-    const item: RecurringItem = { id, name, categoryId: draft.categoryId, dueDay: draft.dueDay, expectedPaise: draft.expectedPaise, payerId: draft.payerId, split: draft.split, ...(place ? { place } : {}) };
+    const prior = recurringItems.find((x) => x.id === id);
+    const item: RecurringItem = { id, name, categoryId: draft.categoryId, dueDay: draft.dueDay, expectedPaise: draft.expectedPaise, payerId: draft.payerId, split: draft.split, ...(place ? { place } : {}), ...(draft.until ? { until: draft.until } : {}), ...(prior?.paidMonths?.length ? { paidMonths: prior.paidMonths } : {}) };
     setRecurringItems((xs) => (xs.some((x) => x.id === id) ? xs.map((x) => (x.id === id ? item : x)) : [...xs, item]));
     void send({ type: "recurring.put", item });
     return null;
+  }, [send, recurringItems]);
+  const markRecurringPaid = useCallback((id: string, month: string, paid: boolean) => {
+    setRecurringItems((xs) => xs.map((x) => { if (x.id !== id) return x; const set = new Set(x.paidMonths ?? []); if (paid) set.add(month); else set.delete(month); const { paidMonths: _o, ...rest } = x; void _o; return { ...rest, ...(set.size ? { paidMonths: [...set].sort() } : {}) }; }));
+    void send({ type: "recurring.markPaid", id, month, paid });
   }, [send]);
   const deleteRecurring = useCallback((id: string) => {
     setRecurringItems((xs) => xs.filter((x) => x.id !== id));
@@ -525,7 +532,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, markRecurringPaid, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,
