@@ -36,10 +36,10 @@ export default function Vouchers() {
 
   return (
     <>
-      <PageHeader tip="Buying a voucher (for example from Shopwise) loads a wallet like Amazon Pay or Swiggy Money. The top-up is the single cost; spending from the wallet later is tracked without counting that money twice." title="Voucher wallets" sub="Every voucher you buy tops up a wallet (Amazon, Swiggy and so on). The top-up is the one cash outflow. What you buy from a wallet can be split with your partner or friends, and is never counted as spending again." actions={<Button onClick={() => { setNewName(""); setAddError(null); setAdding(true); }}><Plus size={16} aria-hidden />Add voucher</Button>} />
+      <PageHeader tip="A voucher tops up a wallet. The top-up is the cost; wallet spending isn't counted again." title="Voucher wallets" sub="Vouchers top up wallets like Amazon or Swiggy. Wallet spending can be split and is never counted twice." actions={<Button onClick={() => { setNewName(""); setAddError(null); setAdding(true); }}><Plus size={16} aria-hidden />Add voucher</Button>} />
 
       {!any ? (
-        <Card><EmptyState title="No voucher purchases yet" hint="When a transaction from a voucher seller such as Shopwise (statement text CUST CAP SOLUTIONS) is imported, review asks which voucher you bought and it appears here." /></Card>
+        <Card><EmptyState title="No voucher purchases yet" hint="Voucher purchases from imports show up here after review." /></Card>
       ) : (
         <div className="space-y-5">
           {cardsWithVouchers.length > 1 && <CompactChips label="Payment method" options={[{ id: "", label: "All cards" }, ...cardsWithVouchers.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[accountId]} onPick={setAccountId} />}

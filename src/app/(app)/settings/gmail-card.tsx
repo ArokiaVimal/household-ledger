@@ -56,10 +56,10 @@ export function GmailCard() {
   return (
     <Card className="space-y-4">
       <CardTitle action={<Badge tone={s?.connected && !s.needsReconnect ? "good" : "neutral"}>{s === null ? "…" : s.connected ? (s.needsReconnect ? "Reconnect" : "On") : "Off"}</Badge>}><span className="inline-flex items-center gap-2"><Mail size={16} aria-hidden className="text-accent" />Bank emails (Gmail)</span></CardTitle>
-      <p className="text-sm text-muted">Reads only emails from your banks, cards and UPI apps, with read-only access, and adds them to your review queue. Statements and alerts with a due date also create the card bill. You approve everything before it counts.</p>
+      <p className="text-sm text-muted">Reads bank, card and UPI emails (read-only) into your review queue. You approve everything.</p>
 
       {s && !s.configured && (
-        <p className="rounded-xl bg-warn-soft p-3 text-sm text-warn">Gmail has not been set up on this app yet. The app owner does it once (a Google OAuth client and an encryption key; steps in <code>docs/GMAIL_SETUP.md</code>), and after that everyone can connect their own mailbox.</p>
+        <p className="rounded-xl bg-warn-soft p-3 text-sm text-warn">Gmail isn&apos;t set up yet. The app owner needs to configure it once.<code>docs/GMAIL_SETUP.md</code>), and after that everyone can connect their own mailbox.</p>
       )}
       {s?.configured && !s.connected && <a href="/api/gmail/connect" className="inline-flex min-h-9 items-center justify-center rounded-full bg-accent px-4 text-sm font-medium text-white hover:bg-accent/90">Connect Gmail</a>}
       {s?.connected && (
@@ -78,7 +78,7 @@ export function GmailCard() {
       )}
       {msg && <p role={msg.ok ? "status" : "alert"} className={`text-sm ${msg.ok ? "text-good" : "text-danger"}`}>{msg.text}</p>}
       <ConfirmDialog open={off} onClose={() => setOff(false)} title="Disconnect Gmail?" confirmLabel="Disconnect" onConfirm={() => void disconnect()}>
-        <p>The app stops reading your email and Google is told to forget the connection. Entries already captured stay in your review queue.</p>
+        <p>Stops reading your email and disconnects Google. Captured entries stay in review.</p>
       </ConfirmDialog>
     </Card>
   );

@@ -15,7 +15,7 @@ export function ProfileForm() {
     return (
       <>
         <PageHeader title="Profile" />
-        <Card><p role="alert" className="text-sm text-danger">Your profile could not be loaded. The server could not reach the database. Check that Firestore is created for this project, then reload. The server log has the exact error.</p></Card>
+        <Card><p role="alert" className="text-sm text-danger">Couldn&apos;t load your profile. Reload to try again.</p></Card>
       </>
     );
   }
@@ -23,7 +23,7 @@ export function ProfileForm() {
     return (
       <>
         <PageHeader title="Profile" />
-        <Card><p className="text-sm text-muted">Profiles need sign-in. This is prototype mode with fictional data, so there is no account to edit. Configure Firebase (see README) to use this page.</p></Card>
+        <Card><p className="text-sm text-muted">Sign in to edit your profile.</p></Card>
       </>
     );
   }

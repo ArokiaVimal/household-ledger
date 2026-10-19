@@ -61,7 +61,7 @@ export function LinkProposals() {
                 {p.contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.email ? ` (${c.email})` : ""}</option>)}
               </Select>
             )}
-            <p className="text-xs text-muted">They will see only the expenses you split with them: their share, who paid, and payments between you two. Nothing else, and your own transactions are not changed. You can unlink any time.</p>
+            <p className="text-xs text-muted">They see only expenses you split with them. Nothing else. You can unlink any time.</p>
             <div className="flex flex-wrap justify-end gap-2">
               <Button disabled={busy} onClick={() => run({ action: "decline", key: p.key }, () => "Okay, not linking.")}>Not now</Button>
               <Button variant="primary" disabled={busy || !choice} onClick={() => run({ action: "confirm", key: p.key, contactId: choice }, () => "Linked. Expenses you split with them now show on their side.")}>Link</Button>
@@ -151,7 +151,7 @@ function EditDialog({ l, s, onClose }: { l: LinkView; s: SharedExpense; onClose:
           <Field label="Amount (₹)"><Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
           <Field label="Date"><Input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} /></Field>
         </div>
-        <p className="-mt-1 text-xs text-muted">Amount and date can only change for expenses that were typed in by hand, not for ones read from a bank statement.</p>
+        <p className="-mt-1 text-xs text-muted">Amount and date can only change on expenses you typed in, not on bank imports.</p>
         <Field label="Category">
           <Select value={category} onChange={(e) => setCategory(e.target.value)}>
             {!names.has(s.categoryName) && <option value={s.categoryName}>{s.categoryName}</option>}
@@ -185,7 +185,7 @@ function PaymentDialog({ l, onClose }: { l: LinkView; onClose: () => void }) {
   return (
     <Dialog open onClose={onClose} title="Record a payment">
       <div className="space-y-3 pb-1 text-sm">
-        <p className="rounded-xl bg-background p-3 text-xs text-muted">A payment between the two of you. It only reduces what is owed; it never creates an expense. It appears in both ledgers and in the log.</p>
+        <p className="rounded-xl bg-background p-3 text-xs text-muted">A payment between you two. It reduces what&apos;s owed and never creates an expense.</p>
         <ChipGroup label="Who paid" options={[{ id: "paid", label: `I paid ${l.other.name}` }, { id: "received", label: `${l.other.name} paid me` }]} value={dir} onChange={(v) => setDir(v as typeof dir)} />
         <Field label="Amount (₹)" error={amount && (paise === null || paise <= 0) ? "Enter a valid amount." : null}><Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
         <Field label="Note (optional)"><Input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} /></Field>
@@ -278,7 +278,7 @@ function LinkCard({ l }: { l: LinkView }) {
         </ul>
       </details>
       {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "text-xs text-good" : "text-xs text-danger"}>{msg.text}</p>}
-      <p className="text-xs text-muted">You see the full expense because you both take part in it: merchant, date, amount, category, who paid and how it is split. Never bank text, accounts or cards, or anything else about the other person&apos;s money.</p>
+      <p className="text-xs text-muted">You see the full expense because you&apos;re both in it. Never bank text, accounts or cards.</p>
       {l.live && <UnlinkButton linkKey={l.key} name={l.other.name} />}
       {editing && <EditDialog l={l} s={editing} onClose={() => { setEditing(null); router.refresh(); }} />}
       {paying && <PaymentDialog l={l} onClose={() => setPaying(false)} />}

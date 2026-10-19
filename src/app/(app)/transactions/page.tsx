@@ -133,7 +133,7 @@ function TransactionsView() {
 
   return (
     <>
-      <PageHeader tip="Your approved transactions. Use Read notes with AI to let Claude use your notes to suggest categories; you review every suggestion before it applies." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
+      <PageHeader tip="Your approved transactions. AI suggests categories from your notes; you approve each one." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
       {/* Phone: search plus one Filters button. From tablet width the three selects sit in the row. */}
       <div className="mb-3 flex gap-2 md:hidden">
         <Input className="min-w-0 flex-1" placeholder="Search" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />

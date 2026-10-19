@@ -106,7 +106,7 @@ async function AuthedShell({ children }: { children: ReactNode }) {
             {dataError ? (
               <div role="alert" className="rounded-[var(--radius-card)] bg-surface p-6">
                 <h1 className="text-lg font-semibold">We couldn&apos;t load your data</h1>
-                <p className="mt-1 text-sm text-muted">The server could not reach the database. Nothing was lost. Reload to try again; if it keeps happening, check the server log.</p>
+                <p className="mt-1 text-sm text-muted">Can&apos;t reach the database. Nothing was lost. Reload to try again.</p>
               </div>
             ) : children}
           </AppShell>

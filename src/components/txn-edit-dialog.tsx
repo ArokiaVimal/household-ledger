@@ -293,7 +293,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         </FormRow>
       )}
       {topUp
-        ? <p className="rounded-xl bg-background p-3 text-xs text-muted">A wallet top-up is your own money going into the wallet, so it is not split or shared. Split the purchases you make from the wallet instead.</p>
+        ? <p className="rounded-xl bg-background p-3 text-xs text-muted">A top-up is your own money, so it isn&apos;t split. Split wallet purchases instead.</p>
         : (
           <>
             <PickerRow icon={<span className="flex -space-x-2">{(split.participantIds.length ? split.participantIds : [meId]).slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={26} /></span>)}</span>} label="Split with" value={split.mode === "personal" || split.participantIds.length <= 1 ? "Just me" : split.participantIds.map((id) => (id === meId ? "You" : nameOf(id))).join(", ")} sub={splitError ?? (split.participantIds.length > 1 ? "Tap to change who and how" : "Tap to share with someone")} onClick={() => { touch("split"); setSplitOpen(true); }} />
@@ -320,7 +320,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
             <PickerRow icon={fundedBy ? <MerchantAvatar name={accounts.find((a) => a.id === fundedBy)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="From bank" value={fundedBy ? shortName(accounts.find((a) => a.id === fundedBy)?.name ?? "") : "Unknown"} muted={!fundedBy} onClick={() => setSheet("bank")} />
           )}
           <PickerRow icon={<Dot icon={recurringId === NEW_RECURRING ? Plus : recurringId ? Repeat : Ban} size={32} tone={recurringId ? "bg-red-100 text-red-700" : undefined} />} label="Recurring" value={recurringId === NEW_RECURRING ? "Repeat every month" : recurringId ? (recurringItems.find((i) => i.id === recurringId)?.name ?? "Recurring item") : "None"} muted={!recurringId} onClick={() => setSheet("recurring")} />
-          {record.recurringHint && !record.recurringId && <p className="-mt-1.5 px-1 text-xs text-muted">This looks like a monthly payment (EMI, rent, premium or similar). Approving it adds it to Recurring; choose None if it is not.</p>}
+          {record.recurringHint && !record.recurringId && <p className="-mt-1.5 px-1 text-xs text-muted">Looks like a monthly payment. Approving adds it to Recurring. Choose None to skip.</p>}
           {recurringId === NEW_RECURRING && <p className="-mt-1.5 px-1 text-xs text-muted">Adds “{merchant.trim() || "this payment"}” to Recurring: {formatINR(amountPaise)} due on the {dueDay}{[11, 12, 13].includes(dueDay) ? "th" : ["th", "st", "nd", "rd"][dueDay % 10 < 4 ? dueDay % 10 : 0]} each month, split the same way. You can change it later under Recurring.</p>}
           {recurringError && <p role="alert" className="-mt-1.5 px-1 text-xs text-danger">{recurringError}</p>}
           <PickerRow icon={<Dot icon={EyeOff} size={32} tone={excluded ? "bg-danger/10 text-danger" : undefined} />} label="Reports" value={excluded ? "Excluded from reports" : "Counted in reports"} muted={!excluded} onClick={() => setExcluded(!excluded)}>

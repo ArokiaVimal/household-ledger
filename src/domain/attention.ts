@@ -30,7 +30,7 @@ export function needsAttention(i: AttentionInput): AttentionItem[] {
     { key: "bills-soon", label: `bills due in ${soon} days`, count: dueSoon, href: "/cards", tone: "warn" },
     { key: "recurring-overdue", label: "recurring overdue", count: overdueRecurring, href: "/recurring", tone: "bad" },
     { key: "suggestions", label: "suggested recurring", count: i.suggestions ?? 0, href: "/recurring#suggestions", tone: "warn" },
-    { key: "uncategorized", label: "uncategorised", count: i.uncategorized, href: "/transactions?category=uncategorized", tone: "warn" },
+    { key: "uncategorized", label: "uncategorized", count: i.uncategorized, href: "/transactions?category=uncategorized", tone: "warn" },
   ];
   return items.filter((x) => x.count > 0);
 }

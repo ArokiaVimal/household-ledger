@@ -8,7 +8,7 @@ export default function Receipts() {
   const { receipts, records, linkReceipt } = useStore();
   return (
     <>
-      <PageHeader title="Receipts" sub="Uploaded receipts are matched to card transactions. Links are suggestions you confirm, and can be undone." actions={<Badge tone="warn">Mock receipts</Badge>} />
+      <PageHeader title="Receipts" sub="We match receipts to card transactions. You confirm each link." actions={<Badge tone="warn">Mock receipts</Badge>} />
       <p className="mb-3 text-xs text-muted">Email receipt ingestion is not implemented; it needs an authorized integration.</p>
       {receipts.length === 0 ? <EmptyState title="No receipts" /> : (
         <div className="space-y-3">

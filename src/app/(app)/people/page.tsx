@@ -49,13 +49,13 @@ export default function People() {
       <>
         <PageHeader title="People" />
         <LinkedWithYou />
-        <Card><EmptyState title="No one here yet" hint="Add a friend or invite your partner in Settings, then split an expense with them." /><Link href="/settings" className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white">Open Settings</Link></Card>
+        <Card><EmptyState title="No one here yet" hint="Add a friend in Settings, then split an expense with them." /><Link href="/settings" className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white">Open Settings</Link></Card>
       </>
     );
   }
   return (
     <>
-      <PageHeader title="People" tip="Everyone you share expenses with, and what is owed either way. Settling up records the payment between you; it never creates a new expense." sub="See everything you share with each person, pick payments and settle them. Settling never creates an expense." actions={canRecord ? <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button> : undefined} />
+      <PageHeader title="People" tip="Who owes whom. Settling up records a payment, never an expense." sub="Shared expenses and balances with each person." actions={canRecord ? <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button> : undefined} />
 
       <LinkedWithYou />
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -69,7 +69,7 @@ export default function People() {
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-2">
         <Card>
           <CardTitle>Everyone</CardTitle>
-          {ledgers.length === 0 ? <EmptyState title="No one here yet" hint="Add a friend or invite your partner in Settings, then split an expense with them." /> : (
+          {ledgers.length === 0 ? <EmptyState title="No one here yet" hint="Add a friend in Settings, then split an expense with them." /> : (
             <ul className="divide-y divide-border">
               {ledgers.map((l) => {
                 const name = nameOf(l.personId);
@@ -124,7 +124,7 @@ export default function People() {
               </li>
             ))}
           </ul>
-          <p className="text-muted">Every open payment with these people is marked settled. You can void any of them afterwards from the history.</p>
+          <p className="text-muted">All open payments are marked settled. You can void any later.</p>
           <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3">
             <Button onClick={() => setAll(false)}>Cancel</Button>
             <Button variant="primary" onClick={settleAll}>Yes, settle all</Button>
@@ -132,7 +132,7 @@ export default function People() {
         </div>
       </Dialog>
       <ConfirmDialog open={!!voiding} onClose={() => setVoiding(null)} title="Void this settlement?" confirmLabel="Void it" onConfirm={() => voiding && voidSettlement(voiding)}>
-        <p>It will stop counting, so the amount owed goes back up and its payments become unsettled. It stays in the history as voided.</p>
+        <p>It stops counting, and the amount owed goes back up. It stays in history as voided.</p>
       </ConfirmDialog>
       <Dialog open={open} onClose={() => setOpen(false)} title="Record a payment">
         <div className="space-y-3">

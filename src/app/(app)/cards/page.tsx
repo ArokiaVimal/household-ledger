@@ -27,13 +27,13 @@ export default function Cards() {
     return (
       <>
         <PageHeader title="Card bills" />
-        <Card><EmptyState title="Add a credit card first" hint="Add your cards under Settings, then track each bill and its due date here." /></Card>
+        <Card><EmptyState title="Add a credit card first" hint="Add cards in Settings to track bills here." /></Card>
       </>
     );
   }
   return (
     <>
-      <PageHeader title="Card bills" sub="What to pay in full, and by when. We never show the minimum due." tip="Add each credit card statement's total due and due date, or let AI read them from an imported statement. Paying the bill from your bank is a transfer, never spending, so nothing is counted twice." actions={<Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add bill</Button>} />
+      <PageHeader title="Card bills" sub="What to pay in full, and by when. We never show the minimum due." tip="Add each bill's total and due date, or let AI read it from a statement. Paying a bill is a transfer, not spending." actions={<Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add bill</Button>} />
       <Card className="mb-4 p-5">
         {upcoming.length === 0 ? (
           <div><div className="text-lg font-semibold text-good">You&apos;re all caught up</div><p className="text-sm text-muted">{cardBills.length === 0 ? "Add a bill to start tracking due dates." : "Every card bill you track is paid."}</p></div>

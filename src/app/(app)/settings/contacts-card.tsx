@@ -39,7 +39,7 @@ export function ContactsCard({ onRemove }: { onRemove: (id: string) => void }) {
 
   return (
     <Card className="space-y-3">
-      <CardTitle tip="Everyone you split with lives here, with or without an account. The email is optional and only used to recognise them if they sign up later; it never gives anyone access to your finances. Friends & Family is different from Split With (who is in one expense), Payment Groups (how you view spending) and Categories." action={<span className="text-xs text-muted">{others.length === 0 ? "None yet" : `${others.length} added`}</span>}>Friends &amp; Family</CardTitle>
+      <CardTitle tip="Everyone you split with, with or without an account. Email is optional and never gives anyone access to your finances." action={<span className="text-xs text-muted">{others.length === 0 ? "None yet" : `${others.length} added`}</span>}>Friends &amp; Family</CardTitle>
       <ul className="divide-y divide-border text-sm">
         {others.map((p) => {
           const canEdit = !p.pendingEmail && (p.id === partnerId ? false : true);
@@ -75,7 +75,7 @@ export function ContactsCard({ onRemove }: { onRemove: (id: string) => void }) {
               <ChipGroup label="Relationship" options={RELATIONSHIPS.map((r) => ({ id: r, label: RELATIONSHIP_LABEL[r] }))} value={rel} onChange={(r) => { setRel(r); setError(null); }} />
               {rel === "custom" && <Field label="What is the relationship?" error={error && error.toLowerCase().includes("relationship") ? error : null}><Input value={label} onChange={(e) => { setLabel(e.target.value); setError(null); }} placeholder="e.g. Flatmate, Colleague" maxLength={30} /></Field>}
             </div>
-            <p className="rounded-xl bg-background p-3 text-xs text-muted">Adding someone does not share your transactions with them. Only expenses you split with them are ever theirs to see, and only once they have an account linked.</p>
+            <p className="rounded-xl bg-background p-3 text-xs text-muted">Adding someone shares nothing. They only see expenses you split with them, once linked.</p>
             <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => setDlg(null)}>Cancel</Button><Button variant="primary" disabled={!name.trim()} onClick={save}>{dlg.person ? "Save" : "Add"}</Button></div>
           </div>
         )}

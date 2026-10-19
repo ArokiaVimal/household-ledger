@@ -70,7 +70,7 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
     <div className="space-y-3">
       <FormRow label="Type"><CompactChips label="Money going out or coming in" options={[{ id: "out", label: "Money going out" }, { id: "in", label: "Money coming in" }]} selected={[incoming ? "in" : "out"]} onPick={(id) => setIncoming(id === "in")} /></FormRow>
       <FormRow label="Name"><Input autoFocus value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder={incoming ? "e.g. Salary, Rent from tenant" : "e.g. Rent, Car EMI, Life insurance"} maxLength={80} /></FormRow>
-      <FormRow label="Amount" tip="For a bill that is different every time (electricity, gas, phone), choose Different each bill. The amount here is then just a first guess, and each later month expects about what the last bill was. The real amount always comes from the transaction you link or import.">
+      <FormRow label="Amount" tip="For bills that change (electricity, phone), choose Different each bill. We expect about the last amount.">
         <div className="flex items-center gap-2"><span className="text-lg font-semibold">₹</span><Input aria-label="Usual monthly amount" inputMode="decimal" value={amount} onChange={(e) => onAmount(e.target.value)} placeholder="0.00" className="max-w-40" /><span className="text-xs text-muted">every month</span></div>
       </FormRow>
       <FormRow label="Each bill"><CompactChips label="Amount pattern" options={[{ id: "same", label: "Same amount" }, { id: "varies", label: "Different each bill" }]} selected={[varies ? "varies" : "same"]} onPick={(id) => setVaries(id === "varies")} /></FormRow>
@@ -89,7 +89,7 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
           {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => <option key={d} value={String(d)}>{ordinal(d)} of the month</option>)}
         </Select>
       </FormRow>
-      <FormRow label="Until" tip="Forever keeps it every period until you stop it. Pick a last month for something that ends, like an EMI or a lease; after that month it shows as Ended and leaves your monthly commitment.">
+      <FormRow label="Until" tip="Pick a last month for something that ends, like an EMI.">
         <div className="space-y-2">
           <CompactChips label="Until when" options={[{ id: "forever", label: "Forever" }, { id: "month", label: "Until a month" }]} selected={[forever ? "forever" : "month"]} onPick={(id) => { setForever(id === "forever"); if (id === "month" && !until) setUntil(viewMonth); }} />
           {!forever && <Input type="month" aria-label="Recurring until" value={until} onChange={(e) => setUntil(e.target.value)} className="max-w-44" />}

@@ -45,11 +45,11 @@ export default function Activity() {
     await load();
   };
 
-  if (!live) return <><PageHeader title="Activity" /><Card><EmptyState title="Activity is recorded for signed-in accounts" hint="Every change to a transaction, split, settlement or classification is logged with who made it and when, and can be undone here." /></Card></>;
+  if (!live) return <><PageHeader title="Activity" /><Card><EmptyState title="Activity is recorded for signed-in accounts" hint="Every change is logged and can be undone here." /></Card></>;
 
   return (
     <>
-      <PageHeader title="Activity" tip="Every change to a transaction, split, settlement or classification is logged with who made it and when. Undo steps back one change at a time and never touches the original bank text. Rolling back an import removes the transactions it created but keeps its source rows and this history." sub="What changed, who changed it and when" />
+      <PageHeader title="Activity" tip="Every change is logged with who and when. Undo reverses one change and never alters original bank text. Rolling back an import removes its transactions." sub="Who changed what, and when" />
       <div className="mb-3 max-w-xs"><ChipGroup tabs label="Activity view" options={[{ id: "changes", label: "Changes" }, { id: "imports", label: "Imports" }]} value={tab} onChange={setTab} /></div>
       {error && <p role="alert" className="mb-3 text-sm text-danger">{error}</p>}
 

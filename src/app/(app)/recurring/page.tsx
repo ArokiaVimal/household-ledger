@@ -29,14 +29,14 @@ export default function Recurring() {
 
   return (
     <>
-      <PageHeader tip="Rent, EMIs, subscriptions and other monthly commitments. Mark a transaction as repeating or add one here, with an optional default split." title="Recurring" sub={`Monthly commitments · ${month}`} actions={<><Link href={`/transactions?month=${month}&recurring=1`} className="rounded-full border border-border bg-surface px-3 py-2 text-sm">View payments</Link><Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add recurring</Button></>} />
+      <PageHeader tip="Rent, EMIs, subscriptions and other repeating payments." title="Recurring" sub={`Monthly commitments · ${month}`} actions={<><Link href={`/transactions?month=${month}&recurring=1`} className="rounded-full border border-border bg-surface px-3 py-2 text-sm">View payments</Link><Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add recurring</Button></>} />
       <div className="mb-4 grid gap-4 sm:grid-cols-3">
         <Card><div className="text-xs text-muted">Expected this month</div><div className="num text-xl font-semibold">{formatINR(totals.monthlyPaise)}</div><div className="text-xs text-muted">≈ {formatINR(totals.yearlyPaise)} over the next 12 months</div></Card>
         <Card><div className="text-xs text-muted">Paid this month</div><div className="num text-xl font-semibold text-good">{formatINR(paid)}</div></Card>
         <Card><div className="text-xs text-muted">Still to pay</div><div className="num text-xl font-semibold">{formatINR(left)}</div><div className="text-xs text-muted">based on expected amounts</div></Card>
       </div>
       <Suggestions />
-      {recurringItems.length === 0 ? <Card className="space-y-3 text-center"><EmptyState title="No recurring payments yet" hint="Add rent, EMIs, insurance and bills once. Each month you will see what is paid, what is due and what is late." /><div><Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add your first</Button></div></Card> : (
+      {recurringItems.length === 0 ? <Card className="space-y-3 text-center"><EmptyState title="No recurring payments yet" hint="Add rent, EMIs and bills once. See what's paid, due or late each month." /><div><Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add your first</Button></div></Card> : (
         <div className="space-y-4">
           {groups.map((place) => (
             <section key={place} aria-label={place}>
@@ -88,7 +88,7 @@ export default function Recurring() {
       <RecurringDialog item={editing} onClose={() => setEditing(null)} />
       <LinkPaymentDialog item={linking} month={month} onClose={() => setLinking(null)} />
       <ConfirmDialog open={!!removing} onClose={() => setRemoving(null)} title={`Remove ${removing?.name ?? "this"}?`} confirmLabel="Remove" onConfirm={() => removing && deleteRecurring(removing.id)}>
-        <p>It stops being tracked each month. Payments already linked to it stay in your transactions; they just are not tied to a recurring item any more.</p>
+        <p>It stops being tracked. Linked payments stay in your transactions.</p>
       </ConfirmDialog>
       {!live && <p className="mt-4 text-xs text-muted">Amounts are fictional. Link a payment to an item from the transaction edit dialog; auto-detection of recurring patterns is not built yet. “Today” is fixed at 24 Sep 2026 in the prototype.</p>}
     </>

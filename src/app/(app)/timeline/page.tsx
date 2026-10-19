@@ -27,7 +27,7 @@ export default function Timeline() {
 
   return (
     <>
-      <PageHeader title="Timeline" tip="Your month in order: what has happened and what is coming. Recorded balances are the ones you entered, with their date. Anything after that is an estimate built only from confirmed transactions and from items you entered or imported (card bills, recurring payments, expected income). Nothing is guessed." sub={`${monthLabel(month)} · ${live ? "your real entries" : "sample data"}`} />
+      <PageHeader title="Timeline" tip="Your month in order. Estimates use only approved transactions and items you added. Nothing is guessed." sub={`${monthLabel(month)} · ${live ? "your real entries" : "sample data"}`} />
 
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Card className="p-4">
@@ -69,7 +69,7 @@ export default function Timeline() {
         <Chip label="Still expected in" value={money(t.totals.expectedIn)} dashed /><Chip label="Still expected out" value={money(-t.totals.expectedOut)} dashed />
       </div>
 
-      {groups.length === 0 ? <Card><EmptyState title="Nothing on the timeline" hint="Approve some transactions, add a card bill or a recurring payment, and this fills in." /></Card> : (
+      {groups.length === 0 ? <Card><EmptyState title="Nothing on the timeline" hint="Approve transactions or add a bill to fill this in." /></Card> : (
         <Card className="p-0">
           <CardTitle>{" "}</CardTitle>
           <ol className="relative divide-y divide-border">
@@ -99,7 +99,7 @@ export default function Timeline() {
           </ol>
         </Card>
       )}
-      <p className="mt-3 text-xs text-muted">Solid dots are confirmed. Hollow dots are expected: they come from card bills and recurring items you entered or imported. Add a card bill under Card bills, and expected income or recurring payments under Recurring.</p>
+      <p className="mt-3 text-xs text-muted">Solid dots are confirmed. Hollow dots are expected, from card bills and recurring items.</p>
     </>
   );
 }

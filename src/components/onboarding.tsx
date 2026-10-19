@@ -89,7 +89,7 @@ export function Onboarding() {
         </Step>
 
         <Step n={2} done={hasSpending} active={activeStep === 2} title="Add your spending">
-          <p className="text-sm text-muted">Type a transaction in a few taps, or import a bank statement. Imported rows wait in a review queue until you approve them.</p>
+          <p className="text-sm text-muted">Add a transaction or import a statement. Imported rows wait for your approval.</p>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant={hasMethods ? "primary" : "ghost"} onClick={openAdd}><PlusCircle size={16} aria-hidden />Add a transaction</Button>
             <Link href="/import" className="rounded-full border border-border bg-surface px-3.5 py-2 text-sm hover:bg-background">Import a statement</Link>
@@ -97,7 +97,7 @@ export function Onboarding() {
         </Step>
 
         <Step n={3} done={false} active={false} optional title="Make the categories yours">
-          <p className="text-sm text-muted">{categories.length} categories are ready (Groceries, Fuel, Rent and more). Rename them, add your own, or set merchant rules that categorise automatically.</p>
+          <p className="text-sm text-muted">{categories.length} categories are ready. Rename them, add your own, or set merchant rules that categorise automatically.</p>
           <Link href="/categories" className="inline-block rounded-full border border-border bg-surface px-3.5 py-2 text-sm hover:bg-background">Open categories</Link>
         </Step>
       </ol>

@@ -50,7 +50,7 @@ export function validateAnalysis(raw: unknown): Analysis | null {
   };
 }
 
-export async function analyseMonth(cfg: ClaudeConfig, facts: InsightFacts): Promise<{ analysis: Analysis | null; usage: AiUsage }> {
+export async function analyzeMonth(cfg: ClaudeConfig, facts: InsightFacts): Promise<{ analysis: Analysis | null; usage: AiUsage }> {
   const usage: AiUsage = { asked: 1, calls: 0, inputTokens: 0, outputTokens: 0 };
   const f = cfg.fetchImpl ?? fetch;
   try {

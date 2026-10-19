@@ -61,7 +61,7 @@ export function CaptureCard() {
   return (
     <Card className="space-y-4">
       <CardTitle action={<Badge tone={status?.active ? "good" : "neutral"}>{status === null ? "…" : status.active ? "On" : "Off"}</Badge>}><span className="inline-flex items-center gap-2"><MessageSquare size={16} aria-hidden className="text-accent" />Bank messages (SMS)</span></CardTitle>
-      <p className="text-sm text-muted">Every bank, card and UPI text can add itself to your review queue the moment it arrives. You still approve each one before it counts. OTPs and offers are skipped.</p>
+      <p className="text-sm text-muted">Bank, card and UPI texts land in your review queue. OTPs and offers are skipped.</p>
 
       <div className="space-y-1.5">
         <div className="text-xs font-medium text-muted">If a message does not say which card or bank, file it under</div>
@@ -76,7 +76,7 @@ export function CaptureCard() {
         <div className="space-y-3 rounded-xl bg-accent/5 p-4 text-sm">
           <p className="font-medium">Your private link. It is shown only now; copy it.</p>
           <div className="flex items-center gap-2"><code className="min-w-0 flex-1 truncate rounded-lg bg-surface px-3 py-2 text-xs" aria-label="Capture link">{link}</code><Button onClick={() => void copy()}>{copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}{copied ? "Copied" : "Copy"}</Button></div>
-          <p className="text-xs text-muted">Anyone with this link can add entries to your review queue (they cannot read anything). If it leaks, create a new link and the old one stops working.</p>
+          <p className="text-xs text-muted">Anyone with this link can add entries to your review queue, not read them. If it leaks, make a new one.</p>
           <ol className="list-decimal space-y-1.5 pl-5">
             <li><b>iPhone:</b> open <b>Shortcuts</b>, then <b>Automation</b>, tap <b>+</b>, choose <b>Message</b>.</li>
             <li>Under <b>Sender</b> pick your bank&apos;s sender (for example HDFCBK), or use <b>Message Contains</b> &ldquo;debited&rdquo;. Choose <b>Run Immediately</b>.</li>
@@ -94,7 +94,7 @@ export function CaptureCard() {
       <details className="group rounded-xl bg-background p-3 text-sm">
         <summary className="cursor-pointer font-medium">Try a message</summary>
         <div className="mt-3 space-y-2">
-          <textarea aria-label="Sample message" rows={3} value={sample} onChange={(e) => setSample(e.target.value)} placeholder="Paste a bank SMS here to see what the app would add. Nothing is saved." className="w-full resize-y rounded-xl border border-border bg-surface p-3 text-sm outline-none focus:ring-2 focus:ring-accent/40" />
+          <textarea aria-label="Sample message" rows={3} value={sample} onChange={(e) => setSample(e.target.value)} placeholder="Paste a bank SMS to preview it. Nothing is saved." className="w-full resize-y rounded-xl border border-border bg-surface p-3 text-sm outline-none focus:ring-2 focus:ring-accent/40" />
           <Button disabled={busy || !sample.trim()} onClick={() => void check()}>Check it</Button>
           {tried && (
             <div role="status" className="rounded-xl bg-surface p-3">

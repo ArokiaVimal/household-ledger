@@ -36,7 +36,7 @@ export function GroupsCard() {
 
   return (
     <Card className="space-y-3">
-      <CardTitle tip="A Payment Group is a lens on your spending, like Mine, you and your partner, or Parents. The group picker at the top of every screen switches between them. A transaction can show in several groups, each counting only the shares that belong to it, so your overall spending is never counted twice. Groups are different from Categories (what the money was for) and from split groups for trips and dinners." action={<span className="text-xs text-muted">{saved.length} set up</span>}>Your payment groups</CardTitle>
+      <CardTitle tip="A view of your spending, like Mine or Parents. Switch groups at the top of any screen. Shares are never counted twice." action={<span className="text-xs text-muted">{saved.length} set up</span>}>Your payment groups</CardTitle>
       <SortableList className="space-y-1 text-sm" ids={groups.map((g) => g.id)} label="payment group" onReorder={(ids) => reorderGroups(ids)}>
         {(id, handle) => {
           const g = groups.find((x) => x.id === id)!;
@@ -59,13 +59,13 @@ export function GroupsCard() {
         {dlg && (
           <div className="space-y-3 pb-1 text-sm">
             <Field label="Name" error={error}><Input value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="e.g. Parents, Flat with Raj" maxLength={40} /></Field>
-            {isMine ? <p className="rounded-xl bg-background p-3 text-xs text-muted">Mine counts your own share of every expense, plus what you pay for the people you cover in your other groups. You can rename it, but it cannot be deleted.</p> : (
+            {isMine ? <p className="rounded-xl bg-background p-3 text-xs text-muted">Mine counts your share plus what you pay for people in your other groups. You can rename it, not delete it.</p> : (
               <>
                 <div className="space-y-1.5"><div className="text-xs font-medium text-muted">Contacts in this group</div>
                   <CompactChips multi label="Contacts in this group" options={others.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={members} onPick={(id) => setMembers(members.includes(id) ? members.filter((x) => x !== id) : [...members, id])} adder={{ label: "Add a contact", placeholder: "e.g. Amma, Appa", add: (n) => { const r = addParticipant(n); if (r.id) setMembers((m) => [...m, r.id!]); return r; } }} />
                 </div>
-                <ToggleRow checked={includeMe} onChange={setIncludeMe} title="Count my own share too" hint="For a group like you and your partner, both shares count. Leave it off for a group like Parents, where you only want what is spent on them." />
-                <ToggleRow checked={cover} onChange={setCover} title="I pay their share" hint="When I pay for these people, that amount also counts in Mine (for example parents you support)." />
+                <ToggleRow checked={includeMe} onChange={setIncludeMe} title="Count my own share too" hint="Count your own share too. Turn off for groups like Parents." />
+                <ToggleRow checked={cover} onChange={setCover} title="I pay their share" hint="Also count what I pay for them in Mine." />
               </>
             )}
             {error && !name.trim() ? null : error && <p role="alert" className="text-danger">{error}</p>}
