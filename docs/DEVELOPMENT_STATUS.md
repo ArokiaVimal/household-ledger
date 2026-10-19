@@ -263,3 +263,6 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - Tests: domain (`vouchers.test.ts`: seller recognition, no double counting, brand summaries, remaining rules, tree, reconciliation, monthly), import (Shopwise shown, text kept, no AI call, memory seller), actions (brands, approve with brand and memory, validation).
 - Limits: one brand per transaction (a mixed purchase must be split by hand into separate entries); redemptions appear only where you record them or an import contains them.
 
+## Voucher seller recognised on existing rows too (fix)
+- Rows imported before voucher tracking existed (no flag) now also ask which voucher: a purchase whose statement text is a known voucher seller (`CUST CAP SOLUTIONS` or the printed variant `CUSTCAP SOLUTIONS PVT L`) is treated as a voucher purchase waiting for its brand in the review dialog, the Vouchers screen (Waiting for a brand), the "Does it add up?" check and the Transactions filter. Editing an already approved row is never blocked by the prompt. A merchant name you already confirmed (for example "Shopwise Voucher") is kept.
+

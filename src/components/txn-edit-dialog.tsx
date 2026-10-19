@@ -3,6 +3,7 @@ import { ChevronDown, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useStore } from "@/data/store";
 import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
+import { knownVoucherSeller } from "@/domain/vouchers";
 import { formatINR, parseRupees } from "@/domain/money";
 import { equalSplit, validateSplit } from "@/domain/splits";
 import type { ExpenseRecord, SplitConfig, TxnKind } from "@/domain/types";
@@ -74,7 +75,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [fundedBy, setFundedBy] = useState(record.fundedBy ?? "");
   const [paidCardId, setPaidCardId] = useState(record.paidCardId ?? "");
   // Vouchers. A voucher seller (say Shopwise) asks which voucher this bought; any purchase can be marked as buying one, or as paid with one.
-  const promptVoucher = !!record.voucherPending || !!record.voucherBrandId;
+  const promptVoucher = !!record.voucherPending || !!record.voucherBrandId || (record.kind === "purchase" && !record.paidWithVoucherId && !!knownVoucherSeller(record.originalDescription));
   const [voucherId, setVoucherId] = useState(record.voucherBrandId ?? "");
   const [voucherLater, setVoucherLater] = useState(!!record.voucherPending && !record.voucherBrandId && record.status === "reviewed");
   const [paidWithId, setPaidWithId] = useState(record.paidWithVoucherId ?? "");
@@ -106,7 +107,8 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const isUpi = accounts.find((a) => a.id === accountId)?.type === "upi";
   const splitError = validateSplit(amountPaise, split);
   const missing = adding ? (!accountId ? "Add a payment method first (Settings)" : amountPaise <= 0 ? "Enter an amount" : !merchant.trim() ? "Enter a merchant" : !/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Pick a date" : null) : null;
-  const voucherProblem = promptVoucher && !voucherId && !voucherLater ? "Pick the voucher that was bought, or choose Decide later" : voucherId && paidWithId ? "A payment cannot both buy a voucher and be paid with one" : null;
+  // New rows must say which voucher (or decide later). Editing something that is already approved is never blocked by it.
+  const voucherProblem = promptVoucher && !voucherId && !voucherLater && record.status !== "reviewed" ? "Pick the voucher that was bought, or choose Decide later" : voucherId && paidWithId ? "A payment cannot both buy a voucher and be paid with one" : null;
   const bad = splitError ?? missing ?? voucherProblem;
 
   const onAmount = (v: string) => {
@@ -182,7 +184,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
           <CompactChips label="Voucher bought" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
             onPick={(id) => { if (id === "__later") { setVoucherLater(true); setVoucherId(""); } else { setVoucherLater(false); pickBrand(id, setVoucherId); } }} adder={voucherAdder} />
           <p className="mt-1.5 text-xs text-muted">Which voucher did this buy? It stays under {accountName(accountId)} and {merchant || "this merchant"}, counts once as money spent, and is attributed to the brand you pick. Statement text is never changed.</p>
-          {!voucherId && !voucherLater && <p role="alert" className="mt-1 text-xs font-medium text-warn">Choose a voucher to continue.</p>}
+          {!voucherId && !voucherLater && record.status !== "reviewed" && <p role="alert" className="mt-1 text-xs font-medium text-warn">Choose a voucher to continue.</p>}
         </FormRow>
       )}
       <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>

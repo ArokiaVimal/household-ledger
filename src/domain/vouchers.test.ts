@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { summarize } from "./reports";
-import { brandSummaries, isVoucherPurchase, knownVoucherSeller, monthlyPurchases, reconcileVouchers, remainingFor, voucherOutflow, voucherTree } from "./vouchers";
+import { brandSummaries, isVoucherPurchase, knownVoucherSeller, needsVoucherBrand, monthlyPurchases, reconcileVouchers, remainingFor, voucherOutflow, voucherTree } from "./vouchers";
 import type { Account, ExpenseRecord, VoucherBrand } from "./types";
 
 const accounts: Account[] = [{ id: "amex", name: "Amex Platinum Travel", type: "credit_card" }, { id: "hdfc", name: "HDFC Credit Card", type: "credit_card" }];
@@ -87,7 +87,7 @@ describe("voucherTree", () => {
 
 describe("reconcileVouchers", () => {
   it("accounts for every rupee and points at the same merchant's unmarked transactions", () => {
-    const g = reconcileVouchers([...data, rec("m", "2026-09-18", 700)], "2026-09");
+    const g = reconcileVouchers([...data, rec("m", "2026-09-18", 700, { originalDescription: "SHOPWISE STORE ORDER" })], "2026-09");
     expect(g).toEqual([{ accountId: "amex", merchant: "Shopwise", outflowPaise: 1_250_000, attributedPaise: 1_200_000, waitingPaise: 50_000, unmarkedPaise: 70_000, unmarkedCount: 1 }]);
     expect(g[0].attributedPaise + g[0].waitingPaise).toBe(g[0].outflowPaise);
   });
@@ -101,5 +101,13 @@ describe("monthlyPurchases and isVoucherPurchase", () => {
   });
   it("a purchase paid with a voucher is not a voucher purchase", () => {
     expect(isVoucherPurchase(data[3])).toBe(false);
+  });
+  it("rows imported before voucher tracking, with the seller's statement text, still count as waiting for a brand", () => {
+    const old = rec("old", "2026-09-27", 1017.7, { merchant: "Shopwise Voucher", originalDescription: "CUSTCAP SOLUTIONS PVT L THANE" });
+    expect(isVoucherPurchase(old)).toBe(true);
+    expect(needsVoucherBrand(old)).toBe(true);
+    expect(needsVoucherBrand({ ...old, voucherBrandId: "amz" })).toBe(false);
+    expect(brandSummaries(brands, [old], "2026-09").unassigned).toEqual({ purchasedPaise: 101_770, purchases: 1 });
+    expect(knownVoucherSeller("CUSTCAP SOLUTIONS PVT L THANE")).toBe("Shopwise");
   });
 });

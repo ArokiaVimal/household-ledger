@@ -8,6 +8,7 @@ import { Badge, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import { groupNet, summarize } from "@/domain/reports";
+import { needsVoucherBrand } from "@/domain/vouchers";
 import { cn } from "@/lib/cn";
 import type { ExpenseRecord } from "@/domain/types";
 
@@ -97,7 +98,7 @@ function TransactionsView() {
       .filter((r) => !get("recurring") || (get("recurring") === "1" ? !!r.recurringId : r.recurringId === get("recurring")))
       .filter((r) => !get("shared") || r.shared === (get("shared") === "1"))
       // Vouchers: ?voucher=<brand> (bought), 1 (any bought), none (bought, brand not chosen yet); ?paidWith=<brand> or 1 (paid with a voucher).
-      .filter((r) => !get("voucher") || (get("voucher") === "1" ? !!r.voucherBrandId : get("voucher") === "none" ? !!r.voucherPending && !r.voucherBrandId : r.voucherBrandId === get("voucher")))
+      .filter((r) => !get("voucher") || (get("voucher") === "1" ? !!r.voucherBrandId : get("voucher") === "none" ? needsVoucherBrand(r) : r.voucherBrandId === get("voucher")))
       .filter((r) => !get("paidWith") || (get("paidWith") === "1" ? !!r.paidWithVoucherId : r.paidWithVoucherId === get("paidWith")))
       .filter((r) => !text || `${r.merchant} ${r.originalDescription} ${r.notes ?? ""}`.toLowerCase().includes(text))
       .sort((a, b) => b.date.localeCompare(a.date));

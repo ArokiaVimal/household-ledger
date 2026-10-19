@@ -4,6 +4,7 @@ import { logoFor } from "@/lib/logos";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import { signedShare, signedSpend } from "@/domain/reports";
+import { needsVoucherBrand } from "@/domain/vouchers";
 import type { ExpenseRecord } from "@/domain/types";
 import { Badge } from "./ui";
 import { cn } from "@/lib/cn";
@@ -29,7 +30,7 @@ export function TxnBadges({ r }: { r: ExpenseRecord }) {
       {r.receiptId && <Badge tone="good">Receipt linked</Badge>}
       {r.excluded && <Badge>Excluded</Badge>}
       {r.voucherBrandId && <Badge tone="good">Voucher: {brand(r.voucherBrandId)}</Badge>}
-      {!r.voucherBrandId && r.voucherPending && <Badge tone="warn">Needs a voucher brand</Badge>}
+      {needsVoucherBrand(r) && <Badge tone="warn">Needs a voucher brand</Badge>}
       {r.paidWithVoucherId && <Badge>Paid with {brand(r.paidWithVoucherId)} voucher</Badge>}
       {r.kind !== "purchase" && <Badge>{r.kind === "cc_payment" ? "Card bill payment" : r.kind}</Badge>}
       {r.shared && <Badge tone="good">{r.sharedWithPartner ? "Shared with partner" : "Shared"}</Badge>}

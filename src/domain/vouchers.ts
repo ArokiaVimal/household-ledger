@@ -14,8 +14,13 @@ export function knownVoucherSeller(description: string): string | null {
 }
 
 const counted = (r: ExpenseRecord) => r.status === "reviewed" && !r.excluded;
-/** Bought a voucher (a brand is chosen) or is a voucher seller purchase still waiting for its brand. */
-export const isVoucherPurchase = (r: ExpenseRecord) => r.kind === "purchase" && (!!r.voucherBrandId || !!r.voucherPending);
+/**
+ * A voucher purchase: a brand is chosen, it was flagged at import, or the statement text is a known voucher seller (so rows
+ * imported before voucher tracking existed are recognised too). Spending paid with a voucher is never a voucher purchase.
+ */
+export const isVoucherPurchase = (r: ExpenseRecord) => r.kind === "purchase" && !r.paidWithVoucherId && (!!r.voucherBrandId || !!r.voucherPending || !!knownVoucherSeller(r.originalDescription));
+/** A voucher purchase whose brand has not been chosen yet. */
+export const needsVoucherBrand = (r: ExpenseRecord) => isVoucherPurchase(r) && !r.voucherBrandId;
 const month = (d: string) => d.slice(0, 7);
 
 export interface Remaining { amountPaise: Paise; basis: "balance" | "tracked"; /** Uses are larger than purchases and balance explain, so the figure cannot be right. */ inconsistent: boolean }
@@ -56,7 +61,7 @@ export function brandSummaries(brands: VoucherBrand[], records: ExpenseRecord[],
       remaining: remainingFor(brand, purchases, uses),
     };
   });
-  const pending = ok.filter((r) => r.voucherPending && !r.voucherBrandId && r.kind === "purchase" && month(r.date) === forMonth);
+  const pending = ok.filter((r) => needsVoucherBrand(r) && month(r.date) === forMonth);
   return { brands: out, unassigned: { purchasedPaise: pending.reduce((s, r) => s + r.amountPaise, 0), purchases: pending.length } };
 }
 
