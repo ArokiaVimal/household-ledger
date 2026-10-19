@@ -3,7 +3,7 @@
 // user's methods; anything not clear-cut is returned as "none" or "likely" so a person confirms it.
 import type { Account } from "../types";
 
-export interface AccountLite { id: string; name: string; type: Account["type"] }
+export interface AccountLite { id: string; name: string; type: Account["type"]; parentId?: string }
 
 /** Issuers, banks and UPI apps by the words that identify them in statement text and in payment-method names. */
 const ISSUERS: { key: string; words: string[] }[] = [

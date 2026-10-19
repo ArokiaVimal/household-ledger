@@ -303,3 +303,8 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - Card pictures moved from Settings to **Card bills**, drawn large on each card's tile. Settings keeps only the colour chooser.
 - Payment methods can be dragged (grip handle, touch or mouse; arrow keys too) into your own order, with sub methods ordered inside each primary, plus a **Sort by most used** button. Stored as `Account.order` through the `accounts.reorder` action; the store keeps accounts sorted, so the transaction form, import and every pick list follow it.
 - Multi-month statements: every imported row keeps its own date, so an HDFC statement holding August rows lists them under August (Review has a month filter; after approval they count in Aug). They do not appear under October. Not yet confirmed with the real HDFC file.
+
+## UPI apps under each bank (added)
+- GPay, CRED, Paytm and BHIM now live under every bank as sub payment methods named for it ("GPay HDFC UPI"). Settings has **Put UPI apps under each bank** (action `accounts.setupUpi`, plan in `planUpiSetup`): adds the missing ones and hides the old stand-alone UPI apps (hidden, not deleted, so history stays). New users' suggested list already uses this shape.
+- Import routing prefers the app under the paying bank, so a GPay row on an HDFC statement files under "GPay HDFC UPI", funded by HDFC.
+- Not yet run against your live account; the button is the one-time migration.

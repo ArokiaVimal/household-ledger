@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { pairBalances } from "@/domain/balances";
 import { categoryUsage, checkDelete, cleanCategoryName, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
-import { sortAccounts, suggestedWithParents } from "@/domain/accounts";
+import { planUpiSetup, sortAccounts, suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { recurringStatuses } from "@/domain/recurring";
 import { summarize } from "@/domain/reports";
@@ -107,6 +107,8 @@ interface Store {
   deleteAccount: (id: string) => string | null;
   /** Saves the order of payment methods (every id, in the order wanted); pick lists everywhere follow it. */
   reorderAccounts: (ids: string[]) => void;
+  /** Adds GPay, CRED, Paytm and BHIM under every bank ("GPay HDFC UPI") and hides the old stand-alone ones. Returns how many were added. */
+  setupUpiApps: () => number;
   addSuggestedAccounts: () => void;
   addParticipant: (name: string) => Added;
   /** Removes a friend (no account) that nothing refers to. Returns an error message, or null when removed. */
@@ -407,6 +409,13 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     setAccounts((as) => as.map((a) => (ids.includes(a.id) ? { ...a, order: ids.indexOf(a.id) } : a)));
     void send({ type: "accounts.reorder", ids });
   }, [send, setAccounts]);
+  const setupUpiApps = useCallback(() => {
+    const plan = planUpiSetup(accounts);
+    if (plan.add.length === 0 && plan.hide.length === 0) return 0;
+    setAccounts((as) => [...as.map((a) => (plan.hide.includes(a.id) ? { ...a, archived: true } : a)), ...plan.add]);
+    void send({ type: "accounts.setupUpi" });
+    return plan.add.length;
+  }, [accounts, send, setAccounts]);
   const addSuggestedAccounts = useCallback(() => {
     setAccounts((as) => [...as, ...suggestedWithParents(SUGGESTED_ACCOUNTS.filter((s) => !as.some((a) => a.id === s.id)), as)]);
     void send({ type: "accounts.addSuggested" });
@@ -516,7 +525,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, reorderAccounts, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,

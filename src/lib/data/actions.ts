@@ -8,7 +8,7 @@ import { ConflictError } from "@/data/repository";
 import { ExpenseRecordSchema, SplitConfigSchema, ruleId } from "@/data/schemas";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { validateSplit } from "@/domain/splits";
-import { suggestedWithParents } from "@/domain/accounts";
+import { planUpiSetup, suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
 import { buildShared, planShare, SharingError } from "@/domain/sharing";
@@ -45,6 +45,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("account.add"), id, name: z.string().min(1).max(60), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]), parentId: id.optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).optional() }),
   z.object({ type: z.literal("account.update"), id, name: z.string().min(1).max(60).optional(), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]).optional(), parentId: id.nullable().optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).nullable().optional(), archived: z.boolean().optional() }),
   z.object({ type: z.literal("account.delete"), id }),
+  z.object({ type: z.literal("accounts.setupUpi") }),
   z.object({ type: z.literal("accounts.reorder"), ids: z.array(id).min(1).max(200) }),
   z.object({ type: z.literal("accounts.addSuggested") }),
   z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60) }),
@@ -348,6 +349,13 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       if (all.some((x) => x.parentId === a.id)) throw new ActionError("conflict", `Other payment methods are under ${cur.name}. Move or delete them first.`);
       await repo.accounts.remove(a.id);
       await log("delete", "household", a.id, `Deleted payment method ${cur.name}`);
+      return;
+    }
+    case "accounts.setupUpi": {
+      const plan = planUpiSetup(await repo.accounts.list());
+      for (const acc of plan.add) await repo.accounts.put(acc);
+      for (const id of plan.hide) { const cur = await repo.accounts.get(id); if (cur) await repo.accounts.put({ ...cur, archived: true }); }
+      await log("create", "household", "accounts", `Set up UPI apps under banks: ${plan.add.length} added, ${plan.hide.length} old ones hidden`);
       return;
     }
     case "accounts.reorder": {

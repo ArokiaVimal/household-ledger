@@ -10,7 +10,7 @@ import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { CARD_THEMES, type Account, type CardTheme } from "@/domain/types";
 import { MerchantAvatar } from "@/components/txn-row";
 import { SortableList } from "@/components/sortable";
-import { orderByUse } from "@/domain/accounts";
+import { orderByUse, planUpiSetup } from "@/domain/accounts";
 import { CaptureCard } from "./capture-card";
 import { GmailCard } from "./gmail-card";
 import { PartnerCard } from "./partner-card";
@@ -43,7 +43,7 @@ function Section({ id, icon, title, tagline, children }: { id: string; icon: Rea
 }
 
 export default function Settings() {
-  const { live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, reorderAccounts, addSuggestedAccounts, addParticipant, deleteParticipant } = useStore();
+  const { live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, deleteParticipant } = useStore();
   const [confirm, setConfirm] = useState(false);
   // One dialog adds and edits payment methods. `parent` is set when adding a sub payment method.
   const [dlg, setDlg] = useState<{ acc?: Account; parent?: string } | null>(null);
@@ -53,6 +53,8 @@ export default function Settings() {
   const [fTheme, setFTheme] = useState<CardTheme | "">("");
   const [fError, setFError] = useState<string | null>(null);
   const [deletingAcc, setDeletingAcc] = useState<Account | null>(null);
+  const upiPlan = planUpiSetup(accounts);
+  const [upiMsg, setUpiMsg] = useState<string | null>(null);
   const roots = accounts.filter((a) => !a.parentId || !accounts.some((x) => x.id === a.parentId));
   const childrenOf = (id: string) => accounts.filter((c) => c.parentId === id);
   /** Every id in the order wanted: primaries in `rootIds` order, each followed by its sub methods (reordered where `subs` says so). */
@@ -139,8 +141,9 @@ export default function Settings() {
                 );
               }}
             </SortableList>
+            {upiMsg && <p role="status" className="text-sm text-good">{upiMsg}</p>}
             {accounts.length === 0 && <p className="py-3 text-sm text-muted">Nothing here yet. Add your first card, UPI app or bank account to start tracking.</p>}
-            <div className="flex flex-wrap gap-2"><Button variant="primary" onClick={() => openDialog({})}>+ Add primary payment method</Button>{accounts.length > 1 && <Button onClick={() => reorderAccounts(orderByUse(accounts, usedBy))}>Sort by most used</Button>}{missingSuggested > 0 && <Button onClick={addSuggestedAccounts}>Add my usual cards, UPI apps and banks ({missingSuggested})</Button>}</div>
+            <div className="flex flex-wrap gap-2"><Button variant="primary" onClick={() => openDialog({})}>+ Add primary payment method</Button>{accounts.length > 1 && <Button onClick={() => reorderAccounts(orderByUse(accounts, usedBy))}>Sort by most used</Button>}{upiPlan.add.length + upiPlan.hide.length > 0 && <Button onClick={() => setUpiMsg(`Added ${setupUpiApps()} UPI apps under your banks.`)}>Put UPI apps under each bank</Button>}{missingSuggested > 0 && <Button onClick={addSuggestedAccounts}>Add my usual cards, UPI apps and banks ({missingSuggested})</Button>}</div>
           </Card>
         </Section>
 

@@ -22,7 +22,8 @@ export function suggestedWithParents(suggested: Account[], existing: Account[]):
     if (existing.some((k) => k.id === s.parentId)) return s;
     // Your own card of that issuer wins over a card we are about to suggest.
     const issuers = issuerKeys(SUGGESTED_ACCOUNTS.find((x) => x.id === s.parentId)?.name ?? "");
-    const mine = issuers.length ? existing.find((e) => e.type === "credit_card" && issuerKeys(e.name).some((k) => issuers.includes(k))) : undefined;
+    const parentType = SUGGESTED_ACCOUNTS.find((x) => x.id === s.parentId)?.type;
+    const mine = issuers.length ? existing.find((e) => e.type === parentType && issuerKeys(e.name).some((k) => issuers.includes(k))) : undefined;
     if (mine) return { ...s, parentId: mine.id };
     if (suggested.some((k) => k.id === s.parentId)) return s;
     const { parentId: _drop, ...rest } = s; void _drop;
@@ -54,4 +55,29 @@ export function orderByUse(accounts: Account[], countOf: (id: string) => number)
   const total = (id: string) => countOf(id) + accounts.filter((c) => c.parentId === id).reduce((s, c) => s + countOf(c.id), 0);
   const byUse = (list: Account[], f: (id: string) => number) => [...list].sort((x, y) => f(y.id) - f(x.id));
   return byUse(roots, total).flatMap((r) => [r.id, ...byUse(accounts.filter((c) => c.parentId === r.id), countOf).map((c) => c.id)]);
+}
+
+/** The UPI apps offered under every bank, named for the bank behind them: "GPay HDFC UPI". */
+export const UPI_APPS = [{ key: "gpay", label: "GPay" }, { key: "cred", label: "CRED" }, { key: "paytm", label: "Paytm" }, { key: "bhim", label: "BHIM" }] as const;
+/** "HDFC Bank" -> "HDFC", "ICICI Savings Account" -> "ICICI". */
+export const bankShort = (name: string) => name.replace(/\b(bank|account|savings|current)\b/gi, "").replace(/\s+/g, " ").trim() || name;
+const GENERIC_UPI = /^(gpay|google pay|cred|bhim( upi)?|paytm( upi)?)$/i;
+
+/**
+ * Puts GPay, CRED, Paytm and BHIM under every bank as "<App> <Bank> UPI" (only the ones missing), and hides the old stand-alone UPI apps
+ * (hidden, never deleted: their transactions stay). Pure, so the screen and the server agree.
+ */
+export function planUpiSetup(accounts: Account[]): { add: Account[]; hide: string[] } {
+  const banks = accounts.filter((a) => a.type === "bank" && !a.archived && !a.parentId);
+  const add: Account[] = [];
+  for (const bank of banks) {
+    for (const app of UPI_APPS) {
+      const name = `${app.label} ${bankShort(bank.name)} UPI`;
+      const id = `upi_${app.key}_${bank.id}`;
+      if (accounts.some((a) => a.id === id || a.name.toLowerCase() === name.toLowerCase())) continue;
+      add.push({ id, name, type: "upi", parentId: bank.id });
+    }
+  }
+  const hide = banks.length === 0 ? [] : accounts.filter((a) => a.type === "upi" && !a.parentId && !a.archived && GENERIC_UPI.test(a.name.trim())).map((a) => a.id);
+  return { add, hide };
 }

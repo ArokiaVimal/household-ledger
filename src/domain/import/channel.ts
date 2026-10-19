@@ -27,7 +27,9 @@ export function resolveChannel(description: string, kind: TxnKind, source: Accou
   if (source.type === "bank") {
     // Paid through a UPI app the narration names (e.g. "Payment from PhonePe"): file it under the app, funded by this bank.
     const hint = APP_HINTS.find((h) => h.re.test(description));
-    const app = hint && accounts.find((a) => a.type === "upi" && issuerKeys(a.name).includes(hint.key));
+    // Prefer the app set up under this very bank ("GPay HDFC UPI" for an HDFC row), else any account for that app.
+    const apps = hint ? accounts.filter((a) => a.type === "upi" && issuerKeys(a.name).includes(hint.key)) : [];
+    const app = apps.find((a) => a.parentId === source.id) ?? apps.find((a) => !a.parentId) ?? apps[0];
     if (app && kind !== "cc_payment") { out.accountId = app.id; out.fundedBy = source.id; }
     // A card-bill payment: name the card, so it reads "Payment to Amex" and is never counted as spending.
     if (kind === "cc_payment") {

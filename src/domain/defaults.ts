@@ -14,12 +14,12 @@ export const SUGGESTED_ACCOUNTS: Account[] = [
   { id: "cc_sbi", name: "SBI Credit Card", type: "credit_card" },
   { id: "cc_icici", name: "ICICI Coral Credit Card", type: "credit_card" },
   { id: "cc_amex", name: "Amex Platinum Travel", type: "credit_card" },
-  { id: "upi_gpay", name: "GPay", type: "upi" },
-  { id: "upi_cred", name: "CRED", type: "upi" },
-  { id: "upi_bhim", name: "BHIM UPI", type: "upi" },
-  { id: "upi_paytm", name: "Paytm", type: "upi" },
   { id: "bank_hdfc", name: "HDFC Bank", type: "bank" },
   { id: "bank_icici", name: "ICICI Bank", type: "bank" },
+  // UPI apps are named for the bank behind them and sit under it (GPay HDFC UPI), so each payment shows which bank paid.
+  ...(["hdfc", "icici"] as const).flatMap((b) => (["gpay", "cred", "paytm", "bhim"] as const).map((app) => ({
+    id: `upi_${app}_bank_${b}`, name: `${{ gpay: "GPay", cred: "CRED", paytm: "Paytm", bhim: "BHIM" }[app]} ${b.toUpperCase()} UPI`, type: "upi" as const, parentId: `bank_${b}`,
+  }))),
   // Wallets topped up with Amex purchases (see Vouchers): they sit under the Amex card.
   { id: "wl_amazonpay", name: "Amazon Pay", type: "wallet", parentId: "cc_amex" },
   { id: "wl_swiggymoney", name: "Swiggy Money", type: "wallet", parentId: "cc_amex" },

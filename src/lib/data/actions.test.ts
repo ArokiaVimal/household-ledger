@@ -176,16 +176,16 @@ describe("accounts, participants and input safety", () => {
 });
 
 describe("suggested accounts", () => {
-  it("adds the twelve starting payment methods once and skips ones that exist", async () => {
+  it("adds the sixteen starting payment methods once and skips ones that exist", async () => {
     const repo = await setup();
     await repo.accounts.put({ id: "cc_hdfc", name: "My HDFC", type: "credit_card" });
     await applyAction(repo, actor, { type: "accounts.addSuggested" });
     const list = await repo.accounts.list();
-    expect(list).toHaveLength(12);
+    expect(list).toHaveLength(16);
     expect(list.find((a) => a.id === "cc_hdfc")!.name).toBe("My HDFC");
     expect(list.filter((a) => a.type === "wallet").map((a) => [a.name, a.parentId])).toEqual([["Amazon Pay", "cc_amex"], ["Swiggy Money", "cc_amex"]]);
     await applyAction(repo, actor, { type: "accounts.addSuggested" });
-    expect(await repo.accounts.list()).toHaveLength(12);
+    expect(await repo.accounts.list()).toHaveLength(16);
   });
   it("puts the wallets under YOUR Amex card even when it has another id, and under nothing when you have none", async () => {
     const mine = await setup();
