@@ -26,6 +26,6 @@ export async function POST(req: Request) {
   const accountId = String(form.get("accountId") ?? "") || undefined;
   return runImport(who, form.get("mode") === "commit" ? "commit" : "preview", form.get("ai") === "1", (o) => intakeFile(bytes, file.name, {
     ...o, accountId,
-    base: { filename: cleanName(file.name), fileHash: sha256(bytes), acceptMismatch: form.get("acceptMismatch") === "1", allowReimport: form.get("reimport") === "1", decisions: parseDecisions(form.get("decisions")), positiveIsDebit: sign === "true" ? true : sign === "false" ? false : undefined },
+    base: { filename: cleanName(file.name), fileHash: sha256(bytes), acceptMismatch: form.get("acceptMismatch") === "1", allowReimport: form.get("reimport") === "1", decisions: parseDecisions(form.get("decisions")), cardBill: /^\d{4}-\d{2}-\d{2}$/.test(String(form.get("cardDueDate") ?? "")) ? { dueDate: String(form.get("cardDueDate")) } : undefined, positiveIsDebit: sign === "true" ? true : sign === "false" ? false : undefined },
   }));
 }

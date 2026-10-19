@@ -14,13 +14,13 @@ import { summarize } from "@/domain/reports";
 import type { MerchantRule } from "@/domain/rules";
 import { scopeRecords, sharedToRecord } from "@/domain/sharing";
 import { OWNER_SHARE_BPS } from "@/domain/defaults";
-import type { Account, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
+import type { Account, CardBill, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
 import type { CoupleData } from "@/lib/data/couple";
 import type { HouseholdData } from "@/lib/data/load";
 import { pickMonth } from "@/domain/months";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { validateSplit } from "@/domain/splits";
-import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, participants as mockParticipants, recurringItems as mockRecurring, trendHistory as mockTrend } from "./mock";
+import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, initialRecords, initialSettlements, merchantRules, participants as mockParticipants, recurringItems as mockRecurring, cardBills as mockCardBills, trendHistory as mockTrend } from "./mock";
 
 export type View = "household" | "personal";
 
@@ -105,6 +105,11 @@ interface Store {
   saveRecurring: (item: Omit<RecurringItem, "id"> & { id?: string }) => string | null;
   /** Removes a recurring item; the payments linked to it stay but are unlinked. */
   deleteRecurring: (id: string) => void;
+  /** Credit-card bills: the full amount due and the due date. */
+  cardBills: CardBill[];
+  /** Adds or changes a bill (new when `id` is omitted). Returns an error message, or null when saved. */
+  saveCardBill: (bill: Omit<CardBill, "id"> & { id?: string }) => string | null;
+  deleteCardBill: (id: string) => void;
   updateRecord: (id: string, patch: Partial<ExpenseRecord>) => void;
   /** Manual entry. In live mode the id is generated here and the server forces the trusted fields. */
   addRecord: (r: ExpenseRecord) => void;
@@ -134,7 +139,7 @@ const Ctx = createContext<Store | null>(null);
 const uuid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 
 /** Fields a person can change on an existing record; undefined means "clear it" on the wire. */
-const EDITABLE = ["merchant", "categoryId", "kind", "payerId", "shared", "split", "excluded", "notes", "recurringId", "fundedBy", "receiptId"] as const;
+const EDITABLE = ["merchant", "categoryId", "kind", "payerId", "shared", "split", "excluded", "notes", "recurringId", "fundedBy", "paidCardId", "receiptId"] as const;
 function toWirePatch(patch: Partial<ExpenseRecord>) {
   const out: Record<string, unknown> = {};
   for (const k of EDITABLE) if (k in patch) out[k] = patch[k] === undefined ? null : patch[k];
@@ -155,12 +160,12 @@ function seed(live?: LiveInit) {
     return {
       records: d.records.filter((r) => r.status === "reviewed"), staged: d.records.filter((r) => r.status === "unreviewed"), categories: d.categories, rules: d.rules, settlements: [...(c?.settlements ?? []), ...d.settlements.filter((x) => !(c?.settlements ?? []).some((y) => y.id === x.id))],
       shared: c?.shared ?? ([] as SharedExpense[]),
-      receipts: d.receipts, participants: people, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches,
+      receipts: d.receipts, participants: people, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches, cardBills: d.cardBills,
     };
   }
   return {
     records: initialRecords.filter((r) => r.status === "reviewed"), staged: initialRecords.filter((r) => r.status === "unreviewed"), categories: mockCategories, rules: merchantRules,
-    settlements: initialSettlements, shared: [] as SharedExpense[], receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[],
+    settlements: initialSettlements, shared: [] as SharedExpense[], receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[], cardBills: mockCardBills,
   };
 }
 
@@ -177,6 +182,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const [participants, setParticipants] = useState<Participant[]>(init.participants);
   const [accounts, setAccounts] = useState<Account[]>(init.accounts);
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(init.recurringItems);
+  const [cardBills, setCardBills] = useState<CardBill[]>(init.cardBills);
   const today = live?.today ?? MOCK_TODAY;
   const [month, setMonth] = useState(() => pickMonth(today, [...init.records, ...init.staged].map((r) => r.date)));
   const [view, setView] = useState<View>(initialView);
@@ -195,7 +201,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   if (prevInit !== init) {
     setPrevInit(init);
     setRecords(init.records); setStaged(init.staged); setCategories(init.categories); setRules(init.rules); setSettlements(init.settlements); setShared(init.shared);
-    setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems);
+    setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems); setCardBills(init.cardBills);
     // New data may live in a month other than the one on screen (e.g. an older statement): keep the month if it has data, else move to one that does.
     const dates = [...init.records, ...init.staged].map((r) => r.date);
     setMonth((m) => (dates.length === 0 || dates.some((d) => d.startsWith(m)) ? m : pickMonth(today, dates)));
@@ -239,7 +245,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     setRecords((rs) => [...rs, rec]);
     void send({
       type: "record.create",
-      record: { id: rec.id, date: rec.date, merchant: rec.merchant, amountPaise: rec.amountPaise, accountId: rec.accountId, categoryId: rec.categoryId, kind: rec.kind, payerId: rec.payerId, shared: rec.shared, split: rec.split, excluded: rec.excluded, notes: rec.notes, recurringId: rec.recurringId, fundedBy: rec.fundedBy },
+      record: { id: rec.id, date: rec.date, merchant: rec.merchant, amountPaise: rec.amountPaise, accountId: rec.accountId, categoryId: rec.categoryId, kind: rec.kind, payerId: rec.payerId, shared: rec.shared, split: rec.split, excluded: rec.excluded, notes: rec.notes, recurringId: rec.recurringId, fundedBy: rec.fundedBy, paidCardId: rec.paidCardId },
     });
   }, [live, send]);
   const stageRecords = useCallback((rs: ExpenseRecord[]) => {
@@ -361,6 +367,21 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     void send({ type: "recurring.delete", id });
   }, [send]);
 
+  const saveCardBill = useCallback((draft: Omit<CardBill, "id"> & { id?: string }) => {
+    if (!accounts.some((a) => a.id === draft.accountId && a.type === "credit_card")) return "Pick one of your credit cards.";
+    if (!Number.isInteger(draft.totalDuePaise) || draft.totalDuePaise <= 0) return "Enter the full amount due.";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.dueDate) || !/^\d{4}-\d{2}-\d{2}$/.test(draft.statementDate)) return "Pick the statement date and the due date.";
+    if (draft.dueDate < draft.statementDate) return "The due date cannot be before the statement date.";
+    const bill: CardBill = { id: draft.id ?? uuid(), accountId: draft.accountId, statementDate: draft.statementDate, dueDate: draft.dueDate, totalDuePaise: draft.totalDuePaise, source: draft.source, ...(draft.batchId ? { batchId: draft.batchId } : {}), ...(draft.paid ? { paid: true } : {}) };
+    setCardBills((xs) => (xs.some((x) => x.id === bill.id) ? xs.map((x) => (x.id === bill.id ? bill : x)) : [...xs, bill]));
+    void send({ type: "cardbill.put", bill });
+    return null;
+  }, [accounts, send]);
+  const deleteCardBill = useCallback((id: string) => {
+    setCardBills((xs) => xs.filter((x) => x.id !== id));
+    void send({ type: "cardbill.delete", id });
+  }, [send]);
+
   const addSettlement = useCallback((s: Omit<Settlement, "id">) => {
     const id = live ? uuid() : `s${Date.now().toString(36)}`;
     setSettlements((x) => [...x, { ...s, id }]);
@@ -380,7 +401,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,

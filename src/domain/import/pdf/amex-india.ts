@@ -61,11 +61,27 @@ function readSummary(lines: PdfLine[]): Partial<StatementSummary> {
   return out;
 }
 
+/** "Payment Due Date" followed by a date on the same or the next line, in the formats Indian statements print. */
+export function readDueDate(lines: PdfLine[]): string | undefined {
+  for (let i = 0; i < lines.length; i++) {
+    if (!/(payment\s+due(\s+date)?|due\s+date)/i.test(lines[i].text)) continue;
+    for (const text of [lines[i].text, lines[i + 1]?.text ?? ""]) {
+      const named = text.match(/(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})/) ?? undefined;
+      if (named) { const m = monthNo(named[2]) || MONTHS.findIndex((x) => x.startsWith(named[2].toLowerCase())) + 1; if (m) return iso(Number(named[3]), m, Number(named[1])); }
+      const us = text.match(/([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})/);
+      if (us) { const m = MONTHS.findIndex((x) => x.startsWith(us[1].toLowerCase())) + 1; if (m) return iso(Number(us[3]), m, Number(us[2])); }
+      const num = text.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+      if (num && Number(num[2]) >= 1 && Number(num[2]) <= 12) return iso(Number(num[3]), Number(num[2]), Number(num[1]));
+    }
+  }
+  return undefined;
+}
+
 export function parseAmexIndia(pages: PdfPage[]): PdfParseResult {
   const lines = toLines(pages);
   const period = readPeriod(lines);
   if (!period.end || !period.endYear || !period.endMonth) return { ok: false, error: "Could not find the statement period (\"From … to …\"). This does not look like an Amex India statement." };
-  const summary: StatementSummary = { issuer: "American Express (India)", periodStart: period.start, periodEnd: period.end, ...readSummary(lines) };
+  const summary: StatementSummary = { issuer: "American Express (India)", periodStart: period.start, periodEnd: period.end, ...readSummary(lines), ...(readDueDate(lines) ? { dueDate: readDueDate(lines) } : {}) };
   const warnings: string[] = [];
 
   // 1) transaction rows: a date at the far left plus an amount at the right

@@ -1,7 +1,7 @@
 import type { ZodType } from "zod";
-import { AccountSchema, AuditEventSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, SharedExpenseSchema, type RuleDoc } from "./schemas";
+import { AccountSchema, AuditEventSchema, CardBillSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, SharedExpenseSchema, type RuleDoc } from "./schemas";
 import { ConflictError, type AppendOnly, type Collection, type Repository } from "./repository";
-import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
+import type { Account, AuditEvent, CardBill, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
 
 export interface Seed {
   records?: ExpenseRecord[];
@@ -9,6 +9,7 @@ export interface Seed {
   sharedExpenses?: SharedExpense[];
   receipts?: Receipt[];
   recurring?: RecurringItem[];
+  cardBills?: CardBill[];
   participants?: Participant[];
   accounts?: Account[];
   categories?: Category[];
@@ -56,6 +57,7 @@ export function createMemoryRepository(householdId: string, seed: Seed = {}): Re
     sharedExpenses: noRemove(collection(SharedExpenseSchema as unknown as ZodType<SharedExpense>, seed.sharedExpenses, { appendOnly: true })),
     receipts: collection(ReceiptSchema, seed.receipts),
     recurring: collection(RecurringItemSchema, seed.recurring),
+    cardBills: collection(CardBillSchema, seed.cardBills),
     participants: collection(ParticipantSchema, seed.participants),
     accounts: collection(AccountSchema, seed.accounts),
     categories: collection(CategorySchema, seed.categories),

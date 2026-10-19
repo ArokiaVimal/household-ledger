@@ -59,6 +59,8 @@ export function LiveImport() {
   const [reimportOk, setReimportOk] = useState(false); // the owner said yes to reading a file that was imported before
   const [decisions, setDecisions] = useState<Decisions>({});
   const [changing, setChanging] = useState(false);
+  const [trackBill, setTrackBill] = useState(true);
+  const [billDue, setBillDue] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
   const [manualAccount, setManualAccount] = useState(usable[0]?.id ?? "");
   const [manualFile, setManualFile] = useState<File | null>(null);
@@ -82,6 +84,7 @@ export function LiveImport() {
         if (mode === "commit" && accept) form.set("acceptMismatch", "1");
         if (mode === "commit" && reimportOk) form.set("reimport", "1");
         if (chosen) form.set("decisions", JSON.stringify(chosen));
+        if (mode === "commit" && trackBill && billDue) form.set("cardDueDate", billDue);
         res = await fetch("/api/import", { method: "POST", body: form });
       } else {
         res = await fetch("/api/import/text", {
@@ -107,6 +110,8 @@ export function LiveImport() {
     setAccept(false);
     if (r.needAccount) { setPreview(null); return setNeed(r.needAccount); }
     setPreview(r.preview ?? null);
+    setTrackBill(true);
+    setBillDue(r.preview?.summary?.dueDate ?? "");
   };
 
   const pickFile = (f: File | undefined, ai: boolean, accountId?: string) => {
@@ -255,6 +260,14 @@ export function LiveImport() {
                 </div>
               )}
 
+              {preview.format === "pdf" && !!preview.summary?.closingPaise && preview.summary.closingPaise > 0 && accounts.find((a) => a.id === preview.accountId)?.type === "credit_card" && (
+                <div className="space-y-2 rounded-xl bg-accent/5 p-4 text-sm" role="group" aria-label="Card bill">
+                  <label className="flex items-start gap-2"><input type="checkbox" checked={trackBill} onChange={(e) => setTrackBill(e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" /><span><b>Track this bill under Card bills.</b> Full amount due <b className="num">{formatINR(preview.summary.closingPaise)}</b>.</span></label>
+                  {trackBill && (
+                    <label className="flex flex-wrap items-center gap-2 pl-6"><span className="text-muted">Payment due date</span><input type="date" value={billDue} onChange={(e) => setBillDue(e.target.value)} aria-label="Payment due date" className="min-h-9 rounded-full border border-border bg-surface px-3" />{!billDue && <span className="text-xs text-warn">Add the date printed on the statement to track it.</span>}</label>
+                  )}
+                </div>
+              )}
               {preview.checks.length > 0 && (
                 failed.length > 0 ? (
                   <div role="group" aria-label="Checks against the statement's own totals" className="rounded-xl bg-danger/10 p-3 text-sm">

@@ -44,6 +44,8 @@ export interface PreviewRow {
   accountId: string;
   /** The bank that paid, when the row went through a UPI app. */
   fundedBy?: string;
+  /** Card-bill payments: the credit card that was paid. */
+  paidCardId?: string;
   /** What will happen: skipped duplicates are not added. Defaults to skipping exact duplicates only; your decision overrides it. */
   action: "import" | "skip";
   /** The existing entry this duplicates or resembles (absent when it only repeats another line of the same file). */
@@ -111,6 +113,8 @@ interface ImportBase {
   detected?: Preview["detected"];
   /** Your decision for lines that look like entries you already have, keyed by the row's line number. */
   decisions?: Record<string, "import" | "skip">;
+  /** Credit-card statements: also save this statement's full amount due, with the due date you confirmed. */
+  cardBill?: { dueDate: string };
 }
 export type ImportInput = ImportBase & (
   | { format: "csv" | "xlsx"; table: string[][] }
@@ -238,7 +242,7 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
   const accounts = await repo.accounts.list();
   const withRef = prepared.map((p) => {
     const ch = resolveChannel(p.r.description, p.kind, account, accounts);
-    return { ...p, accountId: ch.accountId, fundedBy: ch.fundedBy, merchant: ch.merchant ?? p.merchant, referenceId: dedupeKey(d.sha256, input.accountId, p.r, p.occurrence) };
+    return { ...p, accountId: ch.accountId, fundedBy: ch.fundedBy, paidCardId: ch.paidCard?.id, merchant: ch.merchant ?? p.merchant, referenceId: dedupeKey(d.sha256, input.accountId, p.r, p.occurrence) };
   });
   const plan = planImport(withRef.map((p) => ({ accountId: p.accountId, fundedBy: p.fundedBy, date: p.r.date, amountPaise: p.r.amountPaise, merchant: p.merchant, referenceId: p.referenceId, direction: p.r.direction })), records);
 
@@ -251,7 +255,7 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
     return {
       action, match: found ? { merchant: found.merchant, date: found.date, amountPaise: found.amountPaise, reviewed: found.status === "reviewed" } : undefined,
       line: p.r.line, date: p.r.date, description: p.r.description, merchant: p.merchant, amountPaise: p.r.amountPaise, direction: p.r.direction,
-      kind: p.kind, categoryId: p.categoryId, suggested: p.suggested, status, accountId: p.accountId, fundedBy: p.fundedBy, matchId: dup.status === "none" ? undefined : dup.matchId, referenceId: p.referenceId, parsed: p.r,
+      kind: p.kind, categoryId: p.categoryId, suggested: p.suggested, status, accountId: p.accountId, fundedBy: p.fundedBy, paidCardId: p.paidCardId, matchId: dup.status === "none" ? undefined : dup.matchId, referenceId: p.referenceId, parsed: p.r,
     };
   });
   const counts = { rows: out.length, new: out.filter((x) => x.status === "new").length, duplicate: out.filter((x) => x.status === "duplicate").length, possible: out.filter((x) => x.status === "possible").length, unreadable: skipped.length, toImport: out.filter((x) => x.action === "import").length };
@@ -282,7 +286,7 @@ export interface CommitResult { batchId: string; counts: Preview["counts"] & { s
  * "unreviewed" records for the review queue. Exact duplicates are not added again. The original file is not kept.
  */
 export async function commitImport(repo: Repository, actor: { uid: string; participantId: string }, input: ImportInput, d: ImportDeps): Promise<CommitResult> {
-  const { preview, rows } = await prepare(repo, input, d);
+  const { preview, rows, account } = await prepare(repo, input, d);
   if (preview.previousImport && !input.allowReimport) {
     throw new ImportError("already_imported", `This exact file was already imported on ${preview.previousImport.uploadedAt.slice(0, 10)} as "${preview.previousImport.filename}". Nothing was added. Confirm that you want to read it again to continue.`);
   }
@@ -307,12 +311,17 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
   for (const r of stage) {
     const rec: ExpenseRecord = {
       id: d.newId(), date: r.date, postedDate: r.parsed.postedDate, merchant: r.merchant, originalDescription: r.description.slice(0, 500), amountPaise: r.amountPaise, currency: "INR",
-      accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
+      accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), ...(r.paidCardId ? { paidCardId: r.paidCardId } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
       excluded: false, status: "unreviewed", suggested: r.suggested, importSource: `${input.filename.slice(0, 150)} (import ${batchId.slice(0, 8)})`, referenceId: r.referenceId, duplicateOf: r.status !== "new" ? r.matchId : undefined,
     };
     await repo.records.put(JSON.parse(JSON.stringify(rec)) as ExpenseRecord);
   }
   await repo.importBatches.put(batch);
+  // A credit-card statement carries the bill: the full amount due (not the minimum) and, once confirmed, the due date.
+  const sum = input.format === "pdf" && input.pdf.ok ? input.pdf.summary : undefined;
+  if (input.cardBill && sum?.closingPaise && sum.closingPaise > 0 && sum.periodEnd && account.type === "credit_card") {
+    await repo.cardBills.put({ id: d.newId(), accountId: input.accountId, statementDate: sum.periodEnd, dueDate: input.cardBill.dueDate, totalDuePaise: sum.closingPaise, source: "statement", batchId });
+  }
   await repo.audit.append({ actorId: actor.uid, action: "import", entity: "household", entityId: batchId, summary: `${preview.previousImport ? `RE-IMPORTED (first imported ${preview.previousImport.uploadedAt.slice(0, 10)}) ` : ""}Imported ${input.filename}: ${stage.length} to review, ${rows.filter((r) => r.action === "skip").length} duplicates skipped, ${stage.filter((r) => r.status !== "new").length} added despite looking like an existing entry, ${preview.counts.unreadable} unreadable rows${failed.length > 0 ? `; IMPORTED DESPITE FAILED CHECKS (${failed.map((c) => c.name).join("; ")})` : ""}` });
   return { batchId, counts: { ...preview.counts, staged: stage.length, skipped: rows.length - stage.length } };
 }

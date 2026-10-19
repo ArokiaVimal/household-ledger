@@ -93,6 +93,8 @@ export interface ExpenseRecord {
   receiptId?: string;
   /** For UPI-app payments: the bank account the money left from. */
   fundedBy?: string;
+  /** For a card-bill payment (kind cc_payment) made from a bank: the credit card that was paid. */
+  paidCardId?: string;
   /** Recurring commitment this payment fulfils (rent, EMI, insurance...). */
   recurringId?: string;
   /** Set when a redacted copy of this expense was shared with the partner (see SharedExpense). */
@@ -228,4 +230,22 @@ export interface SharedExpense {
   voided?: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** One credit-card bill: what is due in full (never the minimum) and by when. */
+export interface CardBill {
+  id: string;
+  /** The credit card. */
+  accountId: string;
+  /** Statement date (end of the billing period), YYYY-MM-DD. Payments made after it count towards this bill. */
+  statementDate: string;
+  /** Last day to pay without charges, YYYY-MM-DD. */
+  dueDate: string;
+  /** The full amount due on the statement, in paise. */
+  totalDuePaise: Paise;
+  source: "statement" | "manual";
+  /** Import this bill was read from, when there is one. */
+  batchId?: string;
+  /** Marked as paid by hand (for when the payment is not in your records). */
+  paid?: boolean;
 }

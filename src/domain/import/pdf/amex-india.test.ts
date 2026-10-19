@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { readDueDate } from "./amex-india";
 import { parseStatementPdf } from "./index";
+import { toLines } from "./lines";
 import type { PdfPage } from "./types";
 
 import { header, page, row, standard, t } from "./test-fixtures";
@@ -86,5 +88,17 @@ describe("Amex India statement parser", () => {
     const noPeriod = parseStatementPdf([page(1, [t(71, 794, "American Express Card"), t(71, 779, "Statement of Account"), ...row(478, "September 10", "SHOP", "100.00")])]);
     expect(noPeriod.ok).toBe(false);
     if (!noPeriod.ok) expect(noPeriod.error).toMatch(/statement period/);
+  });
+});
+
+describe("readDueDate", () => {
+  const due = (...items: ReturnType<typeof t>[]) => readDueDate(toLines([page(1, items)]));
+  it("reads a printed payment due date in the usual formats, on the same line or the next", () => {
+    expect(due(t(14, 600, "Payment Due Date"), t(158, 600, "October 29, 2026"))).toBe("2026-10-29");
+    expect(due(t(14, 600, "Payment Due Date"), t(14, 585, "29 Oct 2026"))).toBe("2026-10-29");
+    expect(due(t(14, 600, "Due Date: 29/10/2026"))).toBe("2026-10-29");
+  });
+  it("returns nothing when no due date is printed", () => {
+    expect(due(t(14, 600, "Statement of Account"), t(14, 585, "October 9, 2026"))).toBeUndefined();
   });
 });

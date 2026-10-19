@@ -8,6 +8,7 @@ import { Onboarding } from "@/components/onboarding";
 import { MerchantAvatar, TxnBadges, Amount } from "@/components/txn-row";
 import { Badge, Card, CardTitle, EmptyState } from "@/components/ui";
 import { useStore } from "@/data/store";
+import { cardViews, dueLabel, upcomingBills } from "@/domain/cardbills";
 import { formatINR } from "@/domain/money";
 import { byCategory, byMerchant, byMonth, groupNet, summarize } from "@/domain/reports";
 import { cn } from "@/lib/cn";
@@ -45,7 +46,7 @@ function ReviewedNotice() {
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet } as const;
 
 export default function Dashboard() {
-  const { live, householdReady, meId, accounts, trendHistory, records, shown, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView, partner } = useStore();
+  const { live, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView, partner } = useStore();
   const withPartner = !live || !!partner;
   const household = useMemo(() => summarize(shown.filter((r) => r.date.startsWith(month)), meId), [shown, month, meId]);
   const cats = useMemo(() => Object.entries(byCategory(scoped)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [scoped, categoryName]);
@@ -61,6 +62,7 @@ export default function Dashboard() {
   const prevKey = (() => { const [y, m] = month.split("-").map(Number); return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7); })();
   const prev = byMonth(shown)[prevKey] ?? trendHistory[prevKey];
   const delta = prev && prev > 0 ? Math.round(((household.net - prev) / prev) * 1000) / 10 : null;
+  const dueBills = useMemo(() => upcomingBills(cardViews(accounts, cardBills, records, today)), [accounts, cardBills, records, today]);
   const prevName = new Date(`${prevKey}-01T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" });
 
   // The welcome guide is only for someone with no transactions at all (also after deleting everything, even if import history
@@ -88,6 +90,23 @@ export default function Dashboard() {
         <Kpi icon={TrendingDown} label="Refunds & review" value={`−${formatINR(summary.refunds)}`} sub={`${staged.length} awaiting review`} href="/review"
           pill={staged.length > 0 && <Pill tone="bad">Review</Pill>} />
       </div>
+
+      {dueBills.length > 0 && (
+        <Card>
+          <CardTitle action={<Link href="/cards" className="text-xs text-accent">All card bills</Link>}>Card bills to pay</CardTitle>
+          <ul className="divide-y divide-border">
+            {dueBills.slice(0, 3).map((b) => (
+              <li key={b.bill.id}>
+                <Link href="/cards" className="flex items-center gap-3 py-2.5">
+                  <MerchantAvatar name={accounts.find((a) => a.id === b.bill.accountId)?.name ?? "Card"} size={32} />
+                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{accounts.find((a) => a.id === b.bill.accountId)?.name}</span><span className={`block text-xs ${b.state === "overdue" ? "font-medium text-danger" : "text-muted"}`}>{dueLabel(b.daysLeft)}</span></span>
+                  <span className="num text-sm font-semibold">{formatINR(b.remainingPaise)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="bg-accent-soft">

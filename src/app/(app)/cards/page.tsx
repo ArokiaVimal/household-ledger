@@ -1,0 +1,139 @@
+"use client";
+import { CalendarClock, Pencil, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { MerchantAvatar } from "@/components/txn-row";
+import { Badge, Button, Card, CompactChips, ConfirmDialog, Dialog, EmptyState, Field, FormRow, Input, PageHeader } from "@/components/ui";
+import { useStore } from "@/data/store";
+import { cardViews, dueLabel, upcomingBills, type BillState, type BillStatus } from "@/domain/cardbills";
+import { formatINR, parseRupees } from "@/domain/money";
+import type { CardBill } from "@/domain/types";
+
+const tone: Record<BillState, "good" | "warn" | "bad" | "neutral"> = { paid: "good", partial: "warn", due: "warn", overdue: "bad" };
+const stateText: Record<BillState, string> = { paid: "Paid", partial: "Part paid", due: "To pay", overdue: "Overdue" };
+const pretty = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+/** Credit-card bills: the full amount due and the due date, per card. The minimum due is deliberately never shown. */
+export default function Cards() {
+  const { accounts, cardBills, records, today, saveCardBill, deleteCardBill } = useStore();
+  const [editing, setEditing] = useState<CardBill | "new" | { forCard: string } | null>(null);
+  const [removing, setRemoving] = useState<CardBill | null>(null);
+  const views = cardViews(accounts, cardBills, records, today);
+  const upcoming = upcomingBills(views);
+  const totalToPay = upcoming.reduce((s, b) => s + b.remainingPaise, 0);
+  const cards = accounts.filter((a) => a.type === "credit_card");
+
+  if (cards.length === 0) {
+    return (
+      <>
+        <PageHeader title="Card bills" />
+        <Card><EmptyState title="Add a credit card first" hint="Add your cards under Settings, then track each bill and its due date here." /></Card>
+      </>
+    );
+  }
+  return (
+    <>
+      <PageHeader title="Card bills" sub="What to pay in full, and by when. We never show the minimum due." actions={<Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add bill</Button>} />
+      <Card className="mb-4 p-5">
+        {upcoming.length === 0 ? (
+          <div><div className="text-lg font-semibold text-good">You&apos;re all caught up</div><p className="text-sm text-muted">{cardBills.length === 0 ? "Add a bill to start tracking due dates." : "Every card bill you track is paid."}</p></div>
+        ) : (
+          <div>
+            <div className="text-xs text-muted">To pay across {upcoming.length} card{upcoming.length === 1 ? "" : "s"}</div>
+            <div className="num text-3xl font-semibold">{formatINR(totalToPay)}</div>
+            <p className="text-sm text-muted">Next: <b>{views.find((v) => v.current?.bill.id === upcoming[0].bill.id)?.card.name}</b> {dueLabel(upcoming[0].daysLeft)} ({pretty(upcoming[0].bill.dueDate)})</p>
+          </div>
+        )}
+      </Card>
+
+      <ul className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-2">
+        {views.map(({ card, current, earlier }) => (
+          <li key={card.id}>
+            <Card className="space-y-3 p-4">
+              <div className="flex items-center gap-3"><MerchantAvatar name={card.name} size={36} /><h2 className="min-w-0 flex-1 truncate font-semibold">{card.name}</h2>{current && <Badge tone={tone[current.state]}>{stateText[current.state]}</Badge>}</div>
+              {current ? <BillBlock s={current} onEdit={() => setEditing(current.bill)} onRemove={() => setRemoving(current.bill)} onPaid={() => saveCardBill({ ...current.bill, paid: true })} /> : (
+                <div className="rounded-xl bg-background p-3 text-sm"><p className="text-muted">No bill added for this card yet.</p><Button className="mt-2" onClick={() => setEditing({ forCard: card.id })}><Plus size={14} aria-hidden />Add its bill</Button></div>
+              )}
+              {earlier.length > 0 && (
+                <details className="group text-sm"><summary className="cursor-pointer text-muted hover:text-foreground">Earlier bills ({earlier.length})</summary>
+                  <ul className="mt-2 divide-y divide-border">{earlier.map((e) => (
+                    <li key={e.bill.id} className="flex items-center justify-between gap-2 py-2"><span><span className="num font-medium">{formatINR(e.bill.totalDuePaise)}</span> <span className="text-xs text-muted">due {pretty(e.bill.dueDate)}</span></span><Badge tone={tone[e.state]}>{stateText[e.state]}</Badge></li>
+                  ))}</ul>
+                </details>
+              )}
+            </Card>
+          </li>
+        ))}
+      </ul>
+
+      <BillDialog item={editing} onClose={() => setEditing(null)} />
+      <ConfirmDialog open={!!removing} onClose={() => setRemoving(null)} title="Remove this bill?" confirmLabel="Remove" onConfirm={() => removing && deleteCardBill(removing.id)}>
+        <p>It stops being tracked here. Your payments and transactions are not changed.</p>
+      </ConfirmDialog>
+    </>
+  );
+}
+
+function BillBlock({ s, onEdit, onRemove, onPaid }: { s: BillStatus; onEdit: () => void; onRemove: () => void; onPaid: () => void }) {
+  const pct = Math.min(100, Math.round((s.paidPaise / s.bill.totalDuePaise) * 100));
+  return (
+    <div className="space-y-3">
+      <div>
+        <div className="text-xs text-muted">{s.state === "paid" ? "Full amount (paid)" : "Pay in full"}</div>
+        <div className="num text-2xl font-semibold">{formatINR(s.state === "paid" ? s.bill.totalDuePaise : s.remainingPaise)}</div>
+        {s.state === "partial" && <div className="text-xs text-muted">{formatINR(s.paidPaise)} paid of {formatINR(s.bill.totalDuePaise)}</div>}
+      </div>
+      {s.state === "partial" && <div className="h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-good" style={{ width: `${pct}%` }} /></div>}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <span className="inline-flex items-center gap-1.5"><CalendarClock size={14} aria-hidden className="text-muted" />Due {pretty(s.bill.dueDate)}</span>
+        {s.state !== "paid" && <span className={s.state === "overdue" ? "font-medium text-danger" : "text-muted"}>{dueLabel(s.daysLeft)}</span>}
+        <span className="text-xs text-muted">Statement {pretty(s.bill.statementDate)}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {s.state !== "paid" && <Button variant="primary" onClick={onPaid}>Mark as paid</Button>}
+        <button type="button" aria-label="Edit bill" title="Edit" onClick={onEdit} className="grid size-10 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={15} aria-hidden /></button>
+        <button type="button" aria-label="Remove bill" title="Remove" onClick={onRemove} className="grid size-10 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={15} aria-hidden /></button>
+      </div>
+    </div>
+  );
+}
+
+function BillDialog({ item, onClose }: { item: CardBill | "new" | { forCard: string } | null; onClose: () => void }) {
+  const isBill = !!item && typeof item === "object" && "id" in item;
+  return (
+    <Dialog open={!!item} onClose={onClose} title={isBill ? "Edit card bill" : "Add a card bill"}>
+      {item && <BillForm key={isBill ? (item as CardBill).id : typeof item === "object" ? `new-${item.forCard}` : "new"} item={isBill ? (item as CardBill) : null} forCard={typeof item === "object" && "forCard" in item ? item.forCard : undefined} onClose={onClose} />}
+    </Dialog>
+  );
+}
+
+function BillForm({ item, forCard, onClose }: { item: CardBill | null; forCard?: string; onClose: () => void }) {
+  const { accounts, saveCardBill, today } = useStore();
+  const cards = accounts.filter((a) => a.type === "credit_card");
+  const [accountId, setAccountId] = useState(item?.accountId ?? forCard ?? cards[0]?.id ?? "");
+  const [statementDate, setStatementDate] = useState(item?.statementDate ?? today);
+  const [dueDate, setDueDate] = useState(item?.dueDate ?? "");
+  const [amount, setAmount] = useState(item ? (item.totalDuePaise / 100).toFixed(2) : "");
+  const [error, setError] = useState<string | null>(null);
+  const paise = parseRupees(amount) ?? 0;
+  const save = () => {
+    const err = saveCardBill({ id: item?.id, accountId, statementDate, dueDate, totalDuePaise: paise, source: item?.source ?? "manual", batchId: item?.batchId, paid: item?.paid });
+    if (err) return setError(err);
+    onClose();
+  };
+  return (
+    <div className="space-y-3">
+      <FormRow label="Card"><CompactChips label="Credit card" options={cards.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={setAccountId} /></FormRow>
+      <Field label="Total amount due (₹)"><Input inputMode="decimal" value={amount} onChange={(e) => { setAmount(e.target.value); setError(null); }} placeholder="Full amount on the statement" /></Field>
+      <p className="-mt-1 text-xs text-muted">Enter the full amount due, not the minimum.</p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Statement date"><Input type="date" value={statementDate} onChange={(e) => setStatementDate(e.target.value)} /></Field>
+        <Field label="Payment due date"><Input type="date" value={dueDate} onChange={(e) => { setDueDate(e.target.value); setError(null); }} /></Field>
+      </div>
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+      <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="primary" disabled={!accountId || paise <= 0 || !dueDate} onClick={save}>{item ? "Save" : "Add bill"}</Button>
+      </div>
+    </div>
+  );
+}

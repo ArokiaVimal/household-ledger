@@ -3,7 +3,7 @@
 // domain types, so a type change that is not mirrored here fails to compile.
 import { z } from "zod";
 import { validateSplit } from "@/domain/splits";
-import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense, SplitConfig } from "@/domain/types";
+import type { Account, AuditEvent, CardBill, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense, SplitConfig } from "@/domain/types";
 
 export const SCHEMA_VERSION = 1;
 
@@ -46,6 +46,7 @@ export const ExpenseRecordSchema = z
     duplicateOf: id.optional(),
     receiptId: id.optional(),
     fundedBy: id.optional(),
+    paidCardId: id.optional(),
     recurringId: id.optional(),
     suggested: z.enum(["memory", "ai", "ai_unsure"]).optional(),
     sharedWithPartner: z.boolean().optional(),
@@ -108,3 +109,7 @@ export const MerchantMemorySchema = z.object({
   id, key: z.string().min(1).max(80), name: z.string().min(1).max(60), categoryId: id, kind: kindEnum,
   source: z.enum(["user", "ai"]), confident: z.boolean(), confirmed: z.number().int().min(0).max(1_000_000), lastSeen: date,
 }) satisfies z.ZodType<MerchantMemory>;
+
+export const CardBillSchema = z.object({
+  id, accountId: id, statementDate: date, dueDate: date, totalDuePaise: paise.positive(), source: z.enum(["statement", "manual"]), batchId: id.optional(), paid: z.boolean().optional(),
+}) satisfies z.ZodType<CardBill>;

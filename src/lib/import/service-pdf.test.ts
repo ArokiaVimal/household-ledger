@@ -212,3 +212,20 @@ describe("Fill in with AI for rows already in the review queue", () => {
     expect(asked.length).toBe(1);
   });
 });
+
+describe("card bill from a statement", () => {
+  it("saves the full amount due (the closing balance, never the minimum) with the due date you confirmed", async () => {
+    const repo = await setup();
+    const input = { ...pdfInput(standard()), cardBill: { dueDate: "2026-10-29" } };
+    await commitImport(repo, actor, input, deps);
+    const bills = await repo.cardBills.list();
+    expect(bills).toHaveLength(1);
+    expect(bills[0]).toMatchObject({ accountId: "cc_amex", totalDuePaise: 1150000, dueDate: "2026-10-29", statementDate: "2026-10-09", source: "statement" });
+    expect(JSON.stringify(bills[0])).not.toMatch(/minimum/i);
+  });
+  it("saves no bill unless you asked for one", async () => {
+    const repo = await setup();
+    await commitImport(repo, actor, pdfInput(standard()), deps);
+    expect(await repo.cardBills.list()).toEqual([]);
+  });
+});

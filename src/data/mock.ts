@@ -1,5 +1,5 @@
 // FICTIONAL DATA for the prototype only. Nothing here is real or persisted.
-import type { Account, Category, ExpenseRecord, Participant, Receipt, RecurringItem, Settlement, SplitConfig, TxnKind } from "@/domain/types";
+import type { CardBill, Account, Category, ExpenseRecord, Participant, Receipt, RecurringItem, Settlement, SplitConfig, TxnKind } from "@/domain/types";
 
 export const ME = "me";
 export const MOCK_MONTH = "2026-09";
@@ -125,6 +125,14 @@ export const trendHistory: Record<string, number> = {
 
 /** "Today" for the prototype so recurring statuses are deterministic. */
 export const MOCK_TODAY = "2026-09-24";
+
+/** Fictional card bills for the demo: full amount due and the due date (never the minimum). */
+export const cardBills: CardBill[] = [
+  { id: "bill_hdfc", accountId: "cc_hdfc", statementDate: "2026-09-15", dueDate: "2026-10-05", totalDuePaise: r(41250), source: "manual" },
+  { id: "bill_amex", accountId: "cc_amex", statementDate: "2026-09-09", dueDate: "2026-09-27", totalDuePaise: r(18420.5), source: "statement" },
+  { id: "bill_sbi", accountId: "cc_sbi", statementDate: "2026-09-02", dueDate: "2026-09-22", totalDuePaise: r(9300), source: "manual" },
+]
+
 
 const REC_HOUSE = equal(...HOUSE);
 export const recurringItems: RecurringItem[] = [

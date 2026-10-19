@@ -1,7 +1,7 @@
 // Data-access contract. UI and server routes depend on this interface only.
 // Implementations: memory-repository.ts (prototype, tests) and, in a later slice,
 // a Firestore adapter under src/data/firebase/. Business rules stay in src/domain.
-import type { Account, AuditEvent, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
+import type { Account, AuditEvent, CardBill, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
 import type { RuleDoc } from "./schemas";
 
 export class NotFoundError extends Error {}
@@ -29,6 +29,7 @@ export interface Repository {
   sharedExpenses: AppendOnly<SharedExpense>;
   receipts: Collection<Receipt>;
   recurring: Collection<RecurringItem>;
+  cardBills: Collection<CardBill>;
   participants: Collection<Participant>;
   accounts: Collection<Account>;
   categories: Collection<Category>;

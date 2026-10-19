@@ -68,6 +68,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [split, setSplit] = useState<SplitConfig>(record.split);
   const [recurringId, setRecurringId] = useState(record.recurringId ?? "");
   const [fundedBy, setFundedBy] = useState(record.fundedBy ?? "");
+  const [paidCardId, setPaidCardId] = useState(record.paidCardId ?? "");
   const [notes, setNotes] = useState(record.notes ?? "");
   const [excluded, setExcluded] = useState(record.excluded);
   const [recurringError, setRecurringError] = useState<string | null>(null);
@@ -108,7 +109,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
     }
     const fields = {
       merchant: merchant.trim(), categoryId, kind, payerId, split, shared: split.mode !== "personal", notes: notes || undefined, excluded,
-      recurringId: linkId || undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
+      recurringId: linkId || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
     };
     if (adding) {
       addRecord({ ...record, ...fields, date, accountId, amountPaise });
@@ -168,6 +169,9 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       {more && (
         <div className="space-y-2.5">
           <FormRow label="Type"><CompactChips label="Type" options={kinds} selected={[kind]} onPick={setKind} /></FormRow>
+          {kind === "cc_payment" && (
+            <FormRow label="Which card"><CompactChips label="Credit card that was paid" options={[{ id: "", label: "Not sure" }, ...accounts.filter((a) => a.type === "credit_card").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[paidCardId]} onPick={setPaidCardId} /></FormRow>
+          )}
           {isUpi && (
             <FormRow label="From bank"><CompactChips label="Paid from bank" options={[{ id: "", label: "Unknown" }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[fundedBy]} onPick={setFundedBy} /></FormRow>
           )}

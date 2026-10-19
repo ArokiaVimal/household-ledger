@@ -300,4 +300,20 @@ describe("sharing with a partner", () => {
     expect((await repo.settlements.get("sf1"))!.voided).toBe(true);
     await fails(applyAction(repo, actor, { type: "settlement.create", settlement: { ...s, id: "sf2", fromId: "friend", toId: "wife" } }, ctx), "invalid");
   });
+  it("adds, changes and removes a credit-card bill, only for a credit card, with a sensible due date", async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "cc1", name: "HDFC Credit Card", type: "credit_card" });
+    await repo.accounts.put({ id: "bk1", name: "HDFC Bank", type: "bank" });
+    const bill = { id: "b1", accountId: "cc1", statementDate: "2026-09-15", dueDate: "2026-10-05", totalDuePaise: 4125000, source: "manual" as const };
+    await applyAction(repo, actor, { type: "cardbill.put", bill });
+    await applyAction(repo, actor, { type: "cardbill.put", bill: { ...bill, totalDuePaise: 4200000 } });
+    expect((await repo.cardBills.get("b1"))!.totalDuePaise).toBe(4200000);
+    await fails(applyAction(repo, actor, { type: "cardbill.put", bill: { ...bill, id: "b2", accountId: "bk1" } }), "invalid");
+    await fails(applyAction(repo, actor, { type: "cardbill.put", bill: { ...bill, id: "b3", dueDate: "2026-09-01" } }), "invalid");
+    await fails(applyAction(repo, actor, { type: "cardbill.put", bill: { ...bill, id: "b4", totalDuePaise: 0 } }), "invalid");
+    await applyAction(repo, actor, { type: "cardbill.delete", id: "b1" });
+    expect(await repo.cardBills.get("b1")).toBeNull();
+    await fails(applyAction(repo, actor, { type: "cardbill.delete", id: "b1" }), "not_found");
+  });
 });
+

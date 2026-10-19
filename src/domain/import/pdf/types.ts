@@ -13,6 +13,8 @@ export interface StatementSummary {
   newDebitsPaise?: number;
   closingPaise?: number;
   minimumDuePaise?: number;
+  /** Payment due date as printed (best effort; absent when not found). */
+  dueDate?: string;
 }
 
 export interface PdfRow {

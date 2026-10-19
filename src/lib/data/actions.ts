@@ -20,12 +20,12 @@ const money = z.number().int().safe();
 const editable = z.object({
   merchant: z.string().min(1).max(120), categoryId: id, kind: z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]),
   payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).nullable(),
-  recurringId: id.nullable(), fundedBy: id.nullable(), receiptId: id.nullable(), shareNote: z.boolean(),
+  recurringId: id.nullable(), fundedBy: id.nullable(), paidCardId: id.nullable(), receiptId: id.nullable(), shareNote: z.boolean(),
 }).partial();
 
 const manualRecord = z.object({
   id, date: z.string(), merchant: z.string().min(1).max(120), amountPaise: money, accountId: id, categoryId: id, kind: z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]),
-  payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).optional(), recurringId: id.optional(), fundedBy: id.optional(),
+  payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).optional(), recurringId: id.optional(), fundedBy: id.optional(), paidCardId: id.optional(),
 });
 
 export const ActionSchema = z.discriminatedUnion("type", [
@@ -47,6 +47,8 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("participant.delete"), id }),
   z.object({ type: z.literal("recurring.put"), item: z.object({ id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: z.number().int().safe().positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional() }) }),
   z.object({ type: z.literal("recurring.delete"), id }),
+  z.object({ type: z.literal("cardbill.put"), bill: z.object({ id, accountId: id, statementDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), totalDuePaise: z.number().int().safe().positive(), source: z.enum(["statement", "manual"]), batchId: id.optional(), paid: z.boolean().optional() }) }),
+  z.object({ type: z.literal("cardbill.delete"), id }),
 ]);
 export type Action = z.infer<typeof ActionSchema>;
 
@@ -267,6 +269,23 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const place = it.place?.trim();
       await repo.recurring.put({ id: it.id, name, categoryId: it.categoryId, dueDay: it.dueDay, expectedPaise: it.expectedPaise, payerId: it.payerId, split: it.split, ...(place ? { place } : {}) });
       await log(before ? "edit" : "create", "recurring", it.id, `${before ? "Changed" : "Added"} recurring ${name} ${money(it.expectedPaise)} due on ${it.dueDay}`);
+      return;
+    }
+    case "cardbill.put": {
+      const b = a.bill;
+      const card = await repo.accounts.get(b.accountId);
+      if (!card || card.type !== "credit_card") throw new ActionError("invalid", "Pick one of your credit cards.");
+      if (b.dueDate < b.statementDate) throw new ActionError("invalid", "The due date cannot be before the statement date.");
+      const before = await repo.cardBills.get(b.id);
+      await repo.cardBills.put({ id: b.id, accountId: b.accountId, statementDate: b.statementDate, dueDate: b.dueDate, totalDuePaise: b.totalDuePaise, source: b.source, ...(b.batchId ? { batchId: b.batchId } : {}), ...(b.paid ? { paid: true } : {}) });
+      await log(before ? "edit" : "create", "household", b.id, `${before ? "Changed" : "Added"} ${card.name} bill ${money(b.totalDuePaise)} due ${b.dueDate}`);
+      return;
+    }
+    case "cardbill.delete": {
+      const cur = await repo.cardBills.get(a.id);
+      if (!cur) throw new ActionError("not_found", "That bill was not found.");
+      await repo.cardBills.remove(a.id);
+      await log("delete", "household", a.id, `Removed card bill due ${cur.dueDate}`);
       return;
     }
     case "recurring.delete": {
