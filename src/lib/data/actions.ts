@@ -45,6 +45,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("account.add"), id, name: z.string().min(1).max(60), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]), parentId: id.optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).optional() }),
   z.object({ type: z.literal("account.update"), id, name: z.string().min(1).max(60).optional(), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]).optional(), parentId: id.nullable().optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).nullable().optional(), archived: z.boolean().optional() }),
   z.object({ type: z.literal("account.delete"), id }),
+  z.object({ type: z.literal("accounts.reorder"), ids: z.array(id).min(1).max(200) }),
   z.object({ type: z.literal("accounts.addSuggested") }),
   z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60) }),
   z.object({ type: z.literal("participant.delete"), id }),
@@ -347,6 +348,14 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       if (all.some((x) => x.parentId === a.id)) throw new ActionError("conflict", `Other payment methods are under ${cur.name}. Move or delete them first.`);
       await repo.accounts.remove(a.id);
       await log("delete", "household", a.id, `Deleted payment method ${cur.name}`);
+      return;
+    }
+    case "accounts.reorder": {
+      const all = await repo.accounts.list();
+      const byId = new Map(all.map((x) => [x.id, x]));
+      if (new Set(a.ids).size !== a.ids.length || a.ids.some((i) => !byId.has(i))) throw new ActionError("invalid", "That order includes a payment method that does not exist.");
+      for (const [i, accId] of a.ids.entries()) await repo.accounts.put({ ...byId.get(accId)!, order: i });
+      await log("edit", "household", "accounts", "Reordered payment methods");
       return;
     }
     case "accounts.addSuggested": {

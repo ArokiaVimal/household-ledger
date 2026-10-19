@@ -297,3 +297,9 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - `CardMockup` / `CardChip` draw credit cards (colour from the issuer, or the user's choice). `InfoTip` (i) is available on `PageHeader`, `CardTitle` and `FormRow` through a `tip` prop; placed on Review, Settle up, Wallets, Recurring, Transactions, Card bills and payment methods.
 - Phone: bottom bar is Home, Transactions, Review (with count), Import, More; More opens every other page, and the dashboard ends with an "Everything in the app" grid. Verified in the browser at phone width with demo data.
 - Not yet verified live with real data.
+
+## People tab, big card pictures, payment method order (added)
+- "Settle up" is now **People** (`/people`, old `/settlements` links redirect): stats on top (owed, owe, net, people and how many to settle), then everyone you share with, including people with nothing shared yet. Per-person page unchanged.
+- Card pictures moved from Settings to **Card bills**, drawn large on each card's tile. Settings keeps only the colour chooser.
+- Payment methods can be dragged (grip handle, touch or mouse; arrow keys too) into your own order, with sub methods ordered inside each primary, plus a **Sort by most used** button. Stored as `Account.order` through the `accounts.reorder` action; the store keeps accounts sorted, so the transaction form, import and every pick list follow it.
+- Multi-month statements: every imported row keeps its own date, so an HDFC statement holding August rows lists them under August (Review has a month filter; after approval they count in Aug). They do not appear under October. Not yet confirmed with the real HDFC file.

@@ -7,7 +7,7 @@ import { useStore } from "@/data/store";
 import { personLedger, settlementFor } from "@/domain/ledger";
 import { formatINR, parseRupees } from "@/domain/money";
 
-export default function Settlements() {
+export default function People() {
   const { settlements, ledgerRecords, addSettlement, voidSettlement, nameOf, participants, meId, today, live, partner } = useStore();
   const [open, setOpen] = useState(false);
   const [all, setAll] = useState(false);
@@ -22,7 +22,7 @@ export default function Settlements() {
   const others = participants.filter((p) => p.id !== meId);
   // You can settle with anyone except a partner you have since unlinked from.
   const canSettleWith = (id: string) => !(live && partner && !partner.active && id === partner.participantId);
-  const ledgers = useMemo(() => others.map((p) => personLedger(p.id, meId, ledgerRecords, settlements)).filter((l) => l.open.length + l.settled.length > 0 || l.outstandingPaise !== 0), [others, meId, ledgerRecords, settlements]);
+  const ledgers = useMemo(() => others.map((p) => personLedger(p.id, meId, ledgerRecords, settlements)), [others, meId, ledgerRecords, settlements]);
   const owedToMe = ledgers.filter((l) => l.outstandingPaise > 0 && canSettleWith(l.personId)).reduce((s, l) => s + l.outstandingPaise, 0);
   const iOwe = ledgers.filter((l) => l.outstandingPaise < 0 && canSettleWith(l.personId)).reduce((s, l) => s - l.outstandingPaise, 0);
   const toSettle = ledgers.filter((l) => l.outstandingPaise !== 0 && canSettleWith(l.personId));
@@ -45,25 +45,27 @@ export default function Settlements() {
   if (live && others.length === 0) {
     return (
       <>
-        <PageHeader title="Settle up" />
-        <Card><EmptyState title="No one to settle with yet" hint="Add a friend or invite your partner in Settings, then split an expense with them." /><Link href="/settings" className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white">Open Settings</Link></Card>
+        <PageHeader title="People" />
+        <Card><EmptyState title="No one here yet" hint="Add a friend or invite your partner in Settings, then split an expense with them." /><Link href="/settings" className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white">Open Settings</Link></Card>
       </>
     );
   }
   return (
     <>
-      <PageHeader title="Settle up" tip="Shows what each person owes you or you owe them from shared expenses. Settling up records the payment between you; it never creates a new expense." sub="See everything you share with each person, pick payments and settle them. Settling never creates an expense." actions={canRecord ? <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button> : undefined} />
+      <PageHeader title="People" tip="Everyone you share expenses with, and what is owed either way. Settling up records the payment between you; it never creates a new expense." sub="See everything you share with each person, pick payments and settle them. Settling never creates an expense." actions={canRecord ? <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button> : undefined} />
 
-      <div className="mb-4 grid grid-cols-2 gap-3">
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="p-4"><div className="text-xs text-muted">You are owed</div><div className="num text-xl font-semibold text-good">{formatINR(owedToMe)}</div></Card>
         <Card className="p-4"><div className="text-xs text-muted">You owe</div><div className="num text-xl font-semibold">{formatINR(iOwe)}</div></Card>
+        <Card className="p-4"><div className="text-xs text-muted">Net</div><div className={`num text-xl font-semibold ${owedToMe - iOwe > 0 ? "text-good" : ""}`}>{owedToMe - iOwe === 0 ? "Even" : `${owedToMe - iOwe > 0 ? "+" : "−"}${formatINR(Math.abs(owedToMe - iOwe))}`}</div></Card>
+        <Card className="p-4"><div className="text-xs text-muted">People</div><div className="num text-xl font-semibold">{others.length}</div><div className="text-xs text-muted">{toSettle.length === 0 ? "all settled" : `${toSettle.length} to settle`}</div></Card>
       </div>
       {toSettle.length > 0 && <Button variant="primary" className="mb-4 min-h-11 w-full sm:w-auto sm:px-6" onClick={() => setAll(true)}>Settle all with {toSettle.length} {toSettle.length === 1 ? "person" : "people"}</Button>}
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-2">
         <Card>
-          <CardTitle>People</CardTitle>
-          {ledgers.length === 0 ? <EmptyState title="Nothing shared yet" hint="Split an expense with someone and it appears here." /> : (
+          <CardTitle>Everyone</CardTitle>
+          {ledgers.length === 0 ? <EmptyState title="No one here yet" hint="Add a friend or invite your partner in Settings, then split an expense with them." /> : (
             <ul className="divide-y divide-border">
               {ledgers.map((l) => {
                 const name = nameOf(l.personId);
@@ -74,7 +76,7 @@ export default function Settlements() {
                       <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/10 font-semibold text-accent">{name.slice(0, 1).toUpperCase()}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{name}</span>
-                        <span className="block text-xs text-muted">{l.open.length === 0 ? (l.outstandingPaise === 0 ? "All settled" : "Balance from earlier payments") : `${l.open.length} payment${l.open.length === 1 ? "" : "s"} to settle`}</span>
+                        <span className="block text-xs text-muted">{l.open.length === 0 ? (l.outstandingPaise === 0 ? (l.settled.length === 0 ? "Nothing shared yet" : "All settled") : "Balance from earlier payments") : `${l.open.length} payment${l.open.length === 1 ? "" : "s"} to settle`}</span>
                       </span>
                       <span className="text-right">
                         <span className={`num block font-semibold ${l.outstandingPaise === 0 ? "text-muted" : owes ? "text-good" : ""}`}>{l.outstandingPaise === 0 ? "₹0" : formatINR(Math.abs(l.outstandingPaise))}</span>

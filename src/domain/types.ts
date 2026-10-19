@@ -62,6 +62,8 @@ export interface Account {
   theme?: CardTheme;
   /** Hidden from pickers but kept, because transactions still refer to it. */
   archived?: boolean;
+  /** Position in the user's own ordering (0 first); pick lists follow it. */
+  order?: number;
 }
 
 export type CardTheme = "indigo" | "navy" | "teal" | "plum" | "graphite" | "platinum" | "ruby" | "gold";

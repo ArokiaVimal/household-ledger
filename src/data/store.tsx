@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { pairBalances } from "@/domain/balances";
 import { categoryUsage, checkDelete, cleanCategoryName, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
-import { suggestedWithParents } from "@/domain/accounts";
+import { sortAccounts, suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { recurringStatuses } from "@/domain/recurring";
 import { summarize } from "@/domain/reports";
@@ -105,6 +105,8 @@ interface Store {
   updateAccount: (id: string, patch: { name?: string; type?: Account["type"]; parentId?: string | null; theme?: CardTheme | null; archived?: boolean }) => string | null;
   /** Delete a payment method nothing uses. Returns an error message (suggesting Hide) when something does. */
   deleteAccount: (id: string) => string | null;
+  /** Saves the order of payment methods (every id, in the order wanted); pick lists everywhere follow it. */
+  reorderAccounts: (ids: string[]) => void;
   addSuggestedAccounts: () => void;
   addParticipant: (name: string) => Added;
   /** Removes a friend (no account) that nothing refers to. Returns an error message, or null when removed. */
@@ -193,7 +195,8 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const [shared, setShared] = useState(init.shared);
   const [receipts, setReceipts] = useState(init.receipts);
   const [participants, setParticipants] = useState<Participant[]>(init.participants);
-  const [accounts, setAccounts] = useState<Account[]>(init.accounts);
+  const [accounts, setAccountsRaw] = useState<Account[]>(() => sortAccounts(init.accounts));
+  const setAccounts = useCallback((f: Account[] | ((as: Account[]) => Account[])) => setAccountsRaw((as) => sortAccounts(typeof f === "function" ? f(as) : f)), []);
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(init.recurringItems);
   const [cardBills, setCardBills] = useState<CardBill[]>(init.cardBills);
   const [voucherBrands, setVoucherBrands] = useState<VoucherBrand[]>(init.voucherBrands);
@@ -359,7 +362,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     setAccounts((as) => [...as, { id, name: n, type, ...(parentId ? { parentId } : {}), ...(theme ? { theme } : {}) }]);
     void send({ type: "account.add", id, name: n, accountType: type, ...(parentId ? { parentId } : {}), ...(theme ? { theme } : {}) });
     return null;
-  }, [accounts, send, parentProblem]);
+  }, [setAccounts, accounts, send, parentProblem]);
   const updateAccount = useCallback((id: string, patch: { name?: string; type?: Account["type"]; parentId?: string | null; theme?: CardTheme | null; archived?: boolean }) => {
     const cur = accounts.find((a) => a.id === id);
     if (!cur) return "Payment method not found.";
@@ -389,7 +392,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
       ...(patch.theme !== undefined ? { theme: patch.theme } : {}), ...(patch.archived !== undefined ? { archived: patch.archived } : {}),
     });
     return null;
-  }, [accounts, cardBills, send, parentProblem]);
+  }, [setAccounts, accounts, cardBills, send, parentProblem]);
   const deleteAccount = useCallback((id: string) => {
     const cur = accounts.find((a) => a.id === id);
     if (!cur) return "Payment method not found.";
@@ -399,11 +402,15 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     setAccounts((as) => as.filter((a) => a.id !== id));
     void send({ type: "account.delete", id });
     return null;
-  }, [accounts, records, staged, cardBills, init.importBatches, send]);
+  }, [setAccounts, accounts, records, staged, cardBills, init.importBatches, send]);
+  const reorderAccounts = useCallback((ids: string[]) => {
+    setAccounts((as) => as.map((a) => (ids.includes(a.id) ? { ...a, order: ids.indexOf(a.id) } : a)));
+    void send({ type: "accounts.reorder", ids });
+  }, [send, setAccounts]);
   const addSuggestedAccounts = useCallback(() => {
     setAccounts((as) => [...as, ...suggestedWithParents(SUGGESTED_ACCOUNTS.filter((s) => !as.some((a) => a.id === s.id)), as)]);
     void send({ type: "accounts.addSuggested" });
-  }, [send]);
+  }, [setAccounts, send]);
   const addParticipant = useCallback((name: string) => {
     const n = name.trim();
     if (!n || n.length > 60) return { error: "Enter a name (up to 60 characters)." };
@@ -509,7 +516,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, reorderAccounts, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,

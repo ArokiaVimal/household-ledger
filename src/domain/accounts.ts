@@ -42,3 +42,16 @@ export function walletAccountFor(brand: VoucherBrand | undefined, accounts: Acco
   if (!brand) return null;
   return accounts.find((a) => a.type === "wallet" && a.name.toLowerCase().includes(brand.name.toLowerCase())) ?? null;
 }
+
+/** The user's own order first (0, 1, 2…); anything never ordered keeps its place after them. Stable. */
+export function sortAccounts(accounts: Account[]): Account[] {
+  return accounts.map((a, i) => ({ a, i })).sort((x, y) => (x.a.order ?? 1e9) - (y.a.order ?? 1e9) || x.i - y.i).map((x) => x.a);
+}
+
+/** Primary methods by how much they are used (their own and their sub methods' transactions), then sub methods within each. Returns every id. */
+export function orderByUse(accounts: Account[], countOf: (id: string) => number): string[] {
+  const roots = accounts.filter((a) => !a.parentId || !accounts.some((x) => x.id === a.parentId));
+  const total = (id: string) => countOf(id) + accounts.filter((c) => c.parentId === id).reduce((s, c) => s + countOf(c.id), 0);
+  const byUse = (list: Account[], f: (id: string) => number) => [...list].sort((x, y) => f(y.id) - f(x.id));
+  return byUse(roots, total).flatMap((r) => [r.id, ...byUse(accounts.filter((c) => c.parentId === r.id), countOf).map((c) => c.id)]);
+}

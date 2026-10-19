@@ -3,12 +3,14 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { Download, LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, Trash2, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
 import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
-import { CardMockup, THEME_STYLE, themeFor } from "@/components/card-mockup";
+import { THEME_STYLE, themeFor } from "@/components/card-mockup";
 import { useStore } from "@/data/store";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { CARD_THEMES, type Account, type CardTheme } from "@/domain/types";
 import { MerchantAvatar } from "@/components/txn-row";
+import { SortableList } from "@/components/sortable";
+import { orderByUse } from "@/domain/accounts";
 import { CaptureCard } from "./capture-card";
 import { GmailCard } from "./gmail-card";
 import { PartnerCard } from "./partner-card";
@@ -41,7 +43,7 @@ function Section({ id, icon, title, tagline, children }: { id: string; icon: Rea
 }
 
 export default function Settings() {
-  const { live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, addSuggestedAccounts, addParticipant, deleteParticipant } = useStore();
+  const { live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, reorderAccounts, addSuggestedAccounts, addParticipant, deleteParticipant } = useStore();
   const [confirm, setConfirm] = useState(false);
   // One dialog adds and edits payment methods. `parent` is set when adding a sub payment method.
   const [dlg, setDlg] = useState<{ acc?: Account; parent?: string } | null>(null);
@@ -53,6 +55,8 @@ export default function Settings() {
   const [deletingAcc, setDeletingAcc] = useState<Account | null>(null);
   const roots = accounts.filter((a) => !a.parentId || !accounts.some((x) => x.id === a.parentId));
   const childrenOf = (id: string) => accounts.filter((c) => c.parentId === id);
+  /** Every id in the order wanted: primaries in `rootIds` order, each followed by its sub methods (reordered where `subs` says so). */
+  const fullOrder = (rootIds: string[], subs: Record<string, string[]> = {}) => rootIds.flatMap((r) => [r, ...(subs[r] ?? childrenOf(r).map((c) => c.id))]);
   const openDialog = (d: { acc?: Account; parent?: string }) => {
     setDlg(d); setFError(null);
     setFName(d.acc?.name ?? ""); setFType(d.acc?.type ?? (d.parent ? "wallet" : "credit_card"));
@@ -100,35 +104,43 @@ export default function Settings() {
       <div className="min-w-0 space-y-10">
         <Section id="methods" icon={<Wallet size={20} aria-hidden />} title="Payment methods" tagline="Know exactly where every rupee came from. Add the cards, UPI apps and bank accounts you spend with, and each transaction is filed under the right one.">
           <Card className="space-y-3">
-            <CardTitle tip="A primary payment method is the main card or account, like your Amex or HDFC Bank. A sub payment method sits inside it, like Amazon Pay or Swiggy Money loaded from that Amex. Everything is yours to rename, move, hide or remove." action={<span className="text-xs text-muted">{accounts.length} added</span>}>Your payment methods</CardTitle>
-            <ul className="space-y-4 text-sm">
-              {roots.map((a) => {
+            <CardTitle tip="Drag the grip handle (or use the arrow keys on it) to reorder; the transaction form and every pick list follow this order. A primary payment method is the main card or account, like your Amex or HDFC Bank. A sub payment method sits inside it, like Amazon Pay or Swiggy Money loaded from that Amex. Everything is yours to rename, move, hide or remove." action={<span className="text-xs text-muted">{accounts.length} added</span>}>Your payment methods</CardTitle>
+            <SortableList className="space-y-4 text-sm" ids={roots.map((r) => r.id)} label="payment method" onReorder={(ids) => reorderAccounts(fullOrder(ids))}>
+              {(rootId, handle) => {
+                const a = accounts.find((x) => x.id === rootId)!;
                 const subs = childrenOf(a.id);
                 return (
-                  <li key={a.id} className={`space-y-2 ${a.archived ? "opacity-60" : ""}`}>
-                    <div className="flex flex-wrap items-center gap-3">
-                      {a.type === "credit_card" ? <div className="w-44 shrink-0"><CardMockup name={a.name} theme={a.theme} hidden={a.archived} /></div> : <MerchantAvatar name={a.name} size={40} />}
-                      <div className="min-w-[8rem] flex-1"><div className="font-medium">{a.name}</div><div className="text-xs text-muted">{typeLabel[a.type]} · {usedBy(a.id) === 0 ? "No transactions yet" : `${usedBy(a.id)} transaction${usedBy(a.id) === 1 ? "" : "s"}`}{a.archived ? " · Hidden" : ""}</div></div>
+                  <div className={`space-y-2 ${a.archived ? "opacity-60" : ""}`}>
+                    <div className="flex items-center gap-2">
+                      {handle}
+                      <MerchantAvatar name={a.name} size={40} />
+                      <div className="min-w-0 flex-1"><div className="truncate font-medium">{a.name}</div><div className="text-xs text-muted">{typeLabel[a.type]} · {usedBy(a.id) === 0 ? "No transactions yet" : `${usedBy(a.id)} transaction${usedBy(a.id) === 1 ? "" : "s"}`}{a.archived ? " · Hidden" : ""}</div></div>
                       <button type="button" aria-label={`Edit ${a.name}`} title="Edit" onClick={() => openDialog({ acc: a })} className="grid size-11 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={16} aria-hidden /></button>
                     </div>
                     {(subs.length > 0 || a.type === "credit_card" || a.type === "bank") && (
-                      <ul className="ml-4 space-y-1 border-l-2 border-accent/20 pl-3">
-                        {subs.map((c) => (
-                          <li key={c.id} className={`flex items-center gap-2.5 py-1 ${c.archived ? "opacity-60" : ""}`}>
-                            <MerchantAvatar name={c.name} size={30} />
-                            <span className="min-w-0 flex-1"><span className="block truncate font-medium">{c.name}</span><span className="block text-xs text-muted">{typeLabel[c.type]} · {usedBy(c.id)} transaction{usedBy(c.id) === 1 ? "" : "s"}{c.archived ? " · Hidden" : ""}</span></span>
-                            <button type="button" aria-label={`Edit ${c.name}`} title="Edit" onClick={() => openDialog({ acc: c })} className="grid size-11 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={16} aria-hidden /></button>
-                          </li>
-                        ))}
-                        {(a.type === "credit_card" || a.type === "bank") && !a.archived && <li><button type="button" onClick={() => openDialog({ parent: a.id })} className="min-h-9 rounded-full px-1 text-xs font-medium text-accent hover:underline">+ Add a sub payment method to {a.name}</button></li>}
-                      </ul>
+                      <div className="ml-12 border-l-2 border-accent/20 pl-3">
+                        <SortableList className="space-y-1" ids={subs.map((c) => c.id)} label="sub payment method" onReorder={(ids) => reorderAccounts(fullOrder(roots.map((r) => r.id), { [a.id]: ids }))}>
+                          {(cid, h) => {
+                            const c = accounts.find((x) => x.id === cid)!;
+                            return (
+                              <div className={`flex items-center gap-2 py-1 ${c.archived ? "opacity-60" : ""}`}>
+                                {h}
+                                <MerchantAvatar name={c.name} size={30} />
+                                <span className="min-w-0 flex-1"><span className="block truncate font-medium">{c.name}</span><span className="block text-xs text-muted">{typeLabel[c.type]} · {usedBy(c.id)} transaction{usedBy(c.id) === 1 ? "" : "s"}{c.archived ? " · Hidden" : ""}</span></span>
+                                <button type="button" aria-label={`Edit ${c.name}`} title="Edit" onClick={() => openDialog({ acc: c })} className="grid size-11 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={16} aria-hidden /></button>
+                              </div>
+                            );
+                          }}
+                        </SortableList>
+                        {(a.type === "credit_card" || a.type === "bank") && !a.archived && <button type="button" onClick={() => openDialog({ parent: a.id })} className="min-h-9 rounded-full px-1 text-xs font-medium text-accent hover:underline">+ Add a sub payment method to {a.name}</button>}
+                      </div>
                     )}
-                  </li>
+                  </div>
                 );
-              })}
-              {accounts.length === 0 && <li className="py-3 text-muted">Nothing here yet. Add your first card, UPI app or bank account to start tracking.</li>}
-            </ul>
-            <div className="flex flex-wrap gap-2"><Button variant="primary" onClick={() => openDialog({})}>+ Add primary payment method</Button>{missingSuggested > 0 && <Button onClick={addSuggestedAccounts}>Add my usual cards, UPI apps and banks ({missingSuggested})</Button>}</div>
+              }}
+            </SortableList>
+            {accounts.length === 0 && <p className="py-3 text-sm text-muted">Nothing here yet. Add your first card, UPI app or bank account to start tracking.</p>}
+            <div className="flex flex-wrap gap-2"><Button variant="primary" onClick={() => openDialog({})}>+ Add primary payment method</Button>{accounts.length > 1 && <Button onClick={() => reorderAccounts(orderByUse(accounts, usedBy))}>Sort by most used</Button>}{missingSuggested > 0 && <Button onClick={addSuggestedAccounts}>Add my usual cards, UPI apps and banks ({missingSuggested})</Button>}</div>
           </Card>
         </Section>
 
@@ -209,8 +221,7 @@ export default function Settings() {
             )}
             {!isSub && fType === "credit_card" && (
               <div className="space-y-2">
-                <div className="text-xs font-medium text-muted">Card colour</div>
-                <CardMockup name={fName.trim() || "Your card"} theme={fTheme || undefined} />
+                <div className="text-xs font-medium text-muted">Card colour (shown on Card bills)</div>
                 <div className="flex flex-wrap gap-2" role="group" aria-label="Card colour">
                   {CARD_THEMES.map((t) => <button key={t} type="button" aria-label={THEME_STYLE[t].label} aria-pressed={(fTheme || themeFor(fName, undefined)) === t} onClick={() => setFTheme(t)} className={`size-9 rounded-full border-2 ${(fTheme || themeFor(fName, undefined)) === t ? "border-accent" : "border-transparent"}`} style={{ background: THEME_STYLE[t].bg }} />)}
                 </div>

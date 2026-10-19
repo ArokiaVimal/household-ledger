@@ -215,6 +215,16 @@ describe("suggested accounts", () => {
     await fails(applyAction(repo, actor, { type: "account.update", id: "cc_amex", parentId: "bank_hdfc" }), "invalid"); // Amex has children, so it cannot go under another
     await fails(applyAction(repo, actor, { type: "account.update", id: "wl_a", name: "Some UPI" }), "conflict");
   });
+  it("payment methods can be put in the user's own order; unknown ids are refused", async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "a1", name: "One", type: "credit_card" });
+    await repo.accounts.put({ id: "a2", name: "Two", type: "bank" });
+    await applyAction(repo, actor, { type: "accounts.reorder", ids: ["a2", "a1"] });
+    expect((await repo.accounts.get("a2"))!.order).toBe(0);
+    expect((await repo.accounts.get("a1"))!.order).toBe(1);
+    await fails(applyAction(repo, actor, { type: "accounts.reorder", ids: ["a2", "nope"] }), "invalid");
+    await fails(applyAction(repo, actor, { type: "accounts.reorder", ids: ["a1", "a1"] }), "invalid");
+  });
   it("payment methods can be recoloured, retyped, hidden and deleted, with the safety rules", async () => {
     const repo = await setup();
     await repo.accounts.put({ id: "cc_amex", name: "Amex", type: "credit_card" });

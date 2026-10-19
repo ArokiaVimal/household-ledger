@@ -24,8 +24,8 @@ export default function PersonSettle() {
   if (!person) {
     return (
       <>
-        <PageHeader title="Settle up" />
-        <Card><EmptyState title="We could not find that person" /><Link href="/settlements" className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white">Back to Settle up</Link></Card>
+        <PageHeader title="People" />
+        <Card><EmptyState title="We could not find that person" /><Link href="/people" className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white">Back to People</Link></Card>
       </>
     );
   }
@@ -49,7 +49,7 @@ export default function PersonSettle() {
 
   return (
     <>
-      <Link href="/settlements" className="mb-2 inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"><ArrowLeft size={14} aria-hidden />Settle up</Link>
+      <Link href="/people" className="mb-2 inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"><ArrowLeft size={14} aria-hidden />People</Link>
       <PageHeader title={name} sub="Everything you share, in one place." />
 
       <Card className="mb-4 space-y-3 p-5">

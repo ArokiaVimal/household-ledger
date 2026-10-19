@@ -12,7 +12,7 @@ import { LogoMark } from "./logo";
 import { useProfile } from "./profile-context";
 import { OPEN_ADD_EVENT } from "./onboarding";
 import { TxnAddDialog } from "./txn-edit-dialog";
-import { navFor } from "./nav-items";
+import { NAV } from "./nav-items";
 import { ChipGroup, Dialog } from "./ui";
 
 
@@ -77,11 +77,11 @@ function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
 export function AppShell({ children, user }: { children: ReactNode; user: { email: string } | null }) {
   const path = usePathname();
   const router = useRouter();
-  const { live, partner, participants, meId, previewing, staged, syncError, dismissSyncError } = useStore();
+  const { live, previewing, staged, syncError, dismissSyncError } = useStore();
   // Solo use is complete on its own: settle-up and the Mine/Together switch appear once a partner is linked.
-  const visibleNav = navFor(live, !!partner, participants.some((p) => p.id !== meId)).filter((n) => n.href !== "/profile");
+  const visibleNav = NAV.filter((n) => n.href !== "/profile");
   const phoneBar = visibleNav.filter((n) => n.bar);
-  const phoneMore = navFor(live, !!partner, participants.some((p) => p.id !== meId)).filter((n) => !n.bar);
+  const phoneMore = NAV.filter((n) => !n.bar);
   const [moreOpen, setMoreOpen] = useState(false);
   const [q, setQ] = useState("");
   const { profile } = useProfile();

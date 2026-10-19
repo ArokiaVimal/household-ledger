@@ -30,16 +30,16 @@ export function CardChip({ name, theme }: { name: string; theme?: CardTheme }) {
   return <span role="img" aria-label={`${name} card`} className="relative inline-block h-8 w-12 shrink-0 overflow-hidden rounded-md shadow-sm" style={{ background: t.bg }}><span className="absolute bottom-1.5 left-1.5 h-2.5 w-3.5 rounded-[3px] bg-yellow-300/90" /></span>;
 }
 
-export function CardMockup({ name, theme, hidden, className = "" }: { name: string; theme?: CardTheme; hidden?: boolean; className?: string }) {
+export function CardMockup({ name, theme, hidden, large, className = "" }: { name: string; theme?: CardTheme; hidden?: boolean; large?: boolean; className?: string }) {
   const t = THEME_STYLE[themeFor(name, theme)];
   return (
-    <div role="img" aria-label={`${name} card`} className={`relative aspect-[1.586/1] w-full max-w-[17rem] overflow-hidden rounded-2xl p-4 shadow-md ${hidden ? "opacity-50 grayscale" : ""} ${className}`} style={{ background: t.bg, color: t.ink }}>
+    <div role="img" aria-label={`${name} card`} className={`relative aspect-[1.586/1] w-full overflow-hidden rounded-2xl shadow-md ${large ? "max-w-md p-6" : "max-w-[17rem] p-4"} ${hidden ? "opacity-50 grayscale" : ""} ${className}`} style={{ background: t.bg, color: t.ink }}>
       <div className="pointer-events-none absolute -right-8 -top-10 size-36 rounded-full bg-white/15" aria-hidden />
       <div className="pointer-events-none absolute -bottom-12 -left-6 size-32 rounded-full bg-white/10" aria-hidden />
       <div className="relative flex h-full flex-col justify-between">
-        <div className="flex items-start justify-between gap-2"><span className="line-clamp-2 text-sm font-semibold leading-tight">{name}</span><span className="text-[10px] font-medium uppercase tracking-widest opacity-80">Credit</span></div>
-        <div className="h-7 w-9 rounded-md bg-gradient-to-br from-yellow-200 to-yellow-500 opacity-90" aria-hidden />
-        <div className="text-[11px] tracking-[0.25em] opacity-80" aria-hidden>••••&nbsp;&nbsp;••••&nbsp;&nbsp;••••&nbsp;&nbsp;••••</div>
+        <div className="flex items-start justify-between gap-2"><span className={`line-clamp-2 font-semibold leading-tight ${large ? "text-xl" : "text-sm"}`}>{name}</span><span className={`font-medium uppercase tracking-widest opacity-80 ${large ? "text-xs" : "text-[10px]"}`}>Credit</span></div>
+        <div className={`rounded-md bg-gradient-to-br from-yellow-200 to-yellow-500 opacity-90 ${large ? "h-10 w-14" : "h-7 w-9"}`} aria-hidden />
+        <div className={`tracking-[0.25em] opacity-80 ${large ? "text-base" : "text-[11px]"}`} aria-hidden>••••&nbsp;&nbsp;••••&nbsp;&nbsp;••••&nbsp;&nbsp;••••</div>
       </div>
     </div>
   );

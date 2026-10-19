@@ -2,7 +2,7 @@
 import { CalendarClock, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { MerchantAvatar } from "@/components/txn-row";
-import { CardChip } from "@/components/card-mockup";
+import { CardMockup } from "@/components/card-mockup";
 import { Badge, Button, Card, CompactChips, ConfirmDialog, Dialog, EmptyState, Field, FormRow, Input, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { cardViews, dueLabel, upcomingBills, type BillState, type BillStatus } from "@/domain/cardbills";
@@ -50,7 +50,8 @@ export default function Cards() {
         {views.map(({ card, current, earlier }) => (
           <li key={card.id}>
             <Card className="space-y-3 p-4">
-              <div className="flex items-center gap-3"><CardChip name={card.name} theme={card.theme} /><h2 className="min-w-0 flex-1 truncate font-semibold">{card.name}</h2>{current && <Badge tone={tone[current.state]}>{stateText[current.state]}</Badge>}</div>
+              <CardMockup large name={card.name} theme={card.theme} className="mx-auto" />
+              <div className="flex items-center gap-3"><h2 className="min-w-0 flex-1 truncate font-semibold">{card.name}</h2>{current && <Badge tone={tone[current.state]}>{stateText[current.state]}</Badge>}</div>
               {current ? <BillBlock s={current} onEdit={() => setEditing(current.bill)} onRemove={() => setRemoving(current.bill)} onPaid={() => saveCardBill({ ...current.bill, paid: true })} /> : (
                 <div className="rounded-xl bg-background p-3 text-sm"><p className="text-muted">No bill added for this card yet.</p><Button className="mt-2" onClick={() => setEditing({ forCard: card.id })}><Plus size={14} aria-hidden />Add its bill</Button></div>
               )}

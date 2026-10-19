@@ -9,7 +9,7 @@ import { MerchantAvatar, TxnBadges, Amount } from "@/components/txn-row";
 import { Badge, Card, CardTitle, EmptyState } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { cardViews, dueLabel, upcomingBills } from "@/domain/cardbills";
-import { navFor } from "@/components/nav-items";
+import { NAV } from "@/components/nav-items";
 import { rootOf } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
 import { byCategory, byMerchant, byMonth, groupNet, summarize } from "@/domain/reports";
@@ -48,7 +48,7 @@ function ReviewedNotice() {
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet, wallet: Wallet } as const;
 
 export default function Dashboard() {
-  const { live, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView, partner, participants } = useStore();
+  const { live, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, summary, balances, month, view, categoryName, nameOf, accountName, setView, partner } = useStore();
   const withPartner = !live || !!partner;
   const household = useMemo(() => summarize(shown.filter((r) => r.date.startsWith(month)), meId), [shown, month, meId]);
   const cats = useMemo(() => Object.entries(byCategory(scoped)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [scoped, categoryName]);
@@ -172,7 +172,7 @@ export default function Dashboard() {
           </ul>
         </Card>
         {withPartner && <Card>
-          <CardTitle action={<Link href="/settlements" className="text-xs text-accent">Details</Link>}>Settlements</CardTitle>
+          <CardTitle action={<Link href="/people" className="text-xs text-accent">Details</Link>}>Settlements</CardTitle>
           <ul className="space-y-3">
             {iOwe.map((b) => <li key={b.to} className="flex items-center gap-3 text-sm"><MerchantAvatar name={nameOf(b.to)} /><span className="flex-1">I owe {nameOf(b.to)}</span><span className="num font-semibold text-danger">{formatINR(b.outstanding)}</span></li>)}
             {owedToMe.map((b) => <li key={b.from} className="flex items-center gap-3 text-sm"><MerchantAvatar name={nameOf(b.from)} /><span className="flex-1">{nameOf(b.from)} owes me</span><span className="num font-semibold text-good">{formatINR(b.outstanding)}</span></li>)}
@@ -185,7 +185,7 @@ export default function Dashboard() {
       <section aria-label="Everything in the app" className="space-y-2 md:hidden">
         <h2 className="px-1 text-sm font-medium text-muted">Everything in the app</h2>
         <ul className="grid grid-cols-3 gap-2">
-          {navFor(live, !!partner, participants.some((p) => p.id !== meId)).filter((n) => n.href !== "/").map(({ href, label, icon: I }) => (
+          {NAV.filter((n) => n.href !== "/").map(({ href, label, icon: I }) => (
             <li key={href}><Link href={href} className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl bg-surface p-2 text-center text-xs"><I size={20} aria-hidden className="text-accent" /><span className="leading-tight">{label}</span></Link></li>
           ))}
         </ul>
