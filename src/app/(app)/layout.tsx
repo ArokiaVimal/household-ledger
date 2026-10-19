@@ -65,7 +65,7 @@ async function AuthedShell({ children }: { children: ReactNode }) {
 
   // Real data for signed-in users. A signed-in user must never see the demo data, even when loading fails.
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-  const empty: HouseholdData = { records: [], settlements: [], receipts: [], recurring: [], participants: [], accounts: [], categories: [], rules: [], importBatches: [], cardBills: [], voucherBrands: [], paymentGroups: [], merchantIcons: {} };
+  const empty: HouseholdData = { records: [], settlements: [], receipts: [], recurring: [], participants: [], accounts: [], categories: [], rules: [], importBatches: [], cardBills: [], voucherBrands: [], paymentGroups: [], splitGroups: [], splitSettlements: [], merchantIcons: {} };
   let live: LiveInit | undefined;
   let dataError = false;
   if (session.mode === "on") {

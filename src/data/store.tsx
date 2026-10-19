@@ -19,12 +19,13 @@ import { summarize } from "@/domain/reports";
 import type { MerchantRule } from "@/domain/rules";
 import { sharedToRecord } from "@/domain/sharing";
 import { OWNER_SHARE_BPS } from "@/domain/defaults";
-import type { Relationship, PaymentGroup, Account, CardBill, CardTheme, VoucherBrand, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
+import type { Relationship, SplitGroup, SplitGroupKind, SplitSettlement, PaymentGroup, Account, CardBill, CardTheme, VoucherBrand, Category, ExpenseRecord, ImportBatch, Participant, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
 import type { CoupleData } from "@/lib/data/couple";
 import type { HouseholdData } from "@/lib/data/load";
 import { pickMonth } from "@/domain/months";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { validateSplit } from "@/domain/splits";
+import { checkSplitGroup, peopleInUse } from "@/domain/split-groups";
 import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, historyRecords, initialRecords, initialSettlements, merchantRules, paymentGroups as mockPaymentGroups, participants as mockParticipants, recurringItems as mockRecurring, cardBills as mockCardBills, voucherBrands as mockVoucherBrands, voucherRecords as mockVoucherRecords, trendHistory as mockTrend } from "./mock";
 
 export type View = "household" | "personal";
@@ -128,6 +129,17 @@ interface Store {
   reorderGroups: (ids: string[]) => void;
   /** Adds Mine, "<partner> + <you>" and Parents as a starting point, for whichever of them are missing. */
   addStarterGroups: () => number;
+  /** Split Groups: occasion containers (trips, dinners) with their own balances. Separate from Payment Groups above. */
+  splitGroups: SplitGroup[];
+  splitSettlements: SplitSettlement[];
+  /** Creates (no `id`) or changes a split group. Returns the group's id, or an error message. */
+  saveSplitGroup: (draft: { id?: string; name: string; kind: SplitGroupKind; participantIds: string[]; note?: string }) => { id?: string; error?: string };
+  archiveSplitGroup: (id: string, archived: boolean) => void;
+  /** Only an empty group (no expenses, no payments) can be deleted; otherwise returns why not. */
+  deleteSplitGroup: (id: string) => string | null;
+  /** Records a payment inside a group. It only moves balances: it never creates an expense. */
+  addSplitSettlement: (s: { groupId: string; fromId: string; toId: string; amountPaise: number; date: string; note?: string }) => string | null;
+  voidSplitSettlement: (id: string) => void;
   /** Sets (or with null removes) the photo of a person other than yourself. Returns an error message when it is refused. */
   setParticipantPhoto: (id: string, photo: string | null) => string | null;
   /** Icons by lowercase name for payment methods and merchants that have no brand logo. */
@@ -197,7 +209,7 @@ const Ctx = createContext<Store | null>(null);
 const uuid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 
 /** Fields a person can change on an existing record; undefined means "clear it" on the wire. */
-const EDITABLE = ["merchant", "categoryId", "kind", "payerId", "shared", "split", "excluded", "notes", "recurringId", "fundedBy", "paidCardId", "recurringHint", "voucherBrandId", "paidWithVoucherId", "voucherPending", "receiptId"] as const;
+const EDITABLE = ["merchant", "categoryId", "kind", "payerId", "shared", "split", "excluded", "notes", "recurringId", "fundedBy", "paidCardId", "recurringHint", "voucherBrandId", "paidWithVoucherId", "voucherPending", "receiptId", "splitGroupId"] as const;
 function toWirePatch(patch: Partial<ExpenseRecord>) {
   const out: Record<string, unknown> = {};
   for (const k of EDITABLE) if (k in patch) out[k] = patch[k] === undefined ? null : patch[k];
@@ -218,12 +230,12 @@ function seed(live?: LiveInit) {
     return {
       records: d.records.filter((r) => r.status === "reviewed"), staged: d.records.filter((r) => r.status === "unreviewed"), categories: d.categories, rules: d.rules, settlements: [...(c?.settlements ?? []), ...d.settlements.filter((x) => !(c?.settlements ?? []).some((y) => y.id === x.id))],
       shared: c?.shared ?? ([] as SharedExpense[]),
-      receipts: d.receipts, participants: people, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches, cardBills: d.cardBills, voucherBrands: d.voucherBrands, paymentGroups: d.paymentGroups, merchantIcons: d.merchantIcons,
+      receipts: d.receipts, participants: people, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches, cardBills: d.cardBills, voucherBrands: d.voucherBrands, paymentGroups: d.paymentGroups, splitGroups: d.splitGroups, splitSettlements: d.splitSettlements, merchantIcons: d.merchantIcons,
     };
   }
   return {
     records: [...initialRecords, ...mockVoucherRecords, ...historyRecords].filter((r) => r.status === "reviewed"), staged: [...initialRecords, ...mockVoucherRecords].filter((r) => r.status === "unreviewed"), categories: mockCategories, rules: merchantRules,
-    settlements: initialSettlements, shared: [] as SharedExpense[], receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[], cardBills: mockCardBills, voucherBrands: mockVoucherBrands, paymentGroups: mockPaymentGroups, merchantIcons: {} as Record<string, string>,
+    settlements: initialSettlements, shared: [] as SharedExpense[], receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[], cardBills: mockCardBills, voucherBrands: mockVoucherBrands, paymentGroups: mockPaymentGroups, splitGroups: [] as SplitGroup[], splitSettlements: [] as SplitSettlement[], merchantIcons: {} as Record<string, string>,
   };
 }
 
@@ -262,6 +274,8 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   }, [lockedMonth, month]);
   const [view, setView] = useState<View>(initialView);
   const [paymentGroups, setPaymentGroups] = useState<PaymentGroup[]>(init.paymentGroups);
+  const [splitGroups, setSplitGroups] = useState<SplitGroup[]>(init.splitGroups);
+  const [splitSettlements, setSplitSettlements] = useState<SplitSettlement[]>(init.splitSettlements);
   const [groupId, setGroupIdState] = useState<string>("");
   // The chosen group is remembered on this device.
   useEffect(() => {
@@ -288,7 +302,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   if (prevInit !== init) {
     setPrevInit(init);
     setRecords(init.records); setStaged(init.staged); setCategories(init.categories); setRules(init.rules); setSettlements(init.settlements); setShared(init.shared);
-    setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems); setCardBills(init.cardBills); setVoucherBrands(init.voucherBrands); setMerchantIcons(init.merchantIcons); setPaymentGroups(init.paymentGroups);
+    setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems); setCardBills(init.cardBills); setVoucherBrands(init.voucherBrands); setMerchantIcons(init.merchantIcons); setPaymentGroups(init.paymentGroups); setSplitGroups(init.splitGroups); setSplitSettlements(init.splitSettlements);
     // New data may live in a month other than the one on screen (e.g. an older statement): keep the month if it has data, else move to one that does.
     const dates = [...init.records, ...init.staged].map((r) => r.date);
     setMonth((m) => (lockedMonth || dates.length === 0 || dates.some((d) => d.startsWith(m)) ? m : pickMonth(today, dates)));
@@ -362,7 +376,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     setRecords((rs) => [...rs, rec]);
     void send({
       type: "record.create",
-      record: { id: rec.id, date: rec.date, merchant: rec.merchant, amountPaise: rec.amountPaise, accountId: rec.accountId, categoryId: rec.categoryId, kind: rec.kind, payerId: rec.payerId, shared: rec.shared, split: rec.split, excluded: rec.excluded, notes: rec.notes, recurringId: rec.recurringId, fundedBy: rec.fundedBy, paidCardId: rec.paidCardId, voucherBrandId: rec.voucherBrandId, paidWithVoucherId: rec.paidWithVoucherId },
+      record: { id: rec.id, date: rec.date, merchant: rec.merchant, amountPaise: rec.amountPaise, accountId: rec.accountId, categoryId: rec.categoryId, kind: rec.kind, payerId: rec.payerId, shared: rec.shared, split: rec.split, excluded: rec.excluded, notes: rec.notes, recurringId: rec.recurringId, fundedBy: rec.fundedBy, paidCardId: rec.paidCardId, voucherBrandId: rec.voucherBrandId, paidWithVoucherId: rec.paidWithVoucherId, splitGroupId: rec.splitGroupId },
     });
   }, [live, send]);
   const stageRecords = useCallback((rs: ExpenseRecord[]) => {
@@ -582,6 +596,58 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     if (!paymentGroups.some((g) => g.name.toLowerCase() === "parents")) { if (!saveGroup({ name: "Parents", kind: "people", memberIds: [], coverMembers: true, includeMe: false })) added++; }
     return added;
   }, [participants, meId, partnerId, paymentGroups, saveGroup]);
+  const saveSplitGroup = useCallback((draft: { id?: string; name: string; kind: SplitGroupKind; participantIds: string[]; note?: string }): { id?: string; error?: string } => {
+    const name = draft.name.replace(/\s+/g, " ").trim();
+    const participantIds = [...new Set(draft.participantIds)];
+    const err = checkSplitGroup({ name, participantIds }, splitGroups.filter((g) => g.id !== draft.id));
+    if (err) return { error: err };
+    const prior = splitGroups.find((g) => g.id === draft.id);
+    if (prior?.archived) return { error: `${prior.name} is archived. Reopen it to change it.` };
+    if (prior) {
+      const inUse = peopleInUse(prior.id, [...records, ...staged], splitSettlements);
+      const gone = prior.participantIds.find((p) => !participantIds.includes(p) && inUse.has(p));
+      if (gone) return { error: `${participants.find((p) => p.id === gone)?.name ?? "Someone"} has expenses or payments in this group, so they cannot be removed.` };
+    }
+    const id = draft.id ?? `sg_${slug(name)}-${uuid().slice(0, 6)}`;
+    const note = draft.note?.trim();
+    const g: SplitGroup = { id, name, kind: draft.kind, participantIds, createdAt: prior?.createdAt ?? today, ...(note ? { note } : {}) };
+    setSplitGroups((gs) => (gs.some((x) => x.id === id) ? gs.map((x) => (x.id === id ? g : x)) : [g, ...gs]));
+    void send({ type: "splitGroup.put", group: { id, name, kind: g.kind, participantIds, ...(note ? { note } : {}) } });
+    return { id };
+  }, [splitGroups, splitSettlements, records, staged, participants, today, send]);
+  const archiveSplitGroup = useCallback((id: string, archived: boolean) => {
+    setSplitGroups((gs) => gs.map((g) => { if (g.id !== id) return g; const { archived: _a, ...rest } = g; void _a; return { ...rest, ...(archived ? { archived: true } : {}) }; }));
+    void send({ type: "splitGroup.archive", id, archived });
+  }, [send]);
+  const deleteSplitGroup = useCallback((id: string) => {
+    const cur = splitGroups.find((g) => g.id === id);
+    if (!cur) return "That group was not found.";
+    if ([...records, ...staged].some((r) => r.splitGroupId === id)) return `${cur.name} has expenses, so it cannot be deleted. Archive it instead.`;
+    if (splitSettlements.some((s) => s.groupId === id)) return `${cur.name} has payments recorded, so it cannot be deleted. Archive it instead.`;
+    setSplitGroups((gs) => gs.filter((g) => g.id !== id));
+    void send({ type: "splitGroup.delete", id });
+    return null;
+  }, [splitGroups, splitSettlements, records, staged, send]);
+  const addSplitSettlement = useCallback((s: { groupId: string; fromId: string; toId: string; amountPaise: number; date: string; note?: string }) => {
+    const g = splitGroups.find((x) => x.id === s.groupId);
+    if (!g) return "That group was not found.";
+    if (g.archived) return `${g.name} is archived. Reopen it to record a payment.`;
+    if (s.fromId === s.toId || !g.participantIds.includes(s.fromId) || !g.participantIds.includes(s.toId)) return "Pick two different people from the group.";
+    if (!Number.isInteger(s.amountPaise) || s.amountPaise <= 0) return "Enter an amount.";
+    const id = uuid();
+    const mirrored = s.fromId === meId || s.toId === meId;
+    setSplitSettlements((x) => [...x, { id, groupId: s.groupId, date: s.date, fromId: s.fromId, toId: s.toId, amountPaise: s.amountPaise, ...(s.note ? { note: s.note } : {}), ...(mirrored ? { ledgerSettlementId: `${id}-l` } : {}) }]);
+    // A payment you make or receive also moves your People balances, as a normal settlement (never an expense).
+    if (mirrored) setSettlements((x) => [...x, { id: `${id}-l`, date: s.date, fromId: s.fromId, toId: s.toId, amountPaise: s.amountPaise, note: `${g.name}${s.note ? `: ${s.note}` : ""}` }]);
+    void send({ type: "splitGroup.settle", settlement: { id, groupId: s.groupId, date: s.date, fromId: s.fromId, toId: s.toId, amountPaise: s.amountPaise, ...(s.note ? { note: s.note } : {}) } });
+    return null;
+  }, [splitGroups, meId, send]);
+  const voidSplitSettlement = useCallback((id: string) => {
+    const cur = splitSettlements.find((s) => s.id === id);
+    setSplitSettlements((x) => x.map((s) => (s.id === id ? { ...s, voided: true } : s)));
+    if (cur?.ledgerSettlementId) setSettlements((x) => x.map((s) => (s.id === cur.ledgerSettlementId ? { ...s, voided: true } : s)));
+    void send({ type: "splitGroup.voidSettlement", id });
+  }, [splitSettlements, send]);
   const setParticipantPhoto = useCallback((id: string, photo: string | null) => {
     const cur = participants.find((p) => p.id === id);
     if (!cur) return "That person was not found.";
@@ -705,7 +771,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, setParticipantPhoto, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, recurringSuggestions, recurringAlerts, confirmRecurringSuggestion, dismissRecurringSuggestion, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, splitGroups, splitSettlements, saveSplitGroup, archiveSplitGroup, deleteSplitGroup, addSplitSettlement, voidSplitSettlement, setParticipantPhoto, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, recurringSuggestions, recurringAlerts, confirmRecurringSuggestion, dismissRecurringSuggestion, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,

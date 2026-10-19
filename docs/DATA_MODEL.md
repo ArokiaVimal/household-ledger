@@ -18,6 +18,9 @@ Migrations: versioned scripts in `migrations/` (not yet created).
 ## Household data (implemented in slice 5)
 Paths: `households/{id}/{records|settlements|receipts|recurring|participants|accounts|categories|merchantRules|auditEvents}/{docId}`. `records` holds both the ledger (`status: reviewed`) and the review queue (`status: unreviewed`). Participants of members are `u_<uid>` with `userId` set; friends are `p_<name>-<rand>` with `userId: null`. Merchant rule ids are `r_<slug(merchant)>` so a merchant has one rule. Not yet: `rawTransactions`, `importBatches` (written by the real importer).
 
+## Split Groups (added)
+`splitGroups/{id}` (name, kind, participantIds, createdAt, note?, archived?) and `splitSettlements/{id}` (groupId, date, fromId, toId, amountPaise, note?, voided?, ledgerSettlementId?), both server-written and member-read. An expense joins a group only through `ExpenseRecord.splitGroupId`; balances are derived (`src/domain/split-groups.ts`), never stored.
+
 ## Couple space (added)
 `users/{uid}`: `householdId` (personal space) and `coupleId` (couple space, kept after unlinking). `households/{id}`: `kind` ("personal" | "couple"), couple only: `splitRatio {leaderUid, leaderBps}` (absent until chosen), `endedAt`, `endedBy`. Couple subcollections: `members`, `participants` (ids `u_<uid>`, the same ids used in each personal space), `sharedExpenses` (`SharedExpense`: id = source record id, ownerUid, payerId, date, merchant, amountPaise, kind, categoryId, categoryName, split, note?, voided?, createdAt, updatedAt), `settlements`, `auditEvents`. `ExpenseRecord` gains `sharedWithPartner` and `shareNote`.
 

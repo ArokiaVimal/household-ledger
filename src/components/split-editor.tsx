@@ -37,7 +37,7 @@ const signedRupees = (text: string): number | null => (text.trim() === "" || tex
 const firstName = (s: string) => s.trim().split(/\s+/)[0] || s;
 
 /** Controlled editor. Amounts shown come from computeShares, never recomputed here. */
-export function SplitEditor({ total, value, onChange }: { total: Paise; value: SplitConfig; onChange: (v: SplitConfig) => void }) {
+export function SplitEditor({ total, value, onChange, only }: { total: Paise; value: SplitConfig; onChange: (v: SplitConfig) => void; /** Limits who can be in the split (a Split Group's people). You are always in. */ only?: string[] }) {
   const { nameOf, participants, meId, splitRatio, partnerId, pendingPartner, live, partner, addParticipant } = useStore();
   // The couple's usual two-way split (set in Settings). Anchored to the person it names, not to whoever is signed in,
   // so the same expense is split the same way on both phones.
@@ -46,7 +46,9 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
   const ME = "__me";
   const nobody: SplitConfig = { mode: "personal", participantIds: [meId] };
   const others = value.participantIds.filter((id) => id !== meId);
-  const people = participants.filter((p) => p.id !== meId);
+  const people = participants.filter((p) => p.id !== meId && (!only || only.includes(p.id)));
+  // Everyone who can be picked in the detailed list. Inside a group that is the group, in the group's own order.
+  const pool = only ? participants.filter((p) => p.id === meId || only.includes(p.id)) : participants;
   // The usual way to split with one person: your couple ratio with your partner, otherwise down the middle.
   const usualWith = (o: string): SplitConfig => (o === partnerId && splitRatio.leaderBps !== 5000
     ? ratioSplit(ownerId, ownerId === meId ? o : meId, splitRatio.leaderBps)
@@ -122,7 +124,8 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
   };
   const pickPerson = (id: string) => {
     setAdvanced(false);
-    if (id === ME) return onChange(nobody);
+    if (id === ME) return only ? undefined : onChange(nobody);
+    if (only && others.length === 1 && others[0] === id) return; // a group expense needs someone to share it with
     onChange(withConfig(others.includes(id) ? others.filter((x) => x !== id) : [...others, id]));
   };
   const mode = MODES.find((m) => m.id === value.mode)!;
@@ -136,7 +139,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
   return (
     <div className="space-y-2">
       <FormRow label="Split with">
-        <CompactChips multi label="Split with" options={[{ id: ME, label: "Just me", icon: <PersonGlyph name="Me" id={meId} /> }, ...people.map((p) => ({ id: p.id, icon: <PersonGlyph name={nameOf(p.id)} id={p.id} />, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : nameOf(p.id) }))]} selected={others.length ? others : [ME]} onPick={pickPerson} adder={{ label: "Add a friend", placeholder: "Friend's name, e.g. Karthik", add: addParticipant }} />
+        <CompactChips multi label="Split with" options={[...(only ? [] : [{ id: ME, label: "Just me", icon: <PersonGlyph name="Me" id={meId} /> }]), ...people.map((p) => ({ id: p.id, icon: <PersonGlyph name={nameOf(p.id)} id={p.id} />, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : nameOf(p.id) }))]} selected={others.length ? others : [ME]} onPick={pickPerson} adder={only ? undefined : { label: "Add a friend", placeholder: "Friend's name, e.g. Karthik", add: addParticipant }} />
         {live && !partner && pendingPartner && others.includes(pendingPartner.id) && <p className="mt-1.5 text-xs text-muted">{pendingPartner.name} has not joined yet. This stays on your side and is shared once they accept.</p>}
         {live && !partner && !pendingPartner && <p className="mt-1.5 text-xs text-muted">Splitting with a partner? <Link href="/settings" className="text-accent underline">Link them in Settings</Link>. Until then everything stays private.</p>}
         {live && partner && !partner.active && <p className="mt-1.5 text-xs text-muted">You unlinked from {partner.name}, so nothing new can be shared with them.</p>}
@@ -167,7 +170,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
                       {items.length > 1 && <button type="button" aria-label={`Remove ${it.name || "item"}`} onClick={() => setItems(items.filter((x) => x.id !== it.id))} className="grid size-8 shrink-0 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={14} aria-hidden /></button>}
                     </div>
                     <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Who shared ${it.name || "this item"}`}>
-                      {participants.map((p) => {
+                      {pool.map((p) => {
                         const on = it.participantIds.includes(p.id);
                         return <button key={p.id} type="button" aria-pressed={on} onClick={() => toggleItemPerson(it, p.id)} className={`min-h-8 rounded-full border px-3 text-sm ${on ? "border-accent bg-accent text-white" : "border-border bg-surface text-muted"}`}>{firstName(nameOf(p.id))}</button>;
                       })}
@@ -186,7 +189,7 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
           ) : (
             <>
               <ul className="divide-y divide-border overflow-hidden rounded-2xl bg-surface" aria-label="Who is in this expense">
-                {participants.map((p) => {
+                {pool.map((p) => {
                   const on = ids.includes(p.id);
                   const tag = p.pendingEmail ? "invited" : p.id === partnerId || p.relationship === "partner" ? "" : p.userId === null ? relationshipText(p).toLowerCase() : "";
                   const values = value.values ?? {};

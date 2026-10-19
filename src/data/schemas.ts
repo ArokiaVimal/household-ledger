@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { validateSplit } from "@/domain/splits";
 import { ICON_KEYS } from "@/domain/icons";
-import type { PaymentGroup, Account, AuditEvent, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense, SplitConfig } from "@/domain/types";
+import type { SplitGroup, SplitSettlement, PaymentGroup, Account, AuditEvent, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense, SplitConfig } from "@/domain/types";
 
 export const SCHEMA_VERSION = 1;
 
@@ -57,6 +57,7 @@ export const ExpenseRecordSchema = z
     suggested: z.enum(["memory", "ai", "ai_unsure"]).optional(),
     sharedWithPartner: z.boolean().optional(),
     shareNote: z.boolean().optional(),
+    splitGroupId: id.optional(),
   })
   .superRefine((r, ctx) => {
     // Business rule lives in the domain: shares must add up to the amount, to the paise.
@@ -100,7 +101,7 @@ export const ruleId = (merchant: string) => `r_${merchant.trim().toLowerCase().r
 export const AuditEventSchema = z.object({
   id, at: z.string().datetime(), actorId: id,
   action: z.enum(["import", "approve", "reject", "edit", "create", "match", "unmatch", "settle", "void_settlement", "delete"]),
-  entity: z.enum(["record", "settlement", "receipt", "recurring", "household"]), entityId: id, summary: z.string().max(500),
+  entity: z.enum(["record", "settlement", "receipt", "recurring", "household", "split_group"]), entityId: id, summary: z.string().max(500),
   change: z.object({ before: z.record(z.string(), z.unknown()), after: z.record(z.string(), z.unknown()) }).refine((c) => JSON.stringify(c).length <= 8000, "change too large").optional(), undoes: id.optional(),
 }) satisfies z.ZodType<AuditEvent>;
 
@@ -137,3 +138,11 @@ export const VoucherBrandSchema = z.object({
   tracksAllUse: z.boolean().optional(),
 }) satisfies z.ZodType<VoucherBrand>;
 
+
+export const SplitGroupSchema = z.object({
+  id, name: z.string().min(1).max(40), kind: z.enum(["trip", "outing", "party", "dinner", "other"]), participantIds: z.array(id).min(2).max(30), createdAt: date, note: z.string().max(200).optional(), archived: z.boolean().optional(),
+}) satisfies z.ZodType<SplitGroup>;
+
+export const SplitSettlementSchema = z
+  .object({ id, groupId: id, date, fromId: id, toId: id, amountPaise: paise.positive(), note: z.string().max(500).optional(), voided: z.boolean().optional(), ledgerSettlementId: id.optional() })
+  .refine((s) => s.fromId !== s.toId, { message: "Pick two different people", path: ["toId"] }) satisfies z.ZodType<SplitSettlement>;

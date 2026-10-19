@@ -17,6 +17,7 @@ import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
 import { buildShared, planShare, SharingError } from "@/domain/sharing";
 import type { AuditEvent, ExpenseRecord } from "@/domain/types";
+import { checkSplitGroupTag, runSplitGroupAction, splitGroupActionSchemas, undoSplitGroupChange } from "./split-group-actions";
 import { syncRecordToLinks, syncSettlement, type ActionLink } from "@/lib/links/sync";
 
 const id = z.string().min(1).max(128);
@@ -26,12 +27,12 @@ const money = z.number().int().safe();
 const editable = z.object({
   merchant: z.string().min(1).max(120), categoryId: id, kind: z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]),
   payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).nullable(),
-  recurringId: id.nullable(), fundedBy: id.nullable(), paidCardId: id.nullable(), recurringHint: z.boolean().nullable(), voucherBrandId: id.nullable(), paidWithVoucherId: id.nullable(), voucherPending: z.boolean().nullable(), receiptId: id.nullable(), shareNote: z.boolean(),
+  recurringId: id.nullable(), fundedBy: id.nullable(), paidCardId: id.nullable(), recurringHint: z.boolean().nullable(), voucherBrandId: id.nullable(), paidWithVoucherId: id.nullable(), voucherPending: z.boolean().nullable(), receiptId: id.nullable(), shareNote: z.boolean(), splitGroupId: id.nullable(),
 }).partial();
 
 const manualRecord = z.object({
   id, date: z.string(), merchant: z.string().min(1).max(120), amountPaise: money, accountId: id, categoryId: id, kind: z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]),
-  payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).optional(), recurringId: id.optional(), fundedBy: id.optional(), paidCardId: id.optional(), voucherBrandId: id.optional(), paidWithVoucherId: id.optional(),
+  payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).optional(), recurringId: id.optional(), fundedBy: id.optional(), paidCardId: id.optional(), voucherBrandId: id.optional(), paidWithVoucherId: id.optional(), splitGroupId: id.optional(),
 });
 
 export const ActionSchema = z.discriminatedUnion("type", [
@@ -71,6 +72,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("voucherBrand.add"), id, name: z.string().max(60) }),
   z.object({ type: z.literal("voucherBrand.update"), id, name: z.string().max(60).optional(), balance: z.object({ amountPaise: z.number().int().safe().min(0), asOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).nullable().optional(), tracksAllUse: z.boolean().optional() }),
   z.object({ type: z.literal("voucherBrand.delete"), id }),
+  ...splitGroupActionSchemas,
 ]);
 export type Action = z.infer<typeof ActionSchema>;
 
@@ -91,7 +93,7 @@ export interface CoupleContext {
 }
 
 /** The classification, split and status fields an undo can restore. Raw bank fields are never in this list. */
-const UNDO_FIELDS = ["categoryId", "merchant", "kind", "excluded", "status", "split", "shared", "payerId", "notes", "recurringId", "fundedBy", "paidCardId", "voucherBrandId", "paidWithVoucherId", "voucherPending", "recurringHint", "suggested", "receiptId"] as const;
+const UNDO_FIELDS = ["categoryId", "merchant", "kind", "excluded", "status", "split", "shared", "payerId", "notes", "recurringId", "fundedBy", "paidCardId", "voucherBrandId", "paidWithVoucherId", "voucherPending", "recurringHint", "suggested", "receiptId", "splitGroupId"] as const;
 const sameValue = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 /** What changed between two versions of a record, in the undoable fields only. Absent values are stored as null. */
 function changeOf(before: ExpenseRecord, after: ExpenseRecord): { before: Record<string, unknown>; after: Record<string, unknown> } | null {
@@ -191,7 +193,22 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
     for (const id of [r.voucherBrandId, r.paidWithVoucherId]) if (id && !(await repo.voucherBrands.get(id))) throw new ActionError("invalid", "Unknown voucher brand.");
   };
 
+  /** Split Groups: what the group module needs from here (see split-group-actions.ts). */
+  const splitCtx = {
+    repo, log, meId: meParticipant,
+    fail: (code: ActionError["code"], message: string): never => { throw new ActionError(code, message); },
+    isKnownPerson: async (pid: string) => !!(await repo.participants.get(pid)) || pid === meParticipant || (!!couple && pid === couple.partnerId),
+    ledger: (action: object) => run(repo, actor, action, couple, links),
+  };
+
   switch (a.type) {
+    case "splitGroup.put":
+    case "splitGroup.archive":
+    case "splitGroup.delete":
+    case "splitGroup.settle":
+    case "splitGroup.voidSettlement":
+      await runSplitGroupAction(splitCtx, a);
+      return;
     case "voucherBrand.add": {
       const name = a.name.replace(/\s+/g, " ").trim();
       if (!name || name.length > 40) throw new ActionError("invalid", "Enter a voucher name (up to 40 characters).");
@@ -233,6 +250,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
         ...strip(a.record), currency: "INR", status: "reviewed", importSource: "Manual entry", originalDescription: "Entered manually",
       });
       await checkVoucherRefs(rec as ExpenseRecord);
+      await checkSplitGroupTag(splitCtx, rec as ExpenseRecord);
       const shared = await syncShare(rec as ExpenseRecord);
       await syncLinks(shared);
       await repo.records.put(shared);
@@ -247,6 +265,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const next = applyPatch(cur, a.patch ?? {});
       if (a.type === "record.approve") { next.status = "reviewed"; delete next.suggested; }
       await checkVoucherRefs(next);
+      await checkSplitGroupTag(splitCtx, next, cur);
       const shared = await syncShare(next);
       await syncLinks(shared);
       await repo.records.put(shared);
@@ -265,6 +284,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const events = await repo.audit.list();
       const ix = events.findIndex((e) => e.id === a.eventId);
       const ev = events[ix];
+      if (ev?.entity === "split_group") { await undoSplitGroupChange(splitCtx, events, ev); return; }
       if (!ev || ev.entity !== "record" || !ev.change) throw new ActionError("not_found", "That change cannot be undone.");
       if (events.some((e) => e.undoes === ev.id)) throw new ActionError("conflict", "That change was already undone.");
       if (events.slice(ix + 1).some((e) => e.entity === "record" && e.entityId === ev.entityId && e.change)) throw new ActionError("conflict", "This transaction has changed since. Undo the newer change first.");
@@ -276,6 +296,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       for (const [k, v] of Object.entries(ev.change.before)) { if (v === null || v === undefined) delete next[k]; else next[k] = v; }
       const rec = next as unknown as ExpenseRecord;
       await checkVoucherRefs(rec);
+      await checkSplitGroupTag(splitCtx, rec, cur);
       const shared = await syncShare(rec);
       await syncLinks(shared);
       await repo.records.put(shared);
@@ -558,6 +579,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const check = checkFriendDelete(p ?? undefined, `u_${actor.uid}`, friendUsage(a.id, { records, settlements, recurring }));
       if (!p) throw new ActionError("not_found", "That person was not found.");
       if (!check.ok) throw new ActionError("conflict", check.reason);
+      if ((await repo.splitGroups.list()).some((g) => g.participantIds.includes(a.id))) throw new ActionError("conflict", `${p.name} is in a split group. Remove them from it first.`);
       if (p.linkId) throw new ActionError("conflict", `${p.name} is linked to an account. Unlink first (Settings, Friends & Family), then you can remove them.`);
       await repo.participants.remove(a.id);
       await log("delete", "household", a.id, `Removed friend ${p.name}`);

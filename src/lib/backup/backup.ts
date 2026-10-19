@@ -3,19 +3,22 @@
 // backup that verified, and it replaces the space's data in one explicit step. Works with any Repository (Firestore, memory).
 import type { ZodType } from "zod";
 import type { Repository } from "@/data/repository";
-import { AccountSchema, AuditEventSchema, CardBillSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, PaymentGroupSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, VoucherBrandSchema } from "@/data/schemas";
+import { AccountSchema, AuditEventSchema, CardBillSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, PaymentGroupSchema, SplitGroupSchema, SplitSettlementSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, VoucherBrandSchema } from "@/data/schemas";
 
 export const BACKUP_FORMAT = "ledger-backup";
 export const BACKUP_VERSION = 1;
 
 /** Everything in a personal space. Partner and linked-friend shared copies live in their own spaces and are not part of it. */
-export const COLLECTIONS = ["participants", "accounts", "categories", "rules", "merchantMemory", "paymentGroups", "voucherBrands", "recurring", "cardBills", "importBatches", "rawTransactions", "records", "settlements", "receipts", "audit"] as const;
+export const COLLECTIONS = ["participants", "accounts", "categories", "rules", "merchantMemory", "paymentGroups", "voucherBrands", "recurring", "cardBills", "importBatches", "rawTransactions", "records", "settlements", "receipts", "audit", "splitGroups", "splitSettlements"] as const;
+/** Sections that older backups do not have: read as empty instead of failing, and left out of the checksum when absent. */
+const OPTIONAL: ReadonlySet<CollectionName> = new Set(["splitGroups", "splitSettlements"]);
 export type CollectionName = (typeof COLLECTIONS)[number];
 
 const SCHEMAS: Record<CollectionName, ZodType<{ id: string }>> = {
   participants: ParticipantSchema, accounts: AccountSchema, categories: CategorySchema, rules: RuleDocSchema, merchantMemory: MerchantMemorySchema, paymentGroups: PaymentGroupSchema,
   voucherBrands: VoucherBrandSchema, recurring: RecurringItemSchema, cardBills: CardBillSchema, importBatches: ImportBatchSchema as unknown as ZodType<{ id: string }>, rawTransactions: RawTransactionSchema,
   records: ExpenseRecordSchema as unknown as ZodType<{ id: string }>, settlements: SettlementSchema as unknown as ZodType<{ id: string }>, receipts: ReceiptSchema, audit: AuditEventSchema as unknown as ZodType<{ id: string }>,
+  splitGroups: SplitGroupSchema, splitSettlements: SplitSettlementSchema as unknown as ZodType<{ id: string }>,
 };
 
 export interface Backup {
@@ -41,11 +44,11 @@ export async function sha256Hex(text: string): Promise<string> {
 const sortById = <T extends { id: string }>(xs: T[]) => [...xs].sort((a, b) => a.id.localeCompare(b.id));
 
 async function read(repo: Repository): Promise<Record<CollectionName, { id: string }[]>> {
-  const [participants, accounts, categories, rules, merchantMemory, paymentGroups, voucherBrands, recurring, cardBills, importBatches, rawTransactions, records, settlements, receipts, audit] = await Promise.all([
+  const [participants, accounts, categories, rules, merchantMemory, paymentGroups, voucherBrands, recurring, cardBills, importBatches, rawTransactions, records, settlements, receipts, audit, splitGroups, splitSettlements] = await Promise.all([
     repo.participants.list(), repo.accounts.list(), repo.categories.list(), repo.rules.list(), repo.merchantMemory.list(), repo.paymentGroups.list(), repo.voucherBrands.list(), repo.recurring.list(), repo.cardBills.list(),
-    repo.importBatches.list(), repo.rawTransactions.list(), repo.records.list(), repo.settlements.list(), repo.receipts.list(), repo.audit.list(),
+    repo.importBatches.list(), repo.rawTransactions.list(), repo.records.list(), repo.settlements.list(), repo.receipts.list(), repo.audit.list(), repo.splitGroups.list(), repo.splitSettlements.list(),
   ]);
-  const all: Record<CollectionName, { id: string }[]> = { participants, accounts, categories, rules, merchantMemory, paymentGroups, voucherBrands, recurring, cardBills, importBatches, rawTransactions, records, settlements, receipts, audit };
+  const all: Record<CollectionName, { id: string }[]> = { participants, accounts, categories, rules, merchantMemory, paymentGroups, voucherBrands, recurring, cardBills, importBatches, rawTransactions, records, settlements, receipts, audit, splitGroups, splitSettlements };
   // Sorted so the same data always produces the same file and checksum.
   return Object.fromEntries(COLLECTIONS.map((c) => [c, sortById(all[c])])) as Record<CollectionName, { id: string }[]>;
 }
@@ -68,6 +71,7 @@ export async function verifyBackup(raw: unknown): Promise<VerifyResult> {
   const cols = o.collections as Record<string, unknown>;
   for (const name of COLLECTIONS) {
     const rows = cols[name];
+    if (!Array.isArray(rows) && OPTIONAL.has(name) && rows === undefined) continue;
     if (!Array.isArray(rows)) { errors.push(`The ${name} section is missing.`); continue; }
     const seen = new Set<string>();
     rows.forEach((row, i) => {
@@ -79,9 +83,11 @@ export async function verifyBackup(raw: unknown): Promise<VerifyResult> {
     if (o.counts && o.counts[name] !== rows.length) errors.push(`${name}: the file says ${o.counts[name]} but holds ${rows.length}.`);
   }
   if (errors.length > 0) return { ok: false, errors };
-  const collections = Object.fromEntries(COLLECTIONS.map((c) => [c, (cols[c] as { id: string }[]).map((x) => SCHEMAS[c].parse(x))])) as Record<CollectionName, { id: string }[]>;
-  if ((await sha256Hex(canonical(collections))) !== o.checksum) return { ok: false, errors: ["The checksum does not match: the file was changed or damaged after it was exported, so it was not restored."] };
+  const present = COLLECTIONS.filter((c) => !(OPTIONAL.has(c) && cols[c] === undefined));
+  const parsed = Object.fromEntries(present.map((c) => [c, (cols[c] as { id: string }[]).map((x) => SCHEMAS[c].parse(x))])) as Record<CollectionName, { id: string }[]>;
+  if ((await sha256Hex(canonical(parsed))) !== o.checksum) return { ok: false, errors: ["The checksum does not match: the file was changed or damaged after it was exported, so it was not restored."] };
 
+  const collections = { ...Object.fromEntries(COLLECTIONS.filter((c) => OPTIONAL.has(c)).map((c) => [c, []])), ...parsed } as Record<CollectionName, { id: string }[]>;
   const warnings: string[] = [];
   const ids = (c: CollectionName) => new Set(collections[c].map((x) => x.id));
   const acc = ids("accounts"), cat = ids("categories"), ppl = ids("participants");
@@ -107,6 +113,7 @@ export async function restoreBackup(repo: Repository, backup: Backup, wipe: () =
   await put(repo.merchantMemory, c.merchantMemory); await put(repo.paymentGroups, c.paymentGroups); await put(repo.voucherBrands, c.voucherBrands); await put(repo.recurring, c.recurring);
   await put(repo.cardBills, c.cardBills); await put(repo.importBatches, c.importBatches); await put(repo.rawTransactions, c.rawTransactions); await put(repo.records, c.records);
   await put(repo.settlements, c.settlements); await put(repo.receipts, c.receipts);
+  await put(repo.splitGroups, c.splitGroups ?? []); await put(repo.splitSettlements, c.splitSettlements ?? []);
   for (const e of c.audit as { id: string; at: string; actorId: string; action: never; entity: never; entityId: string; summary: string }[]) await repo.audit.append(e);
   return backup.counts;
 }

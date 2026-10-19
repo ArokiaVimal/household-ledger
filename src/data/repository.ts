@@ -1,7 +1,7 @@
 // Data-access contract. UI and server routes depend on this interface only.
 // Implementations: memory-repository.ts (prototype, tests) and, in a later slice,
 // a Firestore adapter under src/data/firebase/. Business rules stay in src/domain.
-import type { PaymentGroup, Account, AuditEvent, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
+import type { SplitGroup, SplitSettlement, PaymentGroup, Account, AuditEvent, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
 import type { RuleDoc } from "./schemas";
 
 export class NotFoundError extends Error {}
@@ -32,6 +32,9 @@ export interface Repository {
   cardBills: Collection<CardBill>;
   voucherBrands: Collection<VoucherBrand>;
   paymentGroups: Collection<PaymentGroup>;
+  /** Split Groups (trips, dinners, outings) and the payments made inside them. Group settlements are never deleted, only voided. */
+  splitGroups: Collection<SplitGroup>;
+  splitSettlements: AppendOnly<SplitSettlement>;
   participants: Collection<Participant>;
   accounts: Collection<Account>;
   categories: Collection<Category>;

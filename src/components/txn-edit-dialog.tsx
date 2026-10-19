@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeftRight, Ban, Banknote, CalendarDays, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeftRight, Ban, Banknote, CalendarDays, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Trash2, Undo2, Users } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useStore } from "@/data/store";
 import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
@@ -8,7 +8,8 @@ import { shortName, walletAccountFor, walletBrandFor } from "@/domain/accounts";
 import { knownVoucherSeller } from "@/domain/vouchers";
 import { formatINR, parseRupees } from "@/domain/money";
 import { equalSplit, validateSplit } from "@/domain/splits";
-import type { ExpenseRecord, SplitConfig, TxnKind } from "@/domain/types";
+import { checkGroupExpense } from "@/domain/split-groups";
+import type { ExpenseRecord, SplitConfig, SplitGroup, TxnKind } from "@/domain/types";
 import { SplitEditor } from "./split-editor";
 import { MerchantAvatar } from "./txn-row";
 import { AiBadge, Button, CompactChips, ConfirmDialog, Dialog, FormRow, Input } from "./ui";
@@ -43,22 +44,22 @@ export function TxnReviewDialog({ record, onClose, next }: Props) {
 }
 
 /** Manual entry. `round` changes after "Add another" so the form resets. */
-export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { open: boolean; round: number; onClose: () => void; onAnother: () => void; onAdded: (msg: string) => void }) {
+export function TxnAddDialog({ open, round, onClose, onAnother, onAdded, splitGroup }: { open: boolean; round: number; onClose: () => void; onAnother: () => void; onAdded: (msg: string) => void; /** Adding from a Split Group: its people are preselected and the expense is tagged to it. */ splitGroup?: SplitGroup }) {
   const { month, today, meId, accounts } = useStore();
   const draft: ExpenseRecord = {
     id: "", date: today.startsWith(month) ? today : `${month}-01`, merchant: "", originalDescription: "Entered manually", amountPaise: 0, currency: "INR",
-    accountId: accounts[0]?.id ?? "", categoryId: "uncategorized", kind: "purchase", payerId: meId, shared: false, split: { mode: "personal", participantIds: [meId] },
-    excluded: false, status: "reviewed", importSource: "Manual entry",
+    accountId: accounts[0]?.id ?? "", categoryId: "uncategorized", kind: "purchase", payerId: meId, shared: !!splitGroup, split: splitGroup ? { mode: "equal", participantIds: splitGroup.participantIds } : { mode: "personal", participantIds: [meId] },
+    excluded: false, status: "reviewed", importSource: "Manual entry", ...(splitGroup ? { splitGroupId: splitGroup.id } : {}),
   };
   return (
-    <Dialog open={open} onClose={onClose} title="Add transaction">
+    <Dialog open={open} onClose={onClose} title={splitGroup ? `Add expense to ${splitGroup.name}` : "Add transaction"}>
       {open && <Form key={round} mode="add" record={draft} onClose={onClose} onAnother={onAnother} onAdded={onAdded} />}
     </Dialog>
   );
 }
 
 function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { meId, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, addCategory, voucherBrands, addVoucherBrand } = useStore();
+  const { meId, accounts, participants, recurringItems, categories, records, staged, splitGroups, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, nameOf, saveRecurring, addCategory, voucherBrands, addVoucherBrand } = useStore();
   const [deleting, setDeleting] = useState(false);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";
@@ -79,6 +80,17 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [kind, setKind] = useState(record.kind);
   const [payerId, setPayerId] = useState(record.payerId);
   const [split, setSplit] = useState<SplitConfig>(record.split);
+  // Split Groups: an expense can be tagged to a trip, dinner or outing. The group only tags it; it stays one ledger record.
+  const [splitGroupId, setSplitGroupId] = useState(record.splitGroupId ?? "");
+  const splitGroup = splitGroups.find((g) => g.id === splitGroupId);
+  const groupChoices = splitGroups.filter((g) => !g.archived || g.id === record.splitGroupId);
+  const pickGroup = (gid: string) => {
+    setSplitGroupId(gid);
+    const g = splitGroups.find((x) => x.id === gid);
+    if (!g) return;
+    if (!split.participantIds.every((id) => g.participantIds.includes(id)) || split.participantIds.length < 2) setSplit({ mode: "equal", participantIds: g.participantIds });
+    if (!g.participantIds.includes(payerId)) setPayerId(g.participantIds.includes(meId) ? meId : g.participantIds[0]);
+  };
   // An import that looks like a monthly commitment starts with "Repeat every month" selected (or its existing recurring item),
   // so approving it adds it to Recurring. You can switch to None before approving.
   const sameItem = recurringItems.find((i) => { const a = i.name.toLowerCase(), b = record.merchant.toLowerCase(); return !!b && (a.includes(b) || b.includes(a)); });
@@ -120,13 +132,14 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
     }
     return [...seen.values()].sort((a, b) => b.n - a.n).slice(0, 5);
   }, [adding, records]);
-  const sharing = split.mode !== "personal" || payerId !== meId;
+  const sharing = split.mode !== "personal" || payerId !== meId || !!splitGroup;
   const isUpi = accounts.find((a) => a.id === accountId)?.type === "upi";
   const splitError = topUp ? null : validateSplit(amountPaise, split);
   const missing = adding ? (!accountId ? "Add a payment method first (Settings)" : amountPaise <= 0 ? "Enter an amount" : !merchant.trim() ? "Enter a merchant" : !/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Pick a date" : null) : null;
   // New rows must say which voucher (or decide later). Editing something that is already approved is never blocked by it.
   const voucherProblem = promptVoucher && !voucherId && !voucherLater && record.status !== "reviewed" ? "Pick the wallet that was topped up, or choose Decide later" : voucherId && walletId ? "A payment cannot both buy a voucher and be paid with one" : null;
-  const bad = splitError ?? missing ?? voucherProblem;
+  const groupProblem = splitGroup && !topUp ? checkGroupExpense(splitGroup, { payerId, kind, split }, nameOf) : splitGroup && topUp ? "A wallet top-up is personal, so it cannot belong to a group." : null;
+  const bad = splitError ?? missing ?? voucherProblem ?? groupProblem;
 
   const onAmount = (v: string) => {
     setAmountText(v);
@@ -144,7 +157,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
     }
     const fields = {
       merchant: merchant.trim(), categoryId, kind: voucherId ? ("purchase" as const) : kind, voucherBrandId: voucherId || undefined, paidWithVoucherId: walletId || undefined, voucherPending: voucherLater && !voucherId ? true : undefined, payerId, split: topUp ? { mode: "personal" as const, participantIds: [payerId] } : split, shared: topUp ? false : split.mode !== "personal", notes: notes || undefined, excluded,
-      recurringId: linkId || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, recurringHint: undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
+      recurringId: linkId || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, recurringHint: undefined, splitGroupId: splitGroupId || undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
     };
     if (adding) {
       // Bought from a wallet: it belongs to the card that topped the wallet up last (the wallet itself is the funding source).
@@ -231,10 +244,16 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
           {!voucherId && !voucherLater && record.status !== "reviewed" && <p role="alert" className="mt-1 text-xs font-medium text-warn">Choose a wallet to continue.</p>}
         </FormRow>
       )}
+      {groupChoices.length > 0 && !topUp && (
+        <FormRow label="Group" tip="Tag this expense to a trip, dinner or outing to see who owes whom there. It stays one ordinary transaction, so your spending is counted once.">
+          <CompactChips label="Split group" options={[{ id: "", label: "None", icon: <Dot icon={Ban} /> }, ...groupChoices.map((g) => ({ id: g.id, label: g.name, icon: <Dot icon={Users} tone="bg-accent/10 text-accent" /> }))]} selected={[splitGroupId]} onPick={pickGroup} />
+          {splitGroup && <p className="mt-1.5 text-xs text-muted">Shared with people in {splitGroup.name} only. Imported rows count in the group once you approve them.</p>}
+        </FormRow>
+      )}
       {topUp
         ? <p className="border-t border-border pt-3 text-xs text-muted">A wallet top-up is your own money going into the wallet, so it is not split or shared. Split the purchases you make from the wallet instead.</p>
-        : <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>}
-      {(sharing || !adding) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
+        : <div className="border-t border-border pt-3"><SplitEditor key={`${split.mode === "custom" ? amountPaise : "s"}${splitGroupId}`} total={amountPaise} value={split} onChange={setSplit} only={splitGroup?.participantIds} /></div>}
+      {(sharing || !adding) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.filter((p) => !splitGroup || splitGroup.participantIds.includes(p.id)).map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
       <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="group flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-border bg-surface px-3 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent">
         <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={26} />
         <span className="flex-1 text-sm font-semibold">More options</span>

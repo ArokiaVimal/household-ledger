@@ -137,6 +137,8 @@ export interface ExpenseRecord {
   recurringHint?: boolean;
   /** Recurring commitment this payment fulfils (rent, EMI, insurance...). */
   recurringId?: string;
+  /** The Split Group (a trip, dinner or outing) this expense is tagged with. Only a tag: the group never copies or moves the record, so spending is counted once. */
+  splitGroupId?: string;
   /** Set when a redacted copy of this expense was shared with the partner (see SharedExpense). */
   sharedWithPartner?: boolean;
   /** The owner chose to show this record's note on the shared copy. Off by default. */
@@ -230,7 +232,7 @@ export interface AuditEvent {
   at: string;
   actorId: string;
   action: "import" | "approve" | "reject" | "edit" | "create" | "match" | "unmatch" | "settle" | "void_settlement" | "delete";
-  entity: "record" | "settlement" | "receipt" | "recurring" | "household";
+  entity: "record" | "settlement" | "receipt" | "recurring" | "household" | "split_group";
   entityId: string;
   summary: string;
   /** Record edits only: the fields that changed, before and after (absent = null). This is what makes a change undoable. */
@@ -346,4 +348,44 @@ export interface PaymentGroup {
   includeMe: boolean;
   /** Position in the selector (0 first). */
   order?: number;
+}
+
+/** What kind of occasion a Split Group is. Only changes the icon and wording. */
+export const SPLIT_GROUP_KINDS = ["trip", "outing", "party", "dinner", "other"] as const;
+export type SplitGroupKind = (typeof SPLIT_GROUP_KINDS)[number];
+
+/**
+ * A Split Group is an occasion container (a trip, a dinner, a party) for expenses shared by several contacts. It is separate from
+ * Payment Groups (lenses on your spending), Categories (what money was for) and Friends & Family (who people are). Expenses stay
+ * ordinary ledger records tagged with `splitGroupId`; the group only adds a balance view and its own settlements.
+ */
+export interface SplitGroup {
+  id: string;
+  name: string;
+  kind: SplitGroupKind;
+  /** The contacts (participant ids) in the group, you included. No account is needed. */
+  participantIds: string[];
+  /** Created on this date (YYYY-MM-DD). */
+  createdAt: string;
+  note?: string;
+  /** Closed: still readable, but nothing new can be added to it. */
+  archived?: boolean;
+}
+
+/**
+ * A payment made inside a Split Group. It only moves balances: it is never an expense. When it involves you it is also recorded as a
+ * normal settlement (`ledgerSettlementId`) so the People balances stay in step.
+ */
+export interface SplitSettlement {
+  id: string;
+  groupId: string;
+  date: string;
+  fromId: string;
+  toId: string;
+  amountPaise: Paise;
+  note?: string;
+  /** Voided settlements stay in history but no longer count. */
+  voided?: boolean;
+  /** The People-tab settlement that mirrors this payment (only when you are the payer or the receiver). */
+  ledgerSettlementId?: string;
 }
