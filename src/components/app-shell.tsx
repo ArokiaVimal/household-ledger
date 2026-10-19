@@ -24,9 +24,9 @@ function MonthStepper({ className }: { className?: string }) {
   const latest = real > today ? real : today;
   const btn = "grid size-9 place-items-center rounded-full text-muted hover:bg-background disabled:opacity-30 disabled:hover:bg-transparent";
   return (
-    <div className={cn("flex items-center rounded-full bg-surface p-0.5 ring-2", monthLocked ? "ring-accent" : "ring-accent/30", className)} role="group" aria-label="Month">
+    <div className={cn("flex items-center rounded-full bg-surface p-0.5 ring-1 md:ring-2", monthLocked ? "ring-accent" : "ring-accent/30", className)} role="group" aria-label="Month">
       <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className={btn}><ChevronLeft size={18} aria-hidden /></button>
-      <span className="num min-w-[5.75rem] flex-1 text-center text-base font-bold" aria-live="polite">{monthLabel(month)}</span>
+      <span className="num min-w-[5.75rem] flex-1 text-center text-[15px] font-bold md:text-base" aria-live="polite">{monthLabel(month)}</span>
       <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} disabled={isAfterMonth(shiftMonth(month, 1), latest)} aria-label="Next month" className={btn}><ChevronRight size={18} aria-hidden /></button>
       <button type="button" onClick={toggleMonthLock} aria-pressed={monthLocked} aria-label={monthLocked ? `Unlock ${monthLabel(month)}` : `Lock to ${monthLabel(month)}`} title={monthLocked ? "Locked to this month. Tap to unlock." : "Lock the app to this month"} className={cn("grid size-9 place-items-center rounded-full", monthLocked ? "bg-accent text-white" : "text-muted hover:bg-background")}>{monthLocked ? <Lock size={16} aria-hidden /> : <LockOpen size={16} aria-hidden />}</button>
     </div>
@@ -42,7 +42,7 @@ function GroupSwitch({ className }: { className?: string }) {
         const on = g.id === activeGroup.id;
         return (
           <button key={g.id} type="button" role="tab" aria-selected={on} onClick={() => setGroupId(g.id)}
-            className={cn("min-h-9 shrink-0 whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent", groups.length <= 3 && "flex-1", on ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-background")}>
+            className={cn("min-h-8 shrink-0 whitespace-nowrap rounded-full px-4 text-[13px] font-medium transition-colors md:min-h-9 md:text-sm focus-visible:outline-2 focus-visible:outline-accent", groups.length <= 3 && "flex-1", on ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-background")}>
             {g.name}
           </button>
         );
@@ -85,7 +85,7 @@ function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
 export function AppShell({ children, user }: { children: ReactNode; user: { email: string } | null }) {
   const path = usePathname();
   const router = useRouter();
-  const { live, previewing, staged, syncError, dismissSyncError } = useStore();
+  const { live, previewing, staged, syncError, dismissSyncError, nameOf, meId } = useStore();
   // Solo use is complete on its own: settle-up and the Mine/Together switch appear once a partner is linked.
   const visibleNav = NAV.filter((n) => n.href !== "/profile");
   const phoneBar = visibleNav.filter((n) => n.bar);
@@ -138,7 +138,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
             <header className="px-4 pb-3 pt-4 md:px-0 md:pb-4">
               <div className="flex items-center gap-3">
                 <div className="mr-auto min-w-0">
-                  <p className="truncate text-xl font-semibold tracking-tight">{path === "/" ? <>Hi {profile ? greetingName(profile) : "there"} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
+                  <p className="truncate text-xl font-semibold tracking-tight">{path === "/" ? <>Hi {profile ? greetingName(profile) : (() => { const n = nameOf(meId); return n && n !== meId ? n.split(/\s+/)[0] : "there"; })()} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
                   <p className="hidden text-sm text-muted xl:block">{path === "/" ? "Here's where your money went this month" : "Where your money went, and who owes what"}</p>
                 </div>
                 <form onSubmit={go} role="search" className="hidden w-64 items-center gap-2 rounded-full bg-surface px-4 lg:flex">
@@ -153,7 +153,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 </Link>
                 {user && <AccountMenu onSignOut={signOut} />}
               </div>
-              <div className="mt-3 space-y-2 md:hidden">
+              <div className="mt-2 space-y-1.5 md:hidden">
                 <MonthStepper className="w-full" />
                 <GroupSwitch className="w-full" />
               </div>

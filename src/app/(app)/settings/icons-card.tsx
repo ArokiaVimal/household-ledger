@@ -42,12 +42,12 @@ export function IconsCard({ live, aiEnabled }: { live: boolean; aiEnabled: boole
         <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/10 text-accent"><Sparkles size={18} /></span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 font-medium">Refresh icons <AiBadge /></div>
-          <p className="text-sm text-muted">Goes through categories, payment methods and merchants you added since, and suggests an icon for each. Only the names are sent, never amounts or notes. Icons come from the app&apos;s built-in set, and you review them before they are saved.</p>
+          <p className="text-sm text-muted">Suggests an icon for each new category, payment method and merchant. Only names are sent.</p>
         </div>
       </div>
       <Button onClick={() => void refresh()} disabled={busy || !live || !aiEnabled}>{busy ? "Looking…" : "Refresh icons with AI"}</Button>
       {!live && <p className="text-xs text-muted">This needs a signed-in account. The demo has no AI.</p>}
-      {live && !aiEnabled && <p className="text-xs text-muted">AI is off on this server. The app owner switches it on by adding an Anthropic API key; until then nothing is sent anywhere.</p>}
+      {live && !aiEnabled && <p className="text-xs text-muted">AI is off. Add an Anthropic API key to turn it on.</p>}
       {msg && <p role="status" className="text-sm text-muted">{msg}</p>}
       {picks && (
         <div className="space-y-2">

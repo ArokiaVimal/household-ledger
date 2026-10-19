@@ -181,7 +181,7 @@ export function LiveImport() {
             <summary className="flex cursor-pointer items-center gap-1.5 hover:text-foreground"><ChevronDown size={14} aria-hidden className="-rotate-90 group-open:rotate-0" />How AI is used here</summary>
             <ul className="mt-2 list-disc space-y-1 pl-9">
               <li>{aiEnabled ? "AI only runs when you click an AI button." : "AI is off on this server. Everything else works without it."}</li>
-              <li>Claude sees statement text only when the app cannot read the file itself, or when you paste free text.</li>
+              <li>Claude sees text only when the app can&apos;t read the file, or when you paste free text.</li>
               <li>Account numbers, emails and phone numbers are hidden first. Your name and the file are never sent.</li>
               <li>You review every row before it counts.</li>
             </ul>
@@ -210,7 +210,7 @@ export function LiveImport() {
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
                   <MerchantAvatar name={accountName(preview.accountId)} size={22} /><span className="font-medium text-foreground">{accountName(preview.accountId)}</span>
                   <span>{preview.detected?.chosen ? "you chose this" : preview.detected ? "picked automatically" : ""}</span>
-                  {preview.readBy === "ai" && <AiBadge tone="unsure" title="Claude read these rows. Each one was found in the text, but check every amount.">Read by AI</AiBadge>}
+                  {preview.readBy === "ai" && <AiBadge tone="unsure" title="Claude read these rows. Check each amount.">Read by AI</AiBadge>}
                   {src && <button type="button" onClick={() => setChanging(!changing)} className="text-accent underline-offset-2 hover:underline">{changing ? "Done" : "Change"}</button>}
                 </div>
               </div>
@@ -384,7 +384,7 @@ export function LiveImport() {
           <textarea aria-label="Transactions to import" value={pasteText} onChange={(e) => setPasteText(e.target.value)} rows={8} maxLength={100000}
             placeholder={"Paste rows from a statement or app (include the header line), or write it:\npaid 450 at Swiggy yesterday via GPay\nrent 25000 on the 1st from HDFC"}
             className="w-full resize-y rounded-xl border border-border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-accent/40" />
-          <p className="text-xs text-muted">Rows with a header (Date, Description, Amount) are read without AI. Free text is read by Claude, which sees only what you type here, with long numbers hidden.</p>
+          <p className="text-xs text-muted">Tables with a header (Date, Description, Amount) are read without AI. Free text goes to Claude, with long numbers hidden.</p>
           <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3">
             <Button disabled={!pasteText.trim()} onClick={() => { setPasteOpen(false); reset(); void read({ kind: "text", text: pasteText, mode: "table" }); }}>Read as table</Button>
             <Button variant="primary" disabled={!pasteText.trim() || !aiEnabled} title={aiEnabled ? undefined : "AI is off: no API key on the server"} onClick={() => { setPasteOpen(false); reset(); void read({ kind: "text", text: pasteText, mode: "ai" }); }}>{aiEnabled ? "Read with AI" : "Read with AI (off)"}</Button>

@@ -38,7 +38,7 @@ export function SyncCard() {
 
   return (
     <Card className="space-y-3">
-      <CardTitle tip="Pulls in the latest data and checks whether a newer version of the app has been published. On an installed phone app, tap Update now to load it.">App &amp; sync</CardTitle>
+      <CardTitle tip="Fetch the latest data and check for a new app version.">App &amp; sync</CardTitle>
       <p className="text-sm text-muted">Version <span className="num font-medium text-foreground">{short(BUILT)}</span>{at ? ` · last synced ${at}` : ""}</p>
       <div className="flex flex-wrap gap-2">
         <Button variant="primary" onClick={() => void sync()} disabled={busy}><RefreshCw size={15} aria-hidden className={busy ? "animate-spin" : ""} />{busy ? "Syncing…" : "Sync now"}</Button>

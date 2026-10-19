@@ -107,7 +107,7 @@ function ReviewQueue() {
 
   return (
     <>
-      <PageHeader tip="Anything imported or captured waits here. Approve, fix or discard each row. Only approved rows count in totals, reports and balances, so a wrong import can never skew your numbers." title="Review queue" sub="Imported rows stay here until you approve them. Only approved rows count in reports, balances and the dashboard."
+      <PageHeader tip="Imported rows wait here. Only approved rows count in your totals." title="Review queue" sub="Approve rows to add them to your totals."
         actions={<Link href="/import" className="rounded-full border border-border bg-surface px-3 py-2 text-sm">Import</Link>} />
       {imported > 0 && staged.length > 0 && (
         <div role="status" className="mb-3 rounded-2xl bg-good-soft p-3 text-sm text-good">
@@ -122,7 +122,7 @@ function ReviewQueue() {
         <>
           {live && (
             <AiFeatureCard enabled={aiEnabled} title="AI-powered review assist" className="mb-3">
-              <p>{aiEnabled ? "Rows marked AI were named and categorised by Claude; Remembered rows come from what you approved before. Approve the confident ones in one go and fix the rest." : "AI is off, so only your own memory fills rows in. Add an AI key on the server to switch it on."}</p>
+              <p>{aiEnabled ? "AI rows were categorized by Claude. Remembered rows match what you approved before. Approve the sure ones together and fix the rest." : "AI is off. Rows are filled from what you approved before."}</p>
             </AiFeatureCard>
           )}
           <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -185,7 +185,7 @@ function ReviewQueue() {
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} title={deleting && deleting.length > 1 ? `Delete ${deleting.length} transactions?` : "Delete this transaction?"}
         onConfirm={() => { if (deleting) { deleteRecords(deleting.map((r) => r.id)); setPicked(new Set()); } }}>
         {deleting && deleting.length === 1 ? <p><strong>{deleting[0].merchant}</strong> · {deleting[0].date}</p> : <p>The {deleting?.length} selected rows will be removed from the review queue.</p>}
-        <p className="text-muted">Nothing has been added to your reports yet, so your totals will not change. The original statement lines stay in the import history. This cannot be undone.</p>
+        <p className="text-muted">Nothing was added to your reports. Original lines stay in import history. This can&apos;t be undone.</p>
       </ConfirmDialog>
       <TxnReviewDialog record={open} onClose={() => setOpen(null)} next={next} />
       <Dialog open={confirm} onClose={() => setConfirm(false)} title={`Approve ${picked.size} transactions?`}>

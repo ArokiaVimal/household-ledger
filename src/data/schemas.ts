@@ -20,7 +20,7 @@ export const SplitConfigSchema = z.object({
   items: z.array(SplitItemSchema).max(100).optional(),
 }) satisfies z.ZodType<SplitConfig>;
 
-export const ParticipantSchema = z.object({ id, name: z.string().min(1).max(80), userId: z.string().min(1).nullable(), pendingEmail: z.string().max(200).optional(), inviterShareBps: z.number().int().min(500).max(9500).optional(), photo: z.string().max(140_000).optional(), relationship: z.enum(["partner", "friend", "family", "parent", "custom"]).optional(), relationshipLabel: z.string().max(30).optional(), email: z.string().max(200).optional(), linkId: z.string().max(300).optional() }) satisfies z.ZodType<Participant>;
+export const ParticipantSchema = z.object({ id, name: z.string().min(1).max(80), userId: z.string().min(1).nullable(), pendingEmail: z.string().max(200).optional(), inviterShareBps: z.number().int().min(500).max(9500).optional(), photo: z.string().max(140_000).optional(), relationship: z.enum(["partner", "friend", "family", "parent", "custom"]).optional(), relationshipLabel: z.string().max(30).optional(), nickname: z.string().max(30).optional(), email: z.string().max(200).optional(), linkId: z.string().max(300).optional() }) satisfies z.ZodType<Participant>;
 export const AccountSchema = z.object({ id, name: z.string().min(1).max(80), type: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]), parentId: id.optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).optional(), archived: z.boolean().optional(), order: z.number().int().min(0).max(1000).optional(), icon: z.enum(ICON_KEYS).optional(), balance: z.object({ amountPaise: z.number().int().safe(), asOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).optional() }) satisfies z.ZodType<Account>;
 export const CategorySchema = z.object({ id, name: z.string().min(1).max(60), icon: z.enum(ICON_KEYS).optional() }) satisfies z.ZodType<Category>;
 
@@ -56,6 +56,7 @@ export const ExpenseRecordSchema = z
     recurringId: id.optional(),
     suggested: z.enum(["memory", "ai", "ai_unsure"]).optional(),
     sharedWithPartner: z.boolean().optional(),
+    sharedRev: z.number().int().min(0).optional(),
     shareNote: z.boolean().optional(),
     splitGroupId: id.optional(),
   })
@@ -78,7 +79,7 @@ export const SettlementSchema = z
 export const SharedExpenseSchema = z
   .object({
     id, ownerUid: id, payerId: id, date, merchant: z.string().min(1).max(120), amountPaise: paise.positive("Amount must be greater than zero"), kind: z.enum(["purchase", "refund", "fee"]), categoryId: id, categoryName: z.string().min(1).max(60),
-    split: SplitConfigSchema, note: z.string().max(500).optional(), voided: z.boolean().optional(), createdAt: z.string().datetime(), updatedAt: z.string().datetime(),
+    split: SplitConfigSchema, note: z.string().max(500).optional(), voided: z.boolean().optional(), version: z.number().int().min(1).optional(), people: z.record(z.string().max(128), z.string().max(80)).optional(), createdAt: z.string().datetime(), updatedAt: z.string().datetime(),
   })
   .superRefine((r, ctx) => {
     const err = validateSplit(r.amountPaise, r.split as SplitConfig);

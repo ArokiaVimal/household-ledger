@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createFirestoreRepository } from "@/data/firestore-repository";
 import { loadHouseholdData, participantIdFor } from "@/lib/data/load";
 import { claudeFromEnv } from "@/lib/import/ai-extract";
-import { analyseMonth } from "@/lib/insights/ai";
+import { analyzeMonth } from "@/lib/insights/ai";
 import { buildFacts } from "@/lib/insights/facts";
 import { authorize } from "../import/shared";
 
@@ -27,12 +27,12 @@ export async function POST(req: Request) {
       month, today, meId: participantIdFor(who.session.uid), records: data.records, staged: data.records.filter((r) => r.status === "unreviewed").length,
       categories: data.categories, accounts: data.accounts, recurringItems: data.recurring, cardBills: data.cardBills,
     });
-    if (facts.totals.transactions === 0) return NextResponse.json({ error: "There are no approved transactions in that month yet, so there is nothing to analyse." }, { status: 400 });
-    const { analysis, usage } = await analyseMonth(claude, facts);
-    if (!analysis) return NextResponse.json({ error: usage.error ?? "Could not analyse that." }, { status: 502 });
+    if (facts.totals.transactions === 0) return NextResponse.json({ error: "There are no approved transactions in that month yet, so there is nothing to analyze." }, { status: 400 });
+    const { analysis, usage } = await analyzeMonth(claude, facts);
+    if (!analysis) return NextResponse.json({ error: usage.error ?? "Could not analyze that." }, { status: 502 });
     return NextResponse.json({ ok: true, analysis, generatedAt: new Date().toISOString(), tokens: usage.inputTokens + usage.outputTokens });
   } catch (e) {
     console.error("insights failed", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 160));
-    return NextResponse.json({ error: "Could not analyse that. Try again." }, { status: 500 });
+    return NextResponse.json({ error: "Could not analyze that. Try again." }, { status: 500 });
   }
 }

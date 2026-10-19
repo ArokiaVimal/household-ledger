@@ -13,7 +13,7 @@ export function relationshipText(p: Pick<Participant, "relationship" | "relation
   return p.relationship ? RELATIONSHIP_LABEL[p.relationship] : "Friend";
 }
 
-export interface ContactDraft { name: string; email?: string | null; relationship: Relationship; relationshipLabel?: string | null }
+export interface ContactDraft { name: string; nickname?: string | null; email?: string | null; relationship: Relationship; relationshipLabel?: string | null }
 
 /** First problem with a new or edited contact, or null. `others` are the contacts it must not clash with (never including itself). */
 export function checkContact(draft: ContactDraft, others: Participant[]): string | null {
@@ -26,6 +26,7 @@ export function checkContact(draft: ContactDraft, others: Participant[]): string
     const hit = others.find((p) => p.email && normalizeEmail(p.email) === normalizeEmail(draft.email!));
     if (hit) return `${hit.name} already has that email.`;
   }
+  if ((draft.nickname ?? "").trim().length > 30) return "Keep the nickname under 30 characters.";
   if (draft.relationship === "custom" && !(draft.relationshipLabel ?? "").trim()) return "Say what the relationship is, for example Flatmate.";
   if ((draft.relationshipLabel ?? "").length > 30) return "Keep the relationship under 30 characters.";
   return null;

@@ -84,3 +84,14 @@ export function planUpiSetup(accounts: Account[]): { add: Account[]; hide: strin
 
 /** A shorter name for tight places such as the transaction form's chips: "HDFC BizGrow Card" -> "HDFC BizGrow". */
 export const shortName = (name: string) => name.replace(/\s+(credit\s+)?card$/i, "").replace(/\s+/g, " ").trim() || name;
+
+/**
+ * A very short label for a card in a narrow place: just the bank or issuer ("SBI", "Amex", "HDFC"). When two cards share the same bank,
+ * the longer short name is used so they stay apart ("HDFC BizGrow", "HDFC Regalia").
+ */
+export function cardLabel(name: string, all: { name: string }[]): string {
+  const first = name.trim().split(/\s+/)[0] ?? name;
+  const bank = /^american$/i.test(first) ? "Amex" : first;
+  const same = all.filter((a) => { const f = a.name.trim().split(/\s+/)[0] ?? ""; return (/^american$/i.test(f) ? "Amex" : f).toLowerCase() === bank.toLowerCase(); }).length;
+  return same > 1 ? shortName(name).split(/\s+/).slice(0, 2).join(" ") : bank;
+}

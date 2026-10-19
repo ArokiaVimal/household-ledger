@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyseMonth, validateAnalysis } from "./ai";
+import { analyzeMonth, validateAnalysis } from "./ai";
 import type { InsightFacts } from "./facts";
 
 const facts: InsightFacts = { month: "2026-09", daysIntoMonth: 30, totals: { spent: 4400, myShare: 4400, refunds: 100, transactions: 3, waitingForReview: 0 }, earlier: [], categories: [], merchants: [], recurring: [], cardBills: [], notes: [], worthALook: [] };
@@ -17,12 +17,12 @@ describe("validateAnalysis", () => {
   });
 });
 
-describe("analyseMonth", () => {
+describe("analyzeMonth", () => {
   const ok = () => new Response(JSON.stringify({ content: [{ type: "tool_use", input: answer }], usage: { input_tokens: 700, output_tokens: 300 } }), { status: 200 });
   it("sends only the figures, with the key in a header, and returns the analysis", async () => {
     let sent = { headers: {} as Record<string, string>, body: {} as { messages: { content: string }[]; system: { text: string }[] } };
     const fetchImpl = (async (_u: string, init: RequestInit) => { sent = { headers: init.headers as Record<string, string>, body: JSON.parse(String(init.body)) }; return ok(); }) as typeof fetch;
-    const r = await analyseMonth({ apiKey: "sk-test", fetchImpl }, facts);
+    const r = await analyzeMonth({ apiKey: "sk-test", fetchImpl }, facts);
     expect(r.analysis!.summary).toBe("You spent ₹4,400.");
     expect(sent.headers["x-api-key"]).toBe("sk-test");
     expect(JSON.parse(sent.body.messages[0].content)).toMatchObject({ month: "2026-09" });
@@ -32,13 +32,13 @@ describe("analyseMonth", () => {
   it("retries once without temperature after a 400 and reports Claude's reason if it still fails", async () => {
     let calls = 0;
     const retry = (async (_u: string, init: RequestInit) => { calls++; return "temperature" in JSON.parse(String(init.body)) ? new Response("{}", { status: 400 }) : ok(); }) as typeof fetch;
-    expect((await analyseMonth({ apiKey: "k", fetchImpl: retry }, facts)).analysis).not.toBeNull();
+    expect((await analyzeMonth({ apiKey: "k", fetchImpl: retry }, facts)).analysis).not.toBeNull();
     expect(calls).toBe(2);
     const bad = (async () => new Response(JSON.stringify({ error: { message: "credit balance is too low" } }), { status: 400 })) as typeof fetch;
-    expect((await analyseMonth({ apiKey: "k", fetchImpl: bad }, facts)).usage.error).toBe("Claude answered 400 (credit balance is too low)");
+    expect((await analyzeMonth({ apiKey: "k", fetchImpl: bad }, facts)).usage.error).toBe("Claude answered 400 (credit balance is too low)");
   });
   it("never throws on a network failure", async () => {
-    const r = await analyseMonth({ apiKey: "k", fetchImpl: (async () => { throw new Error("x"); }) as typeof fetch }, facts);
+    const r = await analyzeMonth({ apiKey: "k", fetchImpl: (async () => { throw new Error("x"); }) as typeof fetch }, facts);
     expect(r.analysis).toBeNull();
     expect(r.usage.error).toBe("Could not reach Claude.");
   });

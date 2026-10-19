@@ -6,10 +6,12 @@ const LOGOS: Record<string, string> = {
   bigbasket: "bigbasket", "indian oil": "iocl", bookmyshow: "bookmyshow", "apollo pharmacy": "apollo",
   decathlon: "decathlon", starbucks: "starbucks", rapido: "rapido", "cult.fit": "cultfit", "act fibernet": "act",
   "cafe coffee day": "ccd", "reliance fresh": "reliance",
+  airtel: "airtel", hotstar: "hotstar", "disney hotstar": "hotstar", jiohotstar: "hotstar", "amazon prime": "primevideo", "prime video": "primevideo", meesho: "meesho", shell: "shell",
+  "bharat petroleum": "bpcl", bpcl: "bpcl", instamart: "swiggy",
 };
 
 // A renamed card still gets its bank's picture: "HDFC BizGrow Card" -> hdfc, "SBI OCTANE BPCL Credit Card" -> sbi.
-const BY_WORD: [RegExp, string][] = [[/\bhdfc\b/i, "hdfc"], [/\bsbi\b/i, "sbi"], [/\bicici\b/i, "icici"], [/\b(amex|american express)\b/i, "amex"], [/\bgpay\b|google pay/i, "gpay"], [/\bpaytm\b/i, "paytm"], [/\bbhim\b/i, "bhim"], [/\bcred\b/i, "cred"], [/\bamazon\b/i, "amazon"], [/\bswiggy\b/i, "swiggy"]];
+const BY_WORD: [RegExp, string][] = [[/\bhdfc\b/i, "hdfc"], [/\bsbi\b/i, "sbi"], [/\bicici\b/i, "icici"], [/\b(amex|american express)\b/i, "amex"], [/\bgpay\b|google pay/i, "gpay"], [/\bpaytm\b/i, "paytm"], [/\bbhim\b/i, "bhim"], [/\bcred\b/i, "cred"], [/amazon prime|prime video/i, "primevideo"], [/\bamazon\b/i, "amazon"], [/\bswiggy\b|\binstamart\b/i, "swiggy"], [/\bairtel\b/i, "airtel"], [/\b(hotstar|disney)/i, "hotstar"], [/\bmeesho\b/i, "meesho"], [/\bshell\b/i, "shell"], [/\b(bharat|bharath)( petroleum)?\b|\bbpcl\b/i, "bpcl"]];
 
 export function logoFor(name: string): string | null {
   const key = name.trim().toLowerCase();
@@ -17,4 +19,18 @@ export function logoFor(name: string): string | null {
   if (exact) return `/logos/${exact}.png`;
   const hit = BY_WORD.find(([re]) => re.test(key));
   return hit ? `/logos/${hit[1]}.png` : null;
+}
+
+/**
+ * A brand-coloured badge for well-known places that have no picture file yet: the brand's colour with a short mark. Drawn here (not a
+ * copy of anyone's logo) so every common merchant looks distinct; a real logo file in public/logos takes over once it is added.
+ */
+const BADGES: { re: RegExp; bg: string; fg: string; mark: string }[] = [
+  { re: /\bgeetham\b/i, bg: "#2E7D32", fg: "#ffffff", mark: "G" },
+  { re: /\ba2b\b|adyar ananda/i, bg: "#F57C00", fg: "#ffffff", mark: "A2B" },
+  { re: /iron safa/i, bg: "#0F766E", fg: "#ffffff", mark: "IS" },
+];
+export function brandBadge(name: string): { bg: string; fg: string; mark: string } | null {
+  const b = BADGES.find((x) => x.re.test(name));
+  return b ? { bg: b.bg, fg: b.fg, mark: b.mark } : null;
 }

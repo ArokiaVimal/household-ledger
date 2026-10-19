@@ -59,7 +59,7 @@ export default function LoginPage() {
           <Suspense fallback={<div role="status" className="space-y-3" aria-label="Loading sign-in"><div className="h-11 animate-pulse rounded-full bg-border" /><div className="h-11 animate-pulse rounded-full bg-border" /></div>}>
             <LoginBody />
           </Suspense>
-          <p className="mt-6 flex items-start gap-2 text-xs text-muted"><ShieldCheck size={14} className="mt-0.5 shrink-0" aria-hidden />Private to you. Your sign-in is protected by Google or your password, and only people you invite can ever see what you choose to share.</p>
+          <p className="mt-6 flex items-start gap-2 text-xs text-muted"><ShieldCheck size={14} className="mt-0.5 shrink-0" aria-hidden />Private to you. You choose what to share, and only with people you invite.</p>
         </section>
       </div>
     </main>

@@ -38,7 +38,7 @@ export default function ImportCentre() {
 
   return (
     <>
-      <PageHeader title="Import centre" sub="Guided flow. Nothing is added to your ledger until you approve it in the review queue. Prototype: no file is read, rows are simulated." actions={<Badge tone="warn">Simulated</Badge>} />
+      <PageHeader title="Import" sub="Guided flow. Nothing is added to your ledger until you approve it in the review queue. Prototype: no file is read, rows are simulated." actions={<Badge tone="warn">Simulated</Badge>} />
       <ol className="mb-4 flex flex-wrap gap-1.5 text-xs">
         {["Month & file", "Source", "Preview & duplicates", "To review queue"].map((s, i) => (
           <li key={s} className={`rounded px-2 py-1 ${step === i + 1 ? "bg-accent text-white" : "bg-surface text-muted border border-border"}`}>{i + 1}. {s}</li>
@@ -52,7 +52,7 @@ export default function ImportCentre() {
               <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted">
                 File upload arrives in Stage 4 (CSV/XLSX first, then PDF). Do not upload real statements to this prototype.
               </div>
-              <p className="text-xs text-muted">We never ask for bank passwords, UPI PINs or full card numbers. For a password-protected PDF, upload an unlocked copy.</p>
+              <p className="text-xs text-muted">We never ask for bank passwords, UPI PINs or full card numbers. Upload password-protected PDFs unlocked.</p>
               <Button variant="primary" onClick={() => setStep(2)}>Use sample file</Button>
             </div>
           )}

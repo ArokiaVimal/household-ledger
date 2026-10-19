@@ -61,7 +61,7 @@ export async function intakeFile(bytes: Uint8Array, filename: string, opts: Inta
   }
 
   // The deterministic parser could not read this layout. Claude may try, but only with consent.
-  const why = pdf && !pdf.ok ? pdf.error : parsed && !parsed.ok ? parsed.error : "This file's layout was not recognised.";
+  const why = pdf && !pdf.ok ? pdf.error : parsed && !parsed.ok ? parsed.error : "This file's layout was not recognized.";
   if (!opts.ai || !opts.claude) throw new ImportError("invalid", `${why} Try “Import with AI”, or paste the transactions into the text box.`);
   const out = await extractWithClaude(opts.claude, sample, "statement", { accounts: opts.accounts, today: opts.today });
   if (out.usage.error) throw new ImportError("invalid", `${why} Claude could not help either: ${out.usage.error}.`);

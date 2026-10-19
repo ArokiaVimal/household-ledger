@@ -86,9 +86,9 @@ export default function Insights() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="primary" className="min-h-11 px-5" disabled={busy || !!off || count === 0} onClick={() => void analyse()}>
-            {busy ? <><RefreshCw size={16} className="animate-spin" aria-hidden />Analysing…</> : a ? <><RefreshCw size={16} aria-hidden />Refresh analysis</> : <><Sparkles size={16} aria-hidden />Analyse {monthName(month).split(" ")[0]}</>}
+            {busy ? <><RefreshCw size={16} className="animate-spin" aria-hidden />Analyzing…</> : a ? <><RefreshCw size={16} aria-hidden />Refresh</> : <><Sparkles size={16} aria-hidden />Analyze {monthName(month).split(" ")[0]}</>}
           </Button>
-          {saved && <span className="text-xs text-muted">Last analysed {new Date(saved.generatedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>}
+          {saved && <span className="text-xs text-muted">Last analyzed {new Date(saved.generatedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>}
         </div>
         <p className="text-xs text-muted">{off ?? "Pressing the button sends this month's totals, category and merchant names, card-bill dates and the short notes you wrote on payments (long numbers hidden) to Claude. Never bank text or account numbers."}</p>
       </Card>
@@ -133,18 +133,18 @@ export default function Insights() {
               </ol>
             </section>
           )}
-          <p className="px-1 text-xs text-muted">Written by AI from your own figures. It is a nudge, not financial advice, so check anything important.</p>
+          <p className="px-1 text-xs text-muted">Written by AI from your numbers. Not financial advice.</p>
         </div>
       )}
 
       {!a && !error && !busy && !off && count > 0 && (
-        <Card className="p-6 text-center"><p className="text-sm text-muted">Press <b>Analyse</b> to get your tips for {monthName(month)}.</p></Card>
+        <Card className="p-6 text-center"><p className="text-sm text-muted">Press <b>Analyze</b> to get your tips for {monthName(month)}.</p></Card>
       )}
 
       <section id="tools" aria-labelledby="tools-h" className="mt-8 space-y-3">
         <div>
           <h2 id="tools-h" className="text-lg font-semibold tracking-tight">All AI tools</h2>
-          <p className="text-sm text-muted">Every AI feature in the app, in one place. Each one runs only when you press its button, shows you what it found, and nothing counts until you approve it. Some also live where you use them.</p>
+          <p className="text-sm text-muted">Every AI feature in one place. Each runs only when you click, and nothing counts until you approve it.</p>
         </div>
         <ul className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-2">
           <li><AiTool icon={Sparkles} title="Read notes with AI" where="Also on Transactions" blurb="Reads the notes you wrote on payments and suggests the category each one really belongs to. You pick which suggestions to apply."><NotesAi /></AiTool></li>
@@ -153,7 +153,7 @@ export default function Insights() {
           <li><AiTool icon={ClipboardCheck} title="Name and sort merchants" where="Also in Review" blurb="Names merchants and suggests categories for imported rows, marked with an AI badge until you approve them. It remembers what you approve, so each month needs less review."><Link href="/review" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Review</Link></AiTool></li>
         </ul>
         {off && <p className="px-1 text-xs text-muted">{off}</p>}
-        <p className="px-1 text-xs text-muted">Privacy: only text you choose to send leaves the app, after a click. Account numbers, emails and phone numbers are hidden first; your name and the original files are never sent. <Link href="/settings#ai" className="text-accent underline">AI settings</Link></p>
+        <p className="px-1 text-xs text-muted">Privacy: only text you send leaves the app. Account numbers, emails and phone numbers are hidden first.<Link href="/settings?s=ai" className="text-accent underline">AI settings</Link></p>
       </section>
     </>
   );

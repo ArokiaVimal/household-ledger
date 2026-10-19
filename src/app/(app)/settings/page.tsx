@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
-import { LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, UserRound, Users, Wallet, BarChart3, ClipboardCheck, type LucideIcon } from "lucide-react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, UserRound, Users, Wallet, BarChart3, ChevronLeft, ChevronRight, ClipboardCheck, type LucideIcon } from "lucide-react";
 import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
 import { THEME_STYLE, themeFor } from "@/components/card-mockup";
 import { useStore } from "@/data/store";
@@ -23,10 +23,19 @@ import { ContactsCard } from "./contacts-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet" };
 
-const JUMP = [["methods", "Payment methods"], ["groups", "Payment groups"], ["sharing", "Friends & Family"], ["ai", "Smart import"], ["integrations", "Integrations"], ["shortcuts", "Make it yours"], ["data", "Your data"]] as const;
+const MENU: { id: string; label: string; hint: string; icon: LucideIcon; liveOnly?: boolean }[] = [
+  { id: "methods", label: "Payment methods", hint: "Cards, UPI apps, bank accounts", icon: Wallet },
+  { id: "groups", label: "Payment groups", hint: "View spending by person", icon: LayoutGrid },
+  { id: "sharing", label: "Friends & Family", hint: "People you split with", icon: Users },
+  { id: "ai", label: "Smart import", hint: "AI and import help", icon: Sparkles, liveOnly: true },
+  { id: "integrations", label: "Integrations", hint: "SMS and Gmail capture", icon: Plug, liveOnly: true },
+  { id: "shortcuts", label: "Make it yours", hint: "Profile, categories, icons", icon: Tags },
+  { id: "data", label: "Your data", hint: "Back up, restore, delete", icon: ShieldCheck },
+];
+const OpenSection = createContext<string | null>(null);
 const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
   { href: "/profile", label: "Your profile", hint: "Your name and photo, and how the app greets you.", icon: UserRound },
-  { href: "/categories", label: "Categories and rules", hint: "Rename, add your own, and auto-sort favourite merchants.", icon: Tags },
+  { href: "/categories", label: "Categories and rules", hint: "Rename, add and auto-sort.", icon: Tags },
   { href: "/recurring", label: "Recurring", hint: "Rent, EMIs and bills that come around every month.", icon: Repeat },
   { href: "/review", label: "Review queue", hint: "Approve imported transactions so they count.", icon: ClipboardCheck },
   { href: "/receipts", label: "Receipts", hint: "Match receipts to the payments they belong to.", icon: Receipt },
@@ -34,6 +43,7 @@ const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }
 ];
 
 function Section({ id, icon, title, tagline, children }: { id: string; icon: ReactNode; title: string; tagline: string; children: ReactNode }) {
+  if (useContext(OpenSection) !== id) return null;
   return (
     <section id={id} aria-labelledby={`${id}-h`} className="min-w-0 scroll-mt-4 space-y-4">
       <div className="flex items-start gap-3">
@@ -51,6 +61,14 @@ function Section({ id, icon, title, tagline, children }: { id: string; icon: Rea
 export default function Settings() {
   const { today, live, aiEnabled, records, staged, settlements, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, reorderAccounts, setupUpiApps, addSuggestedAccounts, deleteParticipant } = useStore();
   // One dialog adds and edits payment methods. `parent` is set when adding a sub payment method.
+  const [open, setOpenRaw] = useState<string | null>(null);
+  useEffect(() => {
+    const read = () => setOpenRaw(new URLSearchParams(window.location.search).get("s"));
+    read(); window.addEventListener("popstate", read);
+    return () => window.removeEventListener("popstate", read);
+  }, []);
+  const go = (id: string | null) => { window.history.pushState(null, "", id ? `?s=${id}` : window.location.pathname); setOpenRaw(id); window.scrollTo({ top: 0 }); };
+  const current = MENU.find((m) => m.id === open && (live || !m.liveOnly));
   const [dlg, setDlg] = useState<{ acc?: Account; parent?: string } | null>(null);
   const [fName, setFName] = useState("");
   const [fType, setFType] = useState<Account["type"]>("credit_card");
@@ -96,15 +114,28 @@ export default function Settings() {
 
   return (
     <>
-      <PageHeader title="Settings" sub="Set up where your money lives, who you split with and how smart your imports are. Change any of it, any time." actions={!live ? <Badge tone="warn">Prototype</Badge> : undefined} />
-      <nav aria-label="Jump to a section" className="mb-5 max-w-full flex gap-1.5 overflow-x-auto px-1 pb-1">
-        {JUMP.filter(([id]) => live || (id !== "ai" && id !== "integrations")).map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm hover:bg-background">{label}</a>)}
-      </nav>
+      {current ? (
+        <button type="button" onClick={() => go(null)} className="mb-3 inline-flex min-h-9 items-center gap-1 rounded-full pr-3 text-sm font-medium text-accent hover:underline"><ChevronLeft size={16} aria-hidden />Settings</button>
+      ) : (
+        <>
+          <PageHeader title="Settings" actions={!live ? <Badge tone="warn">Prototype</Badge> : undefined} />
+          <nav aria-label="Settings menu" className="grid grid-cols-[minmax(0,1fr)] gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {MENU.filter((m) => live || !m.liveOnly).map(({ id, label, hint, icon: I }) => (
+              <button key={id} type="button" onClick={() => go(id)} className="group flex min-h-16 items-center gap-3 rounded-[var(--radius-card)] bg-surface p-3.5 text-left transition-shadow hover:shadow-md">
+                <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/10 text-accent"><I size={18} /></span>
+                <span className="min-w-0 flex-1"><span className="block font-medium">{label}</span><span className="block truncate text-sm text-muted">{hint}</span></span>
+                <ChevronRight size={18} aria-hidden className="shrink-0 text-muted" />
+              </button>
+            ))}
+          </nav>
+        </>
+      )}
 
+      <OpenSection.Provider value={current?.id ?? null}>
       <div className="min-w-0 space-y-10">
-        <Section id="methods" icon={<Wallet size={20} aria-hidden />} title="Payment methods" tagline="Know exactly where every rupee came from. Add the cards, UPI apps and bank accounts you spend with, and each transaction is filed under the right one.">
+        <Section id="methods" icon={<Wallet size={20} aria-hidden />} title="Payment methods" tagline="Cards, UPI apps and bank accounts.">
           <Card className="space-y-3">
-            <CardTitle tip="Drag the grip handle (or use the arrow keys on it) to reorder; the transaction form and every pick list follow this order. A primary payment method is the main card or account, like your Amex or HDFC Bank. A sub payment method sits inside it, like Amazon Pay or Swiggy Money loaded from that Amex. Everything is yours to rename, move, hide or remove." action={<span className="text-xs text-muted">{accounts.length} added</span>}>Your payment methods</CardTitle>
+            <CardTitle tip="Drag to reorder. A sub method sits inside a main one, like Amazon Pay under your Amex." action={<span className="text-xs text-muted">{accounts.length} added</span>}>Your payment methods</CardTitle>
             <SortableList className="space-y-4 text-sm" ids={roots.map((r) => r.id)} label="payment method" onReorder={(ids) => reorderAccounts(fullOrder(ids))}>
               {(rootId, handle) => {
                 const a = accounts.find((x) => x.id === rootId)!;
@@ -132,7 +163,7 @@ export default function Settings() {
                             );
                           }}
                         </SortableList>
-                        {(a.type === "credit_card" || a.type === "bank") && !a.archived && <button type="button" onClick={() => openDialog({ parent: a.id })} className="min-h-9 rounded-full px-1 text-xs font-medium text-accent hover:underline">+ Add a sub payment method to {a.name}</button>}
+                        {(a.type === "credit_card" || a.type === "bank") && !a.archived && <button type="button" onClick={() => openDialog({ parent: a.id })} className="min-h-9 rounded-full px-1 text-xs text-muted hover:text-accent hover:underline" aria-label={`Add a sub method to ${a.name}`}>+ Add sub method</button>}
                       </div>
                     )}
                   </div>
@@ -145,11 +176,11 @@ export default function Settings() {
           </Card>
         </Section>
 
-        <Section id="groups" icon={<LayoutGrid size={20} aria-hidden />} title="Payment groups" tagline="Choose how you want to look at your spending: just yours, you and your partner, your parents. Each group counts only the shares that belong to it.">
+        <Section id="groups" icon={<LayoutGrid size={20} aria-hidden />} title="Payment groups" tagline="View spending by person or group.">
           <GroupsCard />
         </Section>
 
-        <Section id="sharing" icon={<Users size={20} aria-hidden />} title="Friends & Family" tagline="Your partner, friends and family in one place. Add anyone you split with, with or without an account, and say how you know them.">
+        <Section id="sharing" icon={<Users size={20} aria-hidden />} title="Friends & Family" tagline="People you split with.">
           <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2">
             <PartnerCard />
             <ContactsCard onRemove={(id) => { setRemoving(id); setRemoveError(null); }} />
@@ -157,27 +188,27 @@ export default function Settings() {
         </Section>
 
         {live && (
-          <Section id="ai" icon={<Sparkles size={20} aria-hidden />} title="Smart import" tagline="Let the busywork read itself. Drop in a statement and the app does the sorting, so you only review.">
+          <Section id="ai" icon={<Sparkles size={20} aria-hidden />} title="Smart import" tagline="Import and sort faster. You approve everything.">
             <AiFeatureCard enabled={aiEnabled} title="AI assistant">
               <p>{aiEnabled
-                ? "AI is on. Claude names merchants, picks categories, spots card-bill payments, works out which bank or card a statement belongs to, and reads statements or notes the app has never seen before. It remembers what you approve, so every month needs less review."
-                : "AI is off. Everything still works and learns from what you approve. Switch it on to have Claude read unfamiliar statements, name and categorise merchants, and turn a note like “paid 450 at Swiggy” into a transaction."}</p>
+                ? "AI is on. Claude names merchants, picks categories and reads statements and notes. It learns from what you approve."
+                : "AI is off. Everything else still works. Turn it on to read statements and notes with Claude."}</p>
               <p className="text-xs">{aiEnabled
-                ? "Your privacy: Claude only sees text you choose to send, and only after you click an AI button. Account numbers, emails and phone numbers are hidden first; your name and the file itself are never sent. Nothing counts until you approve it."
-                : "To switch it on, the app owner adds an Anthropic API key to the server settings. Until then, nothing is ever sent to AI."}</p>
+                ? "Claude sees only text you send, after you click an AI button. Account numbers, emails and phone numbers are hidden first."
+                : "To turn it on, add an Anthropic API key to the server. Until then, nothing is sent to AI."}</p>
               <Link href="/import" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Import</Link>
             </AiFeatureCard>
           </Section>
         )}
 
         {live && (
-          <Section id="integrations" icon={<Plug size={20} aria-hidden />} title="Integrations" tagline="Connect your own accounts and let transactions arrive on their own. Everything lands in your review queue and nothing counts until you approve it.">
-            <p className="-mt-2 flex items-start gap-2 rounded-xl bg-accent/5 px-4 py-3 text-sm"><Lock size={16} aria-hidden className="mt-0.5 shrink-0 text-accent" /><span>These connections are personal. Each person sets up their own, and nobody else in your space (including your partner) can see your messages or your mail.</span></p>
+          <Section id="integrations" icon={<Plug size={20} aria-hidden />} title="Integrations" tagline="Connect accounts. Everything waits for your review.">
+            <p className="-mt-2 flex items-start gap-2 rounded-xl bg-accent/5 px-4 py-3 text-sm"><Lock size={16} aria-hidden className="mt-0.5 shrink-0 text-accent" /><span>Connections are private. Not even your partner can see them.</span></p>
             <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2"><CaptureCard /><GmailCard /></div>
           </Section>
         )}
 
-        <Section id="shortcuts" icon={<LayoutGrid size={20} aria-hidden />} title="Make it yours" tagline="Rename categories, set up recurring bills, tune how the app greets you.">
+        <Section id="shortcuts" icon={<LayoutGrid size={20} aria-hidden />} title="Make it yours" tagline="Categories, icons and greeting.">
           <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {SHORTCUTS.map(({ href, label, hint, icon: I }) => (
               <Link key={href} href={href} className="group flex items-start gap-3 rounded-[var(--radius-card)] bg-surface p-4 transition-shadow hover:shadow-md">
@@ -189,11 +220,12 @@ export default function Settings() {
           <IconsCard live={live} aiEnabled={aiEnabled} />
         </Section>
 
-        <Section id="data" icon={<ShieldCheck size={20} aria-hidden />} title="Your data" tagline="It is your money and your data. Take a copy whenever you like.">
+        <Section id="data" icon={<ShieldCheck size={20} aria-hidden />} title="Your data" tagline="Back up, restore or delete.">
           <SyncCard />
           <DataCard />
         </Section>
       </div>
+      </OpenSection.Provider>
 
       <Dialog open={!!dlg} onClose={() => setDlg(null)} title={dlg?.acc ? `Edit ${dlg.acc.name}` : isSub ? "Add a sub payment method" : "Add a primary payment method"}>
         {dlg && (
@@ -209,13 +241,13 @@ export default function Settings() {
               <div className="space-y-2 rounded-2xl bg-background p-3">
                 <div className="text-xs font-medium text-muted">Recorded balance (optional)</div>
                 <div className="grid grid-cols-2 gap-2"><Field label="Balance (₹)"><Input inputMode="decimal" value={fBalance} onChange={(e) => { setFBalance(e.target.value); setFError(null); }} placeholder="e.g. 48,250.00" /></Field><Field label="As of"><Input type="date" value={fAsOf} onChange={(e) => setFAsOf(e.target.value)} /></Field></div>
-                <p className="text-xs text-muted">Read it from your bank app or statement. The Timeline starts its forecast from this number and always shows it with its date; leave it empty to forecast without a balance.</p>
+                <p className="text-xs text-muted">From your bank app or statement. Timeline forecasts from this. Optional.</p>
               </div>
             )}
             {!isSub && fType === "credit_card" && (
               <div className="space-y-2">
-                <div className="text-xs font-medium text-muted">Card colour (shown on Card bills)</div>
-                <div className="flex flex-wrap gap-2" role="group" aria-label="Card colour">
+                <div className="text-xs font-medium text-muted">Card color</div>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Card color">
                   {CARD_THEMES.map((t) => <button key={t} type="button" aria-label={THEME_STYLE[t].label} aria-pressed={(fTheme || themeFor(fName, undefined)) === t} onClick={() => setFTheme(t)} className={`size-9 rounded-full border-2 ${(fTheme || themeFor(fName, undefined)) === t ? "border-accent" : "border-transparent"}`} style={{ background: THEME_STYLE[t].bg }} />)}
                 </div>
               </div>
@@ -225,7 +257,7 @@ export default function Settings() {
               <div className="flex flex-wrap gap-2 border-t border-border pt-3">
                 <Button onClick={() => { const err = updateAccount(dlg.acc!.id, { archived: !dlg.acc!.archived }); if (err) setFError(err); else setDlg(null); }}>{dlg.acc.archived ? "Show again" : "Hide from lists"}</Button>
                 <Button variant="danger" onClick={() => setDeletingAcc(dlg.acc!)}>Delete…</Button>
-                <p className="w-full text-xs text-muted">Hiding keeps its transactions and removes it from the pick lists. Delete only works when nothing uses it.</p>
+                <p className="w-full text-xs text-muted">Hiding keeps its transactions. Delete only works when it&apos;s unused.</p>
               </div>
             )}
             <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => setDlg(null)}>Cancel</Button><Button variant="primary" disabled={!fName.trim()} onClick={saveDialog}>{dlg.acc ? "Save" : "Add"}</Button></div>

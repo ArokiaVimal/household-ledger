@@ -22,7 +22,7 @@ export function Suggestions() {
   return (
     <section id="suggestions" aria-labelledby="sugg-h" className="mb-4 space-y-2">
       <div className="flex items-center gap-2 px-1"><Lightbulb size={16} aria-hidden className="text-accent" /><h2 id="sugg-h" className="text-sm font-medium">Found in your history</h2><Badge>{recurringSuggestions.length}</Badge></div>
-      <p className="px-1 text-xs text-muted">These look like subscriptions or regular bills. Nothing is added until you say yes. Together they cost about {formatINR(yearly)} a year.</p>
+      <p className="px-1 text-xs text-muted">These look like regular bills. Nothing is added until you say yes. Together they cost about {formatINR(yearly)} a year.</p>
       <ul className="space-y-2">
         {recurringSuggestions.map((s) => (
           <li key={s.key}>

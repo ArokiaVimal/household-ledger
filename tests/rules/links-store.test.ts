@@ -50,4 +50,16 @@ describe("Firestore link store and contact index (emulator)", () => {
     await store.deletePair("uA__uB");
     expect(await store.getPair("uA__uB")).toBeNull();
   });
+
+  it("refuses a second save of the same version in a link space (compare-and-set inside a transaction)", async () => {
+    const { createFirestoreRepository } = await import("@/data/firestore-repository");
+    const repo = createFirestoreRepository("ls2", db);
+    const base = { id: "r1", ownerUid: "uA", payerId: "u_uA", date: "2026-10-01", merchant: "Dinner", amountPaise: 100000, kind: "purchase" as const, categoryId: "food", categoryName: "Food", split: { mode: "equal" as const, participantIds: ["u_uA", "u_uB"] }, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z" };
+    await repo.sharedExpenses.put({ ...base, version: 1 });
+    await repo.sharedExpenses.put({ ...base, merchant: "By B", version: 2 });
+    await expect(repo.sharedExpenses.put({ ...base, merchant: "By A", version: 2 })).rejects.toThrow(/someone else/);
+    const racers = await Promise.allSettled([3, 3].map((v, i) => repo.sharedExpenses.put({ ...base, merchant: `racer${i}`, version: v })));
+    expect(racers.filter((r) => r.status === "fulfilled")).toHaveLength(1); // exactly one of two simultaneous saves wins
+    expect((await repo.sharedExpenses.get("r1"))?.version).toBe(3);
+  });
 });

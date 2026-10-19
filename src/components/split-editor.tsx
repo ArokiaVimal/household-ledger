@@ -8,9 +8,10 @@ import { computeShares, equalSplit, itemsExtra, itemSubtotals, ratioSplit, sameS
 import type { Paise, SplitConfig, SplitItem, SplitMode } from "@/domain/types";
 import { relationshipText } from "@/domain/contacts";
 import { Dot, PersonGlyph } from "./glyphs";
-import { Button, CompactChips, FormRow, Input } from "./ui";
+import { TileGrid } from "./pickers";
+import { Button, Input } from "./ui";
 
-const CUSTOM = "__custom";
+const ADD = "__add";
 
 /** Every way to split, with one plain sentence each so nobody has to guess what a mode means. */
 const MODE_ICON: Record<SplitMode, [LucideIcon, string]> = {
@@ -37,7 +38,7 @@ const signedRupees = (text: string): number | null => (text.trim() === "" || tex
 const firstName = (s: string) => s.trim().split(/\s+/)[0] || s;
 
 /** Controlled editor. Amounts shown come from computeShares, never recomputed here. */
-export function SplitEditor({ total, value, onChange, only }: { total: Paise; value: SplitConfig; onChange: (v: SplitConfig) => void; /** Limits who can be in the split (a Split Group's people). You are always in. */ only?: string[] }) {
+export function SplitEditor({ total, value, onChange, peopleLabel = "Split with", only }: { total: Paise; value: SplitConfig; onChange: (v: SplitConfig) => void; /** The label of the people row, when a heading above already says "Split with". */ peopleLabel?: string; /** Limits who can be in the split (a Split Group's people). You are always in. */ only?: string[] }) {
   const { nameOf, participants, meId, splitRatio, partnerId, pendingPartner, live, partner, addParticipant } = useStore();
   // The couple's usual two-way split (set in Settings). Anchored to the person it names, not to whoever is signed in,
   // so the same expense is split the same way on both phones.
@@ -55,11 +56,11 @@ export function SplitEditor({ total, value, onChange, only }: { total: Paise; va
     : { mode: "equal", participantIds: [meId, o] });
   const withConfig = (who: string[]): SplitConfig => (who.length === 0 ? nobody : who.length === 1 ? usualWith(who[0]) : { mode: "equal", participantIds: [meId, ...who] });
   // How to split with the chosen people. One person gets the quick ratios; a group is split equally unless "More ways".
-  const howOptions: { label: string; config: SplitConfig }[] = others.length === 1 ? (() => {
+  const howOptions: { label: string; title?: string; config: SplitConfig }[] = others.length === 1 ? (() => {
     const o = others[0];
     const usual = usualWith(o);
     return [
-      ...(usual.mode === "percent" ? [{ label: `${nameOf(ownerId)} ${pct(splitRatio.leaderBps)} · ${nameOf(ownerId === meId ? o : meId)} ${pct(10000 - splitRatio.leaderBps)}`, config: usual }] : []),
+      ...(usual.mode === "percent" ? [{ label: `${nameOf(ownerId)} ${pct(splitRatio.leaderBps)} · ${nameOf(ownerId === meId ? o : meId)} ${pct(10000 - splitRatio.leaderBps)}`, title: "Your usual split", config: usual }] : []),
       { label: "50 / 50", config: { mode: "equal" as const, participantIds: [meId, o] } },
       { label: `${firstName(nameOf(o))} owes all`, config: { mode: "shares" as const, participantIds: [meId, o], values: { [meId]: 0, [o]: 1 } } },
       { label: "I owe all", config: { mode: "shares" as const, participantIds: [meId, o], values: { [meId]: 1, [o]: 0 } } },
@@ -114,16 +115,18 @@ export function SplitEditor({ total, value, onChange, only }: { total: Paise; va
     return who.join(", ");
   };
   const presetId = howOptions.find((p) => sameSplit(p.config, value))?.label ?? "";
-  const [advanced, setAdvanced] = useState(false);
-  const showAdvanced = others.length > 0 && (advanced || !presetId);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
+  // Two one-tap splits ("Varru owes all", "I owe all"); every other way is the row of method icons.
+  const quick = howOptions.filter((p) => /owes all$|^I owe all$/.test(p.label));
+  const owesAll = quick.some((p) => p.label === presetId);
+  const showPanel = others.length > 0 && !owesAll && value.mode !== "equal";
   const summary = ids.map((id) => `${nameOf(id)} ${formatINR(shares[id] ?? 0)}`).join(" · ");
   const pickPreset = (label: string) => {
-    if (label === CUSTOM) return setAdvanced(true);
-    setAdvanced(false);
     onChange(structuredClone(howOptions.find((p) => p.label === label)!.config));
   };
   const pickPerson = (id: string) => {
-    setAdvanced(false);
     if (id === ME) return only ? undefined : onChange(nobody);
     if (only && others.length === 1 && others[0] === id) return; // a group expense needs someone to share it with
     onChange(withConfig(others.includes(id) ? others.filter((x) => x !== id) : [...others, id]));
@@ -138,26 +141,39 @@ export function SplitEditor({ total, value, onChange, only }: { total: Paise; va
 
   return (
     <div className="space-y-2">
-      <FormRow label="Split with">
-        <CompactChips multi label="Split with" options={[...(only ? [] : [{ id: ME, label: "Just me", icon: <PersonGlyph name="Me" id={meId} /> }]), ...people.map((p) => ({ id: p.id, icon: <PersonGlyph name={nameOf(p.id)} id={p.id} />, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : nameOf(p.id) }))]} selected={others.length ? others : [ME]} onPick={pickPerson} adder={only ? undefined : { label: "Add a friend", placeholder: "Friend's name, e.g. Karthik", add: addParticipant }} />
+      <section aria-label={peopleLabel}>
+        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{peopleLabel}</h3>
+        <TileGrid multi label="Split with" columns={2}
+          options={[...(only ? [] : [{ id: ME, label: "Just me", icon: <PersonGlyph name="Me" id={meId} size={32} /> }]), ...people.map((p) => ({ id: p.id, icon: <PersonGlyph name={nameOf(p.id)} id={p.id} size={32} />, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : nameOf(p.id), hint: p.id === partnerId ? "Partner" : p.relationship ? relationshipText(p) : undefined })), ...(only ? [] : [{ id: ADD, label: "Add someone", icon: <Dot icon={Plus} tone="bg-accent/10 text-accent" size={32} /> }])]}
+          selected={others.length ? others : [ME]} onPick={(id) => (id === ADD ? setAdding((v) => !v) : pickPerson(id))} />
+        {adding && (
+          <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); const r = addParticipant(newName); if (r.error || !r.id) { setAddError(r.error ?? "Could not add that."); return; } setNewName(""); setAddError(null); setAdding(false); pickPerson(r.id); }}>
+            <Input aria-label="New person's name" autoFocus value={newName} onChange={(e) => { setNewName(e.target.value); setAddError(null); }} placeholder="Friend's name, e.g. Karthik" maxLength={60} />
+            <Button type="submit" variant="primary" disabled={!newName.trim()}>Add</Button>
+          </form>
+        )}
+        {addError && <p role="alert" className="mt-1 text-xs text-danger">{addError}</p>}
         {live && !partner && pendingPartner && others.includes(pendingPartner.id) && <p className="mt-1.5 text-xs text-muted">{pendingPartner.name} has not joined yet. This stays on your side and is shared once they accept.</p>}
         {live && !partner && !pendingPartner && <p className="mt-1.5 text-xs text-muted">Splitting with a partner? <Link href="/settings" className="text-accent underline">Link them in Settings</Link>. Until then everything stays private.</p>}
         {live && partner && !partner.active && <p className="mt-1.5 text-xs text-muted">You unlinked from {partner.name}, so nothing new can be shared with them.</p>}
-      </FormRow>
+      </section>
       {others.length > 0 && (
-        <FormRow label="How">
-          <CompactChips list label="How to split" options={[...howOptions.map((p) => ({ id: p.label, label: p.label, icon: modeDot(p.config.mode === "shares" ? "shares" : p.config.mode), hint: describe(p.config) })), { id: CUSTOM, label: "More ways", icon: <Dot icon={SlidersHorizontal} tone="bg-white text-accent" />, hint: "Exact amounts, percentages, shares, by item…" }]} selected={showAdvanced ? [CUSTOM] : [presetId]} onPick={pickPreset} />
-          {!showAdvanced && !error && ids.length > 1 && total > 0 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
-        </FormRow>
+        <section aria-label="How">
+          <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">How</h3>
+          <div role="radiogroup" aria-label="Split method" className="flex gap-1 rounded-2xl bg-background p-1">
+            {MODES.filter((m) => m.id !== "personal").map((m) => { const on = value.mode === m.id && !owesAll; const [I] = MODE_ICON[m.id]; return (
+              <button key={m.id} type="button" role="radio" aria-checked={on} aria-label={m.label} title={m.label} onClick={() => { onChange(build(m.id, ids.length ? ids : [meId])); }}
+                className={`grid min-h-10 flex-1 place-items-center rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-accent ${on ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-surface hover:text-foreground"}`}><I size={18} aria-hidden /></button>
+            ); })}
+          </div>
+          <p className="mt-1.5 text-xs text-muted"><b className="font-medium text-foreground">{owesAll ? howOptions.find((p) => p.label === presetId)?.label : mode.label}</b>. {owesAll ? howOptions.find((p) => p.label === presetId) && describe(howOptions.find((p) => p.label === presetId)!.config) : mode.hint}</p>
+          {quick.length > 0 && <div className="mt-2"><TileGrid label="Quick splits" columns={2} options={quick.map((p) => ({ id: p.label, label: p.label, icon: modeDot(p.config.mode), hint: describe(p.config) }))} selected={owesAll ? [presetId] : []} onPick={pickPreset} /></div>}
+          {!showPanel && !error && ids.length > 1 && total > 0 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
+        </section>
       )}
 
-      {showAdvanced && (
-        <div className="space-y-3 rounded-2xl bg-background p-3">
-          <div className="space-y-1.5">
-            <CompactChips list label="How to split" options={MODES.map((m) => ({ id: m.id, label: m.label, icon: modeDot(m.id), hint: m.hint }))} selected={[value.mode]} onPick={(m) => onChange(build(m, ids.length ? ids : [meId]))} />
-            <p className="text-xs text-muted">{mode.hint}</p>
-          </div>
-
+      {showPanel && (
+        <div className="space-y-3 border-t border-border pt-3">
           {value.mode === "items" ? (
             <div className="space-y-2">
               <ul className="space-y-2" aria-label="Items">
@@ -188,7 +204,7 @@ export function SplitEditor({ total, value, onChange, only }: { total: Paise; va
             </div>
           ) : (
             <>
-              <ul className="divide-y divide-border overflow-hidden rounded-2xl bg-surface" aria-label="Who is in this expense">
+              <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface" aria-label="Who is in this expense">
                 {pool.map((p) => {
                   const on = ids.includes(p.id);
                   const tag = p.pendingEmail ? "invited" : p.id === partnerId || p.relationship === "partner" ? "" : p.userId === null ? relationshipText(p).toLowerCase() : "";

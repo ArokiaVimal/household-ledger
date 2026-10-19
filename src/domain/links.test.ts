@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildLinkShared, chooseContact, otherUid, pairKey, planLinkSettlement, planLinkShare, proposalsFor, type ContactLink, type LinkContext } from "./links";
+import { applySharedPatch, buildLinkShared, checkSharedEdit, chooseContact, fromSharedId, otherUid, pairKey, planLinkSettlement, planLinkShare, proposalsFor, recordFromShared, settlementToOwner, sharedDiff, toSharedId, type ContactLink, type LinkContext } from "./links";
 import { pairBalances } from "./balances";
 import { sharedToRecord } from "./sharing";
-import type { ExpenseRecord, Participant, Settlement } from "./types";
+import type { ExpenseRecord, Participant, Settlement, SharedExpense } from "./types";
 
 const c = (id: string, email?: string, extra: Partial<Participant> = {}): Participant => ({ id, name: id, userId: null, ...(email ? { email } : {}), ...extra });
 const acct = (o: Partial<{ uid: string; email: string | null; emailVerified: boolean }> = {}) => ({ uid: "B", email: "b@x.com", emailVerified: true, ...o });
@@ -46,49 +46,89 @@ const rec = (o: Partial<ExpenseRecord> = {}): ExpenseRecord => ({
   payerId: "u_A", shared: true, split: { mode: "equal", participantIds: ["u_A", "p_c"] }, excluded: false, status: "reviewed", importSource: "HDFC.csv", notes: "private note", ...o,
 });
 
-describe("what a link mirrors", () => {
-  it("shares a two-way split with exactly the pair's shares and payer", () => {
-    const p = planLinkShare(rec(), ctx);
-    expect(p).toEqual({ action: "share", copy: { payerId: "u_A", amountPaise: 100000, split: { mode: "custom", participantIds: ["u_B", "u_A"], values: { u_B: 50000, u_A: 50000 } } } });
+const NOW = "2026-10-19T00:00:00.000Z";
+const names = { p_friend: "Divya", p_c: "Chitra" };
+const build = (r: ExpenseRecord, version = 1) => buildLinkShared(r, ctx, { categoryName: "Food", names, now: NOW, version });
+const opts = { canEditBankFields: true, noteShared: false, ownerUid: "A", otherUid: "B" };
+
+describe("what a link shares: the full expense", () => {
+  it("shares when both of you are in it, however the split is made, with the real total", () => {
+    expect(planLinkShare(rec(), ctx).action).toBe("share");
+    const s = build(rec());
+    expect(s).toMatchObject({ id: "r1", ownerUid: "A", payerId: "u_A", amountPaise: 100000, merchant: "Dinner", categoryName: "Food", version: 1, split: { mode: "equal", participantIds: ["u_A", "u_B"] } });
   });
-  it("maps the contact as payer to the linked account", () => {
-    const p = planLinkShare(rec({ payerId: "p_c" }), ctx);
-    expect(p).toMatchObject({ action: "share", copy: { payerId: "u_B" } });
+  it("shows the full group split with the other people by name only", () => {
+    const s = build(rec({ amountPaise: 90000, split: { mode: "equal", participantIds: ["u_A", "p_c", "p_friend"] } }));
+    expect(s.split.participantIds).toEqual(["u_A", "u_B", "p_friend"]);
+    expect(s.people).toEqual({ p_friend: "Divya" });
+    expect(s.amountPaise).toBe(90000);
   });
-  it("never reveals other people in the split: only the pair's two shares travel", () => {
-    const p = planLinkShare(rec({ amountPaise: 90000, split: { mode: "equal", participantIds: ["u_A", "p_c", "p_friend"] } }), ctx);
-    if (p.action !== "share") throw new Error("expected share");
-    expect(p.copy.amountPaise).toBe(60000); // the third person's 30000 is not part of the copy
-    expect(JSON.stringify(p.copy)).not.toContain("p_friend");
-    expect(Object.keys(p.copy.split.values ?? {}).sort()).toEqual(["u_A", "u_B"]);
+  it("includes an expense a third person paid, as long as both of you are in it", () => {
+    const r = rec({ payerId: "p_friend", split: { mode: "equal", participantIds: ["u_A", "p_c", "p_friend"] } });
+    expect(planLinkShare(r, ctx).action).toBe("share");
+    expect(build(r).payerId).toBe("p_friend");
   });
-  it("copies no bank text, account, notes or import details", () => {
-    const p = planLinkShare(rec(), ctx);
-    if (p.action !== "share") throw new Error("expected share");
-    const copy = buildLinkShared(rec(), p.copy, { ownerUid: "A", categoryName: "Food", now: "2026-10-19T00:00:00.000Z" });
-    const text = JSON.stringify(copy);
-    for (const secret of ["SECRET BANK TEXT", "acc_private", "private note", "HDFC.csv"]) expect(text).not.toContain(secret);
+  it("copies no bank text, account, import details, receipts or (without opt-in) notes", () => {
+    const text = JSON.stringify(build(rec({ receiptId: "rcpt", fundedBy: "acc_upi" })));
+    for (const secret of ["SECRET BANK TEXT", "acc_private", "private note", "HDFC.csv", "rcpt", "acc_upi", "Manual entry"]) expect(text).not.toContain(secret);
+    expect(build(rec({ shareNote: true })).note).toBe("private note");
   });
-  it("shares nothing that does not involve the contact, is private, unreviewed, excluded, not spending, or paid by someone else", () => {
+  it("shares nothing that does not involve both of you, is private, unreviewed, excluded or not spending", () => {
     for (const r of [
       rec({ split: { mode: "equal", participantIds: ["u_A", "p_other"] } }),
+      rec({ payerId: "p_c", split: { mode: "equal", participantIds: ["p_c", "p_other"] } }), // you are not in it
       rec({ split: { mode: "personal", participantIds: ["u_A"] } }),
       rec({ status: "unreviewed" }), rec({ excluded: true }), rec({ kind: "income" }), rec({ kind: "transfer" }), rec({ kind: "cc_payment" }),
-      rec({ payerId: "p_third", split: { mode: "equal", participantIds: ["u_A", "p_c", "p_third"] } }),
     ]) expect(planLinkShare(r, ctx).action).toBe("withdraw");
   });
-  it("shares a refund as a refund and keeps balances exact to the paisa", () => {
+  it("translates people both ways and keeps balances exact to the paisa", () => {
+    expect(toSharedId(ctx, "u_A")).toBe("u_A"); expect(toSharedId(ctx, "p_c")).toBe("u_B"); expect(toSharedId(ctx, "p_x")).toBe("p_x");
+    expect(fromSharedId(ctx, "u_B")).toBe("p_c");
     const records = [rec({ amountPaise: 100001 }), rec({ id: "r2", kind: "refund", amountPaise: 20001, payerId: "p_c" })];
-    const copies = records.map((r) => { const p = planLinkShare(r, ctx); if (p.action !== "share") throw new Error(); return sharedToRecord(buildLinkShared(r, p.copy, { ownerUid: "A", categoryName: "Food", now: "2026-10-19T00:00:00.000Z" })); });
-    const mine = pairBalances(records.map((r) => ({ ...r, split: r.split })), []).find((b) => [b.from, b.to].includes("p_c"))!;
-    const theirs = pairBalances(copies, [])[0];
-    expect(theirs.outstanding).toBe(mine.outstanding); // both people see the same amount owed
+    const mine = pairBalances(records, []).find((b) => [b.from, b.to].includes("p_c"))!;
+    const theirs = pairBalances(records.map((r) => sharedToRecord(build(r))), [])[0];
+    expect(theirs.outstanding).toBe(mine.outstanding);
   });
-  it("mirrors only settlements between exactly the owner and the contact, without notes", () => {
+  it("mirrors only settlements between exactly the two, without your note, and maps them back for a ledger", () => {
     const s: Settlement = { id: "s1", date: "2026-10-05", fromId: "p_c", toId: "u_A", amountPaise: 5000, note: "cash, private", recordIds: ["r1"] };
     expect(planLinkSettlement(s, ctx)).toEqual({ id: "s1", date: "2026-10-05", fromId: "u_B", toId: "u_A", amountPaise: 5000 });
-    expect(planLinkSettlement({ ...s, voided: true }, ctx)).toMatchObject({ voided: true });
     expect(planLinkSettlement({ ...s, fromId: "p_other" }, ctx)).toBeNull();
-    expect(planLinkSettlement({ ...s, toId: "p_other" }, ctx)).toBeNull();
+    expect(settlementToOwner({ id: "s1", date: "2026-10-05", fromId: "u_B", toId: "u_A", amountPaise: 5000 }, ctx)).toEqual({ id: "s1", date: "2026-10-05", fromId: "p_c", toId: "u_A", amountPaise: 5000 });
+  });
+});
+
+describe("editing the shared terms", () => {
+  const cur: SharedExpense = build(rec({ amountPaise: 90000, split: { mode: "equal", participantIds: ["u_A", "p_c", "p_friend"] } }));
+  it("lets either person change merchant, category, payer, split and (when shared) the note", () => {
+    expect(checkSharedEdit(cur, { merchant: "Dinner out", categoryName: "Eating out" }, opts)).toBeNull();
+    expect(checkSharedEdit(cur, { payerId: "u_B" }, opts)).toBeNull();
+    expect(checkSharedEdit(cur, { split: { mode: "custom", participantIds: ["u_A", "u_B", "p_friend"], values: { u_A: 40000, u_B: 30000, p_friend: 20000 } } }, opts)).toBeNull();
+    expect(checkSharedEdit(cur, { note: "x" }, { ...opts, noteShared: true })).toBeNull();
+  });
+  it("refuses a note the owner has not opted to show, and bank fields of imported rows", () => {
+    expect(checkSharedEdit(cur, { note: "x" }, opts)).toMatch(/not chosen/);
+    expect(checkSharedEdit(cur, { amountPaise: 1 }, { ...opts, canEditBankFields: false })).toMatch(/bank/);
+    expect(checkSharedEdit(cur, { date: "2026-10-02" }, { ...opts, canEditBankFields: false })).toMatch(/bank/);
+    expect(checkSharedEdit(cur, { amountPaise: 80000, date: "2026-10-02" }, opts)).toBeNull();
+  });
+  it("refuses bad money, bad splits, strangers, and dropping either of you", () => {
+    expect(checkSharedEdit(cur, { amountPaise: 0 }, opts)).toMatch(/amount/);
+    expect(checkSharedEdit(cur, { amountPaise: 12.5 }, opts)).toMatch(/amount/);
+    expect(checkSharedEdit(cur, { split: { mode: "custom", participantIds: ["u_A", "u_B", "p_friend"], values: { u_A: 1, u_B: 1, p_friend: 1 } } }, opts)).toMatch(/equal/i);
+    expect(checkSharedEdit(cur, { split: { mode: "equal", participantIds: ["u_A", "u_B", "p_new"] } }, opts)).toMatch(/already in/);
+    expect(checkSharedEdit(cur, { payerId: "p_new" }, opts)).toMatch(/already in/);
+    expect(checkSharedEdit(cur, { split: { mode: "equal", participantIds: ["u_A", "p_friend"] } }, opts)).toMatch(/stay/);
+    expect(checkSharedEdit(cur, { split: { mode: "personal", participantIds: ["u_A"] } }, opts)).toMatch(/someone else/);
+    expect(checkSharedEdit(cur, {}, opts)).toMatch(/Nothing/);
+    expect(checkSharedEdit({ ...cur, voided: true }, { merchant: "x" }, opts)).toMatch(/withdrawn/);
+  });
+  it("bumps the version, diffs for the log, and writes through to the owner's record with their own ids", () => {
+    const next = applySharedPatch(cur, { merchant: "Dinner out", payerId: "u_B", split: { mode: "custom", participantIds: ["u_A", "u_B", "p_friend"], values: { u_A: 40000, u_B: 30000, p_friend: 20000 } } }, NOW);
+    expect(next.version).toBe(2);
+    expect(Object.keys(sharedDiff(cur, next)!.after).sort()).toEqual(["merchant", "payerId", "split"]);
+    expect(sharedDiff(cur, applySharedPatch(cur, {}, NOW))).toBeNull(); // nothing changed, nothing to log
+    const r = recordFromShared(rec({ amountPaise: 90000, split: cur.split }), next, ctx, { categoryId: "food", canEditBankFields: false });
+    expect(r).toMatchObject({ merchant: "Dinner out", payerId: "p_c", split: { participantIds: ["u_A", "p_c", "p_friend"], values: { u_A: 40000, p_c: 30000, p_friend: 20000 } }, amountPaise: 90000, accountId: "acc_private", originalDescription: "SECRET BANK TEXT" });
+    expect(recordFromShared(rec(), { ...next, amountPaise: 1, date: "2020-01-01" }, ctx, { categoryId: "food", canEditBankFields: false })).toMatchObject({ amountPaise: 100000, date: "2026-10-01" }); // bank fields stay
   });
 });

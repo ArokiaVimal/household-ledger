@@ -56,6 +56,8 @@ export interface Participant {
   relationship?: Relationship;
   /** Custom relationship wording, when `relationship` is "custom" (for example "Flatmate"). */
   relationshipLabel?: string;
+  /** What you call them. Shown instead of the full name everywhere you pick or see this person. */
+  nickname?: string;
   /** Contact email, lower-cased. A hint for matching a future sign-up; it never gives anyone access to anything by itself. */
   email?: string;
   /** Set once this contact is linked to a real account (the pair key of the link). Separate from `userId` (household member) and from the contact's email: it never changes who the contact is. */
@@ -141,6 +143,8 @@ export interface ExpenseRecord {
   splitGroupId?: string;
   /** Set when a redacted copy of this expense was shared with the partner (see SharedExpense). */
   sharedWithPartner?: boolean;
+  /** Goes up only when a linked person (not the owner) changes the shared terms of this record, so a stale screen of the owner is refused instead of overwriting it. */
+  sharedRev?: number;
   /** The owner chose to show this record's note on the shared copy. Off by default. */
   shareNote?: boolean;
   /** Where the import's guess for merchant/category came from. Only set while the row waits in the review queue. */
@@ -297,6 +301,10 @@ export interface SharedExpense {
   note?: string;
   /** Withdrawn by the owner: kept for history, no longer counted. */
   voided?: boolean;
+  /** Link spaces: increases by one on every change (edit, withdraw, undo). A write must carry the next number, so two people saving at once cannot overwrite each other. */
+  version?: number;
+  /** Link spaces: names of the other people in the split (id -> name), so both linked people see the full group expense. Names only. */
+  people?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }

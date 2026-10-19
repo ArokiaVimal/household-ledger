@@ -48,13 +48,13 @@ export function NotesAi() {
 
   return (
     <>
-      <Button disabled={!!off} title={off ?? undefined} onClick={() => { setOpen(true); setResult(null); setError(null); setDone(null); }}><Sparkles size={15} aria-hidden />Read notes with AI<AiBadge>AI</AiBadge></Button>
+      <Button disabled={!!off} title={off ?? undefined} aria-label="Read notes with AI" onClick={() => { setOpen(true); setResult(null); setError(null); setDone(null); }}><Sparkles size={15} aria-hidden /><span className="max-sm:sr-only">Read notes with AI</span><span className="max-sm:hidden"><AiBadge>AI</AiBadge></span></Button>
       <Dialog open={open} onClose={() => setOpen(false)} title="Read notes with AI">
         <div className="space-y-3 pb-1 text-sm">
           {!result && !done && (
             <>
               <p>Claude reads the <b>{withNotes}</b> note{withNotes === 1 ? "" : "s"} you wrote on your transactions and suggests the category each payment really belongs to. Your note is the best clue about what a payment was for.</p>
-              <p className="text-xs text-muted">It sends the merchant, amount, current category and your note (long numbers, emails and phone numbers hidden). Never the bank text. Nothing changes until you choose what to apply.</p>
+              <p className="text-xs text-muted">Sends merchant, amount, category and note. Long numbers, emails and phone numbers are hidden. Nothing changes until you apply.</p>
               {error && <p role="alert" className="rounded-xl bg-danger/10 p-3 text-danger">{error}</p>}
               <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => setOpen(false)}>Cancel</Button><Button variant="primary" disabled={busy} onClick={() => void run()}>{busy ? "Reading…" : "Read my notes"}</Button></div>
             </>

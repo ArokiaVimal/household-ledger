@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { logoFor } from "@/lib/logos";
+import { brandBadge, logoFor } from "@/lib/logos";
 import { Glyph } from "./glyphs";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -21,14 +21,15 @@ export function Amount({ r }: { r: ExpenseRecord }) {
   );
 }
 
-export function TxnBadges({ r }: { r: ExpenseRecord }) {
+/** `quiet` leaves out the everyday states (Reviewed, Receipt linked) so a list only flags what needs a look. */
+export function TxnBadges({ r, quiet }: { r: ExpenseRecord; quiet?: boolean }) {
   const { voucherBrands } = useStore();
   const brand = (id?: string) => voucherBrands.find((b) => b.id === id)?.name ?? "voucher";
   return (
     <>
-      {r.status === "unreviewed" ? <Badge tone="warn">Unreviewed</Badge> : <Badge tone="good">Reviewed</Badge>}
+      {r.status === "unreviewed" ? <Badge tone="warn">Unreviewed</Badge> : quiet ? null : <Badge tone="good">Reviewed</Badge>}
       {r.duplicateOf && <Badge tone="bad">Possible duplicate</Badge>}
-      {r.receiptId && <Badge tone="good">Receipt linked</Badge>}
+      {r.receiptId && !quiet && <Badge tone="good">Receipt linked</Badge>}
       {r.excluded && <Badge>Excluded</Badge>}
       {r.voucherBrandId && <Badge tone="good">Voucher: {brand(r.voucherBrandId)}</Badge>}
       {needsVoucherBrand(r) && <Badge tone="warn">Needs a voucher brand</Badge>}
@@ -41,7 +42,8 @@ export function TxnBadges({ r }: { r: ExpenseRecord }) {
 
 const tints = ["bg-accent-soft text-accent", "bg-good-soft text-good", "bg-warn-soft text-warn", "bg-background text-foreground"];
 export function MerchantAvatar({ name, size = 40 }: { name: string; size?: number }) {
-  const logo = logoFor(name);
+  const badge = brandBadge(name);
+  const logo = badge ? null : logoFor(name);
   const { iconsByName } = useStore();
   const [failed, setFailed] = useState(false);
   const chosen = iconsByName[name.trim().toLowerCase()];
@@ -53,6 +55,7 @@ export function MerchantAvatar({ name, size = 40 }: { name: string; size?: numbe
       </span>
     );
   }
+  if (badge && !logo) return <span aria-hidden style={{ width: size, height: size, background: badge.bg, color: badge.fg, fontSize: size * (badge.mark.length > 2 ? 0.28 : badge.mark.length > 1 ? 0.36 : 0.5) }} className="grid shrink-0 place-items-center rounded-full font-bold leading-none tracking-tight">{badge.mark}</span>;
   if (chosen && (!logo || failed)) return <Glyph iconKey={chosen} size={size} />;
   const tint = tints[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % tints.length];
   return <span aria-hidden style={{ width: size, height: size }} className={cn("grid shrink-0 place-items-center rounded-full text-sm font-semibold", tint)}>{name[0]?.toUpperCase()}</span>;
@@ -68,15 +71,15 @@ export function TxnCard({ r, onClick }: { r: ExpenseRecord; onClick?: () => void
         <MerchantAvatar name={r.merchant} />
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium">{r.merchant}</div>
-          <div className="text-xs text-muted">{r.date} · {categoryName(r.categoryId)} · paid by {nameOf(r.payerId)}</div>
+          <div className="truncate text-xs text-muted">{new Date(`${r.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {categoryName(r.categoryId)}{r.payerId !== meId ? ` · paid by ${nameOf(r.payerId)}` : ""}</div>
         </div>
         <div className="text-right">
           <Amount r={r} />
           {r.shared && !r.excluded && mine !== 0 && <div className="num text-xs text-muted">my share {formatINR(Math.abs(mine))}</div>}
-          {counted !== 0 && Math.abs(counted) !== r.amountPaise && <div className="num text-xs text-muted">counts {formatINR(Math.abs(counted))} in {activeGroup.name}</div>}
+          {counted !== 0 && Math.abs(counted) !== r.amountPaise && !(r.shared && !r.excluded && Math.abs(counted) === Math.abs(mine)) && <div className="num text-xs text-muted">counts {formatINR(Math.abs(counted))} in {activeGroup.name}</div>}
         </div>
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-1"><TxnBadges r={r} /></div>
+      <div className="mt-1.5 flex flex-wrap gap-1 empty:hidden"><TxnBadges r={r} quiet /></div>
     </button>
   );
 }

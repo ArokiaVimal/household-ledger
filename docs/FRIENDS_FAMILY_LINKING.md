@@ -1,6 +1,6 @@
 # Design: linking a Friends & Family contact to a real account
 
-Status: written before the code (2026-10-19). Builds on `docs/PRIVACY_AND_COUPLE_PLAN.md`. Owner decisions that shaped it: privacy is strict; an account is never linked from an unverified email; linking is never silent; the owner's ledger is never changed by linking.
+Status: written before the code (2026-10-19). **Revision 2 (2026-10-19, owner's follow-up) supersedes sections 4 and 7 where they say the copy is read-only and pair-scoped: see section 8.** Builds on `docs/PRIVACY_AND_COUPLE_PLAN.md`. Owner decisions that shaped it: privacy is strict; an account is never linked from an unverified email; linking is never silent; the owner's ledger is never changed by linking.
 
 ## 1. Words (kept distinct)
 - **Friends & Family contact**: a `Participant` in *your* personal space with a name, relationship and optional email. A label you keep. Not a login.
@@ -60,3 +60,36 @@ Settlements between exactly the owner and the contact are mirrored (amount, date
 - Comments or disputes on a mirrored expense.
 - Merging two accounts of one human.
 - A hard-coded index backfill: lookups use a Firestore collection-group query on `participants.email` (needs the field override in `firestore.indexes.json`, deployed with the rules).
+
+## 8. Revision 2: shared expenses are two-way editable, fully visible and logged
+Owner's words: "Shared expense should be editable but it should be logged. They should be able to see that full transaction as it's a group or couple expense."
+
+### 8.1 One source of truth (one transaction, no duplicates, no double counting)
+- The **origin owner's record** (the ledger row in their personal space, with bank data) stays the only transaction. Linking never creates a second one and never edits it.
+- The link space holds the **shared terms** of that record, one `sharedExpenses/{recordId}` document per record (the id is the record's id, so retries cannot duplicate). While a link is active this document is the single source of truth for the **shared fields**: merchant, date, amount, category, payer, split and (opt-in) note. Every change, from either person, goes through one server function that (1) checks a version, (2) writes the shared terms, (3) writes the same change through to the origin owner's record, (4) logs it. So the two can only differ in a short failure window, which is repaired by reverting the shared terms (and the next owner edit rebuilds them from the record).
+- The linked person has **no ledger row for it**: they see and edit it on the People page ("Shared through linked accounts"). Their own spending and reports therefore never count it twice. (Folding a linked expense into *their* Mine view the way the partner flow does is a possible follow-up; it is deliberately not done here.)
+- Bank-sourced fields stay immutable: **amount and date can be edited only when the origin record is a manual entry.** For an imported row the shared amount and date are the bank's; the editor says so.
+- Participants inside a shared expense are the origin owner's own ids, except the two linked people, who are always `u_<uid>`. Other people are shown by **name only** (a name map stored on the shared terms); they cannot be added or removed by the other person, only re-weighted within the split. Both linked people must stay in the expense (to remove it, the owner withdraws it).
+- The category is edited by name. It is applied to the owner's record only if the owner has a category with that name; otherwise the edit is refused with a plain message (nobody learns the owner's category list).
+
+### 8.2 What the linked person sees
+Full transaction as a group or couple expense: merchant, date, total amount, category, payer, the **full split including the other participants' names and shares**, and the activity log. A record is shared when **both** linked people are in it (as payer or in the split), it is reviewed, not excluded, and a purchase, refund or fee (income, transfers, card-bill payments stay private). Never copied: bank text, payment account or card, import details, receipts, voucher data, anything outside expenses that involve both of them. The note travels only if the owner ticked "show note" (`shareNote`, unchanged). Adding a contact still grants nothing until the owner confirms, and then only these expenses.
+
+### 8.3 Conflicts
+Each shared expense has a `version`. An edit must say which version it saw (`ifVersion`); if someone saved in between, the second save is **refused** with "X changed this expense since you opened it. Reload; nothing was overwritten". The write is a compare-and-set inside the repository (Firestore transaction), not a read-then-write. The owner's own edits through the normal edit dialog carry `ifRev`: a counter on the record that goes up only when the *other* person edits, so a stale owner screen is refused too, but the owner's own successive edits never conflict with themselves. Undo uses the same checks.
+
+### 8.4 The log
+Every create, edit, withdrawal, undo, payment and void is an `AuditEvent` in the link space (`auditEvents`), with who (`actorId`), when, a summary and for edits `change {before, after}` of the shared fields. Both people read it (members read; nobody writes from a client). The owner's own ledger also gets an event (actor = whoever edited) when a change is written through to their record, so their history is complete. Undo reuses `undoableIds` and the "newest step only, nothing changed since" rule from `src/domain/audit.ts`; either person can undo the latest change on an expense, and the undo is itself logged.
+
+### 8.5 Delete and withdraw (agreed rules)
+- **Only the origin owner can remove a shared expense** (delete, exclude, make it private, or take the contact out of the split). That is a **logged withdrawal**: the shared terms are marked void (kept, never deleted), the expense disappears from totals and balances for both, and stays visible in the activity log. The linked person cannot delete it; they can edit their own share, or ask the owner.
+- Voided settlements follow the existing rule: a void is final and logged.
+
+### 8.6 Settlements
+Either person may record a payment between the two of them, or void one, from People. It is stored in the link space, **written through to each active owner's own settlements** (so every balance is right) and logged. A settlement never creates an expense. Where both people hold a contact for each other, the other owner's ledger gets it too.
+
+### 8.7 Unlinking
+Either person can unlink. Sync and editing stop (every side ends). The shared terms, settlements and log stay readable to both as history. Each owner's ledger keeps the expense exactly as it was at that moment, including any edits the other person made while linked. Linking again needs a fresh confirmation and re-syncs from the owners' records.
+
+### 8.8 Privacy model changes since revision 1
+The linked person now sees the **total amount and the other participants' names and shares** of each shared expense (before: only the two shares). They can now **write** (edit, undo, payments) through the server; clients still cannot write to any space. Link-space copies written before this revision are upgraded in place the next time the owner signs in (`schema` 2), logged as "now shows the full expense".

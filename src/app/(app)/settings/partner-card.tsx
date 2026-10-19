@@ -87,7 +87,7 @@ export function PartnerCard() {
         <div className="border-t border-border pt-3"><Button variant="danger" disabled={busy} onClick={() => setUnlinking(true)}>Unlink from {them.name}…</Button></div>
         {feedback}
         <ConfirmDialog open={unlinking} onClose={() => setUnlinking(false)} title={`Unlink from ${them.name}?`} confirmLabel="Unlink" onConfirm={() => run({ action: "unlink" }, "Unlinked. Your shared history stays for both of you.")}>
-          <p>You will both keep your own private transactions untouched. Everything already shared stays visible to both as history, but nothing new can be shared until you link again.</p>
+          <p>Your private data stays untouched. Shared history stays visible to both. Nothing new can be shared.</p>
         </ConfirmDialog>
       </Card>
     );
@@ -104,7 +104,7 @@ export function PartnerCard() {
           <Button variant="primary" disabled={busy} onClick={() => run({ action: "accept", hash: offer.hash }, "Linked. Set your usual split below.")}>Accept invitation</Button>
         </div>
       )}
-      <p className="text-sm text-muted">Everything here is yours alone and nothing needs a partner. When you want to split expenses, invite your partner by email. They sign in with that Google account and accept in Settings.</p>
+      <p className="text-sm text-muted">Everything here is private to you. To split expenses, invite your partner by email.</p>
       {inviteForm}
       {waiting.length > 0 && (
         <div>
