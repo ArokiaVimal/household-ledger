@@ -12,7 +12,7 @@ import type { BillStatus } from "@/domain/cardbills";
 import { useStore } from "@/data/store";
 import { cardViews, upcomingBills } from "@/domain/cardbills";
 import { NAV } from "@/components/nav-items";
-import { rootOf, shortName } from "@/domain/accounts";
+import { cardLabel, rootOf, shortName } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
 import { byMonth } from "@/domain/reports";
 import { summarizeGroup } from "@/domain/groups";
@@ -21,8 +21,6 @@ import { summarize } from "@/domain/reports";
 import { cn } from "@/lib/cn";
 import { logoFor } from "@/lib/logos";
 
-/** The first two words, so a long card or bill name fits a narrow column. */
-const two = (n: string) => n.split(/\s+/).slice(0, 2).join(" ");
 const prettyDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
 
 /** A compact section header: icon, title and a "View all" link that opens the complete list. */
@@ -42,7 +40,7 @@ function Tick({ done, label, onClick }: { done: boolean; label: string; onClick:
     </button>
   );
 }
-interface CheckRow { key: string; logo: ReactNode; name: string; sub: string; tone: "good" | "bad" | "warn" | "info"; done: boolean; tickLabel: string; onTick: () => void }
+interface CheckRow { key: string; logo: ReactNode; /** Short on a phone, fuller from tablet width up. */ name: string; nameLong: string; sub: string; subLong: string; tone: "good" | "bad" | "warn" | "info"; done: boolean; tickLabel: string; onTick: () => void }
 
 /**
  * A compact checklist card for the two-column home layout. Only what still needs doing is listed (paid items move under "View all");
@@ -55,7 +53,7 @@ function ChecklistCard({ icon: I, title, href, rows, empty, addLabel }: { icon: 
   const more = open.length > 3 ? `View all (+${open.length - 3})` : paid > 0 ? `View all · ${paid} paid` : "View all";
   return (
     <Card className="flex min-w-0 flex-col p-2.5 md:p-4">
-      <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent/10 text-accent" aria-hidden><I size={14} /></span>{title}</h2>
+      <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold md:text-base"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent/10 text-accent" aria-hidden><I size={14} /></span>{title}</h2>
       {rows.length === 0 ? (
         <p className="flex-1 py-2 text-xs text-muted">{empty}. <Link href={href} className="text-accent underline">{addLabel}</Link></p>
       ) : open.length === 0 ? (
@@ -69,12 +67,12 @@ function ChecklistCard({ icon: I, title, href, rows, empty, addLabel }: { icon: 
             {open.slice(0, 3).map((r) => (
               <li key={r.key} className="flex items-center gap-1.5 py-2">
                 {r.logo}
-                <Link href={href} className="min-w-0 flex-1"><span className="block truncate text-[12.5px] font-medium leading-tight">{r.name}</span><span className={cn("block truncate text-[11px] leading-tight", tone[r.tone])}>{r.sub}</span></Link>
+                <Link href={href} className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium leading-tight md:text-[15px]"><span className="md:hidden">{r.name}</span><span className="hidden md:inline">{r.nameLong}</span></span><span className={cn("block truncate text-[11px] leading-tight md:text-[13px]", tone[r.tone])}><span className="md:hidden">{r.sub}</span><span className="hidden md:inline">{r.subLong}</span></span></Link>
                 <Tick done={false} label={r.tickLabel} onClick={r.onTick} />
               </li>
             ))}
           </ul>
-          <Link href={href} className="mt-1 flex min-h-9 items-center justify-center rounded-xl bg-background px-2 text-xs font-medium text-accent">{more}</Link>
+          <Link href={href} className="mt-1 flex min-h-9 items-center justify-center rounded-xl bg-background px-2 text-xs font-medium text-accent md:text-sm">{more}</Link>
         </>
       )}
     </Card>
@@ -157,9 +155,9 @@ export default function Dashboard() {
       {/* 2 and 3. Credit-card bills and recurring expenses, side by side. Paid ones move under "View all". */}
       <section aria-label="Bills and recurring expenses" className="grid grid-cols-2 gap-3 md:gap-4">
         <ChecklistCard icon={CalendarClock} title="Card bills" href="/cards" empty="No bills tracked yet" addLabel="Add a bill"
-          rows={billRows.map((b) => ({ key: b.bill.id, logo: <MerchantAvatar name={accountName(b.bill.accountId)} size={26} />, name: two(shortName(accountName(b.bill.accountId))), sub: `${b.state === "overdue" ? "Overdue" : prettyDay(b.bill.dueDate)} ${formatINR(b.state === "paid" ? b.bill.totalDuePaise : b.remainingPaise).replace(".00", "")}`, tone: b.state === "paid" ? "good" : b.state === "overdue" ? "bad" : b.daysLeft <= 3 ? "warn" : "info", done: b.state === "paid", tickLabel: `Mark ${accountName(b.bill.accountId)} bill paid`, onTick: () => setPaying({ kind: "bill", bill: b }) }))} />
+          rows={billRows.map((b) => { const amt = formatINR(b.state === "paid" ? b.bill.totalDuePaise : b.remainingPaise).replace(".00", ""); const card = accounts.filter((x) => x.type === "credit_card" && !x.archived); return { key: b.bill.id, logo: <MerchantAvatar name={accountName(b.bill.accountId)} size={28} />, name: cardLabel(accountName(b.bill.accountId), card), nameLong: shortName(accountName(b.bill.accountId)), sub: amt, subLong: `${b.state === "overdue" ? "Overdue" : "Due " + prettyDay(b.bill.dueDate)} · ${amt}`, tone: b.state === "paid" ? "good" as const : b.state === "overdue" ? "bad" as const : b.daysLeft <= 3 ? "warn" as const : "info" as const, done: b.state === "paid", tickLabel: `Mark ${accountName(b.bill.accountId)} bill paid`, onTick: () => setPaying({ kind: "bill", bill: b }) }; })} />
         <ChecklistCard icon={Repeat} title="Recurring" href="/recurring" empty="Nothing due this month" addLabel="Add one"
-          rows={recurringRows.map((r) => { const dueToday = r.item.dueDay === Number(today.slice(8, 10)) && month === today.slice(0, 7); return { key: r.item.id, logo: <CategoryGlyph name={categoryName(r.item.categoryId)} size={26} icon={categories.find((c) => c.id === r.item.categoryId)?.icon} />, name: two(r.item.name), sub: `${r.state === "overdue" ? "Overdue" : dueToday ? "Today" : `${r.item.dueDay} ${new Date(`${month}-01T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" })}`} ${r.estimated ? "~" : ""}${formatINR(r.state === "paid" && !r.marked ? r.actualPaise : r.expectedPaise).replace(".00", "")}`, tone: r.state === "paid" ? "good" as const : r.state === "overdue" ? "bad" as const : dueToday ? "warn" as const : "info" as const, done: r.state === "paid", tickLabel: `Mark ${r.item.name} paid`, onTick: () => setPaying({ kind: "recurring", id: r.item.id, name: r.item.name }) }; })} />
+          rows={recurringRows.map((r) => { const dueToday = r.item.dueDay === Number(today.slice(8, 10)) && month === today.slice(0, 7); const amt = `${r.estimated ? "~" : ""}${formatINR(r.state === "paid" && !r.marked ? r.actualPaise : r.expectedPaise).replace(".00", "")}`; const day = `${r.item.dueDay} ${new Date(`${month}-01T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" })}`; return { key: r.item.id, logo: <CategoryGlyph name={categoryName(r.item.categoryId)} size={28} icon={categories.find((c) => c.id === r.item.categoryId)?.icon} />, name: r.item.name.split(/\s+/)[0], nameLong: r.item.name, sub: amt, subLong: `${r.state === "overdue" ? "Overdue" : dueToday ? "Today" : "Due " + day} · ${amt}`, tone: r.state === "paid" ? "good" as const : r.state === "overdue" ? "bad" as const : dueToday ? "warn" as const : "info" as const, done: r.state === "paid", tickLabel: `Mark ${r.item.name} paid`, onTick: () => setPaying({ kind: "recurring", id: r.item.id, name: r.item.name }) }; })} />
       </section>
 
       {/* 4. I owe / I'm owed */}

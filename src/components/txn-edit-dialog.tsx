@@ -115,7 +115,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const dueDay = Math.min(28, Math.max(1, Number(date.slice(8, 10)) || 1));
   const amountPaise = adding ? (parseRupees(amountText) ?? 0) : record.amountPaise;
   const sharing = split.mode !== "personal" || payerId !== meId;
-  const [splitOpen, setSplitOpen] = useState(sharing);
+  const [splitOpen, setSplitOpen] = useState(false);
   const isUpi = accounts.find((a) => a.id === accountId)?.type === "upi";
   const splitError = topUp ? null : validateSplit(amountPaise, split);
   // Which of your Payment Groups this transaction counts in, from who is in the split (the groups are views, so there is nothing to set).
@@ -249,14 +249,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         ? <p className="rounded-xl bg-background p-3 text-xs text-muted">A wallet top-up is your own money going into the wallet, so it is not split or shared. Split the purchases you make from the wallet instead.</p>
         : (
           <>
-            {splitOpen || splitError ? (
-              <div className="rounded-2xl border border-border bg-surface p-3">
-                <button type="button" onClick={() => setSplitOpen(false)} aria-expanded="true" className="mb-2 flex min-h-9 w-full items-center justify-between gap-2 text-left"><span className="text-[11px] font-semibold uppercase tracking-wide text-muted/80">Split with</span><ChevronDown size={16} aria-hidden className="rotate-180 text-muted" /></button>
-                <SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} peopleLabel="Who" />
-              </div>
-            ) : (
-              <PickerRow icon={<span className="flex -space-x-2">{(split.participantIds.length ? split.participantIds : [meId]).slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={28} /></span>)}</span>} label="Split with" value={split.mode === "personal" || split.participantIds.length <= 1 ? "Just me" : split.participantIds.map((id) => (id === meId ? "You" : nameOf(id).split(/\s+/)[0])).join(", ")} sub={split.participantIds.length > 1 ? "Tap to change who and how" : "Tap to share with someone"} onClick={() => setSplitOpen(true)} />
-            )}
+            <PickerRow icon={<span className="flex -space-x-2">{(split.participantIds.length ? split.participantIds : [meId]).slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={26} /></span>)}</span>} label="Split with" value={split.mode === "personal" || split.participantIds.length <= 1 ? "Just me" : split.participantIds.map((id) => (id === meId ? "You" : nameOf(id))).join(", ")} sub={splitError ?? (split.participantIds.length > 1 ? "Tap to change who and how" : "Tap to share with someone")} onClick={() => setSplitOpen(true)} />
             {countsIn.length > 0 && <p className="-mt-1 px-1 text-xs text-muted">Counts in <b className="font-medium text-foreground">{countsIn.join(" · ")}</b>. This follows who is in the split.</p>}
           </>
         )}
@@ -294,6 +287,13 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       <ListSheet open={sheet === "card"} onClose={() => setSheet(null)} title="Which card was paid" value={paidCardId} options={[{ id: "", label: "Not sure", icon: <Dot icon={Ban} size={32} /> }, ...accounts.filter((a) => a.type === "credit_card").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setPaidCardId} />
       <ListSheet open={sheet === "bank"} onClose={() => setSheet(null)} title="Paid from bank" value={fundedBy} options={[{ id: "", label: "Unknown", icon: <Dot icon={Ban} size={32} /> }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setFundedBy} />
       <ListSheet open={sheet === "recurring"} onClose={() => { setSheet(null); setRecurringError(null); }} title="Recurring" value={recurringId} options={[{ id: "", label: "None", icon: <Dot icon={Ban} size={32} /> }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name, icon: <Dot icon={Repeat} size={32} tone="bg-red-100 text-red-700" /> })), { id: NEW_RECURRING, label: "Repeat every month", hint: "Adds this payment to Recurring", icon: <Dot icon={Plus} size={32} tone="bg-accent/10 text-accent" /> }]} onPick={(v) => { setRecurringId(v); setRecurringError(null); }} />
+      <Dialog open={splitOpen} onClose={() => setSplitOpen(false)} title="Split with">
+        <div className="space-y-3 pb-2">
+          <SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} peopleLabel="Who" />
+          {splitError && <p role="alert" className="text-xs text-danger">{splitError}</p>}
+        </div>
+        <div className="sticky bottom-0 -mx-4 flex justify-end border-t border-border bg-surface px-4 py-3"><Button variant="primary" onClick={() => setSplitOpen(false)}>Done</Button></div>
+      </Dialog>
       <ListSheet open={sheet === "pay"} onClose={() => setSheet(null)} title="Paid with" value={primaryId} options={primaries.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))} onPick={(id) => { setPrimaryId(id); setSubId(""); }} />
       <ListSheet open={sheet === "via"} onClose={() => setSheet(null)} title="Via" value={subId} options={[{ id: "", label: "Direct", hint: `Paid with ${accounts.find((a) => a.id === primaryId)?.name ?? "it"} itself`, icon: <Dot icon={Ban} size={32} /> }, ...subs.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setSubId} note="Pick a sub payment method only if the money went through it." />
       <ListSheet open={sheet === "wallet"} onClose={() => setSheet(null)} title="From wallet" value={paidWithId} options={[{ id: "", label: "No", icon: <Dot icon={Ban} size={32} /> }, ...voucherBrands.map((b) => ({ id: b.id, label: `${b.name} wallet`, icon: <MerchantAvatar name={b.name} size={32} /> }))]} onPick={setPaidWithId} />

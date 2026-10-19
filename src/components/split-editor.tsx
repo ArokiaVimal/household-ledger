@@ -8,9 +8,11 @@ import { computeShares, equalSplit, itemsExtra, itemSubtotals, ratioSplit, sameS
 import type { Paise, SplitConfig, SplitItem, SplitMode } from "@/domain/types";
 import { relationshipText } from "@/domain/contacts";
 import { Dot, PersonGlyph } from "./glyphs";
-import { Button, CompactChips, FormRow, Input } from "./ui";
+import { TileGrid } from "./pickers";
+import { Button, Input } from "./ui";
 
 const CUSTOM = "__custom";
+const ADD = "__add";
 
 /** Every way to split, with one plain sentence each so nobody has to guess what a mode means. */
 const MODE_ICON: Record<SplitMode, [LucideIcon, string]> = {
@@ -113,6 +115,9 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   };
   const presetId = howOptions.find((p) => sameSplit(p.config, value))?.label ?? "";
   const [advanced, setAdvanced] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
   const showAdvanced = others.length > 0 && (advanced || !presetId);
   const summary = ids.map((id) => `${nameOf(id)} ${formatINR(shares[id] ?? 0)}`).join(" · ");
   const pickPreset = (label: string) => {
@@ -135,23 +140,36 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
 
   return (
     <div className="space-y-2">
-      <FormRow label={peopleLabel}>
-        <CompactChips multi label="Split with" options={[{ id: ME, label: "Just me", icon: <PersonGlyph name="Me" id={meId} /> }, ...people.map((p) => ({ id: p.id, icon: <PersonGlyph name={nameOf(p.id)} id={p.id} />, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : nameOf(p.id) }))]} selected={others.length ? others : [ME]} onPick={pickPerson} adder={{ label: "Add a friend", placeholder: "Friend's name, e.g. Karthik", add: addParticipant }} />
+      <section aria-label={peopleLabel}>
+        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{peopleLabel}</h3>
+        <TileGrid multi label="Split with" columns={2}
+          options={[{ id: ME, label: "Just me", icon: <PersonGlyph name="Me" id={meId} size={32} /> }, ...people.map((p) => ({ id: p.id, icon: <PersonGlyph name={nameOf(p.id)} id={p.id} size={32} />, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : nameOf(p.id), hint: p.id === partnerId ? "Partner" : p.relationship ? relationshipText(p) : undefined })), { id: ADD, label: "Add someone", icon: <Dot icon={Plus} tone="bg-accent/10 text-accent" size={32} /> }]}
+          selected={others.length ? others : [ME]} onPick={(id) => (id === ADD ? setAdding((v) => !v) : pickPerson(id))} />
+        {adding && (
+          <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); const r = addParticipant(newName); if (r.error || !r.id) { setAddError(r.error ?? "Could not add that."); return; } setNewName(""); setAddError(null); setAdding(false); pickPerson(r.id); }}>
+            <Input aria-label="New person's name" autoFocus value={newName} onChange={(e) => { setNewName(e.target.value); setAddError(null); }} placeholder="Friend's name, e.g. Karthik" maxLength={60} />
+            <Button type="submit" variant="primary" disabled={!newName.trim()}>Add</Button>
+          </form>
+        )}
+        {addError && <p role="alert" className="mt-1 text-xs text-danger">{addError}</p>}
         {live && !partner && pendingPartner && others.includes(pendingPartner.id) && <p className="mt-1.5 text-xs text-muted">{pendingPartner.name} has not joined yet. This stays on your side and is shared once they accept.</p>}
         {live && !partner && !pendingPartner && <p className="mt-1.5 text-xs text-muted">Splitting with a partner? <Link href="/settings" className="text-accent underline">Link them in Settings</Link>. Until then everything stays private.</p>}
         {live && partner && !partner.active && <p className="mt-1.5 text-xs text-muted">You unlinked from {partner.name}, so nothing new can be shared with them.</p>}
-      </FormRow>
+      </section>
       {others.length > 0 && (
-        <FormRow label="How">
-          <CompactChips list label="How to split" options={[...howOptions.map((p) => ({ id: p.label, label: p.label, icon: modeDot(p.config.mode === "shares" ? "shares" : p.config.mode), hint: describe(p.config) })), { id: CUSTOM, label: "More ways", icon: <Dot icon={SlidersHorizontal} tone="bg-white text-accent" />, hint: "Exact amounts, percentages, shares, by item…" }]} selected={showAdvanced ? [CUSTOM] : [presetId]} onPick={pickPreset} />
+        <section aria-label="How">
+          <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">How</h3>
+          <TileGrid label="How to split" columns={2}
+            options={[...howOptions.map((p) => ({ id: p.label, label: p.label, icon: modeDot(p.config.mode), hint: describe(p.config) })), { id: CUSTOM, label: "More ways", icon: <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={32} />, hint: "Amounts, %, shares, by item" }]}
+            selected={showAdvanced ? [CUSTOM] : [presetId]} onPick={pickPreset} />
           {!showAdvanced && !error && ids.length > 1 && total > 0 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
-        </FormRow>
+        </section>
       )}
 
       {showAdvanced && (
         <div className="space-y-3 rounded-2xl bg-background p-3">
           <div className="space-y-1.5">
-            <CompactChips list label="How to split" options={MODES.map((m) => ({ id: m.id, label: m.label, icon: modeDot(m.id), hint: m.hint }))} selected={[value.mode]} onPick={(m) => onChange(build(m, ids.length ? ids : [meId]))} />
+            <TileGrid label="Split method" columns={2} options={MODES.map((m) => ({ id: m.id, label: m.label, icon: modeDot(m.id) }))} selected={[value.mode]} onPick={(m) => onChange(build(m as SplitMode, ids.length ? ids : [meId]))} />
             <p className="text-xs text-muted">{mode.hint}</p>
           </div>
 

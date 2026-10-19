@@ -13,8 +13,8 @@ import { cn } from "@/lib/cn";
 /** A form row that shows the current choice (small label above the value) and opens a sheet when tapped. */
 export function PickerRow({ icon, label, value, sub, onClick, muted, children }: { icon: ReactNode; label: string; value: string; sub?: string; onClick: () => void; muted?: boolean; children?: ReactNode }) {
   return (
-    <button type="button" onClick={onClick} aria-label={`${label}: ${value}. Change`} className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-2 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent">
-      <span className="grid size-9 shrink-0 place-items-center">{icon}</span>
+    <button type="button" onClick={onClick} aria-label={`${label}: ${value}. Change`} className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-1.5 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent">
+      <span className="grid size-8 shrink-0 place-items-center">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[11px] font-semibold uppercase tracking-wide text-muted/80">{label}</span>
         <span className={cn("block truncate text-sm font-medium", muted && "text-muted")}>{value}</span>
@@ -28,24 +28,32 @@ export function PickerRow({ icon, label, value, sub, onClick, muted, children }:
 
 export interface ListOption { id: string; label: string; hint?: string; icon?: ReactNode }
 
-/** A simple one-choice list in a sheet (payment method, via, wallet). */
+/** Choices as tiles, two to a row: icon, name and a short hint. Single choice by default; `multi` toggles. The one look for every choice in the form. */
+export function TileGrid({ options, selected, onPick, label, multi, columns = 2 }: { options: ListOption[]; selected: string[]; onPick: (id: string) => void; label: string; multi?: boolean; columns?: 2 | 3 }) {
+  return (
+    <ul role={multi ? "group" : "radiogroup"} aria-label={label} className={cn("grid gap-2", columns === 3 ? "grid-cols-3" : "grid-cols-2")}>
+      {options.map((o) => {
+        const on = selected.includes(o.id);
+        return (
+          <li key={o.id}>
+            <button type="button" role={multi ? undefined : "radio"} aria-checked={multi ? undefined : on} aria-pressed={multi ? on : undefined} onClick={() => onPick(o.id)}
+              className={cn("relative flex min-h-14 w-full items-center gap-2 rounded-2xl border px-2.5 py-2 text-left transition-colors", on ? "border-accent bg-accent/10" : "border-transparent bg-background hover:border-border")}>
+              {o.icon && <span className="grid size-8 shrink-0 place-items-center">{o.icon}</span>}
+              <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium leading-tight">{o.label}</span>{o.hint && <span className="block truncate text-[11px] leading-tight text-muted">{o.hint}</span>}</span>
+              {on && <Check size={15} aria-hidden className="shrink-0 text-accent" />}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** A one-choice sheet (payment method, via, wallet, type…): the choices as tiles, picking one closes it. */
 export function ListSheet({ open, onClose, title, options, value, onPick, note }: { open: boolean; onClose: () => void; title: string; options: ListOption[]; value: string; onPick: (id: string) => void; note?: string }) {
   return (
     <Dialog open={open} onClose={onClose} title={title}>
-      <ul role="radiogroup" aria-label={title} className="space-y-1 pb-4">
-        {options.map((o) => {
-          const on = o.id === value;
-          return (
-            <li key={o.id}>
-              <button type="button" role="radio" aria-checked={on} onClick={() => { onPick(o.id); onClose(); }} className={cn("flex min-h-14 w-full items-center gap-3 rounded-2xl border px-3 py-2 text-left transition-colors", on ? "border-accent bg-accent/5" : "border-transparent hover:bg-background")}>
-                <span className="grid size-9 shrink-0 place-items-center">{o.icon}</span>
-                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{o.label}</span>{o.hint && <span className="block truncate text-xs text-muted">{o.hint}</span>}</span>
-                {on ? <Check size={18} aria-hidden className="shrink-0 text-accent" /> : <span aria-hidden className="size-5 shrink-0 rounded-full border border-border" />}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      <div className="pb-4"><TileGrid label={title} options={options} selected={[value]} onPick={(id) => { onPick(id); onClose(); }} /></div>
       {note && <p className="pb-4 text-xs text-muted">{note}</p>}
     </Dialog>
   );
@@ -129,23 +137,15 @@ export function CategorySheet({ open, onClose, value, onPick }: { open: boolean;
   const top = useMemo(() => [...categories].filter((c) => c.id !== "uncategorized" && (use.get(c.id) ?? 0) > 0).sort((a, b) => (use.get(b.id) ?? 0) - (use.get(a.id) ?? 0)).slice(0, 5), [categories, use]);
   const close = () => { onClose(); setQ(""); setError(null); };
   const pick = (id: string) => { onPick(id); close(); };
-  const row = (c: { id: string; name: string; icon?: string }) => (
-    <li key={c.id}>
-      <button type="button" onClick={() => pick(c.id)} className={cn("flex min-h-12 w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-left hover:bg-background", c.id === value && "bg-accent/5")}>
-        <CategoryGlyph name={c.name} icon={c.icon} size={36} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</span>
-        {c.id === value && <Check size={16} aria-hidden className="text-accent" />}
-      </button>
-    </li>
-  );
+  const grid = (cs: { id: string; name: string; icon?: string }[]) => <TileGrid label="Categories" options={cs.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} icon={c.icon} size={32} /> }))} selected={[value]} onPick={pick} />;
   const exact = categories.some((c) => c.name.toLowerCase() === needle);
   return (
     <Dialog open={open} onClose={close} title="Category">
       <SearchBox value={q} onChange={(v) => { setQ(v); setError(null); }} placeholder="Search categories" />
       <div className="min-h-[50vh] pb-2">
-        {!needle && top.length > 0 && <><Heading>Most used</Heading><ul>{top.map(row)}</ul></>}
+        {!needle && top.length > 0 && <><Heading>Most used</Heading>{grid(top)}</>}
         <Heading>{needle ? "Matches" : "All categories"}</Heading>
-        <ul>{list.map(row)}</ul>
+        {list.length > 0 && grid(list)}
         {list.length === 0 && !needle && <p className="px-1 text-sm text-muted">No categories yet.</p>}
         {needle && !exact && (
           <button type="button" onClick={() => { const r = addCategory(q.trim()); if (r.error || !r.id) setError(r.error ?? "Could not add that."); else pick(r.id); }} className="mt-2 flex min-h-12 w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-left hover:bg-background">

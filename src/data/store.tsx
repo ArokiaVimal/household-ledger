@@ -10,6 +10,8 @@ import { pairBalances } from "@/domain/balances";
 import { categoryUsage, checkDelete, cleanCategoryName, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
 import { validateAvatarDataUrl } from "@/lib/profile/profile";
 import { detectRecurring, trackedAlerts, type Suggestion, type TrackedAlert } from "@/domain/recurring-detect";
+import { greetingName } from "@/lib/profile/profile";
+import { useProfile } from "@/components/profile-context";
 import { checkContact, normalizeEmail } from "@/domain/contacts";
 import { allocatedBy, attribute, inGroup, summarizeGroup, withMine, type Attribution, type GroupSummary } from "@/domain/groups";
 import { planUpiSetup, sortAccounts, suggestedWithParents } from "@/domain/accounts";
@@ -139,9 +141,9 @@ interface Store {
   /** Adds GPay, CRED, Paytm and BHIM under every bank ("GPay HDFC UPI") and hides the old stand-alone ones. Returns how many were added. */
   setupUpiApps: () => number;
   addSuggestedAccounts: () => void;
-  addParticipant: (name: string, opts?: { email?: string; relationship?: Relationship; relationshipLabel?: string }) => Added;
+  addParticipant: (name: string, opts?: { email?: string; nickname?: string; relationship?: Relationship; relationshipLabel?: string }) => Added;
   /** Edits a contact (name, email, relationship). Someone with an account keeps their own name and email. Returns an error message when refused. */
-  updateParticipant: (id: string, patch: { name?: string; email?: string | null; relationship?: Relationship; relationshipLabel?: string | null }) => string | null;
+  updateParticipant: (id: string, patch: { name?: string; nickname?: string | null; email?: string | null; relationship?: Relationship; relationshipLabel?: string | null }) => string | null;
   /** Removes a friend (no account) that nothing refers to. Returns an error message, or null when removed. */
   deleteParticipant: (id: string) => string | null;
   /** Adds or changes a recurring commitment (new when `id` is omitted). Returns an error message, or null when saved. */
@@ -228,6 +230,7 @@ function seed(live?: LiveInit) {
 }
 
 export function StoreProvider({ children, initialView = "personal", live }: { children: ReactNode; initialView?: View; live?: LiveInit }) {
+  const { profile } = useProfile();
   const router = useRouter();
   const init = useMemo(() => seed(live), [live]);
   const [records, setRecords] = useState(init.records);
@@ -517,32 +520,32 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     setAccounts((as) => [...as, ...suggestedWithParents(SUGGESTED_ACCOUNTS.filter((s) => !as.some((a) => a.id === s.id)), as)]);
     void send({ type: "accounts.addSuggested" });
   }, [setAccounts, send]);
-  const addParticipant = useCallback((name: string, opts: { email?: string; relationship?: Relationship; relationshipLabel?: string } = {}) => {
+  const addParticipant = useCallback((name: string, opts: { email?: string; nickname?: string; relationship?: Relationship; relationshipLabel?: string } = {}) => {
     const rel = opts.relationship ?? "friend";
-    const bad = checkContact({ name, email: opts.email, relationship: rel, relationshipLabel: opts.relationshipLabel }, participants);
+    const bad = checkContact({ name, email: opts.email, nickname: opts.nickname, relationship: rel, relationshipLabel: opts.relationshipLabel }, participants);
     if (bad) return { error: bad };
     const n = name.trim();
     const id = `p_${slug(n)}-${uuid().slice(0, 6)}`;
     const email = opts.email?.trim() ? normalizeEmail(opts.email) : undefined;
     const label = rel === "custom" ? opts.relationshipLabel?.trim() : undefined;
-    setParticipants((ps) => [...ps, { id, name: n, userId: null, relationship: rel, ...(label ? { relationshipLabel: label } : {}), ...(email ? { email } : {}) }]);
-    void send({ type: "participant.add", id, name: n, relationship: rel, ...(label ? { relationshipLabel: label } : {}), ...(email ? { email } : {}) });
+    setParticipants((ps) => [...ps, { id, name: n, userId: null, ...(opts.nickname?.trim() ? { nickname: opts.nickname.trim() } : {}), relationship: rel, ...(label ? { relationshipLabel: label } : {}), ...(email ? { email } : {}) }]);
+    void send({ type: "participant.add", id, name: n, ...(opts.nickname?.trim() ? { nickname: opts.nickname.trim() } : {}), relationship: rel, ...(label ? { relationshipLabel: label } : {}), ...(email ? { email } : {}) });
     return { id };
   }, [participants, send]);
-  const updateParticipant = useCallback((id: string, patch: { name?: string; email?: string | null; relationship?: Relationship; relationshipLabel?: string | null }) => {
+  const updateParticipant = useCallback((id: string, patch: { name?: string; nickname?: string | null; email?: string | null; relationship?: Relationship; relationshipLabel?: string | null }) => {
     const cur = participants.find((p) => p.id === id);
     if (!cur) return "That person was not found.";
     if (cur.pendingEmail) return `${cur.name} is an invited partner. Manage the invitation under Partner.`;
     const linked = !!cur.userId;
-    const next = { name: linked ? cur.name : patch.name ?? cur.name, email: linked ? cur.email : patch.email === undefined ? cur.email : patch.email, relationship: patch.relationship ?? cur.relationship ?? "friend", relationshipLabel: patch.relationshipLabel === undefined ? cur.relationshipLabel : patch.relationshipLabel };
+    const next = { name: linked ? cur.name : patch.name ?? cur.name, nickname: patch.nickname === undefined ? cur.nickname : patch.nickname, email: linked ? cur.email : patch.email === undefined ? cur.email : patch.email, relationship: patch.relationship ?? cur.relationship ?? "friend", relationshipLabel: patch.relationshipLabel === undefined ? cur.relationshipLabel : patch.relationshipLabel };
     const bad = checkContact(next, participants.filter((p) => p.id !== id));
     if (bad) return bad;
     setParticipants((ps) => ps.map((p) => {
       if (p.id !== id) return p;
-      const { email: _e, relationshipLabel: _l, relationship: _r, ...rest } = p; void _e; void _l; void _r;
-      return { ...rest, name: next.name.trim(), relationship: next.relationship, ...(next.relationship === "custom" && next.relationshipLabel?.trim() ? { relationshipLabel: next.relationshipLabel.trim() } : {}), ...(next.email?.trim() ? { email: normalizeEmail(next.email) } : {}) };
+      const { email: _e, relationshipLabel: _l, relationship: _r, nickname: _n, ...rest } = p; void _e; void _l; void _r; void _n;
+      return { ...rest, name: next.name.trim(), ...(next.nickname?.trim() ? { nickname: next.nickname.trim() } : {}), relationship: next.relationship, ...(next.relationship === "custom" && next.relationshipLabel?.trim() ? { relationshipLabel: next.relationshipLabel.trim() } : {}), ...(next.email?.trim() ? { email: normalizeEmail(next.email) } : {}) };
     }));
-    void send({ type: "participant.update", id, ...(patch.name !== undefined ? { name: patch.name } : {}), ...(patch.email !== undefined ? { email: patch.email } : {}), ...(patch.relationship ? { relationship: patch.relationship } : {}), ...(patch.relationshipLabel !== undefined ? { relationshipLabel: patch.relationshipLabel } : {}) });
+    void send({ type: "participant.update", id, ...(patch.name !== undefined ? { name: patch.name } : {}), ...(patch.nickname !== undefined ? { nickname: patch.nickname } : {}), ...(patch.email !== undefined ? { email: patch.email } : {}), ...(patch.relationship ? { relationship: patch.relationship } : {}), ...(patch.relationshipLabel !== undefined ? { relationshipLabel: patch.relationshipLabel } : {}) });
     return null;
   }, [participants, send]);
 
@@ -709,7 +712,8 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, setParticipantPhoto, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, recurringSuggestions, recurringAlerts, confirmRecurringSuggestion, dismissRecurringSuggestion, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
-    nameOf: (id) => participants.find((p) => p.id === id)?.name ?? id,
+    // Nicknames everywhere: what you call each person, and your own profile nickname for yourself.
+    nameOf: (id) => { const p = participants.find((x) => x.id === id); if (!p) return id; if (id === meId && profile) return greetingName(profile); return p.nickname?.trim() || p.name; },
     categoryName: (id) => categories.find((c) => c.id === id)?.name ?? id,
     accountName: (id) => (id === "shared" ? "Shared" : accounts.find((a) => a.id === id)?.name ?? id),
     syncError, dismissSyncError: () => setSyncError(null),
