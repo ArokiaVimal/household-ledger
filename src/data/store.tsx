@@ -177,7 +177,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   // An invited partner who has not accepted yet is already usable in splits, under the name typed at invite time.
   const pendingPartner = participants.find((p) => p.pendingEmail) ?? null;
   const partnerId = couple?.partner.participantId ?? (live ? pendingPartner?.id ?? null : participants.find((p) => p.id !== meId && p.userId)?.id ?? participants.find((p) => p.id !== meId)?.id ?? null);
-  const splitRatio = useMemo(() => (live ? (couple ? { leaderId: couple.ratio.leaderId, leaderBps: couple.ratio.leaderBps } : { leaderId: meId, leaderBps: pendingPartner?.inviterShareBps ?? 5000 }) : { leaderId: ME, leaderBps: OWNER_SHARE_BPS }), [live, couple, meId, pendingPartner?.inviterShareBps]);
+  const splitRatio = useMemo(() => (live ? (couple ? { leaderId: couple.ratio.leaderId, leaderBps: couple.ratio.leaderBps } : { leaderId: meId, leaderBps: pendingPartner ? pendingPartner.inviterShareBps ?? 6400 : 5000 }) : { leaderId: ME, leaderBps: OWNER_SHARE_BPS }), [live, couple, meId, pendingPartner]);
   const trendHistory = live ? {} : mockTrend;
 
   // After a failed save the server re-sends the household's data; adopt it (React's "adjust state on prop change" pattern).

@@ -195,3 +195,6 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - Mobile fix: Settings no longer overflows sideways on a phone (grid columns now `minmax(0,1fr)`).
 - Not done: Splitwise's "repeat expense" and group simplify-debts; receipts/photo scan for items.
 
+## "Split with" then "How" (added)
+- The split row in the transaction form is now two steps: **Split with** (Just me, or tick one or more people) then **How** (for one person: the usual ratio such as "Vimal 64 · Varru 36", 50 / 50, "X owes all", "I owe all", More ways; for a group: Equally, More ways). An invited partner who has no saved share falls back to 64/36 as the usual split.
+

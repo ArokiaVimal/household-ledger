@@ -36,25 +36,30 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
   // so the same expense is split the same way on both phones.
   const ownerId = participants.some((p) => p.id === splitRatio.leaderId) ? splitRatio.leaderId : meId;
   const pct = (bps: number) => `${Number.isInteger(bps / 100) ? bps / 100 : (bps / 100).toFixed(1)}`;
-  const otherId = ownerId === meId ? partnerId : meId;
-  const presets: { label: string; config: SplitConfig }[] = [
-    { label: "Just me", config: { mode: "personal", participantIds: [meId] } },
-    ...(otherId
-      ? [
-          ...(splitRatio.leaderBps !== 5000 ? [{ label: `${nameOf(ownerId)} ${pct(splitRatio.leaderBps)} · ${nameOf(otherId)} ${pct(10000 - splitRatio.leaderBps)}`, config: ratioSplit(ownerId, otherId, splitRatio.leaderBps) }] : []),
-          { label: "50 / 50", config: { mode: "equal" as const, participantIds: [ownerId, otherId] } },
-        ]
-      : []),
-    // Paying for someone: they owe all of it (0 shares for you), or you owe all of it (set "Paid by" to them).
-    ...(partnerId ? [
-      { label: `${firstName(nameOf(partnerId))} owes all`, config: { mode: "shares" as const, participantIds: [meId, partnerId], values: { [meId]: 0, [partnerId]: 1 } } },
-      { label: "I owe all", config: { mode: "shares" as const, participantIds: [meId, partnerId], values: { [meId]: 1, [partnerId]: 0 } } },
-    ] : []),
-    ...(participants.length > 2 && !(live && partner) ? [{ label: "Everyone", config: { mode: "equal" as const, participantIds: participants.map((p) => p.id) } }] : []),
-  ];
+  const ME = "__me";
+  const nobody: SplitConfig = { mode: "personal", participantIds: [meId] };
+  const others = value.participantIds.filter((id) => id !== meId);
+  const people = participants.filter((p) => p.id !== meId);
+  // The usual way to split with one person: your couple ratio with your partner, otherwise down the middle.
+  const usualWith = (o: string): SplitConfig => (o === partnerId && splitRatio.leaderBps !== 5000
+    ? ratioSplit(ownerId, ownerId === meId ? o : meId, splitRatio.leaderBps)
+    : { mode: "equal", participantIds: [meId, o] });
+  const withConfig = (who: string[]): SplitConfig => (who.length === 0 ? nobody : who.length === 1 ? usualWith(who[0]) : { mode: "equal", participantIds: [meId, ...who] });
+  // How to split with the chosen people. One person gets the quick ratios; a group is split equally unless "More ways".
+  const howOptions: { label: string; config: SplitConfig }[] = others.length === 1 ? (() => {
+    const o = others[0];
+    const usual = usualWith(o);
+    return [
+      ...(usual.mode === "percent" ? [{ label: `${nameOf(ownerId)} ${pct(splitRatio.leaderBps)} · ${nameOf(ownerId === meId ? o : meId)} ${pct(10000 - splitRatio.leaderBps)}`, config: usual }] : []),
+      { label: "50 / 50", config: { mode: "equal" as const, participantIds: [meId, o] } },
+      { label: `${firstName(nameOf(o))} owes all`, config: { mode: "shares" as const, participantIds: [meId, o], values: { [meId]: 0, [o]: 1 } } },
+      { label: "I owe all", config: { mode: "shares" as const, participantIds: [meId, o], values: { [meId]: 1, [o]: 0 } } },
+    ];
+  })() : others.length > 1 ? [{ label: "Equally", config: { mode: "equal" as const, participantIds: [meId, ...others] } }] : [];
   const error = validateSplit(total, value);
   const ids = value.participantIds;
   const shares = error ? {} : computeShares(total, value);
+  const otherId = ownerId === meId ? partnerId : meId;
   const isPair = (who: string[]) => !!otherId && who.length === 2 && who.includes(ownerId) && who.includes(otherId);
   const order = (who: string[]) => participants.map((p) => p.id).filter((id) => who.includes(id));
 
@@ -91,14 +96,19 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
     patchItem(item.id, { participantIds: has ? item.participantIds.filter((x) => x !== pid) : [...item.participantIds, pid] });
   };
 
-  const presetId = presets.find((p) => sameSplit(p.config, value))?.label ?? "";
-  const [advanced, setAdvanced] = useState(!presetId);
-  const showAdvanced = advanced || !presetId;
+  const presetId = howOptions.find((p) => sameSplit(p.config, value))?.label ?? "";
+  const [advanced, setAdvanced] = useState(false);
+  const showAdvanced = others.length > 0 && (advanced || !presetId);
   const summary = ids.map((id) => `${nameOf(id)} ${formatINR(shares[id] ?? 0)}`).join(" · ");
   const pickPreset = (label: string) => {
     if (label === CUSTOM) return setAdvanced(true);
     setAdvanced(false);
-    onChange(structuredClone(presets.find((p) => p.label === label)!.config));
+    onChange(structuredClone(howOptions.find((p) => p.label === label)!.config));
+  };
+  const pickPerson = (id: string) => {
+    setAdvanced(false);
+    if (id === ME) return onChange(nobody);
+    onChange(withConfig(others.includes(id) ? others.filter((x) => x !== id) : [...others, id]));
   };
   const mode = MODES.find((m) => m.id === value.mode)!;
 
@@ -110,13 +120,18 @@ export function SplitEditor({ total, value, onChange }: { total: Paise; value: S
 
   return (
     <div className="space-y-2">
-      <FormRow label="Split">
-        <CompactChips label="Split" options={[...presets.map((p) => ({ id: p.label, label: p.label })), { id: CUSTOM, label: "More ways to split" }]} selected={showAdvanced ? [CUSTOM] : [presetId]} onPick={pickPreset} />
-        {!showAdvanced && !error && ids.length > 1 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
-        {live && !partner && pendingPartner && <p className="mt-1.5 text-xs text-muted">{pendingPartner.name} has not joined yet. Split with them now; it stays on your side and is shared once they accept.</p>}
+      <FormRow label="Split with">
+        <CompactChips multi label="Split with" options={[{ id: ME, label: "Just me" }, ...people.map((p) => ({ id: p.id, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : p.userId === null ? `${nameOf(p.id)} (friend)` : nameOf(p.id) }))]} selected={others.length ? others : [ME]} onPick={pickPerson} />
+        {live && !partner && pendingPartner && others.includes(pendingPartner.id) && <p className="mt-1.5 text-xs text-muted">{pendingPartner.name} has not joined yet. This stays on your side and is shared once they accept.</p>}
         {live && !partner && !pendingPartner && <p className="mt-1.5 text-xs text-muted">Splitting with a partner? <Link href="/settings" className="text-accent underline">Link them in Settings</Link>. Until then everything stays private.</p>}
         {live && partner && !partner.active && <p className="mt-1.5 text-xs text-muted">You unlinked from {partner.name}, so nothing new can be shared with them.</p>}
       </FormRow>
+      {others.length > 0 && (
+        <FormRow label="How">
+          <CompactChips label="How to split" options={[...howOptions.map((p) => ({ id: p.label, label: p.label })), { id: CUSTOM, label: "More ways" }]} selected={showAdvanced ? [CUSTOM] : [presetId]} onPick={pickPreset} />
+          {!showAdvanced && !error && ids.length > 1 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
+        </FormRow>
+      )}
 
       {showAdvanced && (
         <div className="space-y-3 rounded-xl bg-background p-3">
