@@ -12,7 +12,7 @@ import { formatINR } from "@/domain/money";
 export default function PersonSettle() {
   const { id: raw } = useParams<{ id: string }>();
   const personId = decodeURIComponent(raw);
-  const { participants, meId, ledgerRecords, settlements, addSettlement, voidSettlement, nameOf, today, live, partner } = useStore();
+  const { participants, meId, ledgerRecords, settlements, addSettlement, voidSettlement, nameOf, today, live, partner, voucherBrands } = useStore();
   const [tab, setTab] = useState<"open" | "settled">("open");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<"selected" | "everything" | null>(null);
@@ -86,7 +86,7 @@ export default function PersonSettle() {
                     {tab === "open" && canSettle && <input type="checkbox" checked={sel} onChange={() => toggle(r.id)} aria-label={`Select ${r.merchant}`} className="size-5 shrink-0 accent-[var(--accent)]" />}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{r.merchant}</span>
-                      <span className="block text-xs text-muted">{r.date} · {r.payerId === meId ? "You paid" : `${name} paid`} {formatINR(r.amountPaise)}</span>
+                      <span className="block text-xs text-muted">{r.date} · {r.payerId === meId ? "You paid" : `${name} paid`} {formatINR(r.amountPaise)}{r.paidWithVoucherId ? ` from the ${voucherBrands.find((b) => b.id === r.paidWithVoucherId)?.name ?? "voucher"} wallet` : ""}</span>
                     </span>
                     <span className="text-right">
                       <span className={`num block font-semibold ${theyOwe ? "text-good" : ""}`}>{theyOwe ? "+" : "−"}{formatINR(Math.abs(e.sharePaise))}</span>

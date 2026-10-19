@@ -1,5 +1,5 @@
 import { computeShares } from "./splits";
-import { signedSpend } from "./reports";
+import { signedDebt } from "./reports";
 import type { ExpenseRecord, Paise, Settlement } from "./types";
 
 export interface PairBalance {
@@ -25,7 +25,7 @@ export function pairBalances(records: ExpenseRecord[], settlements: Settlement[]
     net.set(k, (net.get(k) ?? 0) + (debtor === a ? amt : -amt));
   };
   for (const r of records) {
-    const v = signedSpend(r);
+    const v = signedDebt(r);
     if (v === 0) continue;
     const sign = v < 0 ? -1 : 1;
     for (const [pid, share] of Object.entries(computeShares(r.amountPaise, r.split))) {

@@ -64,6 +64,8 @@ export const ExpenseRecordSchema = z
     // A voucher purchase is one outflow; a payment made with a voucher is not. A transaction cannot be both.
     if (r.voucherBrandId && r.paidWithVoucherId) ctx.addIssue({ code: "custom", path: ["paidWithVoucherId"], message: "A transaction cannot both buy a voucher and be paid with one" });
     if (r.voucherBrandId && r.kind !== "purchase") ctx.addIssue({ code: "custom", path: ["voucherBrandId"], message: "Only a purchase can buy a voucher" });
+    // A top-up of a voucher wallet is the wallet owner's own outflow. It is never split; the purchases made from the wallet are.
+    if (r.voucherBrandId && (r.split.mode !== "personal" || r.split.participantIds.length !== 1 || r.split.participantIds[0] !== r.payerId)) ctx.addIssue({ code: "custom", path: ["split"], message: "A wallet top-up is personal. Split the purchases made from the wallet instead" });
   }) satisfies z.ZodType<ExpenseRecord>;
 
 export const SettlementSchema = z

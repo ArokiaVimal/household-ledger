@@ -1,4 +1,4 @@
-import { signedSpend } from "./reports";
+import { signedDebt } from "./reports";
 import { computeShares } from "./splits";
 import type { ExpenseRecord, Paise, Settlement } from "./types";
 
@@ -32,7 +32,7 @@ export function personLedger(personId: string, meId: string, records: ExpenseRec
 
   const entries: LedgerEntry[] = [];
   for (const r of records) {
-    const v = signedSpend(r);
+    const v = signedDebt(r);
     if (v === 0) continue;
     const sign = v < 0 ? -1 : 1;
     const shares = computeShares(r.amountPaise, r.split);

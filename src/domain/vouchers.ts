@@ -4,6 +4,7 @@
 // "Remaining" is shown only when it can be reliable: a balance you read off the brand's own app, or a brand where you record
 // every use. Pure functions over records and brands.
 import { signedSpend } from "./reports";
+import { computeShares } from "./splits";
 import type { Account, ExpenseRecord, Paise, VoucherBrand } from "./types";
 
 /** Statement descriptors of voucher sellers we know about, shown under a friendly merchant name. The original text is never changed. */
@@ -127,3 +128,32 @@ export function reconcileVouchers(records: ExpenseRecord[], forMonth: string): R
 
 /** Total cash that left for vouchers in a month. Counted once, from the purchases. Uses of vouchers are not in it. */
 export const voucherOutflow = (records: ExpenseRecord[], forMonth: string): Paise => records.filter((r) => counted(r) && isVoucherPurchase(r) && month(r.date) === forMonth).reduce((s, r) => s + signedSpend(r), 0);
+
+export interface WalletLine { record: ExpenseRecord; type: "topup" | "use"; /** + for a top-up, − for spending from the wallet. */ deltaPaise: Paise; /** Top-ups minus recorded spending up to and including this line. Reliable only as described in `remainingFor`. */ trackedPaise: Paise }
+
+/** One brand's wallet as a statement: each top-up is an increase, each recorded purchase from it a decrease, oldest first. */
+export function walletActivity(brandId: string, records: ExpenseRecord[]): WalletLine[] {
+  const lines = records.filter(counted).flatMap((r): { record: ExpenseRecord; type: "topup" | "use"; deltaPaise: Paise }[] => {
+    if (r.voucherBrandId === brandId && r.kind === "purchase") return [{ record: r, type: "topup", deltaPaise: r.amountPaise }];
+    if (r.paidWithVoucherId === brandId && (r.kind === "purchase" || r.kind === "fee")) return [{ record: r, type: "use", deltaPaise: -r.amountPaise }];
+    return [];
+  }).sort((a, b) => a.record.date.localeCompare(b.record.date) || (a.type === "topup" ? -1 : 1) || a.record.id.localeCompare(b.record.id));
+  let run = 0;
+  return lines.map((l) => ({ ...l, trackedPaise: (run += l.deltaPaise) }));
+}
+
+export interface WalletUse { count: number; totalPaise: Paise; /** What other people in the split owe the wallet owner for these purchases. */ othersOweePaise: Paise; byCategory: Record<string, Paise> }
+
+/** What was bought from one wallet in a month: total, by category, and how much of it belongs to other people in the split. */
+export function walletUse(brandId: string, records: ExpenseRecord[], forMonth: string): WalletUse {
+  const out: WalletUse = { count: 0, totalPaise: 0, othersOweePaise: 0, byCategory: {} };
+  for (const r of records.filter(counted)) {
+    if (r.paidWithVoucherId !== brandId || month(r.date) !== forMonth || (r.kind !== "purchase" && r.kind !== "fee")) continue;
+    out.count++; out.totalPaise += r.amountPaise;
+    out.byCategory[r.categoryId] = (out.byCategory[r.categoryId] ?? 0) + r.amountPaise;
+    const shares = computeShares(r.amountPaise, r.split);
+    out.othersOweePaise += Object.entries(shares).filter(([id]) => id !== r.payerId).reduce((s, [, v]) => s + v, 0);
+  }
+  return out;
+}
+

@@ -79,6 +79,8 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [voucherId, setVoucherId] = useState(record.voucherBrandId ?? "");
   const [voucherLater, setVoucherLater] = useState(!!record.voucherPending && !record.voucherBrandId && record.status === "reviewed");
   const [paidWithId, setPaidWithId] = useState(record.paidWithVoucherId ?? "");
+  // A top-up of a wallet is the owner's own outflow: never split. A purchase made from a wallet is split like any other.
+  const topUp = promptVoucher || !!voucherId;
   const brandOptions = [
     ...voucherBrands.map((b) => ({ id: b.id, label: b.name })),
     ...SUGGESTED_VOUCHER_BRANDS.filter((n) => !voucherBrands.some((b) => b.name.toLowerCase() === n.toLowerCase())).map((n) => ({ id: `suggest:${n}`, label: n })),
@@ -105,10 +107,10 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   }, [adding, records]);
   const sharing = split.mode !== "personal" || payerId !== meId;
   const isUpi = accounts.find((a) => a.id === accountId)?.type === "upi";
-  const splitError = validateSplit(amountPaise, split);
+  const splitError = topUp ? null : validateSplit(amountPaise, split);
   const missing = adding ? (!accountId ? "Add a payment method first (Settings)" : amountPaise <= 0 ? "Enter an amount" : !merchant.trim() ? "Enter a merchant" : !/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Pick a date" : null) : null;
   // New rows must say which voucher (or decide later). Editing something that is already approved is never blocked by it.
-  const voucherProblem = promptVoucher && !voucherId && !voucherLater && record.status !== "reviewed" ? "Pick the voucher that was bought, or choose Decide later" : voucherId && paidWithId ? "A payment cannot both buy a voucher and be paid with one" : null;
+  const voucherProblem = promptVoucher && !voucherId && !voucherLater && record.status !== "reviewed" ? "Pick the wallet that was topped up, or choose Decide later" : voucherId && paidWithId ? "A payment cannot both buy a voucher and be paid with one" : null;
   const bad = splitError ?? missing ?? voucherProblem;
 
   const onAmount = (v: string) => {
@@ -126,11 +128,13 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       if (err) { setRecurringError(err); setMore(true); return; }
     }
     const fields = {
-      merchant: merchant.trim(), categoryId, kind: voucherId ? ("purchase" as const) : kind, voucherBrandId: voucherId || undefined, paidWithVoucherId: paidWithId || undefined, voucherPending: voucherLater && !voucherId ? true : undefined, payerId, split, shared: split.mode !== "personal", notes: notes || undefined, excluded,
+      merchant: merchant.trim(), categoryId, kind: voucherId ? ("purchase" as const) : kind, voucherBrandId: voucherId || undefined, paidWithVoucherId: paidWithId || undefined, voucherPending: voucherLater && !voucherId ? true : undefined, payerId, split: topUp ? { mode: "personal" as const, participantIds: [payerId] } : split, shared: topUp ? false : split.mode !== "personal", notes: notes || undefined, excluded,
       recurringId: linkId || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, recurringHint: undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
     };
     if (adding) {
-      addRecord({ ...record, ...fields, date, accountId, amountPaise });
+      // Bought from a wallet: it belongs to the card that topped the wallet up last (the wallet itself is the funding source).
+      const topUpAccount = paidWithId ? [...records].filter((r) => r.voucherBrandId === paidWithId).sort((a, b) => b.date.localeCompare(a.date))[0]?.accountId : undefined;
+      addRecord({ ...record, ...fields, date, accountId: topUpAccount ?? accountId, amountPaise });
       onAdded?.(`Added ${fields.merchant} ${formatINR(amountPaise)}`);
       if (action === "another") onAnother?.(); else onClose();
       return;
@@ -169,7 +173,13 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       {mode === "review" && dupOf && (
         <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Approve only if this is a separate purchase; otherwise reject it.</p>
       )}
-      {adding && <FormRow label="Paid with"><CompactChips label="Payment method" options={accounts.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={setAccountId} /></FormRow>}
+      {adding && !paidWithId && <FormRow label="Paid with"><CompactChips label="Payment method" options={accounts.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={setAccountId} /></FormRow>}
+      {voucherBrands.length > 0 && !topUp && kind === "purchase" && (
+        <FormRow label="From wallet">
+          <CompactChips label="Paid from a voucher wallet" options={[{ id: "", label: "No" }, ...voucherBrands.map((b) => ({ id: b.id, label: `${b.name} wallet` }))]} selected={[paidWithId]} onPick={setPaidWithId} />
+          {paidWithId && <p className="mt-1.5 text-xs text-muted">Paid from the {voucherBrands.find((b) => b.id === paidWithId)?.name} wallet, so it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
+        </FormRow>
+      )}
       <FormRow label="Merchant">
         <Input value={merchant} onChange={(e) => setMerchant(e.target.value)} placeholder="Where did you pay?" />
         {adding && !merchant && quick.length > 0 && (
@@ -180,15 +190,17 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       </FormRow>
       <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[categoryId]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
       {promptVoucher && (
-        <FormRow label="Voucher">
-          <CompactChips label="Voucher bought" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
+        <FormRow label="Wallet">
+          <CompactChips label="Wallet topped up" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
             onPick={(id) => { if (id === "__later") { setVoucherLater(true); setVoucherId(""); } else { setVoucherLater(false); pickBrand(id, setVoucherId); } }} adder={voucherAdder} />
-          <p className="mt-1.5 text-xs text-muted">Which voucher did this buy? It stays under {accountName(accountId)} and {merchant || "this merchant"}, counts once as money spent, and is attributed to the brand you pick. Statement text is never changed.</p>
-          {!voucherId && !voucherLater && record.status !== "reviewed" && <p role="alert" className="mt-1 text-xs font-medium text-warn">Choose a voucher to continue.</p>}
+          <p className="mt-1.5 text-xs text-muted">Which wallet is this topping up? It is recorded under {accountName(accountId)} › {merchant || "this merchant"} › the wallet you pick, adds to that wallet&apos;s balance, and counts once as money spent. It is never split. Statement text is never changed.</p>
+          {!voucherId && !voucherLater && record.status !== "reviewed" && <p role="alert" className="mt-1 text-xs font-medium text-warn">Choose a wallet to continue.</p>}
         </FormRow>
       )}
-      <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>
-      {(sharing || !adding) && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
+      {topUp
+        ? <p className="border-t border-border pt-3 text-xs text-muted">A wallet top-up is your own money going into the wallet, so it is not split or shared. Split the purchases you make from the wallet instead.</p>
+        : <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>}
+      {(sharing || !adding) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
       <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="flex w-full items-center gap-1.5 border-t border-border pt-3 text-sm font-medium text-muted hover:text-foreground">
         <ChevronDown size={16} aria-hidden className={more ? "" : "-rotate-90"} /> More options <span className="text-xs font-normal">type, recurring, notes</span>
       </button>
@@ -196,13 +208,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         <div className="space-y-2.5">
           <FormRow label="Type"><CompactChips label="Type" options={kinds} selected={[kind]} onPick={setKind} /></FormRow>
           {!promptVoucher && kind === "purchase" && !paidWithId && (
-            <FormRow label="Buys voucher"><CompactChips label="Voucher bought" options={[{ id: "", label: "No" }, ...brandOptions]} selected={[voucherId]} onPick={(id) => pickBrand(id, setVoucherId)} adder={voucherAdder} /></FormRow>
-          )}
-          {!voucherId && !promptVoucher && (
-            <FormRow label="Paid with voucher">
-              <CompactChips label="Paid with a voucher" options={[{ id: "", label: "No" }, ...voucherBrands.map((b) => ({ id: b.id, label: b.name }))]} selected={[paidWithId]} onPick={setPaidWithId} />
-              {paidWithId && <p className="mt-1.5 text-xs text-muted">Not counted again: buying the voucher was already the spend. This only shows how it was used.</p>}
-            </FormRow>
+            <FormRow label="Tops up wallet"><CompactChips label="Wallet topped up" options={[{ id: "", label: "No" }, ...brandOptions]} selected={[voucherId]} onPick={(id) => pickBrand(id, setVoucherId)} adder={voucherAdder} /></FormRow>
           )}
           {kind === "cc_payment" && (
             <FormRow label="Which card"><CompactChips label="Credit card that was paid" options={[{ id: "", label: "Not sure" }, ...accounts.filter((a) => a.type === "credit_card").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[paidCardId]} onPick={setPaidCardId} /></FormRow>

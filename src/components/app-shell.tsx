@@ -19,7 +19,7 @@ const nav = [
   { href: "/transactions", label: "Transactions", icon: List, mobile: true },
   { href: "/recurring", label: "Recurring", icon: Repeat },
   { href: "/cards", label: "Card bills", icon: CreditCard },
-  { href: "/vouchers", label: "Vouchers", icon: Ticket },
+  { href: "/vouchers", label: "Wallets", icon: Ticket },
   { href: "/insights", label: "AI insights", icon: Sparkles },
   { href: "/review", label: "Review", icon: ClipboardCheck },
   { href: "/import", label: "Import", icon: FileUp, mobile: true },

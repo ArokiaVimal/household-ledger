@@ -111,3 +111,48 @@ describe("monthlyPurchases and isVoucherPurchase", () => {
     expect(knownVoucherSeller("CUSTCAP SOLUTIONS PVT L THANE")).toBe("Shopwise");
   });
 });
+
+import { personLedger, settlementFor } from "./ledger";
+import { pairBalances } from "./balances";
+import { signedShare } from "./reports";
+import { walletActivity, walletUse } from "./vouchers";
+
+describe("wallet top-ups and purchases from the wallet", () => {
+  // Me ("me") topped up the Amazon wallet with ₹10,000 on Amex, then bought a ₹3,000 item from it, split 50/50 with my wife and a friend's ₹600 share.
+  const topup = rec("t1", "2026-09-03", 10000, { voucherBrandId: "amz" });
+  const buy = rec("w1", "2026-09-10", 3000, { merchant: "Amazon", originalDescription: "Amazon order", paidWithVoucherId: "amz", categoryId: "shopping", shared: true, split: { mode: "equal", participantIds: ["me", "wife"] } });
+  const buy2 = rec("w2", "2026-09-12", 1800, { merchant: "Amazon", originalDescription: "Amazon gift", paidWithVoucherId: "amz", categoryId: "gifts", shared: true, split: { mode: "custom", participantIds: ["me", "friend"], values: { me: 120000, friend: 60000 } } });
+
+  it("the top-up is the only spending; the wallet purchases add none, so nothing is counted twice", () => {
+    const s = summarize([topup, buy, buy2], "me");
+    expect(s.net).toBe(1_000_000);
+    expect(s.sharedNet).toBe(0);
+  });
+  it("but the people sharing a wallet purchase still owe their share: settle-up sees it, with no top-up in it", () => {
+    const wife = personLedger("wife", "me", [topup, buy, buy2], []);
+    expect(wife.open.map((e) => [e.record.id, e.sharePaise])).toEqual([["w1", 150_000]]);
+    expect(wife.outstandingPaise).toBe(150_000);
+    const friend = personLedger("friend", "me", [topup, buy, buy2], []);
+    expect(friend.outstandingPaise).toBe(60_000);
+    expect(settlementFor("wife", "me", wife.open)).toMatchObject({ fromId: "wife", toId: "me", amountPaise: 150_000, recordIds: ["w1"] });
+    expect(pairBalances([topup, buy, buy2], []).map((b) => [b.from, b.to, b.outstanding]).sort()).toEqual([["friend", "me", 60_000], ["wife", "me", 150_000]]);
+  });
+  it("the wallet owner's own share is not counted again, other people's shares are theirs to bear", () => {
+    expect(signedShare(buy, "me")).toBe(0);
+    expect(signedShare(buy, "wife")).toBe(150_000);
+  });
+  it("a wallet top-up can never be split or shared", async () => {
+    const { ExpenseRecordSchema } = await import("@/data/schemas");
+    expect(ExpenseRecordSchema.safeParse(rec("s", "2026-09-03", 100, { voucherBrandId: "amz", shared: true, split: { mode: "equal", participantIds: ["me", "wife"] } })).success).toBe(false);
+    expect(ExpenseRecordSchema.safeParse(topup).success).toBe(true);
+    expect(ExpenseRecordSchema.safeParse(buy).success).toBe(true);
+  });
+  it("walletActivity is a statement: top-ups increase the balance, purchases decrease it", () => {
+    const lines = walletActivity("amz", [buy2, buy, topup, rec("o", "2026-09-04", 99, { voucherBrandId: "swg" })]);
+    expect(lines.map((l) => [l.type, l.deltaPaise, l.trackedPaise])).toEqual([["topup", 1_000_000, 1_000_000], ["use", -300_000, 700_000], ["use", -180_000, 520_000]]);
+  });
+  it("walletUse shows what was bought, by category, and how much belongs to others", () => {
+    const u = walletUse("amz", [topup, buy, buy2], "2026-09");
+    expect(u).toEqual({ count: 2, totalPaise: 480_000, othersOweePaise: 210_000, byCategory: { shopping: 300_000, gifts: 180_000 } });
+  });
+});

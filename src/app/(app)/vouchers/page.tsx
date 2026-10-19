@@ -7,7 +7,8 @@ import { Button, Card, CompactChips, ConfirmDialog, Dialog, EmptyState, Field, I
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 import type { VoucherBrand } from "@/domain/types";
-import { brandSummaries, isVoucherPurchase, monthlyPurchases, reconcileVouchers, voucherOutflow, voucherTree, type BrandSummary, type TreeNode } from "@/domain/vouchers";
+import type { ExpenseRecord } from "@/domain/types";
+import { brandSummaries, isVoucherPurchase, monthlyPurchases, reconcileVouchers, voucherOutflow, voucherTree, walletActivity, walletUse, type BrandSummary, type TreeNode } from "@/domain/vouchers";
 
 const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en", { month: "long", year: "numeric", timeZone: "UTC" });
 const shortMonth = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en", { month: "short", year: "2-digit", timeZone: "UTC" });
@@ -35,7 +36,7 @@ export default function Vouchers() {
 
   return (
     <>
-      <PageHeader title="Vouchers" sub="Gift vouchers you buy, and where they go. A purchase counts once, when the money leaves. Using a voucher later is never counted again." actions={<Button onClick={() => { setNewName(""); setAddError(null); setAdding(true); }}><Plus size={16} aria-hidden />Add voucher</Button>} />
+      <PageHeader title="Voucher wallets" sub="Every voucher you buy tops up a wallet (Amazon, Swiggy and so on). The top-up is the one cash outflow. What you buy from a wallet can be split with your partner or friends, and is never counted as spending again." actions={<Button onClick={() => { setNewName(""); setAddError(null); setAdding(true); }}><Plus size={16} aria-hidden />Add voucher</Button>} />
 
       {!any ? (
         <Card><EmptyState title="No voucher purchases yet" hint="When a transaction from a voucher seller such as Shopwise (statement text CUST CAP SOLUTIONS) is imported, review asks which voucher you bought and it appears here." /></Card>
@@ -44,15 +45,15 @@ export default function Vouchers() {
           {cardsWithVouchers.length > 1 && <CompactChips label="Payment method" options={[{ id: "", label: "All cards" }, ...cardsWithVouchers.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[accountId]} onPick={setAccountId} />}
 
           <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-3">
-            <Card className="p-4"><div className="text-xs text-muted">Vouchers bought in {monthName(month)}</div><div className="num text-2xl font-semibold">{formatINR(outflow)}</div><div className="text-xs text-muted">the one cash outflow</div></Card>
-            <Card className="p-4"><div className="text-xs text-muted">Spending from vouchers (recorded)</div><div className="num text-2xl font-semibold">{formatINR(usedMonth)}</div><div className="text-xs text-muted">not added to your spending again</div></Card>
-            <Card className="p-4"><div className="text-xs text-muted">Waiting for a brand</div><div className="num text-2xl font-semibold">{formatINR(sum.unassigned.purchasedPaise)}</div>{sum.unassigned.purchases > 0 ? <Link href={`/transactions?month=${month}&voucher=none`} className="text-xs text-accent underline-offset-2 hover:underline">{sum.unassigned.purchases} purchase{sum.unassigned.purchases === 1 ? "" : "s"}, pick the brand</Link> : <div className="text-xs text-muted">nothing waiting</div>}</Card>
+            <Card className="p-4"><div className="text-xs text-muted">Topped up in {monthName(month)}</div><div className="num text-2xl font-semibold">{formatINR(outflow)}</div><div className="text-xs text-muted">the one cash outflow, not shared</div></Card>
+            <Card className="p-4"><div className="text-xs text-muted">Bought from wallets (recorded)</div><div className="num text-2xl font-semibold">{formatINR(usedMonth)}</div><div className="text-xs text-muted">not added to your spending again</div></Card>
+            <Card className="p-4"><div className="text-xs text-muted">Waiting for a wallet</div><div className="num text-2xl font-semibold">{formatINR(sum.unassigned.purchasedPaise)}</div>{sum.unassigned.purchases > 0 ? <Link href={`/transactions?month=${month}&voucher=none`} className="text-xs text-accent underline-offset-2 hover:underline">{sum.unassigned.purchases} purchase{sum.unassigned.purchases === 1 ? "" : "s"}, pick the brand</Link> : <div className="text-xs text-muted">nothing waiting</div>}</Card>
           </div>
 
           <section aria-label="By brand" className="space-y-2">
             <h2 className="px-1 text-sm font-medium text-muted">By brand · {monthName(month)}</h2>
             {sum.brands.length === 0 ? <p className="px-1 text-sm text-muted">No voucher brands yet. Add one, or choose one when you review a voucher purchase.</p> : (
-              <ul className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-2">{sum.brands.map((b) => <li key={b.brand.id}><BrandCard s={b} month={month} onEdit={() => setEditing(b.brand)} /></li>)}</ul>
+              <ul className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-2">{sum.brands.map((b) => <li key={b.brand.id}><BrandCard s={b} month={month} records={scoped} onEdit={() => setEditing(b.brand)} /></li>)}</ul>
             )}
           </section>
 
@@ -110,23 +111,49 @@ export default function Vouchers() {
   );
 }
 
-function BrandCard({ s, month, onEdit }: { s: BrandSummary; month: string; onEdit: () => void }) {
+function BrandCard({ s, month, records, onEdit }: { s: BrandSummary; month: string; records: ExpenseRecord[]; onEdit: () => void }) {
+  const { categoryName, nameOf, meId } = useStore();
   const r = s.remaining;
+  const use = walletUse(s.brand.id, records, month);
+  const activity = walletActivity(s.brand.id, records);
+  const topCats = Object.entries(use.byCategory).sort((a, b) => b[1] - a[1]).slice(0, 3);
   return (
     <Card className="space-y-3 p-4">
       <div className="flex items-center gap-3"><MerchantAvatar name={s.brand.name} size={36} /><h3 className="min-w-0 flex-1 truncate font-semibold">{s.brand.name}</h3><button type="button" aria-label={`Edit ${s.brand.name}`} title="Edit" onClick={onEdit} className="grid size-10 place-items-center rounded-full text-muted hover:bg-background"><Pencil size={15} aria-hidden /></button></div>
       <dl className="grid grid-cols-2 gap-3 text-sm">
-        <div><dt className="text-xs text-muted">Bought this month</dt><dd className="num text-lg font-semibold">{formatINR(s.month.purchasedPaise)}</dd><dd className="text-xs text-muted">{s.month.purchases} purchase{s.month.purchases === 1 ? "" : "s"}</dd></div>
-        <div><dt className="text-xs text-muted">Used this month (recorded)</dt><dd className="num text-lg font-semibold">{formatINR(s.month.usedPaise)}</dd><dd className="text-xs text-muted">{s.month.uses} transaction{s.month.uses === 1 ? "" : "s"}</dd></div>
+        <div><dt className="text-xs text-muted">Topped up this month</dt><dd className="num text-lg font-semibold">{formatINR(s.month.purchasedPaise)}</dd><dd className="text-xs text-muted">{s.month.purchases} purchase{s.month.purchases === 1 ? "" : "s"}</dd></div>
+        <div><dt className="text-xs text-muted">Bought from it this month</dt><dd className="num text-lg font-semibold">{formatINR(s.month.usedPaise)}</dd><dd className="text-xs text-muted">{s.month.uses} transaction{s.month.uses === 1 ? "" : "s"}</dd></div>
       </dl>
       <div className="rounded-xl bg-background p-3 text-sm">
         {r ? (
           <>
-            <div className="flex items-baseline justify-between gap-2"><span className="text-muted">Remaining</span><span className={`num font-semibold ${r.inconsistent ? "text-warn" : ""}`}>{formatINR(r.amountPaise)}</span></div>
+            <div className="flex items-baseline justify-between gap-2"><span className="text-muted">Wallet balance</span><span className={`num font-semibold ${r.inconsistent ? "text-warn" : ""}`}>{formatINR(r.amountPaise)}</span></div>
             <p className="mt-1 text-xs text-muted">{r.basis === "balance" ? `From the balance you recorded on ${s.brand.balance?.asOf}, plus purchases and recorded use since.` : "Bought minus used, because you record every use of this voucher."}{r.inconsistent ? " Recorded use is more than the voucher explains, so check the entries or the balance." : ""}</p>
           </>
-        ) : <p className="text-xs text-muted"><b>Remaining: unknown.</b> Buying a voucher is not spending it. Add a balance from the {s.brand.name} app, or mark that you record every use, to see a reliable figure.</p>}
+        ) : <p className="text-xs text-muted"><b>Balance not confirmed.</b> Top-ups minus the spending you recorded is <span className="num font-medium text-foreground">{formatINR(Math.max(0, s.total.purchasedPaise - s.total.usedPaise))}</span>, but some orders may not be in the app. Add the balance from the {s.brand.name} app, or mark that you record every use, to show it as your balance.</p>}
       </div>
+      {use.count > 0 && (
+        <div className="space-y-1 text-sm">
+          <div className="text-xs text-muted">Bought from the wallet in {monthName(month)}: {formatINR(use.totalPaise)} in {use.count} purchase{use.count === 1 ? "" : "s"}{topCats.length > 0 ? ` (${topCats.map(([c, v]) => `${categoryName(c)} ${formatINR(v)}`).join(", ")})` : ""}</div>
+          {use.othersOweePaise > 0 && <div className="rounded-lg bg-good-soft px-3 py-2 text-xs text-good">Others owe you <b className="num">{formatINR(use.othersOweePaise)}</b> for these. <Link href="/settlements" className="font-medium underline">Settle up</Link></div>}
+        </div>
+      )}
+      {activity.length > 0 && (
+        <details className="group text-sm">
+          <summary className="flex cursor-pointer items-center gap-1.5 text-muted hover:text-foreground"><ChevronDown size={14} aria-hidden className="-rotate-90 group-open:rotate-0" />Wallet activity ({activity.length})</summary>
+          <ul className="mt-2 divide-y divide-border rounded-xl border border-border">
+            {[...activity].reverse().map((l) => {
+              const others = l.type === "use" ? l.record.split.participantIds.filter((id) => id !== meId && id !== l.record.payerId) : [];
+              return (
+                <li key={l.record.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="min-w-0"><span className="block truncate">{l.type === "topup" ? `Top-up via ${l.record.merchant}` : l.record.merchant}</span><span className="block truncate text-xs text-muted">{l.record.date}{l.type === "use" ? ` · ${categoryName(l.record.categoryId)}` : ""}{others.length > 0 ? ` · split with ${others.map(nameOf).join(", ")}` : ""}</span></span>
+                  <span className="text-right"><span className={`num block font-medium ${l.deltaPaise > 0 ? "text-good" : ""}`}>{l.deltaPaise > 0 ? "+" : "−"}{formatINR(Math.abs(l.deltaPaise))}</span><span className="num block text-xs text-muted">tracked {formatINR(l.trackedPaise)}</span></span>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
         <span>All time: bought <b className="num text-foreground">{formatINR(s.total.purchasedPaise)}</b>, used <b className="num text-foreground">{formatINR(s.total.usedPaise)}</b></span>
         <Link href={`/transactions?month=${month}&voucher=${s.brand.id}`} className="text-accent underline-offset-2 hover:underline">Purchases</Link>
