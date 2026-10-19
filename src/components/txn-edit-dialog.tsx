@@ -8,6 +8,7 @@ import { CategorySheet, ListSheet, MerchantSheet, PickerRow } from "@/components
 import { attribute } from "@/domain/groups";
 import { inferCategory, merchantFromNotes } from "@/domain/categorize";
 import { readNote, usualFor } from "@/domain/autofill";
+import { cardViews, suggestPaidCard } from "@/domain/cardbills";
 import { ratioSplit } from "@/domain/splits";
 import { COMMON_MERCHANTS, MERCHANT_ALIASES, rankMerchants } from "@/domain/merchants";
 import { shortName, walletAccountFor, walletBrandFor } from "@/domain/accounts";
@@ -65,7 +66,7 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 }
 
 function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { meId, nameOf, groups, rules, partnerId, splitRatio, today, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
+  const { cardBills, meId, nameOf, groups, rules, partnerId, splitRatio, today, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
   const [deleting, setDeleting] = useState(false);
   const [sheet, setSheet] = useState<null | "pay" | "via" | "wallet" | "merchant" | "category" | "kind" | "topup" | "card" | "bank" | "recurring">(null);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
@@ -137,7 +138,9 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [catHint, setCatHint] = useState<string | null>(null);
   const [merchantHint, setMerchantHint] = useState<string | null>(null);
   const knownMerchants = useMemo(() => [...rankMerchants([...records, ...staged]).all.map((m) => m.name), ...COMMON_MERCHANTS], [records, staged]);
+  const ccMode = useRef(false);
   const applyCategory = (m: string, n: string) => {
+    if (ccMode.current) return;
     const g = inferCategory({ merchant: m, notes: n, records, rules, categories });
     if (!g) return;
     const free = !catTouched.current && (categoryId === "uncategorized" || categoryId === autoCat.current);
@@ -189,7 +192,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       if (f.accountId && !touched.current.account) { applyAccount(f.accountId); if (!got.includes("payment method")) got.push("payment method"); }
       if (f.withIds && !touched.current.split) { setSplit(autoSplit(f.withIds)); if (!got.includes("split")) got.push("split"); }
       if (f.payerId && !touched.current.payer) { setPayerId(f.payerId); got.push("paid by"); }
-      if (f.kind && !touched.current.kind) { setKind(f.kind); got.push("type"); setMore(true); }
+      if (f.kind && !touched.current.kind) { setKind(f.kind); got.push("type"); setMore(true); if (f.kind === "cc_payment") { prefillCardPayment(f.paidCardId ?? "", f.amountPaise); got.push("card"); } }
       if (f.monthly && !touched.current.recurring && !recurringId) { setRecurringId(NEW_RECURRING); got.push("repeats monthly"); setMore(true); }
     }
     if (inferCategory({ merchant: m, notes: v, records, rules, categories })) got.push("category");
@@ -204,6 +207,18 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
     if (got.length) setFilled(got.map((g) => `${g} (usual for ${name})`));
   };
   const onAmount = (v: string) => { touch("amount"); setAmount(v); };
+  /** A card-bill payment: pick the card (named, or the one open bill that matches), then fill what is still owed on it. */
+  const prefillCardPayment = (cardId: string, amountPaise?: number) => {
+    const views = cardViews(accounts, cardBills, [...records, ...staged], today);
+    ccMode.current = true;
+    if (!catTouched.current && categories.some((c) => c.id === "transfers")) { setCategoryId("transfers"); autoCat.current = "transfers"; setCatHint("Card payments aren't spending"); }
+    const id = cardId || suggestPaidCard(amountPaise ?? (parseRupees(amountText) ?? undefined), views);
+    if (!id) return;
+    setPaidCardId(id);
+    const bill = views.find((v) => v.card.id === id)?.current;
+    if (bill && bill.state !== "paid" && !touched.current.amount && !(amountPaise ?? parseRupees(amountText))) setAmount(String(bill.remainingPaise / 100));
+    if (!merchantTouched.current && !merchant.trim()) { const n = shortName(accounts.find((a) => a.id === id)?.name ?? ""); setMerchant(`Payment to ${n}`); autoMerchant.current = `Payment to ${n}`; }
+  };
 
   const save = (action: "close" | "next" | "another" | "draft") => {
     // "Repeat every month": turn this payment into a recurring item (usual amount, due day, split) and link it.
@@ -329,9 +344,9 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         </div>
       )}
 
-      <ListSheet open={sheet === "kind"} onClose={() => setSheet(null)} title="Type" value={kind} options={kinds.map((k) => ({ id: k.id, label: k.label, icon: k.icon }))} onPick={(id) => { touch("kind"); setKind(id as TxnKind); }} />
+      <ListSheet open={sheet === "kind"} onClose={() => setSheet(null)} title="Type" value={kind} options={kinds.map((k) => ({ id: k.id, label: k.label, icon: k.icon }))} onPick={(id) => { touch("kind"); setKind(id as TxnKind); if (id !== "cc_payment") ccMode.current = false; if (id === "cc_payment" && !paidCardId) prefillCardPayment(""); }} />
       <ListSheet open={sheet === "topup"} onClose={() => setSheet(null)} title="Tops up wallet" value={voucherId} options={[{ id: "", label: "No", icon: <Dot icon={Ban} size={32} /> }, ...brandOptions.map((o) => ({ id: o.id, label: o.label, icon: o.icon }))]} onPick={(id) => pickBrand(id, setVoucherId)} />
-      <ListSheet open={sheet === "card"} onClose={() => setSheet(null)} title="Which card was paid" value={paidCardId} options={[{ id: "", label: "Not sure", icon: <Dot icon={Ban} size={32} /> }, ...accounts.filter((a) => a.type === "credit_card").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setPaidCardId} />
+      <ListSheet open={sheet === "card"} onClose={() => setSheet(null)} title="Which card was paid" value={paidCardId} options={[{ id: "", label: "Not sure", icon: <Dot icon={Ban} size={32} /> }, ...accounts.filter((a) => a.type === "credit_card").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={(id) => { setPaidCardId(id); if (id) prefillCardPayment(id); }} />
       <ListSheet open={sheet === "bank"} onClose={() => setSheet(null)} title="Paid from bank" value={fundedBy} options={[{ id: "", label: "Unknown", icon: <Dot icon={Ban} size={32} /> }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setFundedBy} />
       <ListSheet open={sheet === "recurring"} onClose={() => { setSheet(null); setRecurringError(null); }} title="Recurring" value={recurringId} options={[{ id: "", label: "None", icon: <Dot icon={Ban} size={32} /> }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name, icon: <Dot icon={Repeat} size={32} tone="bg-red-100 text-red-700" /> })), { id: NEW_RECURRING, label: "Repeat every month", hint: "Adds this payment to Recurring", icon: <Dot icon={Plus} size={32} tone="bg-accent/10 text-accent" /> }]} onPick={(v) => { touch("recurring"); setRecurringId(v); setRecurringError(null); }} />
       <Dialog open={splitOpen} onClose={() => setSplitOpen(false)} title="Split with">

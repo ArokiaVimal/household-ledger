@@ -6,6 +6,7 @@ import { classifyRow } from "@/domain/import/classify";
 import { extractRows, type ParsedRow } from "@/domain/import/rows";
 import type { PdfParseResult, StatementCheck, StatementSummary } from "@/domain/import/pdf";
 import { planImport } from "@/domain/dedupe";
+import { cardViews, suggestPaidCard } from "@/domain/cardbills";
 import { resolveChannel } from "@/domain/import/channel";
 import { looksRecurring, repeatsMonthly } from "@/domain/import/recurring-hint";
 import { knownVoucherSeller } from "@/domain/vouchers";
@@ -272,9 +273,12 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
   });
   // Per-row routing: a bank row naming GPay is filed under GPay (funded by the bank); a card-bill payment names the card.
   const accounts = await repo.accounts.list();
+  // A bank payment that does not name its card is matched to the one open bill with that amount.
+  const billViews = cardViews(accounts, await repo.cardBills.list(), records, new Date().toISOString().slice(0, 10));
   const withRef = prepared.map((p) => {
     const ch = resolveChannel(p.r.description, p.kind, account, accounts);
-    return { ...p, accountId: ch.accountId, fundedBy: ch.fundedBy, paidCardId: ch.paidCard?.id, voucher: p.voucher, recurring: p.kind !== "cc_payment" && (p.r.recurringHint === true || looksRecurring(p.r.description, p.kind, p.r.direction) || repeatsMonthly(p.r.description, p.r.amountPaise, p.r.date, records)), merchant: ch.merchant ?? p.merchant, referenceId: dedupeKey(d.sha256, input.accountId, p.r, p.occurrence) };
+    const guessedCard = p.kind === "cc_payment" && !ch.paidCard && account.type === "bank" ? suggestPaidCard(p.r.amountPaise, billViews) : undefined;
+    return { ...p, accountId: ch.accountId, fundedBy: ch.fundedBy, paidCardId: ch.paidCard?.id ?? guessedCard, voucher: p.voucher, recurring: p.kind !== "cc_payment" && (p.r.recurringHint === true || looksRecurring(p.r.description, p.kind, p.r.direction) || repeatsMonthly(p.r.description, p.r.amountPaise, p.r.date, records)), merchant: ch.merchant ?? p.merchant, referenceId: dedupeKey(d.sha256, input.accountId, p.r, p.occurrence) };
   });
   const plan = planImport(withRef.map((p) => ({ accountId: p.accountId, fundedBy: p.fundedBy, date: p.r.date, amountPaise: p.r.amountPaise, merchant: p.merchant, referenceId: p.referenceId, direction: p.r.direction })), records);
 

@@ -62,3 +62,11 @@ export function dueLabel(daysLeft: number): string {
   if (daysLeft > 1) return `due in ${daysLeft} days`;
   return `${-daysLeft} day${daysLeft === -1 ? "" : "s"} overdue`;
 }
+
+/** The card a bank payment most likely settles: the one open bill with exactly this amount, else the only open bill. */
+export function suggestPaidCard(amountPaise: number | undefined, views: CardView[]): string | undefined {
+  const open = upcomingBills(views);
+  const exact = amountPaise ? open.filter((b) => b.remainingPaise === amountPaise || b.bill.totalDuePaise === amountPaise) : [];
+  if (exact.length === 1) return exact[0].bill.accountId;
+  return open.length === 1 ? open[0].bill.accountId : undefined;
+}

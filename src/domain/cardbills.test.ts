@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { billStatus, cardViews, dueLabel, upcomingBills } from "./cardbills";
+import { billStatus, cardViews, dueLabel, suggestPaidCard, upcomingBills } from "./cardbills";
 import type { Account, CardBill, ExpenseRecord } from "./types";
 
 const bill = (o: Partial<CardBill> = {}): CardBill => ({ id: "b1", accountId: "cc", statementDate: "2026-09-15", dueDate: "2026-10-05", totalDuePaise: 1_000_000, source: "manual", ...o });
@@ -49,4 +49,12 @@ describe("dueLabel", () => {
   it("reads naturally", () => {
     expect([0, 1, 5, -1, -3].map(dueLabel)).toEqual(["due today", "due tomorrow", "due in 5 days", "1 day overdue", "3 days overdue"]);
   });
+});
+
+describe("suggestPaidCard", () => {
+  const cards: Account[] = [{ id: "cc", name: "Amex", type: "credit_card" }, { id: "cc2", name: "HDFC", type: "credit_card" }];
+  const views = cardViews(cards, [bill({ accountId: "cc", totalDuePaise: 500_000 }), bill({ id: "b2", accountId: "cc2", totalDuePaise: 900_000 })], [], "2026-10-01");
+  it("picks the card whose open bill has this amount", () => expect(suggestPaidCard(900_000, views)).toBe("cc2"));
+  it("will not guess when several bills are open and none match", () => expect(suggestPaidCard(123, views)).toBeUndefined());
+  it("uses the only open bill", () => expect(suggestPaidCard(123, views.slice(0, 1))).toBe("cc"));
 });
