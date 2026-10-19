@@ -68,7 +68,7 @@ export default function Dashboard() {
   // The headline figures. Outflow is every record of the month on screen (all groups): transfers, card-bill payments and
   // excluded rows are not spending, and refunds subtract. My share follows the group lens and the existing split allocations.
   const outflow = useMemo(() => summarize(monthRecords, meId).net, [monthRecords, meId]);
-  const attention = useMemo(() => needsAttention({ waiting: staged.length, bills: dueBills, recurring, uncategorized: monthRecords.filter((r) => r.categoryId === "uncategorized" && r.status === "reviewed").length, suggestions: recurringSuggestions.length }), [staged.length, dueBills, recurring, monthRecords, recurringSuggestions.length]);
+  const attention = useMemo(() => needsAttention({ waiting: staged.length, bills: dueBills, recurring: recurring.filter((r) => r.item.direction !== "in"), uncategorized: monthRecords.filter((r) => r.categoryId === "uncategorized" && r.status === "reviewed").length, suggestions: recurringSuggestions.length }), [staged.length, dueBills, recurring, monthRecords, recurringSuggestions.length]);
   const prevName = new Date(`${prevKey}-01T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" });
 
   // The welcome guide is only for someone with no transactions at all (also after deleting everything, even if import history

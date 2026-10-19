@@ -48,7 +48,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("rule.put"), merchant: z.string().max(100), categoryId: id }),
   z.object({ type: z.literal("rule.remove"), merchant: z.string().max(100) }),
   z.object({ type: z.literal("account.add"), id, name: z.string().min(1).max(60), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]), parentId: id.optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).optional() }),
-  z.object({ type: z.literal("account.update"), id, name: z.string().min(1).max(60).optional(), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]).optional(), parentId: id.nullable().optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).nullable().optional(), archived: z.boolean().optional() }),
+  z.object({ type: z.literal("account.update"), id, name: z.string().min(1).max(60).optional(), accountType: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]).optional(), parentId: id.nullable().optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).nullable().optional(), archived: z.boolean().optional(), balance: z.object({ amountPaise: z.number().int().safe(), asOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).nullable().optional() }),
   z.object({ type: z.literal("account.delete"), id }),
   z.object({ type: z.literal("accounts.setupUpi") }),
   z.object({ type: z.literal("group.put"), group: z.object({ id, name: z.string().min(1).max(40), kind: z.enum(["mine", "people"]), memberIds: z.array(id).max(30), coverMembers: z.boolean(), includeMe: z.boolean() }) }),
@@ -61,7 +61,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("participant.update"), id, name: z.string().min(1).max(60).optional(), email: z.string().max(200).nullable().optional(), relationship: z.enum(RELATIONSHIPS).optional(), relationshipLabel: z.string().max(30).nullable().optional() }),
   z.object({ type: z.literal("participant.delete"), id }),
   z.object({ type: z.literal("participant.photo"), id, photo: z.string().max(140_000).nullable() }),
-  z.object({ type: z.literal("recurring.put"), item: z.object({ id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: z.number().int().safe().positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional(), accountId: id.optional(), until: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/).optional(), everyMonths: z.number().int().min(1).max(12).optional(), startMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(), amountVaries: z.boolean().optional(), changes: z.array(z.object({ from: z.string().regex(/^\d{4}-\d{2}$/), paise: z.number().int().safe().positive() })).max(60).optional() }) }),
+  z.object({ type: z.literal("recurring.put"), item: z.object({ id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: z.number().int().safe().positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional(), direction: z.literal("in").optional(), accountId: id.optional(), until: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/).optional(), everyMonths: z.number().int().min(1).max(12).optional(), startMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(), amountVaries: z.boolean().optional(), changes: z.array(z.object({ from: z.string().regex(/^\d{4}-\d{2}$/), paise: z.number().int().safe().positive() })).max(60).optional() }) }),
   z.object({ type: z.literal("recurring.markPaid"), id, month: z.string().regex(/^\d{4}-\d{2}$/), paid: z.boolean() }),
   z.object({ type: z.literal("recurring.delete"), id }),
   z.object({ type: z.literal("cardbill.put"), bill: z.object({ id, accountId: id, statementDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), totalDuePaise: z.number().int().safe().positive(), source: z.enum(["statement", "manual", "message"]), batchId: id.optional(), paid: z.boolean().optional() }) }),
@@ -363,6 +363,11 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
         if (a.archived && all.some((x) => x.parentId === a.id && !x.archived)) throw new ActionError("invalid", "Hide the payment methods under it first.");
         if (a.archived) next.archived = true; else delete next.archived;
       }
+      if (a.balance === null) delete next.balance;
+      else if (a.balance) {
+        if (next.type !== "bank" && next.type !== "cash") throw new ActionError("invalid", "Only a bank account or cash can have a recorded balance.");
+        next.balance = a.balance;
+      }
       await repo.accounts.put(next);
       await log("edit", "household", a.id, `Changed payment method ${next.name}${a.parentId ? ` (now under ${(await repo.accounts.get(a.parentId))?.name})` : a.parentId === null ? " (now a primary payment method)" : ""}${a.archived === true ? " (hidden)" : a.archived === false ? " (shown again)" : ""}`);
       return;
@@ -452,7 +457,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       if (it.accountId && !(await repo.accounts.get(it.accountId))) throw new ActionError("invalid", "Unknown payment method.");
       const before = await repo.recurring.get(it.id);
       const place = it.place?.trim();
-      await repo.recurring.put({ id: it.id, name, categoryId: it.categoryId, dueDay: it.dueDay, expectedPaise: it.expectedPaise, payerId: it.payerId, split: it.split, ...(place ? { place } : {}), ...(it.accountId ? { accountId: it.accountId } : {}), ...(it.until ? { until: it.until.slice(0, 7) } : {}), ...(it.everyMonths && it.everyMonths > 1 ? { everyMonths: it.everyMonths, startMonth: it.startMonth } : {}), ...(it.amountVaries ? { amountVaries: true } : {}), ...(it.changes?.length ? { changes: it.changes } : {}), ...(before?.paidMonths?.length ? { paidMonths: before.paidMonths } : {}) });
+      await repo.recurring.put({ id: it.id, name, categoryId: it.categoryId, dueDay: it.dueDay, expectedPaise: it.expectedPaise, payerId: it.payerId, split: it.split, ...(place ? { place } : {}), ...(it.direction ? { direction: it.direction } : {}), ...(it.accountId ? { accountId: it.accountId } : {}), ...(it.until ? { until: it.until.slice(0, 7) } : {}), ...(it.everyMonths && it.everyMonths > 1 ? { everyMonths: it.everyMonths, startMonth: it.startMonth } : {}), ...(it.amountVaries ? { amountVaries: true } : {}), ...(it.changes?.length ? { changes: it.changes } : {}), ...(before?.paidMonths?.length ? { paidMonths: before.paidMonths } : {}) });
       await log(before ? "edit" : "create", "recurring", it.id, `${before ? "Changed" : "Added"} recurring ${name} ${money(it.expectedPaise)} due on ${it.dueDay}`);
       return;
     }

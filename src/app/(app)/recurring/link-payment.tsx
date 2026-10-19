@@ -12,7 +12,7 @@ export function LinkPaymentDialog({ item, month, onClose }: { item: RecurringIte
   const { records, staged, accountName, updateRecord, updateStaged } = useStore();
   const rows = item
     ? [...records.map((r) => ({ r, waiting: false })), ...staged.map((r) => ({ r, waiting: true }))]
-      .filter(({ r, waiting }) => r.date.startsWith(month) && !r.recurringId && r.kind !== "cc_payment" && (waiting || signedSpend(r) > 0))
+      .filter(({ r, waiting }) => r.date.startsWith(month) && !r.recurringId && (item.direction === "in" ? r.kind === "income" : r.kind !== "cc_payment" && r.kind !== "income" && (waiting || signedSpend(r) > 0)))
       .sort((a, b) => Math.abs(a.r.amountPaise - plannedFor(item, month)) - Math.abs(b.r.amountPaise - plannedFor(item, month)))
       .slice(0, 12)
     : [];

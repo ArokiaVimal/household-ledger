@@ -23,8 +23,8 @@ export default function Recurring() {
   const [editing, setEditing] = useState<RecurringItem | "new" | null>(null);
   const [removing, setRemoving] = useState<RecurringItem | null>(null);
   const totals = commitmentTotals(recurringItems, month);
-  const paid = recurring.filter((r) => r.state === "paid").reduce((s, r) => s + (r.marked ? r.expectedPaise : r.actualPaise), 0);
-  const left = recurring.filter((r) => r.state !== "paid" && r.state !== "ended" && r.state !== "notdue").reduce((s, r) => s + r.expectedPaise, 0);
+  const paid = recurring.filter((r) => r.item.direction !== "in" && r.state === "paid").reduce((s, r) => s + (r.marked ? r.expectedPaise : r.actualPaise), 0);
+  const left = recurring.filter((r) => r.item.direction !== "in" && r.state !== "paid" && r.state !== "ended" && r.state !== "notdue").reduce((s, r) => s + r.expectedPaise, 0);
   const groups = [...new Set(recurring.map((r) => r.item.place ?? "Personal"))];
 
   return (
@@ -54,6 +54,7 @@ export default function Recurring() {
                             <span className="inline-flex items-center gap-1"><CalendarClock size={12} aria-hidden />Due on {r.item.dueDay}</span>
                             {r.item.until && <span>{r.state === "ended" ? "Ended" : "Until"} {monthLabel(r.item.until.slice(0, 7))}</span>}
                             {(r.item.everyMonths ?? 1) > 1 && <span>Every {r.item.everyMonths} months</span>}
+                            {r.item.direction === "in" && <span>Money coming in</span>}
                             {r.item.amountVaries && <span>Amount varies</span>}
                             {recurringAlerts.filter((a) => a.itemId === r.item.id).map((a) => <Badge key={a.flag} tone={a.flag === "price_up" ? "warn" : "bad"}>{a.flag === "price_up" ? "Price went up" : a.flag === "duplicate" ? "Charged twice" : "Payment missing"}</Badge>)}
                             {r.item.accountId && !rec && <span>{accountName(r.item.accountId)}</span>}
@@ -67,7 +68,7 @@ export default function Recurring() {
                           <div className="font-semibold">{formatINR(r.state === "paid" && !r.marked ? r.actualPaise : r.expectedPaise)}</div>
                           <div className="text-xs text-muted">{r.state === "paid" ? (r.marked ? "marked paid" : r.variancePaise === 0 ? "as expected" : `${r.variancePaise > 0 ? "+" : "−"}${formatINR(Math.abs(r.variancePaise))} vs ${r.estimated ? "last bill" : "expected"}`) : r.state === "notdue" ? (r.nextDue ? `next bill ${monthLabel(r.nextDue)}` : "no more bills") : r.estimated ? "about, from last bill" : r.item.amountVaries ? "first guess" : "expected"}</div>
                         </div>
-                        <Badge tone={tone[r.state]}>{text[r.state]}</Badge>
+                        <Badge tone={tone[r.state]}>{r.item.direction === "in" ? (r.state === "paid" ? "Received" : r.state === "overdue" ? "Late" : text[r.state]) : text[r.state]}</Badge>
                         </div>
                       </Link>
                       <div className="flex flex-wrap items-center justify-end gap-1 px-2 pb-2 sm:p-0">

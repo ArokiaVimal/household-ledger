@@ -21,7 +21,7 @@ export const SplitConfigSchema = z.object({
 }) satisfies z.ZodType<SplitConfig>;
 
 export const ParticipantSchema = z.object({ id, name: z.string().min(1).max(80), userId: z.string().min(1).nullable(), pendingEmail: z.string().max(200).optional(), inviterShareBps: z.number().int().min(500).max(9500).optional(), photo: z.string().max(140_000).optional(), relationship: z.enum(["partner", "friend", "family", "parent", "custom"]).optional(), relationshipLabel: z.string().max(30).optional(), email: z.string().max(200).optional(), linkId: z.string().max(300).optional() }) satisfies z.ZodType<Participant>;
-export const AccountSchema = z.object({ id, name: z.string().min(1).max(80), type: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]), parentId: id.optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).optional(), archived: z.boolean().optional(), order: z.number().int().min(0).max(1000).optional(), icon: z.enum(ICON_KEYS).optional() }) satisfies z.ZodType<Account>;
+export const AccountSchema = z.object({ id, name: z.string().min(1).max(80), type: z.enum(["credit_card", "bank", "upi", "cash", "wallet"]), parentId: id.optional(), theme: z.enum(["indigo", "navy", "teal", "plum", "graphite", "platinum", "ruby", "gold"]).optional(), archived: z.boolean().optional(), order: z.number().int().min(0).max(1000).optional(), icon: z.enum(ICON_KEYS).optional(), balance: z.object({ amountPaise: z.number().int().safe(), asOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).optional() }) satisfies z.ZodType<Account>;
 export const CategorySchema = z.object({ id, name: z.string().min(1).max(60), icon: z.enum(ICON_KEYS).optional() }) satisfies z.ZodType<Category>;
 
 export const ExpenseRecordSchema = z
@@ -88,7 +88,7 @@ export const ReceiptSchema = z.object({ id, merchant: z.string().min(1), date, a
 
 export const RecurringItemSchema = z.object({
   id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: paise.positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional(),
-  accountId: id.optional(), until: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/).optional(), everyMonths: z.number().int().min(1).max(12).optional(), startMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(), amountVaries: z.boolean().optional(), changes: z.array(z.object({ from: z.string().regex(/^\d{4}-\d{2}$/), paise: paise.positive() })).max(60).optional(), paidMonths: z.array(z.string().regex(/^\d{4}-\d{2}$/)).max(600).optional(),
+  direction: z.literal("in").optional(), accountId: id.optional(), until: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/).optional(), everyMonths: z.number().int().min(1).max(12).optional(), startMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(), amountVaries: z.boolean().optional(), changes: z.array(z.object({ from: z.string().regex(/^\d{4}-\d{2}$/), paise: paise.positive() })).max(60).optional(), paidMonths: z.array(z.string().regex(/^\d{4}-\d{2}$/)).max(600).optional(),
 }) satisfies z.ZodType<RecurringItem>;
 
 /** Merchant rule document. The id is derived from the merchant so a merchant has at most one rule. */

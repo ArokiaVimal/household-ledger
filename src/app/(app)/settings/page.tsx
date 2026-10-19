@@ -7,6 +7,7 @@ import { THEME_STYLE, themeFor } from "@/components/card-mockup";
 import { useStore } from "@/data/store";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
+import { parseRupees } from "@/domain/money";
 import { CARD_THEMES, type Account, type CardTheme } from "@/domain/types";
 import { MerchantAvatar } from "@/components/txn-row";
 import { SortableList } from "@/components/sortable";
@@ -46,7 +47,7 @@ function Section({ id, icon, title, tagline, children }: { id: string; icon: Rea
 }
 
 export default function Settings() {
-  const { live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, reorderAccounts, setupUpiApps, addSuggestedAccounts, deleteParticipant } = useStore();
+  const { today, live, aiEnabled, sharedRecords, records, staged, settlements, receipts, categories, rules, participants, accounts, recurringItems, meId, addAccount, updateAccount, deleteAccount, reorderAccounts, setupUpiApps, addSuggestedAccounts, deleteParticipant } = useStore();
   const [confirm, setConfirm] = useState(false);
   // One dialog adds and edits payment methods. `parent` is set when adding a sub payment method.
   const [dlg, setDlg] = useState<{ acc?: Account; parent?: string } | null>(null);
@@ -55,6 +56,8 @@ export default function Settings() {
   const [fParent, setFParent] = useState("");
   const [fTheme, setFTheme] = useState<CardTheme | "">("");
   const [fError, setFError] = useState<string | null>(null);
+  const [fBalance, setFBalance] = useState("");
+  const [fAsOf, setFAsOf] = useState("");
   const [deletingAcc, setDeletingAcc] = useState<Account | null>(null);
   const upiPlan = planUpiSetup(accounts);
   const [upiMsg, setUpiMsg] = useState<string | null>(null);
@@ -66,15 +69,18 @@ export default function Settings() {
     setDlg(d); setFError(null);
     setFName(d.acc?.name ?? ""); setFType(d.acc?.type ?? (d.parent ? "wallet" : "credit_card"));
     setFParent(d.acc?.parentId ?? d.parent ?? ""); setFTheme(d.acc?.theme ?? "");
+    setFBalance(d.acc?.balance ? (d.acc.balance.amountPaise / 100).toFixed(2) : ""); setFAsOf(d.acc?.balance?.asOf ?? today);
   };
   const subTypes: Account["type"][] = ["wallet", "upi", "cash"];
   const isSub = !!fParent;
   const canBeSub = !dlg?.acc || childrenOf(dlg.acc.id).length === 0;
   const parentOptions = roots.filter((p) => (p.type === "credit_card" || p.type === "bank") && p.id !== dlg?.acc?.id);
+  const balancePaise = fBalance.trim() === "" ? null : parseRupees(fBalance);
   const saveDialog = () => {
+    if (fBalance.trim() !== "" && (balancePaise === null || !/^\d{4}-\d{2}-\d{2}$/.test(fAsOf))) return setFError("Enter the balance as a number and pick the date it was read.");
     const type = isSub && fType !== "wallet" && fType !== "upi" && fType !== "cash" ? "wallet" : fType;
     const err = dlg?.acc
-      ? updateAccount(dlg.acc.id, { name: fName, type, parentId: fParent || null, theme: type === "credit_card" && !isSub && fTheme ? fTheme : null })
+      ? updateAccount(dlg.acc.id, { name: fName, type, parentId: fParent || null, theme: type === "credit_card" && !isSub && fTheme ? fTheme : null, ...(type === "bank" || type === "cash" ? { balance: balancePaise === null ? null : { amountPaise: balancePaise, asOf: fAsOf } } : {}) })
       : addAccount(fName, type, fParent || undefined, type === "credit_card" && !isSub && fTheme ? fTheme : undefined);
     if (err) setFError(err); else setDlg(null);
   };
@@ -208,6 +214,13 @@ export default function Settings() {
               : <ChipGroup label="Type" options={(Object.keys(typeLabel) as Account["type"][]).map((t) => ({ id: t, label: typeLabel[t] }))} value={fType} onChange={setFType} />}
             {(canBeSub && parentOptions.length > 0) && (
               <div className="space-y-1.5"><div className="text-xs font-medium text-muted">Sits inside</div><CompactChips label="Sits inside" options={[{ id: "", label: "Nothing (primary)" }, ...parentOptions.map((p) => ({ id: p.id, label: p.name }))]} selected={[fParent]} onPick={(id) => { setFParent(id); setFError(null); }} /><p className="text-xs text-muted">Pick a card or bank to make this a sub payment method, for example Amazon Pay inside your Amex.</p></div>
+            )}
+            {dlg.acc && !isSub && (fType === "bank" || fType === "cash") && (
+              <div className="space-y-2 rounded-2xl bg-background p-3">
+                <div className="text-xs font-medium text-muted">Recorded balance (optional)</div>
+                <div className="grid grid-cols-2 gap-2"><Field label="Balance (₹)"><Input inputMode="decimal" value={fBalance} onChange={(e) => { setFBalance(e.target.value); setFError(null); }} placeholder="e.g. 48,250.00" /></Field><Field label="As of"><Input type="date" value={fAsOf} onChange={(e) => setFAsOf(e.target.value)} /></Field></div>
+                <p className="text-xs text-muted">Read it from your bank app or statement. The Timeline starts its forecast from this number and always shows it with its date; leave it empty to forecast without a balance.</p>
+              </div>
             )}
             {!isSub && fType === "credit_card" && (
               <div className="space-y-2">

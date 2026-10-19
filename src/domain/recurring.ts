@@ -64,8 +64,10 @@ export function recurringStatuses(items: RecurringItem[], records: ExpenseRecord
   const todayDay = Number(today.slice(8, 10));
   return items.map((item) => {
     const linked = records.filter((r) => r.recurringId === item.id && r.date.startsWith(month));
-    const actualPaise = linked.reduce((s, r) => s + signedSpend(r), 0);
-    const byRecord = linked.some((r) => signedSpend(r) > 0);
+    // Money coming in is "received" by an income record; money going out is "paid" by a counted purchase.
+    const amountOf = (r: ExpenseRecord) => (item.direction === "in" ? (r.kind === "income" && !r.excluded ? r.amountPaise : 0) : signedSpend(r));
+    const actualPaise = linked.reduce((s, r) => s + amountOf(r), 0);
+    const byRecord = linked.some((r) => amountOf(r) > 0);
     const marked = !byRecord && !!item.paidMonths?.includes(month);
     const paid = byRecord || marked;
     const ended = hasEnded(item, month);
@@ -73,8 +75,8 @@ export function recurringStatuses(items: RecurringItem[], records: ExpenseRecord
     let expectedPaise = plannedFor(item, month);
     let estimated = false;
     if (item.amountVaries) {
-      const last = records.filter((r) => r.recurringId === item.id && r.date.slice(0, 7) < month && signedSpend(r) > 0).sort((a, b) => b.date.localeCompare(a.date))[0];
-      if (last) { expectedPaise = signedSpend(last); estimated = true; }
+      const last = records.filter((r) => r.recurringId === item.id && r.date.slice(0, 7) < month && amountOf(r) > 0).sort((a, b) => b.date.localeCompare(a.date))[0];
+      if (last) { expectedPaise = amountOf(last); estimated = true; }
     }
     const state: RecurringState = ended ? "ended" : paid ? "paid" : !due ? "notdue"
       : month < todayMonth || (month === todayMonth && item.dueDay < todayDay) ? "overdue" : "upcoming";
@@ -86,7 +88,8 @@ export function recurringStatuses(items: RecurringItem[], records: ExpenseRecord
  * What is committed this month, and over the next twelve months. Months an item is not billed, or after it has ended, add nothing.
  * Without a month it is the plain monthly sum times twelve.
  */
-export function commitmentTotals(items: RecurringItem[], month?: string): { monthlyPaise: Paise; yearlyPaise: Paise } {
+export function commitmentTotals(all: RecurringItem[], month?: string): { monthlyPaise: Paise; yearlyPaise: Paise } {
+  const items = all.filter((i) => i.direction !== "in"); // expected income is not a commitment
   if (!month) {
     const sum = items.reduce((s, i) => s + i.expectedPaise, 0);
     return { monthlyPaise: sum, yearlyPaise: sum * 12 };

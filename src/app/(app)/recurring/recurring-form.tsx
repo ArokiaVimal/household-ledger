@@ -30,6 +30,7 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
   const [categoryId, setCategoryId] = useState(item?.categoryId ?? "rent");
   const [place, setPlace] = useState(item?.place ?? "");
   const [accountId, setAccountId] = useState(item?.accountId ?? "");
+  const [incoming, setIncoming] = useState(item?.direction === "in");
   const [until, setUntil] = useState(item?.until?.slice(0, 7) ?? "");
   const [forever, setForever] = useState(!item?.until);
   const [every, setEvery] = useState(String(item?.everyMonths ?? 1));
@@ -60,14 +61,15 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
       else { base = item.expectedPaise; changes = [...(item.changes ?? []).filter((c) => c.from !== changeFrom), { from: changeFrom, paise: expectedPaise }].sort((a, b) => a.from.localeCompare(b.from)); }
     }
     if (!forever && !until) return setError("Pick the last month, or choose Forever.");
-    const err = saveRecurring({ id: item?.id, name, categoryId: category, dueDay: Number(dueDay), expectedPaise: base, payerId, split, place, ...(accountId ? { accountId } : {}), ...(!forever && until ? { until } : {}), ...(Number(every) > 1 ? { everyMonths: Number(every), startMonth } : {}), ...(varies ? { amountVaries: true } : {}), ...(changes?.length ? { changes } : {}) });
+    const err = saveRecurring({ id: item?.id, name, categoryId: category, dueDay: Number(dueDay), expectedPaise: base, payerId, split, place, ...(incoming ? { direction: "in" as const } : {}), ...(accountId ? { accountId } : {}), ...(!forever && until ? { until } : {}), ...(Number(every) > 1 ? { everyMonths: Number(every), startMonth } : {}), ...(varies ? { amountVaries: true } : {}), ...(changes?.length ? { changes } : {}) });
     if (err) return setError(err);
     onClose();
   };
 
   return (
     <div className="space-y-3">
-      <FormRow label="Name"><Input autoFocus value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="e.g. Rent, Car EMI, Life insurance" maxLength={80} /></FormRow>
+      <FormRow label="Type"><CompactChips label="Money going out or coming in" options={[{ id: "out", label: "Money going out" }, { id: "in", label: "Money coming in" }]} selected={[incoming ? "in" : "out"]} onPick={(id) => setIncoming(id === "in")} /></FormRow>
+      <FormRow label="Name"><Input autoFocus value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder={incoming ? "e.g. Salary, Rent from tenant" : "e.g. Rent, Car EMI, Life insurance"} maxLength={80} /></FormRow>
       <FormRow label="Amount" tip="For a bill that is different every time (electricity, gas, phone), choose Different each bill. The amount here is then just a first guess, and each later month expects about what the last bill was. The real amount always comes from the transaction you link or import.">
         <div className="flex items-center gap-2"><span className="text-lg font-semibold">₹</span><Input aria-label="Usual monthly amount" inputMode="decimal" value={amount} onChange={(e) => onAmount(e.target.value)} placeholder="0.00" className="max-w-40" /><span className="text-xs text-muted">every month</span></div>
       </FormRow>

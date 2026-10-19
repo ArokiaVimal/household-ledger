@@ -75,6 +75,8 @@ export interface Account {
   theme?: CardTheme;
   /** Hidden from pickers but kept, because transactions still refer to it. */
   archived?: boolean;
+  /** A balance you read off the bank's own app or statement, on a date. The only balance the app ever treats as real; forecasts start from it. */
+  balance?: { amountPaise: number; asOf: string };
   /** Chosen icon for a payment method with no brand logo (a key from the built-in set). */
   icon?: string;
   /** Position in the user's own ordering (0 first); pick lists follow it. */
@@ -179,6 +181,8 @@ export interface RecurringItem {
   split: SplitConfig;
   /** Where it applies, e.g. the apartment or parents' house. */
   place?: string;
+  /** "in": money you expect to RECEIVE each period (salary, rent from a tenant). Left out: money going out. Incoming items never count as commitments or spending. */
+  direction?: "in";
   /** The payment method it is usually paid with (a sub method such as a wallet when it goes through one). */
   accountId?: string;
   /** Last month it applies (YYYY-MM; an old YYYY-MM-DD still reads as its month). Empty means it runs until the user stops it. */

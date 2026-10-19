@@ -106,7 +106,7 @@ interface Store {
   removeRule: (merchant: string) => void;
   addAccount: (name: string, type: Account["type"], parentId?: string, theme?: CardTheme) => string | null;
   /** Rename a payment method or put it under another (null takes it out). Returns an error message, or null. */
-  updateAccount: (id: string, patch: { name?: string; type?: Account["type"]; parentId?: string | null; theme?: CardTheme | null; archived?: boolean }) => string | null;
+  updateAccount: (id: string, patch: { name?: string; type?: Account["type"]; parentId?: string | null; theme?: CardTheme | null; archived?: boolean; balance?: { amountPaise: number; asOf: string } | null }) => string | null;
   /** Delete a payment method nothing uses. Returns an error message (suggesting Hide) when something does. */
   deleteAccount: (id: string) => string | null;
   /** Payment Groups (per profile): the selector, the group on screen and how a record counts in it. */
@@ -451,7 +451,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     void send({ type: "account.add", id, name: n, accountType: type, ...(parentId ? { parentId } : {}), ...(theme ? { theme } : {}) });
     return null;
   }, [setAccounts, accounts, send, parentProblem]);
-  const updateAccount = useCallback((id: string, patch: { name?: string; type?: Account["type"]; parentId?: string | null; theme?: CardTheme | null; archived?: boolean }) => {
+  const updateAccount = useCallback((id: string, patch: { name?: string; type?: Account["type"]; parentId?: string | null; theme?: CardTheme | null; archived?: boolean; balance?: { amountPaise: number; asOf: string } | null }) => {
     const cur = accounts.find((a) => a.id === id);
     if (!cur) return "Payment method not found.";
     const next = { ...cur };
@@ -473,11 +473,13 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
       if (patch.archived && accounts.some((a) => a.parentId === id && !a.archived)) return "Hide the payment methods under it first.";
       if (patch.archived) next.archived = true; else delete next.archived;
     }
+    if (patch.balance === null) delete next.balance;
+    else if (patch.balance) { if (next.type !== "bank" && next.type !== "cash") return "Only a bank account or cash can have a recorded balance."; next.balance = patch.balance; }
     setAccounts((as) => as.map((a) => (a.id === id ? next : a)));
     void send({
       type: "account.update", id,
       ...(patch.name !== undefined ? { name: next.name } : {}), ...(patch.type !== undefined ? { accountType: patch.type } : {}), ...(patch.parentId !== undefined ? { parentId: patch.parentId } : {}),
-      ...(patch.theme !== undefined ? { theme: patch.theme } : {}), ...(patch.archived !== undefined ? { archived: patch.archived } : {}),
+      ...(patch.theme !== undefined ? { theme: patch.theme } : {}), ...(patch.archived !== undefined ? { archived: patch.archived } : {}), ...(patch.balance !== undefined ? { balance: patch.balance } : {}),
     });
     return null;
   }, [setAccounts, accounts, cardBills, send, parentProblem]);
@@ -607,7 +609,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     const id = draft.id ?? `rc_${slug(name)}-${uuid().slice(0, 6)}`;
     const place = draft.place?.trim();
     const prior = recurringItems.find((x) => x.id === id);
-    const item: RecurringItem = { id, name, categoryId: draft.categoryId, dueDay: draft.dueDay, expectedPaise: draft.expectedPaise, payerId: draft.payerId, split: draft.split, ...(place ? { place } : {}), ...(draft.accountId && accounts.some((a) => a.id === draft.accountId) ? { accountId: draft.accountId } : {}), ...(draft.until ? { until: draft.until.slice(0, 7) } : {}), ...(draft.everyMonths && draft.everyMonths > 1 ? { everyMonths: draft.everyMonths, startMonth: draft.startMonth } : {}), ...(draft.amountVaries ? { amountVaries: true } : {}), ...(draft.changes?.length ? { changes: draft.changes } : {}), ...(prior?.paidMonths?.length ? { paidMonths: prior.paidMonths } : {}) };
+    const item: RecurringItem = { id, name, categoryId: draft.categoryId, dueDay: draft.dueDay, expectedPaise: draft.expectedPaise, payerId: draft.payerId, split: draft.split, ...(place ? { place } : {}), ...(draft.direction ? { direction: draft.direction } : {}), ...(draft.accountId && accounts.some((a) => a.id === draft.accountId) ? { accountId: draft.accountId } : {}), ...(draft.until ? { until: draft.until.slice(0, 7) } : {}), ...(draft.everyMonths && draft.everyMonths > 1 ? { everyMonths: draft.everyMonths, startMonth: draft.startMonth } : {}), ...(draft.amountVaries ? { amountVaries: true } : {}), ...(draft.changes?.length ? { changes: draft.changes } : {}), ...(prior?.paidMonths?.length ? { paidMonths: prior.paidMonths } : {}) };
     setRecurringItems((xs) => (xs.some((x) => x.id === id) ? xs.map((x) => (x.id === id ? item : x)) : [...xs, item]));
     void send({ type: "recurring.put", item });
     return null;
