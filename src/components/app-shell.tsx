@@ -1,5 +1,5 @@
 "use client";
-import { Bell, ChevronLeft, ChevronRight, LogOut, MoreHorizontal, Plus, Search, Settings, UserRound } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, Lock, LockOpen, LogOut, MoreHorizontal, Plus, Search, Settings, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -18,13 +18,14 @@ import { ChipGroup, Dialog } from "./ui";
 
 /** Previous / next month. The next month is disabled once you reach the current month. */
 function MonthStepper({ className }: { className?: string }) {
-  const { month, setMonth, today } = useStore();
+  const { month, setMonth, today, monthLocked, toggleMonthLock } = useStore();
   const btn = "grid size-9 place-items-center rounded-full text-muted hover:bg-background disabled:opacity-30 disabled:hover:bg-transparent";
   return (
-    <div className={cn("flex items-center rounded-full bg-surface p-0.5", className)} role="group" aria-label="Month">
+    <div className={cn("flex items-center rounded-full bg-surface p-0.5 ring-2", monthLocked ? "ring-accent" : "ring-accent/30", className)} role="group" aria-label="Month">
       <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className={btn}><ChevronLeft size={18} aria-hidden /></button>
-      <span className="num min-w-[5.75rem] flex-1 text-center text-sm font-medium" aria-live="polite">{monthLabel(month)}</span>
+      <span className="num min-w-[5.75rem] flex-1 text-center text-base font-bold" aria-live="polite">{monthLabel(month)}</span>
       <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} disabled={isAfterMonth(shiftMonth(month, 1), today)} aria-label="Next month" className={btn}><ChevronRight size={18} aria-hidden /></button>
+      <button type="button" onClick={toggleMonthLock} aria-pressed={monthLocked} aria-label={monthLocked ? `Unlock ${monthLabel(month)}` : `Lock to ${monthLabel(month)}`} title={monthLocked ? "Locked to this month. Tap to unlock." : "Lock the app to this month"} className={cn("grid size-9 place-items-center rounded-full", monthLocked ? "bg-accent text-white" : "text-muted hover:bg-background")}>{monthLocked ? <Lock size={16} aria-hidden /> : <LockOpen size={16} aria-hidden />}</button>
     </div>
   );
 }

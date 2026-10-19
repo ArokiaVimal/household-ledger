@@ -5,7 +5,7 @@
 //   The screen updates immediately; if the server rejects a change the message is shown and the data is re-synced.
 // All calculations live in src/domain.
 import { useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { pairBalances } from "@/domain/balances";
 import { categoryUsage, checkDelete, cleanCategoryName, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
 import { suggestedWithParents } from "@/domain/accounts";
@@ -76,6 +76,9 @@ interface Store {
   /** Statement upload history, newest first (live mode). */
   importBatches: ImportBatch[];
   month: string;
+  /** True when the chosen month is pinned: the app reopens on it and import never moves away from it. */
+  monthLocked: boolean;
+  toggleMonthLock: () => void;
   setMonth: (m: string) => void;
   view: View;
   setView: (v: View) => void;
@@ -196,6 +199,18 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const [voucherBrands, setVoucherBrands] = useState<VoucherBrand[]>(init.voucherBrands);
   const today = live?.today ?? MOCK_TODAY;
   const [month, setMonth] = useState(() => today.slice(0, 7)); // always open on the current month, even before it has data
+  // A pinned month is remembered on this device and reopened next time.
+  const [lockedMonth, setLockedMonth] = useState<string | null>(null);
+  useEffect(() => {
+    let saved: string | null = null;
+    try { saved = localStorage.getItem("pf-month-lock"); } catch { /* storage unavailable */ }
+    if (saved && /^\d{4}-\d{2}$/.test(saved)) Promise.resolve().then(() => { setLockedMonth(saved); setMonth(saved); });
+  }, []);
+  const toggleMonthLock = useCallback(() => {
+    const next = lockedMonth ? null : month;
+    setLockedMonth(next);
+    try { if (next) localStorage.setItem("pf-month-lock", next); else localStorage.removeItem("pf-month-lock"); } catch { /* storage unavailable */ }
+  }, [lockedMonth, month]);
   const [view, setView] = useState<View>(initialView);
   const [syncError, setSyncError] = useState<string | null>(null);
   const meId = live?.meId ?? ME;
@@ -215,7 +230,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems); setCardBills(init.cardBills); setVoucherBrands(init.voucherBrands);
     // New data may live in a month other than the one on screen (e.g. an older statement): keep the month if it has data, else move to one that does.
     const dates = [...init.records, ...init.staged].map((r) => r.date);
-    setMonth((m) => (dates.length === 0 || dates.some((d) => d.startsWith(m)) ? m : pickMonth(today, dates)));
+    setMonth((m) => (lockedMonth || dates.length === 0 || dates.some((d) => d.startsWith(m)) ? m : pickMonth(today, dates)));
   }
 
   /** Sends a change to the server (live mode only). On failure, shows why and re-syncs from the server. */
@@ -493,7 +508,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const value: Store = {
     aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
-    previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
+    previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
     categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, addSuggestedAccounts, addParticipant, deleteParticipant, saveRecurring, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
