@@ -188,6 +188,9 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
           </div>
         )}
       </FormRow>
+      <FormRow label="Note">
+        <Input aria-label="Note" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} placeholder="What was this for? Helps AI" />
+      </FormRow>
       <FormRow label="Category"><CompactChips label="Category" options={categories.map((c) => ({ id: c.id, label: c.name }))} selected={[categoryId]} onPick={setCategoryId} adder={{ label: "Add category", placeholder: "New category, e.g. Pet care", add: addCategory }} /></FormRow>
       {promptVoucher && (
         <FormRow label="Wallet">
@@ -202,7 +205,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         : <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? amountPaise : "s"} total={amountPaise} value={split} onChange={setSplit} /></div>}
       {(sharing || !adding) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
       <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="flex w-full items-center gap-1.5 border-t border-border pt-3 text-sm font-medium text-muted hover:text-foreground">
-        <ChevronDown size={16} aria-hidden className={more ? "" : "-rotate-90"} /> More options <span className="text-xs font-normal">type, recurring, notes</span>
+        <ChevronDown size={16} aria-hidden className={more ? "" : "-rotate-90"} /> More options <span className="text-xs font-normal">type, recurring, exclude</span>
       </button>
       {more && (
         <div className="space-y-2.5">
@@ -222,12 +225,9 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
             {recurringId === NEW_RECURRING && <p className="mt-1.5 text-xs text-muted">Adds “{merchant.trim() || "this payment"}” to Recurring: {formatINR(amountPaise)} due on the {dueDay}{[11, 12, 13].includes(dueDay) ? "th" : ["th", "st", "nd", "rd"][dueDay % 10 < 4 ? dueDay % 10 : 0]} each month, split the same way. You can change it later under Recurring.</p>}
             {recurringError && <p role="alert" className="mt-1.5 text-xs text-danger">{recurringError}</p>}
           </FormRow>
-          <FormRow label="Notes">
-            <div className="flex items-center gap-2">
-              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
-              <button type="button" aria-pressed={excluded} onClick={() => setExcluded(!excluded)} title="Exclude from reports (original record is kept)"
-                className={`min-h-9 shrink-0 rounded-full border px-3 text-sm ${excluded ? "border-danger bg-danger/10 text-danger" : "border-border bg-surface"}`}>Exclude</button>
-            </div>
+          <FormRow label="Reports">
+            <button type="button" aria-pressed={excluded} onClick={() => setExcluded(!excluded)} title="Exclude from reports (original record is kept)"
+              className={`min-h-9 rounded-full border px-3 text-sm ${excluded ? "border-danger bg-danger/10 text-danger" : "border-border bg-surface"}`}>{excluded ? "Excluded from reports" : "Exclude from reports"}</button>
           </FormRow>
         </div>
       )}

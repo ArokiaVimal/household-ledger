@@ -5,6 +5,7 @@ import { dueLabel, upcomingBills, cardViews } from "@/domain/cardbills";
 import { recurringStatuses } from "@/domain/recurring";
 import { byCategory, byMerchant, byMonth, signedSpend, summarize } from "@/domain/reports";
 import type { Account, Category, CardBill, ExpenseRecord, RecurringItem } from "@/domain/types";
+import { maskNote } from "@/lib/notes/ai";
 
 export interface InsightFacts {
   month: string;
@@ -16,6 +17,8 @@ export interface InsightFacts {
   merchants: { name: string; amount: number; times: number }[];
   recurring: { name: string; expected: number; state: string }[];
   cardBills: { card: string; amountToPay: number; due: string; when: string }[];
+  /** The notes you wrote on this month's payments: the best context for what the money was for (long numbers, emails and phones hidden). */
+  notes: { merchant: string; amount: number; category: string; note: string }[];
   worthALook: string[];
 }
 
@@ -48,6 +51,10 @@ export function buildFacts(input: { month: string; today: string; meId: string; 
   const views = cardViews(accounts, input.cardBills, reviewed, today);
   const cardBills = upcomingBills(views).map((b) => ({ card: accounts.find((a) => a.id === b.bill.accountId)?.name ?? "Card", amountToPay: rupees(b.remainingPaise), due: b.bill.dueDate, when: dueLabel(b.daysLeft) }));
 
+  // Your own notes are the best context for a payment ("gift for dad", "Goa trip"), so the analysis gets the biggest ones.
+  const notes = inMonth.filter((r) => signedSpend(r) > 0 && (r.notes ?? "").trim().length >= 3)
+    .sort((a, b) => b.amountPaise - a.amountPaise).slice(0, 20)
+    .map((r) => ({ merchant: r.merchant, amount: rupees(r.amountPaise), category: cname(r.categoryId), note: maskNote(r.notes ?? "").slice(0, 160) }));
   const worthALook: string[] = [];
   const spends = inMonth.filter((r) => signedSpend(r) > 0);
   const biggest = [...spends].sort((a, b) => b.amountPaise - a.amountPaise)[0];
@@ -63,6 +70,6 @@ export function buildFacts(input: { month: string; today: string; meId: string; 
   return {
     month, daysIntoMonth: month === today.slice(0, 7) ? Number(today.slice(8, 10)) : new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate(),
     totals: { spent: rupees(sum.net), myShare: rupees(sum.myShare), refunds: rupees(sum.refunds), transactions: spends.length, waitingForReview: input.staged },
-    earlier, categories: categoriesOut, merchants, recurring, cardBills, worthALook,
+    earlier, categories: categoriesOut, merchants, recurring, cardBills, notes, worthALook,
   };
 }

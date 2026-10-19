@@ -70,7 +70,7 @@ export default function Insights() {
           </Button>
           {saved && <span className="text-xs text-muted">Last analysed {new Date(saved.generatedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>}
         </div>
-        <p className="text-xs text-muted">{off ?? "Pressing the button sends this month's totals, category and merchant names and card-bill dates to Claude. Never bank text, notes or account numbers."}</p>
+        <p className="text-xs text-muted">{off ?? "Pressing the button sends this month's totals, category and merchant names, card-bill dates and the short notes you wrote on payments (long numbers hidden) to Claude. Never bank text or account numbers."}</p>
       </Card>
 
       {error && <p role="alert" className="mb-4 rounded-xl bg-danger/10 p-3 text-sm text-danger">{error}</p>}

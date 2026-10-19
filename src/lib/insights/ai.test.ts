@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { analyseMonth, validateAnalysis } from "./ai";
 import type { InsightFacts } from "./facts";
 
-const facts: InsightFacts = { month: "2026-09", daysIntoMonth: 30, totals: { spent: 4400, myShare: 4400, refunds: 100, transactions: 3, waitingForReview: 0 }, earlier: [], categories: [], merchants: [], recurring: [], cardBills: [], worthALook: [] };
+const facts: InsightFacts = { month: "2026-09", daysIntoMonth: 30, totals: { spent: 4400, myShare: 4400, refunds: 100, transactions: 3, waitingForReview: 0 }, earlier: [], categories: [], merchants: [], recurring: [], cardBills: [], notes: [], worthALook: [] };
 const answer = { summary: "You spent ₹4,400.", highlights: [{ title: "Fuel", detail: "₹3,000 on fuel." }], tips: [{ title: "Plan fuel", detail: "Try one weekly fill.", saveRupees: 400 }], watch: ["HDFC bill due in 5 days"] };
 
 describe("validateAnalysis", () => {

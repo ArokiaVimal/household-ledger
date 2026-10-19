@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
 import { Amount, MerchantAvatar, TxnBadges, TxnCard } from "@/components/txn-row";
 import { TxnEditDialog } from "@/components/txn-edit-dialog";
+import { NotesAi } from "./notes-ai";
 import { Badge, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -111,7 +112,7 @@ function TransactionsView() {
 
   return (
     <>
-      <PageHeader title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} />
+      <PageHeader title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
       <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-6">
         <Input className="col-span-2" placeholder="Search merchant, description, notes" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
         <Select aria-label="Category" value={get("category")} onChange={(e) => set("category", e.target.value)}>

@@ -20,8 +20,11 @@ describe("buildFacts", () => {
     expect(f.merchants[0]).toEqual({ name: "Indian Oil", amount: 3000, times: 1 });
     expect(f.earlier.map((e) => e.spent)).toEqual([1000, 800, 0]);
   });
-  it("contains no bank text or notes: only names and numbers", () => {
-    expect(JSON.stringify(buildFacts({ ...base, records }))).not.toMatch(/SECRET|private note|1234567890/);
+  it("contains no bank text, and your notes come through masked as context for the analysis", () => {
+    const withNote = [...records, rec("n1", "2026-09-08", 5000, "food", "Cafe", { notes: "birthday gift for dad, call 9876543210" })];
+    const f = buildFacts({ ...base, records: withNote });
+    expect(JSON.stringify(f)).not.toMatch(/SECRET|1234567890|9876543210/);
+    expect(f.notes).toEqual([{ merchant: "Swiggy", amount: 1000, category: "Food", note: "private note" }, { merchant: "Indian Oil", amount: 3000, category: "Fuel", note: "private note" }, { merchant: "Swiggy", amount: 500, category: "Food", note: "private note" }, { merchant: "Cafe", amount: 5000, category: "Food", note: "birthday gift for dad, call [phone]" }].sort((a, b) => b.amount - a.amount));
   });
   it("lists what is still to pay on card bills and points at things worth a look", () => {
     const f = buildFacts({ ...base, records: [...records, rec("big", "2026-09-10", 90000, "food", "Jewellers")], cardBills: [{ id: "b", accountId: "cc", statementDate: "2026-09-15", dueDate: "2026-10-05", totalDuePaise: 4125000, source: "manual" }] });
