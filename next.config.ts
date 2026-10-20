@@ -15,6 +15,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/settlements", destination: "/people", permanent: true }, { source: "/settlements/:id", destination: "/people/:id", permanent: true }];
   },
+  // Firebase's sign-in pages, served from this site. Only used when NEXT_PUBLIC_AUTH_SAME_ORIGIN=1 (Safari blocks the cross-site version).
+  async rewrites() {
+    const domain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+    return domain ? [{ source: "/__/auth/:path*", destination: `https://${domain}/__/auth/:path*` }, { source: "/__/firebase/init.json", destination: `https://${domain}/__/firebase/init.json` }] : [];
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

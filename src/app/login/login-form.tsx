@@ -1,8 +1,8 @@
 "use client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup, signOut, type User } from "firebase/auth";
+import { GoogleAuthProvider, getRedirectResult, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect, signOut, type User } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button, Field, Input } from "@/components/ui";
@@ -32,10 +32,18 @@ export function LoginForm() {
     if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return setError(null);
     setError(
       code === "auth/too-many-requests" ? "Too many attempts. Wait a few minutes and try again."
-        : code === "auth/popup-blocked" ? "Your browser blocked the Google window. Allow pop-ups for this site and try again."
         : "Sign-in failed. Check your account and try again.",
     );
   };
+
+  // Safari only allows a pop-up that opens straight from a tap. If Firebase is still starting up when you tap, the pop-up opens
+  // a moment late and Safari blocks it. So start it now, and finish a sign-in that came back from a full-page redirect.
+  useEffect(() => {
+    const auth = getClientAuth();
+    void auth.authStateReady().catch(() => {});
+    getRedirectResult(auth).then((cred) => { if (cred?.user) { setBusy(true); return finish(cred.user); } }).catch(fail).finally(() => setBusy(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSubmit = async (v: Values) => {
     setError(null);
@@ -51,8 +59,16 @@ export function LoginForm() {
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
-      const cred = await signInWithPopup(getClientAuth(), provider);
-      await finish(cred.user);
+      const auth = getClientAuth();
+      try {
+        const cred = await signInWithPopup(auth, provider);
+        await finish(cred.user);
+      } catch (e) {
+        // The browser would not open the pop-up: sign in on a full page instead (it comes back here and finishes above).
+        const code = (e as { code?: string }).code;
+        if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") { await signInWithRedirect(auth, provider); return; }
+        throw e;
+      }
     } catch (e) { fail(e); } finally { setBusy(false); }
   };
 

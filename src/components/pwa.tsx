@@ -4,9 +4,16 @@ import { useEffect, useSyncExternalStore } from "react";
 
 const subscribe = (cb: () => void) => { window.addEventListener("online", cb); window.addEventListener("offline", cb); return () => { window.removeEventListener("online", cb); window.removeEventListener("offline", cb); }; };
 
-/** Registers the service worker (production only) and shows a slim banner while the device is offline. */
+/** Keeps the app from zooming, registers the service worker (production only) and shows a slim banner while the device is offline. */
 export function Pwa() {
   const online = useSyncExternalStore(subscribe, () => navigator.onLine, () => true);
+  // Safari ignores "no zoom" in the viewport, so stop its pinch gesture directly. Taps and scrolling are untouched.
+  useEffect(() => {
+    const stop = (e: Event) => e.preventDefault();
+    const events = ["gesturestart", "gesturechange", "gestureend"] as const;
+    for (const ev of events) document.addEventListener(ev, stop);
+    return () => { for (const ev of events) document.removeEventListener(ev, stop); };
+  }, []);
   useEffect(() => {
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);

@@ -13,5 +13,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|api/session|api/capture/|api/gmail/cron|api/push/cron|sw\\.js|offline|_next/static|_next/image|icon[^/]*|apple-icon[^/]*|robots.txt|logos/|manifest.webmanifest).*)"],
+  matcher: ["/((?!login|__/|api/session|api/capture/|api/gmail/cron|api/push/cron|sw\\.js|offline|_next/static|_next/image|icon[^/]*|apple-icon[^/]*|robots.txt|logos/|manifest.webmanifest).*)"],
 };
