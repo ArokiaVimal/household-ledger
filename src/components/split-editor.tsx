@@ -1,5 +1,5 @@
 "use client";
-import { Check, Equal, IndianRupee, ListChecks, Minus, Percent, PieChart, Plus, SlidersHorizontal, Trash2, User, type LucideIcon } from "lucide-react";
+import { Check, Equal, Gift, HandCoins, IndianRupee, ListChecks, Minus, Percent, PieChart, Plus, SlidersHorizontal, Trash2, User, Wallet, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useStore } from "@/data/store";
@@ -13,12 +13,15 @@ import { Button, Input } from "./ui";
 
 const ADD = "__add";
 
+/** The three one-tap splits: who pays it all, or that you covered it for them. */
+const quickLook = (label: string): { Icon: LucideIcon; tone: string } =>
+  /^I owe all$/.test(label) ? { Icon: Wallet, tone: "bg-violet-100 text-violet-700" } : /^I paid for them$/.test(label) ? { Icon: Gift, tone: "bg-emerald-100 text-emerald-700" } : { Icon: HandCoins, tone: "bg-amber-100 text-amber-700" };
+
 /** Every way to split, with one plain sentence each so nobody has to guess what a mode means. */
 const MODE_ICON: Record<SplitMode, [LucideIcon, string]> = {
   equal: [Equal, "bg-sky-100 text-sky-700"], custom: [IndianRupee, "bg-emerald-100 text-emerald-700"], percent: [Percent, "bg-violet-100 text-violet-700"], shares: [PieChart, "bg-amber-100 text-amber-700"],
   adjust: [SlidersHorizontal, "bg-pink-100 text-pink-700"], items: [ListChecks, "bg-orange-100 text-orange-700"], personal: [User, "bg-slate-100 text-slate-600"],
 };
-const modeDot = (m: SplitMode) => { const [I, tone] = MODE_ICON[m]; return <Dot icon={I} tone={tone} />; };
 const MODES: { id: SplitMode; label: string; hint: string }[] = [
   { id: "equal", label: "Equally", hint: "Everyone ticked pays the same." },
   { id: "custom", label: "Exact amounts", hint: "Type what each person owes. It must add up to the total." },
@@ -195,7 +198,22 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
             ); })}
           </div>
           <p className="mt-1.5 text-xs text-muted"><b className="font-medium text-foreground">{owesAll ? howOptions.find((p) => p.label === presetId)?.label : mode.label}</b>. {owesAll ? howOptions.find((p) => p.label === presetId) && describe(howOptions.find((p) => p.label === presetId)!.config) : mode.hint}</p>
-          {quick.length > 0 && <div className="mt-2"><TileGrid label="Quick splits" columns={2} options={quick.map((p) => ({ id: p.label, label: p.label, icon: modeDot(p.config.mode), hint: describe(p.config) }))} selected={owesAll ? [presetId] : []} onPick={pickPreset} /></div>}
+          {quick.length > 0 && (
+            <div role="radiogroup" aria-label="Quick splits" className="mt-2 grid grid-cols-3 gap-2">
+              {quick.map((p) => {
+                const on = owesAll && presetId === p.label;
+                const { Icon, tone } = quickLook(p.label);
+                return (
+                  <button key={p.label} type="button" role="radio" aria-checked={on} onClick={() => pickPreset(p.label)}
+                    className={`flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1.5 py-3 text-center transition-colors focus-visible:outline-2 focus-visible:outline-accent ${on ? "border-accent bg-accent/[0.07]" : "border-transparent bg-background hover:bg-border/40"}`}>
+                    <span aria-hidden className={`grid size-9 place-items-center rounded-full ${tone}`}><Icon size={18} /></span>
+                    <span className="text-[13px] font-medium leading-tight">{p.label}</span>
+                    <span className="text-[11px] leading-tight text-muted">{describe(p.config)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {!showPanel && !error && ids.length > 1 && total > 0 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
         </section>
       )}
