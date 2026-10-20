@@ -1,6 +1,6 @@
 # Gmail auto-capture: one-time setup
 
-The app reads only emails from bank, card and UPI senders (`src/lib/gmail/mail.ts` lists them), with read-only Gmail access, and adds them to the review queue. Nothing is added to the ledger until you approve it. You can disconnect any time in Settings > Auto-capture; that also tells Google to forget the connection.
+The app reads only emails from bank, card and UPI senders (`src/lib/gmail/mail.ts` lists them), with read-only Gmail access, and adds them to Transactions as Unverified. You verify each one. You can disconnect any time in Settings > Integrations; that also tells Google to forget the connection.
 
 ## 1. Google Cloud (use the same project as Firebase)
 1. console.cloud.google.com > **APIs & Services > Library** > enable **Gmail API**.
@@ -10,12 +10,12 @@ The app reads only emails from bank, card and UPI senders (`src/lib/gmail/mail.t
 
 ## 2. Environment variables (Vercel > Settings > Environment Variables; and `.env.local` for local use)
 - `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`: from step 1.
-- `GMAIL_TOKEN_KEY`: run `openssl rand -base64 32` and paste the result. It encrypts the stored refresh token. Do not lose or change it (connections would need redoing).
+- `GMAIL_TOKEN_KEY`: run `node scripts/make-secrets.mjs` (it saves a key and `CRON_SECRET` to `.env.local` without printing them), then copy them to Vercel with `grep -E '^(GMAIL_TOKEN_KEY|CRON_SECRET)=' .env.local | pbcopy`. It encrypts the stored refresh token. Do not lose or change it (connections would need redoing).
 - `CRON_SECRET`: any long random string; lets Vercel Cron run the daily sync (`vercel.json`, 01:30 UTC).
 Redeploy afterwards. Never paste these values into chat.
 
 ## 3. Connect
-Settings > Auto-capture > **Connect Gmail** > choose your Google account > allow read-only access. Press **Sync now** to read the last 14 days of bank mail. After that it checks when you open the app and once a day.
+Settings > Integrations > **Connect Gmail** > choose your Google account > allow read-only access. Press **Sync now** to read the last 14 days of bank mail. After that it checks when you open the app and once a day.
 
 ## What it does and does not do
 - Fetches only messages from the bank sender list; anything else is never opened. Sender domains are checked again after fetching.
