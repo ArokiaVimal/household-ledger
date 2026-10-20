@@ -86,7 +86,7 @@ function BillBlock({ s, onEdit, onRemove, onPaid }: { s: BillStatus; onEdit: () 
         {s.state === "partial" && <div className="text-xs text-muted">{formatINR(s.paidPaise)} paid of {formatINR(s.bill.totalDuePaise)}</div>}
       </div>
       {s.state !== "paid" && s.unverifiedPaise > 0 && (
-        <p className="rounded-xl bg-warn-soft px-3 py-2 text-xs text-warn">A payment of {formatINR(s.unverifiedPaise)} is waiting to be verified. <Link href="/transactions?v=unverified" className="font-medium underline">Verify it</Link> to update this bill.</p>
+        <p className="rounded-xl bg-warn-soft px-3 py-2 text-xs text-warn">A payment of {formatINR(s.unverifiedPaise)} is waiting to be verified. <Link href="/transactions?v=unverified&scope=all" className="font-medium underline">Verify it</Link> to update this bill.</p>
       )}
       {s.state === "partial" && <div className="h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-good" style={{ width: `${pct}%` }} /></div>}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">

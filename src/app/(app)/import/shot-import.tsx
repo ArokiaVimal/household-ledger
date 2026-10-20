@@ -109,7 +109,7 @@ export function ShotImport({ open, onClose, aiEnabled }: { open: boolean; onClos
         {done ? (
           <div className="space-y-3">
             <p role="status" className="rounded-xl bg-good-soft p-3 text-good">{done}</p>
-            <div className="flex gap-2"><Button variant="primary" onClick={() => { close(); router.push("/transactions?v=unverified"); }}>See unverified</Button><Button onClick={close}>Close</Button></div>
+            <div className="flex gap-2"><Button variant="primary" onClick={() => { close(); router.push("/transactions?v=unverified&scope=all"); }}>See unverified</Button><Button onClick={close}>Close</Button></div>
           </div>
         ) : !plans ? (
           <>

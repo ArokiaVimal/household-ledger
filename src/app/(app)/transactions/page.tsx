@@ -132,6 +132,7 @@ function TransactionsView() {
   const setEditing = view0.open;
   const total = summarizeGroup(rows, activeGroup, groups, meId);
   const v = get("v");
+  const allScope = get("scope") === "all";
   const progress = verifyProgress(shown, get("month") || month);
   const view = get("view") || "all";
   const active = ["recurring", "q", "category", "merchant", "status", "kind", "account", "shared", "voucher", "paidWith"].filter((k) => get(k));
@@ -159,7 +160,7 @@ function TransactionsView() {
       {/* Verified or not, with how far along you are. */}
       <div className="mb-3 flex items-center gap-3">
         <div role="tablist" aria-label="Verified or not" className="flex min-w-0 flex-1 rounded-full bg-border/60 p-1 md:max-w-md">
-          {([["", "All", 0], ["verified", "Verified", 0], ["unverified", "Unverified", staged.length]] as const).map(([id, label, n]) => (
+          {([["", "All", 0], ["verified", "Verified", 0], ["unverified", "Unverified", allScope ? staged.length : progress.left]] as const).map(([id, label, n]) => (
             <button key={id} role="tab" aria-selected={v === id} onClick={() => set("v", id)} className={cn("flex min-h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2 text-sm transition-all", v === id ? "bg-surface font-semibold text-foreground shadow-sm" : "text-muted hover:text-foreground")}>
               {label}{n > 0 && <span className={cn("num rounded-full px-1.5 text-[11px] font-semibold leading-5", v === id ? "bg-warn-soft text-warn" : "bg-warn/15 text-warn")}>{n}</span>}
             </button>
@@ -167,7 +168,10 @@ function TransactionsView() {
         </div>
         {progress.total > 0 && <ProgressRing pct={progress.pct} size={44} label={`${progress.verified} of ${progress.total} verified in ${get("month") || month} (${progress.pct}%)`} />}
       </div>
-      {v === "unverified" ? <UnverifiedQueue /> : <>
+      {v === "unverified" && allScope && (
+        <p className="mb-2 flex items-center justify-between rounded-xl bg-background px-3 py-2 text-xs text-muted"><span>All months · {staged.length} unverified</span><button type="button" onClick={() => set("scope", "")} className="font-medium text-accent">Show {new Date(`${get("month") || month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" })} only</button></p>
+      )}
+      {v === "unverified" ? <UnverifiedQueue month={allScope ? undefined : get("month") || month} /> : <>
       {/* Phone: search plus one Filters button. From tablet width the three selects sit in the row. */}
       <div className="mb-3 flex gap-2 md:hidden">
         <Input className="min-w-0 flex-1" placeholder="Search" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />

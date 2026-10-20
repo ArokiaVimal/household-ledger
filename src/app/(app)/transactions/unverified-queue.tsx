@@ -26,7 +26,7 @@ const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleString("e
 const QUEUE = "/transactions?v=unverified";
 
 /** Imported and captured rows that are not verified yet. They count in your totals; verifying one teaches the app. */
-export function UnverifiedQueue() {
+export function UnverifiedQueue({ month }: { month?: string }) {
   const router = useRouter();
   const params = useSearchParams();
   const imported = Number(params.get("imported") || 0);
@@ -34,7 +34,7 @@ export function UnverifiedQueue() {
   const months = (params.get("months") ?? "").split(",").filter((m) => /^\d{4}-\d{2}$/.test(m)).map((m) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en", { month: "short", year: "numeric", timeZone: "UTC" }));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const { live, aiEnabled, staged, categoryName, accountName, approveStaged, deleteRecords } = useStore();
+  const { live, aiEnabled, staged: allStaged, categoryName, accountName, approveStaged, deleteRecords } = useStore();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState(false);
   const [deleting, setDeleting] = useState<ExpenseRecord[] | null>(null);
@@ -48,6 +48,8 @@ export function UnverifiedQueue() {
   const needle = q.trim().toLowerCase();
   // The ones that need you come first (duplicates, no category, AI unsure), then the AI guesses, then what the app remembered.
   const urgency = (r: ExpenseRecord) => (r.duplicateOf ? 0 : r.suggested === "ai_unsure" ? 1 : !r.suggested && r.categoryId === "uncategorized" && !r.voucherBrandId ? 2 : r.suggested === "ai" ? 3 : r.suggested === "memory" ? 4 : 3);
+  // With a month, only that month's unverified rows; without one, all of them.
+  const staged = useMemo(() => (month ? allStaged.filter((r) => r.date.startsWith(month)) : allStaged), [allStaged, month]);
   const shown = useMemo(() => staged.filter((r) =>
     (!acct || r.accountId === acct) && (!cat || r.categoryId === cat) && (!mon || r.date.startsWith(mon)) && QUICK.find((x) => x.id === quick)!.test(r) &&
     (!needle || `${r.merchant} ${r.originalDescription} ${r.notes ?? ""} ${formatINR(r.amountPaise)} ${(r.amountPaise / 100).toFixed(2)}`.toLowerCase().includes(needle)),
@@ -79,7 +81,7 @@ export function UnverifiedQueue() {
   const flagged = chosen.filter((r) => r.duplicateOf).length;
 
   // Right after an import the rows are still arriving from the server; do not flash "nothing waiting". Give up after a few seconds.
-  const arriving = imported > 0 && staged.length === 0;
+  const arriving = imported > 0 && allStaged.length === 0;
   useEffect(() => {
     if (!arriving) return;
     const t = setTimeout(() => router.replace(QUEUE), 8000);
@@ -96,7 +98,7 @@ export function UnverifiedQueue() {
       {arriving ? (
         <p role="status" className="rounded-[var(--radius-card)] bg-surface p-6 text-sm text-muted">Loading your {imported} imported transaction{imported === 1 ? "" : "s"}…</p>
       ) : staged.length === 0 ? (
-        <EmptyState title="Everything is verified" hint="New imports will show up here." />
+        <EmptyState title={month && allStaged.length > 0 ? "Nothing unverified this month" : "Everything is verified"} hint={month && allStaged.length > 0 ? `${allStaged.length} in other months. Tap the review icon at the top to see them.` : "New imports will show up here."} />
       ) : (
         <>
           {live && (
@@ -119,10 +121,10 @@ export function UnverifiedQueue() {
               <Input aria-label="Search unverified transactions" placeholder="Search merchant, text or amount" value={q} onChange={(e) => narrow(() => setQ(e.target.value))} className="pl-10 pr-10" />
               {q && <button type="button" aria-label="Clear search" onClick={() => narrow(() => setQ(""))} className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-muted hover:bg-background"><X size={14} aria-hidden /></button>}
             </div>
-            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+            <div className={`grid gap-1.5 sm:gap-2 ${month ? "grid-cols-2" : "grid-cols-3"}`}>
               <Select aria-label="Payment method" value={acct} onChange={(e) => narrow(() => setAcct(e.target.value))}><option value="">All methods</option>{accountsIn.map((id) => <option key={id} value={id}>{accountName(id)}</option>)}</Select>
               <Select aria-label="Category" value={cat} onChange={(e) => narrow(() => setCat(e.target.value))}><option value="">All categories</option>{categoriesIn.map((id) => <option key={id} value={id}>{categoryName(id)}</option>)}</Select>
-              <Select aria-label="Month" value={mon} onChange={(e) => narrow(() => setMon(e.target.value))}><option value="">All months</option>{monthsIn.map((m) => <option key={m} value={m}>{monthName(m)}</option>)}</Select>
+              {!month && <Select aria-label="Month" value={mon} onChange={(e) => narrow(() => setMon(e.target.value))}><option value="">All months</option>{monthsIn.map((m) => <option key={m} value={m}>{monthName(m)}</option>)}</Select>}
             </div>
             <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap [&>*]:shrink-0" role="group" aria-label="Quick filters">
               {QUICK.filter((x) => x.id === "all" || staged.some(x.test)).map((x) => {

@@ -149,7 +149,7 @@ export function LiveImport() {
     if (aiInput.current) aiInput.current.value = "";
     router.refresh();
     // Straight to the review queue: that is the next thing to do. The queue shows a short confirmation.
-    if (c.staged > 0) router.push(`/transactions?v=unverified&imported=${c.staged}&skipped=${c.skipped}&months=${monthsParam}`);
+    if (c.staged > 0) router.push(`/transactions?v=unverified&scope=all&imported=${c.staged}&skipped=${c.skipped}&months=${monthsParam}`);
   };
 
   const failed = preview ? preview.checks.filter((c) => !c.ok) : [];
@@ -197,7 +197,7 @@ export function LiveImport() {
             <div className="space-y-2">
               {busy && !preview && <p role="status" className="rounded-xl bg-background p-3 text-sm text-muted">Reading…</p>}
               {error && <p role="alert" className="rounded-xl bg-danger/10 p-3 text-sm text-danger">{error}</p>}
-              {done && <p role="status" className="rounded-xl bg-good-soft p-3 text-sm text-good">{done} <Link href="/transactions?v=unverified" className="font-medium underline">See them now</Link></p>}
+              {done && <p role="status" className="rounded-xl bg-good-soft p-3 text-sm text-good">{done} <Link href="/transactions?v=unverified&scope=all" className="font-medium underline">See them now</Link></p>}
             </div>
           )}
 

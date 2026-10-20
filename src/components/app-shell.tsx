@@ -112,9 +112,11 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const monthScreens = ["/timeline", "/recurring", "/vouchers", "/insights"];
   const lensScreens = ["/", "/transactions", "/reports"];
   // The Unverified list shows every month and group at once, so the switches would mislead there.
-  const unverifiedList = useSearchParams().get("v") === "unverified" && path.startsWith("/transactions");
+  const sp = useSearchParams();
+  const unverifiedList = sp.get("v") === "unverified" && path.startsWith("/transactions");
+  const allMonths = unverifiedList && sp.get("scope") === "all";
   const showGroup = !unverifiedList && lensScreens.some((h) => (h === "/" ? path === "/" : path.startsWith(h)));
-  const showMonth = !unverifiedList && (showGroup || monthScreens.some((h) => path.startsWith(h)));
+  const showMonth = !allMonths && (showGroup || unverifiedList || monthScreens.some((h) => path.startsWith(h)));
   const visibleNav = NAV;
   const phoneBar = BAR_ORDER.flatMap((h) => visibleNav.filter((n) => n.href === h));
   const phoneMore = NAV.filter((n) => !n.bar);
@@ -178,7 +180,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 {showGroup && path !== "/" && <GroupMenu className="md:hidden" />}
                 {showMonth && <MonthStepper className="hidden md:flex" />}
                 {showGroup && <GroupSwitch className="hidden max-w-lg md:flex" />}
-                <Link href="/transactions?v=unverified" aria-label={staged.length ? `${staged.length} unverified transactions` : "Unverified transactions"} title="Unverified" className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
+                <Link href="/transactions?v=unverified&scope=all" aria-label={staged.length ? `${staged.length} unverified transactions` : "Unverified transactions"} title="Unverified" className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
                   <ClipboardCheck size={18} aria-hidden />
                   {staged.length > 0 && <span aria-hidden className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-semibold leading-5 text-white">{staged.length > 99 ? "99+" : staged.length}</span>}
                 </Link>

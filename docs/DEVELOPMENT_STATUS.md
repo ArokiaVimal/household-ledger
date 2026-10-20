@@ -438,4 +438,5 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - **Also count in:** a transaction can count, in full, in one people group whatever its split (More options, "Also count in", field `countsInGroupId`).
 - **Not recurring** answers are saved on your account (`users/{uid}.dismissedRecurring`, route `/api/dismissed`); answers kept on a device before are moved over once.
 - Still open: Firestore rules tests (no Java on this Mac) and real-Safari testing.
+- **Unverified is per month by default:** the tab on Transactions lists and counts the unverified rows of the month on screen (the month stepper stays). The header review icon, the Home "unverified" chip and the post-import redirect open `?v=unverified&scope=all`: every month, no switches, with a "Show <month> only" link.
 

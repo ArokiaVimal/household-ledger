@@ -13,7 +13,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   async redirects() {
-    return [{ source: "/review", destination: "/transactions?v=unverified", permanent: true }, { source: "/categories", destination: "/settings?s=categories", permanent: true }, { source: "/profile", destination: "/settings?s=profile", permanent: true }, { source: "/settlements", destination: "/people", permanent: true }, { source: "/settlements/:id", destination: "/people/:id", permanent: true }];
+    return [{ source: "/review", destination: "/transactions?v=unverified&scope=all", permanent: true }, { source: "/categories", destination: "/settings?s=categories", permanent: true }, { source: "/profile", destination: "/settings?s=profile", permanent: true }, { source: "/settlements", destination: "/people", permanent: true }, { source: "/settlements/:id", destination: "/people/:id", permanent: true }];
   },
   // Firebase's sign-in pages, served from this site. Only used when NEXT_PUBLIC_AUTH_SAME_ORIGIN=1 (Safari blocks the cross-site version).
   async rewrites() {
