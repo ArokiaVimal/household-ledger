@@ -1,8 +1,7 @@
 "use client";
 import { Check, Copy, MessageSquare } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { MerchantAvatar } from "@/components/txn-row";
-import { Badge, Button, Card, CardTitle, CompactChips, ConfirmDialog } from "@/components/ui";
+import { Badge, Button, Card, CardTitle, ConfirmDialog } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 

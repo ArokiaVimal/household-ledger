@@ -1,6 +1,6 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowDownLeft, ArrowLeftRight, ChevronDown, CreditCard, Landmark, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Tags, Undo2, UserRound, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowDownLeft, ArrowLeftRight, ChevronDown, CreditCard, Landmark, Receipt, Repeat, Search, ShoppingBag, SlidersHorizontal, Store, Tags, Undo2, UserRound, Wallet, X, type LucideIcon } from "lucide-react";
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Amount, MerchantAvatar, TxnBadges } from "@/components/txn-row";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
@@ -9,7 +9,7 @@ import { UnverifiedQueue } from "./unverified-queue";
 import { VoucherSection, type VoucherGroup } from "./voucher-section";
 import { ProgressRing } from "@/components/progress";
 import { verifyProgress } from "@/domain/progress";
-import { Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
+import { Button, ConfirmDialog, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { CompactRow, StatusMark } from "@/components/txn-compact";
 import { HScroll } from "@/components/hscroll";
 import { CategoryGlyph } from "@/components/glyphs";
@@ -121,6 +121,7 @@ function TransactionsView() {
   const params = useSearchParams();
   const router = useRouter();
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
 
   const get = (k: string) => params.get(k) ?? "";
   const set = (k: string, v: string) => {
@@ -240,14 +241,30 @@ function TransactionsView() {
         <p className="mb-2 flex items-center justify-between rounded-xl bg-background px-3 py-2 text-xs text-muted"><span>All months · {staged.length} unverified</span><button type="button" onClick={() => set("scope", "")} className="font-medium text-accent">Show {new Date(`${get("month") || month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" })} only</button></p>
       )}
       {v === "unverified" ? <UnverifiedQueue month={allScope ? undefined : get("month") || month} /> : <>
-      {/* Phone: search plus one Filters button. From tablet width the three selects sit in the row. */}
-      <div className="mb-3 flex gap-2 md:hidden">
-        <Input className="min-w-0 flex-1" placeholder="Search" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
-        <NotesAi />
-        <button type="button" onClick={() => setFiltersOpen(true)} aria-label={`Filters${filterCount ? `, ${filterCount} on` : ""}`} className="relative grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background">
-          <SlidersHorizontal size={17} aria-hidden />
-          {filterCount > 0 && <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-accent text-[10px] font-semibold text-white">{filterCount}</span>}
-        </button>
+      {/* Phone: the total with three icons (search, AI notes, filters). Search opens only when tapped. */}
+      <div className="mb-3 md:hidden">
+        {searching || get("q") ? (
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search size={16} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+              <Input autoFocus className="pl-10" placeholder="Search merchant, note or amount" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
+            </div>
+            <button type="button" aria-label="Close search" onClick={() => { set("q", ""); setSearching(false); }} className="grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-muted hover:bg-background"><X size={17} aria-hidden /></button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1 px-1" aria-label="Total for this view">
+              <div className="num text-[22px] font-semibold leading-tight tracking-tight">{formatINR(total.allocated)}</div>
+              <div className="text-xs leading-snug text-muted">{rows.length} transaction{rows.length === 1 ? "" : "s"}{total.my !== total.allocated ? ` · mine ${formatINR(total.my)}` : ""}{total.onBehalf !== 0 ? ` · for others ${formatINR(total.onBehalf)}` : ""}</div>
+            </div>
+            <button type="button" aria-label="Search" onClick={() => setSearching(true)} className="grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background"><Search size={17} aria-hidden /></button>
+            <NotesAi />
+            <button type="button" onClick={() => setFiltersOpen(true)} aria-label={`Filters${filterCount ? `, ${filterCount} on` : ""}`} className="relative grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background">
+              <SlidersHorizontal size={17} aria-hidden />
+              {filterCount > 0 && <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-accent text-[10px] font-semibold text-white">{filterCount}</span>}
+            </button>
+          </div>
+        )}
       </div>
       <Dialog open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
         <div className="-mx-4 space-y-4 overflow-x-clip pb-3">
@@ -262,11 +279,16 @@ function TransactionsView() {
         <Input className="col-span-2" placeholder="Search merchant, description, notes" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
         {filterFields}
       </div>
-      {active.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-1.5 text-xs">
-          {active.map((k) => <Badge key={k} tone="good">{k}: {k === "category" ? categoryName(get(k)) : k === "account" ? accountName(get(k)) : k === "recurring" && get(k) !== "1" ? recurringName(get(k)) : (k === "voucher" || k === "paidWith") && get(k) !== "1" && get(k) !== "none" ? voucherBrands.find((b) => b.id === get(k))?.name ?? get(k) : get(k)}</Badge>)}
-          <button className="text-muted underline" onClick={() => router.replace(`/transactions${get("month") ? `?month=${get("month")}` : ""}`)}>Clear filters</button>
-        </div>
+      {active.filter((k) => k !== "q").length > 0 && (
+        <HScroll className="mb-3 flex gap-1.5 text-xs">
+          {active.filter((k) => k !== "q").map((k) => (
+            <button key={k} type="button" onClick={() => set(k, "")} aria-label={`Remove filter ${k}`} className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-2.5 py-1.5 font-medium text-accent hover:bg-accent/15">
+              {k === "category" ? categoryName(get(k)) : k === "account" ? accountName(get(k)) : k === "recurring" && get(k) !== "1" ? recurringName(get(k)) : (k === "voucher" || k === "paidWith") && get(k) !== "1" && get(k) !== "none" ? voucherBrands.find((b) => b.id === get(k))?.name ?? get(k) : get(k)}
+              <X size={12} aria-hidden />
+            </button>
+          ))}
+          <button type="button" className="shrink-0 px-2 py-1.5 text-muted underline" onClick={() => router.replace("/transactions")}>Clear all</button>
+        </HScroll>
       )}
       <HScroll role="tablist" aria-label="Group transactions" className="mb-3 hidden gap-1 rounded-full bg-surface p-1 md:flex">
         {VIEWS.map((v) => (
@@ -278,7 +300,7 @@ function TransactionsView() {
         <GroupedView rows={rows} view={view} onEdit={setEditing} />
       ) : (
         <>
-          <div className="num mb-2 flex items-start justify-between gap-3 px-1" aria-label="Total for this view">
+          <div className="num mb-2 hidden items-start justify-between gap-3 px-1 md:flex" aria-label="Total for this view">
             <span className="pt-0.5 text-xs font-semibold uppercase tracking-wide text-muted">Total · {rows.length}</span>
             <span className="text-right">
               <b className="text-base">{formatINR(total.allocated)}</b>
