@@ -11,6 +11,8 @@ import { getClientAuth } from "@/lib/firebase/client";
 const schema = z.object({ email: z.string().email("Enter a valid email"), password: z.string().min(1, "Enter your password") });
 type Values = z.infer<typeof schema>;
 
+const REDIRECT_KEY = "pf-google-redirect";
+
 export function LoginForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +43,11 @@ export function LoginForm() {
   useEffect(() => {
     const auth = getClientAuth();
     void auth.authStateReady().catch(() => {});
-    getRedirectResult(auth).then((cred) => { if (cred?.user) { setBusy(true); return finish(cred.user); } }).catch(fail).finally(() => setBusy(false));
+    // Only look for a redirect result when we started a redirect. Checking on every visit keeps Firebase busy, and in Safari
+    // the first tap on "Continue with Google" is then cancelled, so it took two taps.
+    let redirected = false;
+    try { redirected = sessionStorage.getItem(REDIRECT_KEY) === "1"; sessionStorage.removeItem(REDIRECT_KEY); } catch { /* storage unavailable */ }
+    if (redirected) getRedirectResult(auth).then((cred) => { if (cred?.user) { setBusy(true); return finish(cred.user); } }).catch(fail).finally(() => setBusy(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -66,7 +72,7 @@ export function LoginForm() {
       } catch (e) {
         // The browser would not open the pop-up: sign in on a full page instead (it comes back here and finishes above).
         const code = (e as { code?: string }).code;
-        if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") { await signInWithRedirect(auth, provider); return; }
+        if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") { try { sessionStorage.setItem(REDIRECT_KEY, "1"); } catch { /* storage unavailable */ } await signInWithRedirect(auth, provider); return; }
         throw e;
       }
     } catch (e) { fail(e); } finally { setBusy(false); }
