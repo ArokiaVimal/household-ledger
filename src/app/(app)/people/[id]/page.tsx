@@ -178,9 +178,10 @@ export default function PersonSettle() {
         </details>
       )}
 
+      {chosen.length > 0 && <div aria-hidden className="h-20 md:hidden" />}
       {chosen.length > 0 && (
-        <div className="sticky bottom-40 z-20 mt-3 sm:bottom-4">
-          <div className="flex items-center gap-2 rounded-2xl bg-foreground py-2 pl-4 pr-2 text-white shadow-lg">
+        <div data-selection-bar className="fixed inset-x-3 bottom-[calc(var(--sab,0px)+4.75rem)] z-40 md:sticky md:inset-x-auto md:bottom-4 md:mt-3">
+          <div className="mx-auto flex max-w-xl items-center gap-2 rounded-2xl bg-foreground py-2 pl-4 pr-2 text-white shadow-lg">
             <div className="min-w-0 flex-1 leading-tight"><span className="text-sm"><b>{chosen.length}</b> selected{net !== 0 && <> · <b className="num">{formatINR(Math.abs(net))}</b></>}</span><span className="block truncate text-xs text-white/70">{net === 0 ? "they cancel out" : net > 0 ? `${name} owes you` : `You owe ${name}`}</span></div>
             <button type="button" onClick={() => setPicked(new Set())} className="min-h-10 rounded-full px-3 text-sm text-white/80 hover:text-white">Clear</button>
             <Button variant="primary" className="min-h-10" disabled={!selSettlement} onClick={() => setConfirm("selected")}>Settle these</Button>

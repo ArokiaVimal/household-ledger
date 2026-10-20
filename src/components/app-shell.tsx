@@ -198,7 +198,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
           </div>
         </div>
       </div>
-      <button onClick={() => (path.startsWith("/transactions") ? setAddMenu(true) : setAdding(true))} aria-label="Add transaction"
+      <button data-fab onClick={() => (path.startsWith("/transactions") ? setAddMenu(true) : setAdding(true))} aria-label="Add transaction"
         className="fixed bottom-[calc(var(--sab)+4.75rem)] right-4 z-30 flex items-center gap-1.5 rounded-full bg-accent px-4 py-3 text-sm font-medium text-white shadow-lg hover:bg-accent/90 md:bottom-8 md:right-8">
         <Plus size={18} aria-hidden /> Add
       </button>
