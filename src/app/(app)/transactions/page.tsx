@@ -1,7 +1,7 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowDownLeft, ArrowLeftRight, ChevronDown, CreditCard, Landmark, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Tags, Undo2, UserRound, Wallet, type LucideIcon } from "lucide-react";
-import { Suspense, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Amount, MerchantAvatar, TxnBadges } from "@/components/txn-row";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { NotesAi } from "./notes-ai";
@@ -117,7 +117,7 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
 }
 
 function TransactionsView() {
-  const { meId, accounts, categories, groupRecords, recordsFor, groups, activeGroup, month, shown, staged, today, approveStaged, deleteRecords, attributionOf, nameOf, categoryName, accountName, recurringName, voucherBrands } = useStore();
+  const { meId, accounts, categories, groupRecords, recordsFor, setMonth, groups, activeGroup, month, shown, staged, today, approveStaged, deleteRecords, attributionOf, nameOf, categoryName, accountName, recurringName, voucherBrands } = useStore();
   const params = useSearchParams();
   const router = useRouter();
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -128,6 +128,17 @@ function TransactionsView() {
     if (v) p.set(k, v); else p.delete(k);
     router.replace(`/transactions?${p.toString()}`);
   };
+
+  // A link such as ?month=2026-09 (from a chart or another screen) moves the month selector too, so the two never disagree.
+  const urlMonth = params.get("month");
+  useEffect(() => {
+    if (!urlMonth || !/^\d{4}-\d{2}$/.test(urlMonth)) return;
+    if (urlMonth !== month) setMonth(urlMonth);
+    const p = new URLSearchParams(params.toString());
+    p.delete("month");
+    router.replace(`/transactions?${p.toString()}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlMonth]);
 
   const rows = useMemo(() => {
     const m = params.get("month");
