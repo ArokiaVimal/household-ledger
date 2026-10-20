@@ -415,3 +415,10 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - In an item-wise split, adding or removing a person in "Split with" keeps the items: a new person joins every item (untick the ones they skipped).
 - Warnings: total unclear (items added up instead) and items that do not add up to the total. Needs the Anthropic key; not tested against the live API from this machine.
 
+## Installed-app polish: offline page, loading skeletons, bill reminders (added)
+- **Service worker** (`public/sw.js`, registered in production by `src/components/pwa.tsx`): caches only the app's own static files and a plain `/offline` page. **Pages and data are never cached** (they hold finances); with no connection you see "You're offline" and a slim banner. `/api/*` is never touched.
+- **Loading skeleton** (`src/app/(app)/loading.tsx`) so navigation never shows a blank screen.
+- **Bill reminders (push):** Settings, Reminders: a switch per device (`reminders-card.tsx`), a test button, and a daily job `/api/push/cron` (Vercel cron 03:30 UTC, 9:00 IST, `vercel.json`) that sends one notification per device when an unpaid card bill is due within 3 days or up to 7 days late (`src/domain/reminders.ts`, `src/lib/push/*`, subscriptions in the server-only `pushSubscriptions` collection, one a day, dead devices removed). iPhone needs the app added to the Home Screen first.
+- **Owner setup (once):** keys are made with `node scripts/make-vapid.mjs you@example.com` (saved to `.env.local`, private key never printed). Add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` and `CRON_SECRET` in Vercel, then redeploy. Without them the Reminders card says it is not set up and nothing else changes.
+- Skipped on purpose: App Store packaging, Face ID lock (a passkey sign-in could come later), offline copies of data.
+

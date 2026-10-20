@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, UserRound, Users, Wallet, BarChart3, ChevronLeft, ChevronRight, ClipboardCheck, type LucideIcon } from "lucide-react";
+import { LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, UserRound, Users, Wallet, BarChart3, Bell, ChevronLeft, ChevronRight, ClipboardCheck, type LucideIcon } from "lucide-react";
 import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
 import { THEME_STYLE, themeFor } from "@/components/card-mockup";
 import { useStore } from "@/data/store";
@@ -20,6 +20,7 @@ import { SyncCard } from "./sync-card";
 import { DataCard } from "./data-card";
 import { GroupsCard } from "./groups-card";
 import { ContactsCard } from "./contacts-card";
+import { RemindersCard } from "./reminders-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet" };
 
@@ -29,6 +30,7 @@ const MENU: { id: string; label: string; hint: string; icon: LucideIcon; liveOnl
   { id: "sharing", label: "Friends & Family", hint: "People you split with", icon: Users },
   { id: "ai", label: "Smart import", hint: "AI and import help", icon: Sparkles, liveOnly: true },
   { id: "integrations", label: "Integrations", hint: "SMS and Gmail capture", icon: Plug, liveOnly: true },
+  { id: "reminders", label: "Reminders", hint: "Card bill alerts", icon: Bell, liveOnly: true },
   { id: "shortcuts", label: "Make it yours", hint: "Profile, categories, icons", icon: Tags },
   { id: "data", label: "Your data", hint: "Back up, restore, delete", icon: ShieldCheck },
 ];
@@ -205,6 +207,12 @@ export default function Settings() {
           <Section id="integrations" icon={<Plug size={20} aria-hidden />} title="Integrations" tagline="Connect accounts. Everything waits for your review.">
             <p className="-mt-2 flex items-start gap-2 rounded-xl bg-accent/5 px-4 py-3 text-sm"><Lock size={16} aria-hidden className="mt-0.5 shrink-0 text-accent" /><span>Connections are private. Not even your partner can see them.</span></p>
             <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2"><CaptureCard /><GmailCard /></div>
+          </Section>
+        )}
+
+        {live && (
+          <Section id="reminders" icon={<Bell size={20} aria-hidden />} title="Reminders" tagline="Get a nudge when a card bill is due.">
+            <RemindersCard />
           </Section>
         )}
 
