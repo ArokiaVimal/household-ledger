@@ -2,6 +2,7 @@
 import { ArrowLeftRight, Ban, Banknote, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2, Users } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { DupCompare } from "@/components/dup-compare";
 import { billFileToDataUrl } from "@/lib/image";
 import type { Bill } from "@/lib/import/bill-extract";
 import { useStore } from "@/data/store";
@@ -79,6 +80,7 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; nav?: RecordNav; onAnother?: () => void; onAdded?: (msg: string) => void }) {
   const { aiEnabled, cardBills, meId, nameOf, groups, rules, partnerId, splitRatio, today, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
   const [deleting, setDeleting] = useState(false);
+  const [comparing, setComparing] = useState(false);
   const [sheet, setSheet] = useState<null | "pay" | "via" | "wallet" | "merchant" | "category" | "kind" | "topup" | "card" | "bank" | "recurring" | "group">(null);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";
@@ -355,8 +357,12 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
       )}
       {mode === "review" && record.suggested === "memory" && <p className="text-xs text-muted">Filled in from what you verified before.</p>}
       {mode === "review" && dupOf && (
-        <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Verify only if this is a separate purchase; otherwise reject it.</p>
+        <div role="note" className="flex items-center gap-2 rounded-xl bg-warn-soft p-2.5 text-xs text-warn">
+          <span className="min-w-0 flex-1">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}).</span>
+          <Button type="button" onClick={() => setComparing(true)} className="shrink-0">Compare</Button>
+        </div>
       )}
+      {dupOf && <DupCompare open={comparing} onClose={() => setComparing(false)} onDeletedMine={() => (nav ? nav.after() : onClose())} mine={record} other={dupOf} />}
       {adding && !paidWithId && <PickerRow icon={<MerchantAvatar name={accounts.find((a) => a.id === primaryId)?.name ?? "?"} size={32} />} label="Paid with" value={accounts.find((a) => a.id === primaryId) ? shortName(accounts.find((a) => a.id === primaryId)!.name) : "Choose"} sub={accounts.find((a) => a.id === primaryId) ? typeText[accounts.find((a) => a.id === primaryId)!.type] : undefined} onClick={() => setSheet("pay")} />}
       {adding && !paidWithId && subs.length > 0 && <PickerRow icon={subId ? <MerchantAvatar name={accounts.find((a) => a.id === subId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="Via (optional)" value={subId ? shortName(accounts.find((a) => a.id === subId)?.name ?? "") : "Direct"} muted={!subId} sub={subId ? undefined : `Paid with ${shortName(accounts.find((a) => a.id === primaryId)?.name ?? "it")} itself`} onClick={() => setSheet("via")} />}
       {adding && impliedBrand && <p className="-mt-1 rounded-xl bg-accent/5 px-3 py-2 text-xs text-muted">Paid from the {impliedBrand.name} wallet: it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}

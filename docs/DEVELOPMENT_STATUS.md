@@ -439,4 +439,5 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - **Not recurring** answers are saved on your account (`users/{uid}.dismissedRecurring`, route `/api/dismissed`); answers kept on a device before are moved over once.
 - Still open: Firestore rules tests (no Java on this Mac) and real-Safari testing.
 - **Unverified is per month by default:** the tab on Transactions lists and counts the unverified rows of the month on screen (the month stepper stays). The header review icon, the Home "unverified" chip and the post-import redirect open `?v=unverified&scope=all`: every month, no switches, with a "Show <month> only" link.
+- **Compare duplicates:** an unverified row flagged as a possible duplicate has a **Compare** button in its form (`src/components/dup-compare.tsx`): the two rows side by side with what matches and what differs highlighted, and three actions: **Keep both** (clears the flag), **Delete this one**, **Delete the one I already have** (both ask first). Deleting a record clears the duplicate flag on any row that pointed to it.
 
