@@ -7,6 +7,7 @@ import { Badge, Button, Card, ChipGroup, ConfirmDialog, Dialog, EmptyState, Page
 import { PersonGlyph } from "@/components/glyphs";
 import { toSquareJpeg } from "@/lib/profile/image";
 import { useStore } from "@/data/store";
+import { relationshipText } from "@/domain/contacts";
 import { personLedger, settlementFor, type LedgerEntry } from "@/domain/ledger";
 import { formatINR } from "@/domain/money";
 
@@ -14,7 +15,7 @@ import { formatINR } from "@/domain/money";
 export default function PersonSettle() {
   const { id: raw } = useParams<{ id: string }>();
   const personId = decodeURIComponent(raw);
-  const { participants, meId, ledgerRecords, settlements, addSettlement, voidSettlement, nameOf, today, live, partner, voucherBrands, setParticipantPhoto } = useStore();
+  const { participants, meId, ledgerRecords, settlements, addSettlement, voidSettlement, nameOf, today, live, partner, partnerId, voucherBrands, setParticipantPhoto } = useStore();
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [tab, setTab] = useState<"open" | "settled">("open");
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -41,6 +42,18 @@ export default function PersonSettle() {
   };
   const out = ledger.outstandingPaise;
   const rows: LedgerEntry[] = tab === "open" ? ledger.open : ledger.settled;
+  // Grouped by day, like the Transactions tab.
+  const days = (() => {
+    const m = new Map<string, { date: string; entries: LedgerEntry[]; total: number }>();
+    for (const e of rows) { const d = m.get(e.record.date) ?? { date: e.record.date, entries: [], total: 0 }; d.entries.push(e); d.total += e.sharePaise; m.set(e.record.date, d); }
+    return [...m.values()].sort((x, y) => y.date.localeCompare(x.date));
+  })();
+  const dayLabel = (iso: string) => {
+    const diff = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${iso}T00:00:00Z`)) / 86_400_000);
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Yesterday";
+    return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  };
   const chosen = ledger.open.filter((e) => picked.has(e.record.id));
   const net = chosen.reduce((s, e) => s + e.sharePaise, 0);
   const selSettlement = settlementFor(personId, meId, chosen);
@@ -58,11 +71,11 @@ export default function PersonSettle() {
 
   return (
     <>
-      <Card className="mb-3 space-y-3 p-3.5 sm:p-4">
-        <div className="flex items-center gap-3">
-          <Link href="/people" aria-label="Back to People" className="grid size-9 shrink-0 place-items-center rounded-full text-muted hover:bg-background hover:text-foreground"><ArrowLeft size={18} aria-hidden /></Link>
+      <Card className="mb-3 overflow-hidden p-0">
+        <div className={`flex items-center gap-3 px-3.5 py-3 ${out > 0 ? "bg-good/[0.06]" : out < 0 ? "bg-warn/[0.06]" : "bg-background/60"}`}>
+          <Link href="/people" aria-label="Back to People" className="grid size-8 shrink-0 place-items-center rounded-full text-muted hover:bg-surface hover:text-foreground"><ArrowLeft size={18} aria-hidden /></Link>
           <span className="relative shrink-0">
-            <PersonGlyph name={name} id={personId} size={44} />
+            <PersonGlyph name={name} id={personId} size={52} />
             {canEditPhoto && (
               <label title={person.photo ? "Change photo" : "Add photo"} className="absolute -bottom-1 -right-1 grid size-6 cursor-pointer place-items-center rounded-full border border-border bg-surface text-muted shadow-sm hover:text-foreground focus-within:outline-2 focus-within:outline-accent">
                 <Camera size={12} aria-hidden />
@@ -71,22 +84,25 @@ export default function PersonSettle() {
             )}
           </span>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-semibold leading-tight tracking-tight">{name}</h1>
-            <div className="flex items-baseline gap-1.5">
-              <span className={`num text-xl font-semibold leading-tight ${out > 0 ? "text-good" : ""}`}>{out === 0 ? "₹0" : formatINR(Math.abs(out))}</span>
-              <span className="text-xs text-muted">{out === 0 ? "all settled" : out > 0 ? "owes you" : "you owe"}</span>
-            </div>
+            <h1 className="truncate text-xl font-semibold leading-tight tracking-tight">{name}</h1>
+            <p className="truncate text-xs text-muted">{personId === partnerId ? "Partner" : relationshipText(person)}</p>
           </div>
         </div>
-        {out !== 0 && canSettle && (
-          <div className="flex gap-2">
-            <Button variant="primary" className="min-h-10 flex-1" onClick={() => setConfirm("everything")}>Settle everything</Button>
-            {out > 0 && <Button className="min-h-10" aria-label={`Remind ${name}`} onClick={() => void remind()}><Bell size={15} aria-hidden />Remind</Button>}
+        <div className="space-y-3 px-4 py-3">
+          <div className="flex items-baseline gap-2">
+            <span className={`num text-3xl font-semibold leading-none tracking-tight ${out > 0 ? "text-good" : ""}`}>{out === 0 ? "₹0" : formatINR(Math.abs(out))}</span>
+            <span className="text-sm text-muted">{out === 0 ? "all settled" : out > 0 ? "owes you" : "you owe"}</span>
           </div>
-        )}
-        {person.photo && canEditPhoto && <button type="button" onClick={() => setPhotoError(setParticipantPhoto(personId, null))} className="text-xs font-medium text-muted hover:text-danger">Remove photo</button>}
-        {photoError && <p role="alert" className="text-xs text-danger">{photoError}</p>}
-        {ledger.unlinkedPaise !== 0 && <p className="text-xs text-muted">{formatINR(Math.abs(ledger.unlinkedPaise))} of this comes from earlier payments recorded as a plain amount, not tied to specific purchases.</p>}
+          {out !== 0 && canSettle && (
+            <div className="flex items-center gap-2">
+              <Button variant="primary" className="min-h-10 px-5" onClick={() => setConfirm("everything")}>Settle everything</Button>
+              {out > 0 && <button type="button" aria-label={`Remind ${name}`} title={`Remind ${name}`} onClick={() => void remind()} className="grid size-10 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background"><Bell size={17} aria-hidden /></button>}
+            </div>
+          )}
+          {person.photo && canEditPhoto && <button type="button" onClick={() => setPhotoError(setParticipantPhoto(personId, null))} className="text-xs font-medium text-muted hover:text-danger">Remove photo</button>}
+          {photoError && <p role="alert" className="text-xs text-danger">{photoError}</p>}
+          {ledger.unlinkedPaise !== 0 && <p className="text-xs text-muted">{formatINR(Math.abs(ledger.unlinkedPaise))} of this comes from earlier payments recorded as a plain amount, not tied to specific purchases.</p>}
+        </div>
       </Card>
 
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -98,27 +114,33 @@ export default function PersonSettle() {
 
       <Card className="p-1.5 sm:p-2">
         {rows.length === 0 ? <EmptyState title={tab === "open" ? "Nothing to settle" : "Nothing settled yet"} hint={tab === "open" ? `Payments you split with ${name} appear here.` : "Payments you settle move here."} /> : (
-          <ul className="divide-y divide-border">
-            {rows.map((e) => {
-              const r = e.record;
-              const theyOwe = e.sharePaise > 0;
-              const sel = picked.has(r.id);
-              const short = new Date(`${r.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-              const wallet = r.paidWithVoucherId ? voucherBrands.find((b) => b.id === r.paidWithVoucherId)?.name ?? "voucher" : "";
-              return (
-                <li key={r.id}>
-                  <label className={`flex items-center gap-2.5 rounded-xl px-2 py-2 ${tab === "open" && canSettle ? "cursor-pointer hover:bg-background" : ""} ${sel ? "bg-accent/5" : ""}`}>
-                    {tab === "open" && canSettle && <input type="checkbox" checked={sel} onChange={() => toggle(r.id)} aria-label={`Select ${r.merchant}`} className="size-[18px] shrink-0 accent-[var(--accent)]" />}
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium leading-tight">{r.merchant}</span>
-                      <span className="block truncate text-[11px] leading-tight text-muted">{short} · {r.payerId === meId ? "you paid" : `${name} paid`} {formatINR(r.amountPaise)}{wallet ? ` · ${wallet} wallet` : ""}</span>
-                    </span>
-                    <span className={`num shrink-0 text-sm font-semibold ${theyOwe ? "text-good" : ""}`}>{theyOwe ? "+" : "−"}{formatINR(Math.abs(e.sharePaise))}</span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="space-y-2">
+            {days.map((d) => (
+              <section key={d.date} aria-label={dayLabel(d.date)}>
+                <div className="flex items-baseline justify-between px-2 pb-0.5 pt-1 text-xs"><span className="font-semibold text-foreground">{dayLabel(d.date)}</span><span className="num text-muted">{d.total > 0 ? "+" : d.total < 0 ? "−" : ""}{formatINR(Math.abs(d.total))}</span></div>
+                <ul className="divide-y divide-border">
+                  {d.entries.map((e) => {
+                    const r = e.record;
+                    const theyOwe = e.sharePaise > 0;
+                    const sel = picked.has(r.id);
+                    const wallet = r.paidWithVoucherId ? voucherBrands.find((b) => b.id === r.paidWithVoucherId)?.name ?? "voucher" : "";
+                    return (
+                      <li key={r.id}>
+                        <label className={`flex items-center gap-2.5 rounded-xl px-2 py-2 ${tab === "open" && canSettle ? "cursor-pointer hover:bg-background" : ""} ${sel ? "bg-accent/5" : ""}`}>
+                          {tab === "open" && canSettle && <input type="checkbox" checked={sel} onChange={() => toggle(r.id)} aria-label={`Select ${r.merchant}`} className="size-[18px] shrink-0 accent-[var(--accent)]" />}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium leading-tight">{r.merchant}</span>
+                            <span className="block truncate text-[11px] leading-tight text-muted">{r.payerId === meId ? "you paid" : `${name} paid`} {formatINR(r.amountPaise)}{wallet ? ` · ${wallet} wallet` : ""}</span>
+                          </span>
+                          <span className={`num shrink-0 text-sm font-semibold ${theyOwe ? "text-good" : ""}`}>{theyOwe ? "+" : "−"}{formatINR(Math.abs(e.sharePaise))}</span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
         )}
       </Card>
 
