@@ -3,7 +3,7 @@
 export const BANK_DOMAINS = [
   "hdfcbank.net", "hdfcbank.com", "icicibank.com", "sbi.co.in", "sbicard.com", "axisbank.com", "kotak.com", "yesbank.in", "idfcfirstbank.com",
   "indusind.com", "indusindbank.com", "rblbank.com", "federalbank.co.in", "bankofbaroda.com", "pnb.co.in", "canarabank.com", "unionbankofindia.co.in",
-  "americanexpress.com", "aexp.com", "citi.com", "sc.com", "hsbc.co.in", "onecard.in", "slicepay.in", "paytm.com", "phonepe.com", "cred.club", "amazonpay.in",
+  "americanexpress.com", "americanexpress.co.in", "aexp.com", "hdfc.bank.in", "hdfcbank.bank.in", "icici.bank.in", "axis.bank.in", "sbi.bank.in", "kotak.bank.in", "idfc.bank.in", "citi.com", "sc.com", "hsbc.co.in", "onecard.in", "slicepay.in", "paytm.com", "phonepe.com", "cred.club", "amazonpay.in",
 ];
 
 /** Gmail search for recent bank mail. `afterEpoch` keeps repeat syncs short. */

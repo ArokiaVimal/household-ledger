@@ -31,9 +31,9 @@ export function gmailConfig(req: Request): { oauth: OAuthConfig; key: Buffer } |
 const todayIst = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
 /** Syncs one person's mail and saves the result on their link. */
-export async function runSync(link: GmailLink, cfg: { oauth: OAuthConfig; key: Buffer }): Promise<{ link: GmailLink; counts: SyncCounts }> {
+export async function runSync(link: GmailLink, cfg: { oauth: OAuthConfig; key: Buffer }, lookbackDays?: number): Promise<{ link: GmailLink; counts: SyncCounts }> {
   const deps: CaptureDeps = { sha256, now: () => Date.now(), newId: () => randomUUID(), suggest: suggesterFromEnv(process.env), claude: claudeFromEnv(process.env), today: todayIst() };
-  const out = await syncGmail({ link, key: cfg.key, oauth: cfg.oauth, repo: createFirestoreRepository(link.householdId), deps, participantId: participantIdFor(link.uid), now: Date.now() });
+  const out = await syncGmail({ link, key: cfg.key, oauth: cfg.oauth, repo: createFirestoreRepository(link.householdId), deps, participantId: participantIdFor(link.uid), now: Date.now(), ...(lookbackDays ? { lookbackDays } : {}) });
   await createFirestoreGmailStore().put(out.link);
   return out;
 }

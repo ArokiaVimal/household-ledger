@@ -37,9 +37,9 @@ export function GmailCard() {
     });
   }, [load]);
 
-  const sync = async () => {
+  const sync = async (days?: number) => {
     setBusy(true); setMsg(null);
-    const r = await call<{ counts?: { scanned: number; added: number; bills: number; duplicates: number }; needsReconnect?: boolean; skipped?: string }>({ action: "sync" });
+    const r = await call<{ counts?: { scanned: number; added: number; bills: number; duplicates: number }; needsReconnect?: boolean; skipped?: string }>({ action: "sync", ...(days ? { days } : {}) });
     setBusy(false);
     if (!r.ok) return setMsg({ ok: false, text: r.error ?? "Could not sync." });
     if (r.needsReconnect) setMsg({ ok: false, text: "Google no longer allows this connection. Connect again." });
@@ -63,6 +63,7 @@ export function GmailCard() {
           <p className="text-xs text-muted">Emails that do not name a card wait for you to pick one when you verify.</p>
           <div className="flex flex-wrap gap-2">
             {s.needsReconnect ? <a href="/api/gmail/connect" className="inline-flex min-h-9 items-center justify-center rounded-full bg-accent px-4 text-sm font-medium text-white">Connect again</a> : <Button variant="primary" disabled={busy} onClick={() => void sync()}>{busy ? "Checking…" : "Sync now"}</Button>}
+            {!s.needsReconnect && <Button disabled={busy} onClick={() => void sync(30)}>Scan last 30 days</Button>}
             <Button variant="danger" onClick={() => setOff(true)}>Disconnect</Button>
           </div>
           <p className="text-xs text-muted">It also checks quietly when you open the app and once a day.</p>
