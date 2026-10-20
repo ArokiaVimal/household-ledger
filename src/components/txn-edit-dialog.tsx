@@ -137,7 +137,8 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
   const splitError = topUp ? null : validateSplit(amountPaise, split);
   // Which of your Payment Groups this transaction counts in, from who is in the split (the groups are views, so there is nothing to set).
   const countsIn = useMemo(() => {
-    if (topUp || amountPaise <= 0 || kind !== "purchase") return [];
+    // A split being built (a By item split with a blank item, percentages that do not add up) has no shares yet: nothing to count.
+    if (topUp || amountPaise <= 0 || kind !== "purchase" || validateSplit(amountPaise, split)) return [];
     const probe = { ...record, amountPaise, split, payerId, kind, excluded: false, status: "reviewed" as const } as ExpenseRecord;
     return groups.filter((g) => attribute(probe, g, groups, meId)).map((g) => g.name);
   }, [topUp, amountPaise, kind, record, split, payerId, groups, meId]);
