@@ -18,7 +18,7 @@ import { formatINR } from "@/domain/money";
 export default function PersonSettle() {
   const { id: raw } = useParams<{ id: string }>();
   const personId = decodeURIComponent(raw);
-  const { participants, meId, ledgerRecords, settlements, addSettlement, voidSettlement, nameOf, today, live, partner, partnerId, voucherBrands, categories, setParticipantPhoto } = useStore();
+  const { participants, meId, ledgerRecords, settlements, addSettlement, voidSettlement, nameOf, today, live, partner, partnerId, voucherBrands, categories, records, setParticipantPhoto } = useStore();
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [tab, setTab] = useState<"open" | "settled">("open");
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -28,7 +28,9 @@ export default function PersonSettle() {
   const ledger = useMemo(() => personLedger(personId, meId, ledgerRecords, settlements), [personId, meId, ledgerRecords, settlements]);
   const canSettle = !(live && partner && !partner.active && personId === partner.participantId);
   // Tapping a payment opens its full edit screen (with next/previous); the checkbox only selects it for settling.
-  const recNav = useRecordNav((tab === "open" ? ledger.open : ledger.settled).map((e) => e.record));
+  // What is shown here can be the copy shared with them (no card, no category); editing opens your own full record.
+  const ownById = useMemo(() => new Map(records.map((r) => [r.id, r])), [records]);
+  const recNav = useRecordNav((tab === "open" ? ledger.open : ledger.settled).map((e) => ownById.get(e.record.id) ?? e.record));
 
   if (!person) {
     return (

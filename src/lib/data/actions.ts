@@ -249,12 +249,17 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       // A linked person changed the shared terms since this screen loaded: refuse rather than silently overwrite their edit.
       if (a.ifRev !== undefined && a.ifRev !== (cur.sharedRev ?? 0)) throw new ActionError("conflict", "Someone you share this expense with changed it while you were editing. Your screen has been refreshed; nothing was overwritten.");
       if (a.patch?.accountId && a.patch.accountId !== cur.accountId) {
-        // The payment method can be set only while the row waits for verification, and only to one of your own.
-        if (cur.status !== "unreviewed") throw new ActionError("invalid", "A verified transaction keeps its payment method.");
+        // Fixing a wrong payment method: it must be one of your own, still in use.
         const acc = await repo.accounts.get(a.patch.accountId);
         if (!acc || acc.archived) throw new ActionError("invalid", "Unknown payment method.");
       }
       const next = applyPatch(cur, a.patch ?? {});
+      // Leaving a voucher wallet takes the wallet's "paid with voucher" mark along, unless the patch says otherwise.
+      if (a.patch?.accountId && a.patch.accountId !== cur.accountId && !("paidWithVoucherId" in a.patch)) {
+        const [oldAcc, brands] = await Promise.all([repo.accounts.get(cur.accountId), repo.voucherBrands.list()]);
+        const was = impliedVoucherId(oldAcc ?? undefined, cur.kind, brands);
+        if (was && cur.paidWithVoucherId === was) delete next.paidWithVoucherId;
+      }
       if (a.type === "record.approve") { next.status = "reviewed"; delete next.suggested; }
       // Money spent from a voucher wallet (Amazon Pay) is paid with that voucher: the voucher purchase was the outflow.
       if (!next.paidWithVoucherId) {

@@ -462,3 +462,6 @@ A merchant now shows a logo or an icon, never both. Order: a logo you or AI chos
 
 ## Self-healing for a frozen app (2026-10-21)
 `Pwa` (src/components/pwa.tsx, rules in src/lib/self-heal.ts): a tap on a link that has not reached its page after 8 s loads that page the plain way; coming back to the front after 5+ minutes checks `/api/version` and reloads when a newer build is live; after an hour away the screen reloads; nothing reloads while a dialog is open. Cause of the reported freezes is not proven (no way to reproduce on the phone); these make the app recover by itself.
+
+## Paid with on every transaction screen (2026-10-21)
+Add and Edit now always show "Paid with" (and "Via" for sub methods). It can be changed on manual entries and on rows from an email, a text message or pasted text (their card was worked out or guessed; `accountIsEditable` in `domain/accounts.ts`, enforced by the repository guard). A row read from a statement file keeps the statement's card: the row is shown locked with "Set by the statement it came from". Moving a payment out of a voucher wallet removes its paid-with-voucher mark; moving into one adds it. The person page now opens your own record, not the shared copy. This also fixes "Pick a card" on email/text rows, which the old guard would have refused on save.

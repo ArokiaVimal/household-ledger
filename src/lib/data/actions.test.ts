@@ -610,3 +610,45 @@ describe("merchant look", () => {
     await fails(applyAction(repo, actor, { type: "icons.apply", categories: [], accounts: [], merchants: [{ name: "Swiggy Instamart" }] }), "invalid");
   });
 });
+
+describe("changing the payment method", () => {
+  const wallet = async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "cc_amex", name: "Amex", type: "credit_card" });
+    await repo.accounts.put({ id: "wl_amazonpay", name: "Amazon Pay", type: "wallet", parentId: "cc_amex" });
+    await repo.voucherBrands.put({ id: "vb_amazon", name: "Amazon" });
+    return repo;
+  };
+  it("can be fixed on a verified transaction, to one of your own methods only", async () => {
+    const repo = await wallet();
+    await repo.records.put(imported({ id: "v1", status: "reviewed", importSource: "Pasted text (import 1)" }));
+    await applyAction(repo, actor, { type: "record.update", id: "v1", patch: { accountId: "cc_amex" } });
+    expect((await repo.records.get("v1"))?.accountId).toBe("cc_amex");
+    await fails(applyAction(repo, actor, { type: "record.update", id: "v1", patch: { accountId: "nope" } }), "invalid");
+  });
+  it("moving out of Amazon Pay takes the paid-with-voucher mark along, and moving in adds it", async () => {
+    const repo = await wallet();
+    await repo.records.put(imported({ id: "w1", accountId: "wl_amazonpay", paidWithVoucherId: "vb_amazon", status: "reviewed", importSource: "Pasted text (import 1)" }));
+    await applyAction(repo, actor, { type: "record.update", id: "w1", patch: { accountId: "cc_amex" } });
+    expect((await repo.records.get("w1"))?.paidWithVoucherId).toBeUndefined();
+    await applyAction(repo, actor, { type: "record.update", id: "w1", patch: { accountId: "wl_amazonpay" } });
+    expect((await repo.records.get("w1"))?.paidWithVoucherId).toBe("vb_amazon");
+  });
+});
+
+describe("which payment methods can be corrected", () => {
+  it("not on a row that came from a statement file", async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "cc_amex", name: "Amex", type: "credit_card" });
+    await repo.records.put(imported({ id: "s1", importSource: "2026-10-02.pdf (import 9)" }));
+    await fails(applyAction(repo, actor, { type: "record.update", id: "s1", patch: { accountId: "cc_amex" } }), "conflict");
+  });
+  it("on an email or text row that still needs a card", async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "cc_amex", name: "Amex", type: "credit_card" });
+    await repo.records.put(imported({ id: "c1", importSource: "Captured message (import 9)", needsCard: true }));
+    await applyAction(repo, actor, { type: "record.approve", id: "c1", patch: { accountId: "cc_amex", needsCard: null } });
+    expect(await repo.records.get("c1")).toMatchObject({ accountId: "cc_amex", status: "reviewed" });
+    expect((await repo.records.get("c1"))?.needsCard).toBeUndefined();
+  });
+});

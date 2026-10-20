@@ -15,7 +15,7 @@ import { readNote, usualFor } from "@/domain/autofill";
 import { cardViews, suggestPaidCard } from "@/domain/cardbills";
 import { ratioSplit } from "@/domain/splits";
 import { COMMON_MERCHANTS, MERCHANT_ALIASES, rankMerchants } from "@/domain/merchants";
-import { shortName, walletAccountFor, walletBrandFor } from "@/domain/accounts";
+import { accountIsEditable, shortName, walletAccountFor, walletBrandFor } from "@/domain/accounts";
 import { knownVoucherSeller } from "@/domain/vouchers";
 import { formatINR, parseRupees } from "@/domain/money";
 import { equalSplit, validateSplit } from "@/domain/splits";
@@ -146,6 +146,8 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
   // New rows must say which voucher (or decide later). Editing something that is already approved is never blocked by it.
   const voucherProblem = promptVoucher && !voucherId && !voucherLater && record.status !== "reviewed" ? "Pick the wallet that was topped up, or choose Decide later" : voucherId && walletId ? "A payment cannot both buy a voucher and be paid with one" : null;
   const cardPick = !adding && !!record.needsCard;
+  // The payment method can be changed on your own transactions; one that someone shared with you is theirs to change.
+  const canMove = adding || cardPick || (record.payerId === meId && accountIsEditable(record));
   const bad = splitError ?? missing ?? voucherProblem ?? (cardPick && !accountId ? "Pick the card first" : null);
 
   // Guesses from what was typed, no AI: the merchant from the note, the category from the merchant (your history and rules) or the words used.
@@ -172,6 +174,11 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
     setAmountText(v);
     const p = parseRupees(v) ?? 0;
     if (split.mode === "custom" && p > 0) setSplit({ ...split, values: equalSplit(p, split.participantIds) });
+  };
+  // Moving a payment out of a voucher wallet (Amazon Pay) means it is no longer paid with that voucher.
+  const leaveWallet = (nextId: string) => {
+    const prev = walletBrandFor(accounts.find((a) => a.id === accountId), voucherBrands);
+    if (prev && paidWithId === prev.id && walletBrandFor(accounts.find((a) => a.id === nextId), voucherBrands)?.id !== prev.id) setPaidWithId("");
   };
   const applyAccount = (id: string) => {
     const a = accounts.find((x) => x.id === id);
@@ -286,7 +293,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
       if (action === "another") onAnother?.(); else onClose();
       return;
     }
-    const patch = { ...fields, fundedBy: isUpi ? fundedBy || undefined : record.fundedBy, ...(cardPick ? { accountId, needsCard: undefined } : {}) };
+    const patch = { ...fields, fundedBy: isUpi ? fundedBy || undefined : record.fundedBy, ...(cardPick || accountId !== record.accountId ? { accountId } : {}), ...(cardPick ? { needsCard: undefined } : {}) };
     // Moving to a neighbour keeps what you typed, but only when something actually changed.
     const same = (x: unknown, y: unknown) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
     const changed = Object.entries(patch).some(([k, v]) => k !== "status" && !same(v, (record as unknown as Record<string, unknown>)[k]));
@@ -365,8 +372,8 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
         </div>
       )}
       {dupOf && <DupCompare open={comparing} onClose={() => setComparing(false)} onDeletedMine={() => (nav ? nav.after() : onClose())} mine={record} other={dupOf} />}
-      {(adding || cardPick) && !paidWithId && <PickerRow icon={<MerchantAvatar name={accounts.find((a) => a.id === primaryId)?.name ?? "?"} size={32} />} label="Paid with" value={accounts.find((a) => a.id === primaryId) ? shortName(accounts.find((a) => a.id === primaryId)!.name) : "Choose"} sub={accounts.find((a) => a.id === primaryId) ? typeText[accounts.find((a) => a.id === primaryId)!.type] : undefined} onClick={() => setSheet("pay")} />}
-      {(adding || cardPick) && !paidWithId && subs.length > 0 && <PickerRow icon={subId ? <MerchantAvatar name={accounts.find((a) => a.id === subId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="Via (optional)" value={subId ? shortName(accounts.find((a) => a.id === subId)?.name ?? "") : "Direct"} muted={!subId} sub={subId ? undefined : `Paid with ${shortName(accounts.find((a) => a.id === primaryId)?.name ?? "it")} itself`} onClick={() => setSheet("via")} />}
+      {!(adding && paidWithId) && <PickerRow icon={<MerchantAvatar name={accounts.find((a) => a.id === primaryId)?.name ?? "?"} size={32} />} label="Paid with" value={accounts.find((a) => a.id === primaryId) ? shortName(accounts.find((a) => a.id === primaryId)!.name) : "Choose"} sub={!canMove ? "Set by the statement it came from" : accounts.find((a) => a.id === primaryId) ? typeText[accounts.find((a) => a.id === primaryId)!.type] : undefined} onClick={() => canMove && setSheet("pay")} />}
+      {!(adding && paidWithId) && subs.length > 0 && <PickerRow icon={subId ? <MerchantAvatar name={accounts.find((a) => a.id === subId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="Via (optional)" value={subId ? shortName(accounts.find((a) => a.id === subId)?.name ?? "") : "Direct"} muted={!subId} sub={subId ? undefined : `Paid with ${shortName(accounts.find((a) => a.id === primaryId)?.name ?? "it")} itself`} onClick={() => canMove && setSheet("via")} />}
       {adding && impliedBrand && <p className="-mt-1 rounded-xl bg-accent/5 px-3 py-2 text-xs text-muted">Paid from the {impliedBrand.name} wallet: it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
       {voucherBrands.length > 0 && !topUp && !impliedBrand && kind === "purchase" && (!!paidWithId || !accounts.some((a) => a.type === "wallet" && !a.archived)) && (
         <>
@@ -438,8 +445,8 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
         </div>
         <div className="sticky bottom-0 -mx-4 flex justify-end border-t border-border bg-surface px-4 py-3"><Button variant="primary" onClick={() => setSplitOpen(false)}>Done</Button></div>
       </Dialog>
-      <ListSheet open={sheet === "pay"} onClose={() => setSheet(null)} title="Paid with" value={primaryId} options={primaries.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))} onPick={(id) => { touch("account"); setPrimaryId(id); setSubId(""); }} />
-      <ListSheet open={sheet === "via"} onClose={() => setSheet(null)} title="Via" value={subId} options={[{ id: "", label: "Direct", hint: `Paid with ${accounts.find((a) => a.id === primaryId)?.name ?? "it"} itself`, icon: <Dot icon={Ban} size={32} /> }, ...subs.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={(id) => { touch("account"); setSubId(id); }} note="Pick a sub payment method only if the money went through it." />
+      <ListSheet open={sheet === "pay"} onClose={() => setSheet(null)} title="Paid with" value={primaryId} options={primaries.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))} onPick={(id) => { touch("account"); leaveWallet(id); setPrimaryId(id); setSubId(""); }} />
+      <ListSheet open={sheet === "via"} onClose={() => setSheet(null)} title="Via" value={subId} options={[{ id: "", label: "Direct", hint: `Paid with ${accounts.find((a) => a.id === primaryId)?.name ?? "it"} itself`, icon: <Dot icon={Ban} size={32} /> }, ...subs.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={(id) => { touch("account"); leaveWallet(id || primaryId); setSubId(id); }} note="Pick a sub payment method only if the money went through it." />
       <ListSheet open={sheet === "wallet"} onClose={() => setSheet(null)} title="From wallet" value={paidWithId} options={[{ id: "", label: "No", icon: <Dot icon={Ban} size={32} /> }, ...voucherBrands.map((b) => ({ id: b.id, label: `${b.name} wallet`, icon: <MerchantAvatar name={b.name} size={32} /> }))]} onPick={setPaidWithId} />
       <MerchantSheet open={sheet === "merchant"} onClose={() => setSheet(null)} value={merchant} onPick={onPickMerchant} />
       <CategorySheet open={sheet === "category"} onClose={() => setSheet(null)} value={categoryId} onPick={(id) => { catTouched.current = true; setCatHint(null); setCategoryId(id); }} />

@@ -4,6 +4,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import type { ZodType } from "zod";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { AuditEvent, ExpenseRecord, ImportBatch, RawTransaction, Settlement, SharedExpense } from "@/domain/types";
+import { accountIsEditable } from "@/domain/accounts";
 import { ConflictError, type AppendOnly, type Collection, type Repository } from "./repository";
 import { AccountSchema, AuditEventSchema, CardBillSchema, PaymentGroupSchema, VoucherBrandSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SCHEMA_VERSION, SettlementSchema, SharedExpenseSchema } from "./schemas";
 
@@ -53,7 +54,10 @@ const guardShared = (prev: SharedExpense, next: SharedExpense) => {
 const RAW_FIELDS = ["date", "postedDate", "originalDescription", "amountPaise", "currency", "accountId", "importSource", "referenceId"] as const;
 const guardRecord: Guard<ExpenseRecord> = (prev, next) => {
   if (prev.importSource === "Manual entry") return;
-  for (const f of RAW_FIELDS) if (prev[f] !== next[f]) throw new ConflictError(`Imported field "${f}" cannot be changed`);
+  for (const f of RAW_FIELDS) {
+    if (f === "accountId" && accountIsEditable(prev)) continue; // the card of an email, text or pasted row was a guess: it can be corrected
+    if (prev[f] !== next[f]) throw new ConflictError(`Imported field "${f}" cannot be changed`);
+  }
 };
 
 /** Household-scoped repository over Firestore (Admin SDK). The caller must already have authorised the household. */
