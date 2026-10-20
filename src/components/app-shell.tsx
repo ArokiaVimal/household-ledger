@@ -74,7 +74,7 @@ function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
       {open && (
         <div role="menu" className="absolute right-0 top-12 z-40 w-56 rounded-2xl bg-surface p-1.5 shadow-xl ring-1 ring-border">
           {profile && <div className="px-3 py-2"><div className="truncate text-sm font-semibold">{profile.displayName}</div><div className="truncate text-xs text-muted">{profile.email}</div></div>}
-          <Link href="/profile" role="menuitem" onClick={() => setOpen(false)} className={item}><UserRound size={16} aria-hidden />Your profile</Link>
+          <Link href="/settings?s=profile" role="menuitem" onClick={() => setOpen(false)} className={item}><UserRound size={16} aria-hidden />Your profile</Link>
           <Link href="/settings" role="menuitem" onClick={() => setOpen(false)} className={item}><Settings size={16} aria-hidden />Settings</Link>
           <button type="button" role="menuitem" onClick={onSignOut} className={cn(item, "text-danger")}><LogOut size={16} aria-hidden />Sign out</button>
         </div>
@@ -93,7 +93,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const lensScreens = ["/", "/transactions", "/reports"];
   const showGroup = lensScreens.some((h) => (h === "/" ? path === "/" : path.startsWith(h)));
   const showMonth = showGroup || monthScreens.some((h) => path.startsWith(h));
-  const visibleNav = NAV.filter((n) => n.href !== "/profile");
+  const visibleNav = NAV;
   const phoneBar = BAR_ORDER.flatMap((h) => visibleNav.filter((n) => n.href === h));
   const phoneMore = NAV.filter((n) => !n.bar);
   const [moreOpen, setMoreOpen] = useState(false);

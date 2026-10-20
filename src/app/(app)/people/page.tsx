@@ -3,7 +3,7 @@ import { Bell, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PersonGlyph } from "@/components/glyphs";
-import { Badge, Button, Card, CardTitle, ConfirmDialog, Dialog, EmptyState, Field, Input, PageHeader, Select } from "@/components/ui";
+import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, Field, Input, PageHeader, Select } from "@/components/ui";
 import { LinkedWithYou } from "@/components/links";
 import { useStore } from "@/data/store";
 import { personLedger, settlementFor } from "@/domain/ledger";

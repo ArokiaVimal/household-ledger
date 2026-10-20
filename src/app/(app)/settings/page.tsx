@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { LayoutGrid, Lock, Pencil, Plug, Repeat, Receipt, ShieldCheck, Sparkles, Tags, UserRound, Users, Wallet, BarChart3, Bell, ChevronLeft, ChevronRight, ClipboardCheck, type LucideIcon } from "lucide-react";
+import { LayoutGrid, Lock, Pencil, Plug, ShieldCheck, Sparkles, Tags, UserRound, Users, Wallet, Bell, ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
 import { THEME_STYLE, themeFor } from "@/components/card-mockup";
 import { useStore } from "@/data/store";
@@ -20,29 +20,26 @@ import { SyncCard } from "./sync-card";
 import { DataCard } from "./data-card";
 import { GroupsCard } from "./groups-card";
 import { ContactsCard } from "./contacts-card";
+import { CategoriesView } from "../categories/categories-view";
+import { ProfileForm } from "../profile/profile-form";
 import { RemindersCard } from "./reminders-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet" };
 
-const MENU: { id: string; label: string; hint: string; icon: LucideIcon; liveOnly?: boolean }[] = [
-  { id: "methods", label: "Payment methods", hint: "Cards, UPI apps, bank accounts", icon: Wallet },
-  { id: "groups", label: "Payment groups", hint: "View spending by person", icon: LayoutGrid },
-  { id: "sharing", label: "Friends & Family", hint: "People you split with", icon: Users },
-  { id: "ai", label: "Smart import", hint: "AI and import help", icon: Sparkles, liveOnly: true },
-  { id: "integrations", label: "Integrations", hint: "SMS and Gmail capture", icon: Plug, liveOnly: true },
-  { id: "reminders", label: "Reminders", hint: "Card bill alerts", icon: Bell, liveOnly: true },
-  { id: "shortcuts", label: "Make it yours", hint: "Profile, categories, icons", icon: Tags },
-  { id: "data", label: "Your data", hint: "Back up, restore, delete", icon: ShieldCheck },
+const MENU: { id: string; group: string; label: string; hint: string; icon: LucideIcon; liveOnly?: boolean }[] = [
+  { id: "methods", group: "Set up", label: "Payment methods", hint: "Cards, UPI apps, bank accounts", icon: Wallet },
+  { id: "groups", group: "Set up", label: "Payment groups", hint: "View spending by person", icon: LayoutGrid },
+  { id: "categories", group: "Set up", label: "Categories and rules", hint: "Rename, add, auto-sort", icon: Tags },
+  { id: "sharing", group: "Set up", label: "Friends & Family", hint: "People you split with", icon: Users },
+  { id: "icons", group: "Set up", label: "Icons", hint: "Pictures for categories and merchants", icon: Sparkles },
+  { id: "ai", group: "Smart tools", label: "Smart import", hint: "AI and import help", icon: Sparkles, liveOnly: true },
+  { id: "integrations", group: "Smart tools", label: "Integrations", hint: "SMS and Gmail capture", icon: Plug, liveOnly: true },
+  { id: "reminders", group: "Smart tools", label: "Reminders", hint: "Card bill alerts", icon: Bell, liveOnly: true },
+  { id: "profile", group: "Account", label: "Profile", hint: "Name, photo, greeting", icon: UserRound },
+  { id: "data", group: "Account", label: "Your data", hint: "Back up, restore, delete", icon: ShieldCheck },
 ];
+const GROUPS = ["Set up", "Smart tools", "Account"];
 const OpenSection = createContext<string | null>(null);
-const SHORTCUTS: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
-  { href: "/profile", label: "Your profile", hint: "Your name and photo, and how the app greets you.", icon: UserRound },
-  { href: "/categories", label: "Categories and rules", hint: "Rename, add and auto-sort.", icon: Tags },
-  { href: "/recurring", label: "Recurring", hint: "Rent, EMIs and bills that come around every month.", icon: Repeat },
-  { href: "/review", label: "Review queue", hint: "Approve imported transactions so they count.", icon: ClipboardCheck },
-  { href: "/receipts", label: "Receipts", hint: "Match receipts to the payments they belong to.", icon: Receipt },
-  { href: "/reports", label: "Reports", hint: "See where it all went, month by month.", icon: BarChart3 },
-];
 
 function Section({ id, icon, title, tagline, children }: { id: string; icon: ReactNode; title: string; tagline: string; children: ReactNode }) {
   if (useContext(OpenSection) !== id) return null;
@@ -121,14 +118,24 @@ export default function Settings() {
       ) : (
         <>
           <PageHeader title="Settings" actions={!live ? <Badge tone="warn">Prototype</Badge> : undefined} />
-          <nav aria-label="Settings menu" className="grid grid-cols-[minmax(0,1fr)] gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {MENU.filter((m) => live || !m.liveOnly).map(({ id, label, hint, icon: I }) => (
-              <button key={id} type="button" onClick={() => go(id)} className="group flex min-h-16 items-center gap-3 rounded-[var(--radius-card)] bg-surface p-3.5 text-left transition-shadow hover:shadow-md">
-                <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/10 text-accent"><I size={18} /></span>
-                <span className="min-w-0 flex-1"><span className="block font-medium">{label}</span><span className="block truncate text-sm text-muted">{hint}</span></span>
-                <ChevronRight size={18} aria-hidden className="shrink-0 text-muted" />
-              </button>
-            ))}
+          <nav aria-label="Settings menu" className="space-y-5">
+            {GROUPS.map((g) => {
+              const items = MENU.filter((m) => m.group === g && (live || !m.liveOnly));
+              return items.length === 0 ? null : (
+                <section key={g} aria-label={g}>
+                  <h2 className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{g}</h2>
+                  <div className="grid grid-cols-[minmax(0,1fr)] gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {items.map(({ id, label, hint, icon: I }) => (
+                      <button key={id} type="button" onClick={() => go(id)} className="group flex min-h-14 items-center gap-3 rounded-[var(--radius-card)] bg-surface p-3 text-left transition-shadow hover:shadow-md">
+                        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/10 text-accent"><I size={18} /></span>
+                        <span className="min-w-0 flex-1"><span className="block font-medium">{label}</span><span className="block truncate text-sm text-muted">{hint}</span></span>
+                        <ChevronRight size={18} aria-hidden className="shrink-0 text-muted" />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
           </nav>
         </>
       )}
@@ -216,16 +223,16 @@ export default function Settings() {
           </Section>
         )}
 
-        <Section id="shortcuts" icon={<LayoutGrid size={20} aria-hidden />} title="Make it yours" tagline="Categories, icons and greeting.">
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {SHORTCUTS.map(({ href, label, hint, icon: I }) => (
-              <Link key={href} href={href} className="group flex items-start gap-3 rounded-[var(--radius-card)] bg-surface p-4 transition-shadow hover:shadow-md">
-                <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-background text-accent"><I size={18} /></span>
-                <span className="min-w-0"><span className="block font-medium">{label}</span><span className="block text-sm text-muted">{hint}</span></span>
-              </Link>
-            ))}
-          </div>
+        <Section id="categories" icon={<Tags size={20} aria-hidden />} title="Categories and rules" tagline="Rename, add and auto-sort.">
+          <CategoriesView embedded />
+        </Section>
+
+        <Section id="icons" icon={<Sparkles size={20} aria-hidden />} title="Icons" tagline="Pictures for categories and merchants.">
           <IconsCard live={live} aiEnabled={aiEnabled} />
+        </Section>
+
+        <Section id="profile" icon={<UserRound size={20} aria-hidden />} title="Profile" tagline="Your name, photo and greeting.">
+          <ProfileForm embedded />
         </Section>
 
         <Section id="data" icon={<ShieldCheck size={20} aria-hidden />} title="Your data" tagline="Back up, restore or delete.">

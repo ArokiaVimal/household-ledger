@@ -7,7 +7,8 @@ import { useStore } from "@/data/store";
 import { categoryUsage, checkDelete, MAX_CATEGORY_NAME } from "@/domain/categories";
 import { PROTECTED_CATEGORY_IDS } from "@/domain/categories";
 
-export default function Categories() {
+/** Categories and merchant rules. `embedded` drops the page heading when it sits inside Settings. */
+export function CategoriesView({ embedded = false }: { embedded?: boolean }) {
   const { live, recurringItems, categories, rules, records, staged, updateStaged, categoryName, addCategory, renameCategory, deleteCategory, addRule, removeRule } = useStore();
   const [name, setName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
@@ -58,7 +59,7 @@ export default function Categories() {
 
   return (
     <>
-      <PageHeader title="Categories & rules" sub="Your categories. Add your own, rename any, delete ones you don't use." actions={live ? undefined : <Badge tone="warn">Prototype</Badge>} />
+      {!embedded && <PageHeader title="Categories & rules" sub="Your categories. Add your own, rename any, delete ones you don't use." actions={live ? undefined : <Badge tone="warn">Prototype</Badge>} />}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2">
         <Card className="space-y-3">
           <CardTitle>Categories</CardTitle>

@@ -44,12 +44,12 @@ function useSetupSteps(): SetupStep[] {
   const { profile } = useProfile();
   const others = participants.filter((p) => p.id !== meId);
   return [
-    { id: "profile", title: "Your profile", hint: "Name and photo", icon: UserRound, done: !!profile && (!!profile.nickname || !!profile.avatarDataUrl), href: "/profile", action: "Open" },
+    { id: "profile", title: "Your profile", hint: "Name and photo", icon: UserRound, done: !!profile && (!!profile.nickname || !!profile.avatarDataUrl), href: "/settings?s=profile", action: "Open" },
     { id: "methods", title: "Payment methods", hint: "Cards, UPI apps, banks", icon: Wallet, done: accounts.length > 0, href: "/settings?s=methods", action: "Add", essential: true },
     { id: "balances", title: "Bank balances", hint: "For the cash forecast", icon: Landmark, done: accounts.some((a) => !!a.balance), href: "/settings?s=methods", action: "Add" },
     { id: "people", title: "Friends & Family", hint: "People you split with", icon: UserPlus, done: others.length > 0, href: "/settings?s=sharing", action: "Add" },
     { id: "groups", title: "Payment groups", hint: "Spending by person", icon: LayoutGrid, done: groups.filter((g) => g.kind === "people").length > 0, href: "/settings?s=groups", action: "Add" },
-    { id: "categories", title: "Categories", hint: "Rename or add your own", icon: Tags, done: false, href: "/categories", action: "Open" },
+    { id: "categories", title: "Categories", hint: "Rename or add your own", icon: Tags, done: false, href: "/settings?s=categories", action: "Open" },
     { id: "bills", title: "Card bills", hint: "Totals and due dates", icon: CalendarClock, done: cardBills.length > 0, href: "/cards", action: "Add" },
     { id: "recurring", title: "Recurring bills", hint: "Rent, EMIs, subscriptions", icon: Repeat, done: recurringItems.length > 0, href: "/recurring", action: "Add" },
     { id: "spending", title: "First transaction", hint: "Add one or import a statement", icon: Upload, done: records.length + staged.length > 0, href: "/import", action: "Import", essential: true },
