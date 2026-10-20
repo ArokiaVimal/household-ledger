@@ -6,7 +6,6 @@ import { Amount, MerchantAvatar, TxnBadges, TxnCard } from "@/components/txn-row
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { NotesAi } from "./notes-ai";
 import { UnverifiedQueue } from "./unverified-queue";
-import { ProgressBar } from "@/components/progress";
 import { verifyProgress } from "@/domain/progress";
 import { Badge, Button, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
@@ -136,16 +135,24 @@ function TransactionsView() {
       </Select>
     </>
   );
-  const filterCount = ["category", "kind", "account"].filter((k) => get(k)).length;
+  const filterCount = ["category", "kind", "account", "view"].filter((k) => get(k)).length;
 
   return (
     <>
       <PageHeader tip="Every transaction, including imported ones you have not verified yet. Verifying one confirms it and teaches the app." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
-      {progress.total > 0 && <ProgressBar {...progress} />}
-      <div role="tablist" aria-label="Verified or not" className="mb-3 flex gap-1 rounded-full bg-surface p-1">
-        {([["", "All"], ["verified", "Verified"], ["unverified", `Unverified${staged.length ? ` · ${staged.length}` : ""}`]] as const).map(([id, label]) => (
-          <button key={id} role="tab" aria-selected={v === id} onClick={() => set("v", id)} className={cn("min-h-9 flex-1 rounded-full px-3 text-sm", v === id ? "bg-foreground font-medium text-white" : "text-muted hover:bg-background")}>{label}</button>
-        ))}
+      {/* Verified or not, with how far along you are, in one tidy block. */}
+      <div className="mb-2 rounded-2xl bg-surface p-1">
+        <div role="tablist" aria-label="Verified or not" className="flex gap-1">
+          {([["", "All"], ["verified", "Verified"], ["unverified", `Unverified${staged.length ? ` · ${staged.length}` : ""}`]] as const).map(([id, label]) => (
+            <button key={id} role="tab" aria-selected={v === id} onClick={() => set("v", id)} className={cn("min-h-9 flex-1 rounded-full px-3 text-sm", v === id ? "bg-foreground font-medium text-white" : "text-muted hover:bg-background")}>{label}</button>
+          ))}
+        </div>
+        {progress.total > 0 && (
+          <div role="progressbar" aria-valuenow={progress.pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${progress.verified} of ${progress.total} verified`} className="flex items-center gap-2 px-3 pb-1.5 pt-2">
+            <div className="h-1 flex-1 overflow-hidden rounded-full bg-border"><div className={cn("h-full rounded-full transition-[width] duration-500", progress.pct === 100 ? "bg-good" : "bg-accent")} style={{ width: `${progress.pct}%` }} /></div>
+            <span className="num shrink-0 text-[11px] text-muted">{progress.verified}/{progress.total} verified</span>
+          </div>
+        )}
       </div>
       {v === "unverified" ? <UnverifiedQueue /> : <>
       {/* Phone: search plus one Filters button. From tablet width the three selects sit in the row. */}
@@ -157,8 +164,13 @@ function TransactionsView() {
         </button>
       </div>
       <Dialog open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
-        <div className="space-y-3 pb-3">{filterFields}</div>
-        <div className="sticky bottom-0 -mx-4 flex justify-between gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => { for (const k of ["category", "kind", "account"]) set(k, ""); }}>Reset</Button><Button variant="primary" onClick={() => setFiltersOpen(false)}>Show {rows.length}</Button></div>
+        <div className="space-y-3 pb-3">
+          {filterFields}
+          <Select aria-label="Group by" value={view} onChange={(e) => set("view", e.target.value === "all" ? "" : e.target.value)}>
+            {VIEWS.map((x) => <option key={x.id} value={x.id}>{x.id === "all" ? "No grouping" : `Group by ${x.label.toLowerCase()}`}</option>)}
+          </Select>
+        </div>
+        <div className="sticky bottom-0 -mx-4 flex justify-between gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => { const p = new URLSearchParams(params.toString()); for (const k of ["category", "kind", "account", "view"]) p.delete(k); router.replace(`/transactions?${p.toString()}`); }}>Reset</Button><Button variant="primary" onClick={() => setFiltersOpen(false)}>Show {rows.length}</Button></div>
       </Dialog>
       <div className="mb-3 hidden gap-2 md:grid md:grid-cols-6">
         <Input className="col-span-2" placeholder="Search merchant, description, notes" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
@@ -170,7 +182,7 @@ function TransactionsView() {
           <button className="text-muted underline" onClick={() => router.replace(`/transactions${get("month") ? `?month=${get("month")}` : ""}`)}>Clear filters</button>
         </div>
       )}
-      <div role="tablist" aria-label="Group transactions" className="mb-3 flex gap-1 overflow-x-auto rounded-full bg-surface p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div role="tablist" aria-label="Group transactions" className="mb-3 hidden gap-1 md:flex overflow-x-auto rounded-full bg-surface p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {VIEWS.map((v) => (
           <button key={v.id} role="tab" aria-selected={view === v.id} onClick={() => set("view", v.id === "all" ? "" : v.id)}
             className={cn("shrink-0 rounded-full px-3 py-1.5 text-[13px] md:px-3.5 md:text-sm", view === v.id ? "bg-foreground text-white" : "text-muted hover:bg-background")}>{v.label}</button>
