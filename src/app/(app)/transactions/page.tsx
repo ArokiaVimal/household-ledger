@@ -165,7 +165,7 @@ function TransactionsView() {
             </button>
           ))}
         </div>
-        {progress.total > 0 && <ProgressRing pct={progress.pct} size={44} label={`${progress.verified} of ${progress.total} verified (${progress.pct}%)`} />}
+        {progress.total > 0 && <ProgressRing pct={progress.pct} size={44} label={`${progress.verified} of ${progress.total} verified in ${get("month") || month} (${progress.pct}%)`} />}
       </div>
       {v === "unverified" ? <UnverifiedQueue /> : <>
       {/* Phone: search plus one Filters button. From tablet width the three selects sit in the row. */}

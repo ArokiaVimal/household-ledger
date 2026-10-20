@@ -164,7 +164,7 @@ export default function Dashboard() {
       {progress.total > 0 && (
         <Link href={progress.left > 0 ? "/transactions?v=unverified" : "/transactions?v=verified"} className="flex min-h-14 items-center gap-3 rounded-[var(--radius-card)] bg-surface px-4 py-2 transition-shadow hover:shadow-md">
           <ProgressRing pct={progress.pct} />
-          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{progress.left === 0 ? "All verified" : `${progress.left} left to verify`}</span><span className="block truncate text-xs text-muted">{progress.verified} of {progress.total} transactions in {new Date(`${month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" })}</span></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{progress.left === 0 ? "All verified" : `${progress.left} left to verify`}</span><span className="block truncate text-xs text-muted">{progress.verified} of {progress.total} in {new Date(`${month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" })}{staged.length > progress.left ? ` · ${staged.length} unverified in all months` : ""}</span></span>
           <ChevronRight size={18} aria-hidden className="shrink-0 text-muted" />
         </Link>
       )}
