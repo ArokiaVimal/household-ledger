@@ -6,6 +6,7 @@ import { Amount, MerchantAvatar, TxnBadges } from "@/components/txn-row";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { NotesAi } from "./notes-ai";
 import { UnverifiedQueue } from "./unverified-queue";
+import { VoucherSection, type VoucherGroup } from "./voucher-section";
 import { ProgressRing } from "@/components/progress";
 import { verifyProgress } from "@/domain/progress";
 import { Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
@@ -13,7 +14,7 @@ import { CompactRow, StatusMark } from "@/components/txn-compact";
 import { HScroll } from "@/components/hscroll";
 import { CategoryGlyph } from "@/components/glyphs";
 import { useStore } from "@/data/store";
-import { rootOf, shortName } from "@/domain/accounts";
+import { rootOf, shortName, walletBrandFor } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
 import { summarize } from "@/domain/reports";
 import { summarizeGroup } from "@/domain/groups";
@@ -151,11 +152,28 @@ function TransactionsView() {
   }, [groupRecords, month, params]);
 
   const [deleting, setDeleting] = useState<ExpenseRecord | null>(null);
+  // With a card chosen, what was paid with its vouchers (Amazon Pay and so on) moves under the card's own charges, grouped by voucher.
+  const { mainRows, voucherGroups } = useMemo(() => {
+    if (!get("account") || (get("view") || "all") !== "all" || get("paidWith") || get("voucher")) return { mainRows: rows, voucherGroups: [] as VoucherGroup[] };
+    const brandOf = (r: ExpenseRecord) => r.paidWithVoucherId ?? walletBrandFor(accounts.find((a) => a.id === r.accountId), voucherBrands)?.id;
+    const groups = new Map<string, VoucherGroup>();
+    const main: ExpenseRecord[] = [];
+    for (const r of rows) {
+      const b = brandOf(r);
+      if (!b) { main.push(r); continue; }
+      const g = groups.get(b) ?? { id: b, name: voucherBrands.find((x) => x.id === b)?.name ?? "Voucher", loadedPaise: 0, spentPaise: 0, rows: [] };
+      g.rows.push(r);
+      if (r.kind === "transfer") g.loadedPaise += r.amountPaise; else if (r.kind === "purchase" || r.kind === "fee") g.spentPaise += r.amountPaise; else if (r.kind === "refund") g.spentPaise -= r.amountPaise;
+      groups.set(b, g);
+    }
+    return { mainRows: main, voucherGroups: [...groups.values()].sort((a, b) => b.spentPaise - a.spentPaise) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, params, accounts, voucherBrands]);
   const days = useMemo(() => {
     const m = new Map<string, { date: string; rows: ExpenseRecord[]; total: number }>();
-    for (const r of rows) { const d = m.get(r.date) ?? { date: r.date, rows: [], total: 0 }; d.rows.push(r); d.total += attributionOf(r)?.allocatedPaise ?? 0; m.set(r.date, d); }
+    for (const r of mainRows) { const d = m.get(r.date) ?? { date: r.date, rows: [], total: 0 }; d.rows.push(r); d.total += attributionOf(r)?.allocatedPaise ?? 0; m.set(r.date, d); }
     return [...m.values()];
-  }, [rows, attributionOf]);
+  }, [mainRows, attributionOf]);
   const dayLabel = (iso: string) => {
     const diff = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${iso}T00:00:00Z`)) / 86_400_000);
     if (diff === 0) return "Today";
@@ -260,7 +278,7 @@ function TransactionsView() {
                 <tr><th className="p-2.5">Date</th><th>Merchant</th><th>Category</th><th>Paid by</th><th>Account</th><th className="text-right">Amount</th><th className="pr-2.5 text-right">My share</th></tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {mainRows.map((r) => (
                   <tr key={r.id} onClick={() => setEditing(r)} className="cursor-pointer border-b border-border last:border-0 hover:bg-background">
                     <td className="num p-2.5 text-muted">{r.date.slice(5)}</td>
                     <td><div className="flex items-center gap-2.5 py-1.5"><MerchantAvatar name={r.merchant} size={32} /><div><div className="flex items-center gap-1.5 font-medium">{r.merchant}<StatusMark r={r} /></div><div className="mt-0.5 flex flex-wrap gap-1 empty:hidden"><TxnBadges r={r} quiet hideStatus /></div></div></div></td>
@@ -277,6 +295,7 @@ function TransactionsView() {
             <span className="text-muted">My share</span><b>{formatINR(total.my)}</b>
             {total.onBehalf !== 0 && <><span className="text-muted">Paid for others</span><b>{formatINR(total.onBehalf)}</b></>}
           </div>
+          <VoucherSection groups={voucherGroups} onOpen={setEditing} onVerify={(r) => approveStaged(r.id)} onDelete={setDeleting} />
         </>
       )}
       </>}

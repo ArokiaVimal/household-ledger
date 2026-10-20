@@ -447,3 +447,6 @@ The "default card" pickers are gone. An email or text that names no card is save
 
 ## Wallet spends are paid with the wallet's voucher (2026-10-21)
 A purchase or fee under a voucher wallet account (Amazon Pay) now gets `paidWithVoucherId` automatically: at import (statement, pasted text, Gmail, SMS), on verify (server and screen), and through the one-time repair action `records.fixWallets`. These never count again in spending; the Shopwise voucher purchase on the card is the outflow. Found by cross-checking the Amex statements: 32 unmarked Amazon Pay rows counted ₹11,291.25 twice in September.
+
+## Transactions: voucher payments grouped under the card (2026-10-21)
+Filtering Transactions by a card that has voucher wallets (Amex → Amazon Pay) now lists the card's own charges, including the Shopwise voucher purchases, and puts payments made with the voucher in a collapsible "Paid with vouchers" group per brand below (count, amount added, amount spent; they never count again). Rows: `voucher-section.tsx`; grouping in the Transactions page.
