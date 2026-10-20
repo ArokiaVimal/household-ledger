@@ -1,9 +1,10 @@
 "use client";
-import { ArrowDownLeft, ArrowUpRight, Handshake, BarChart3, CalendarClock, Check, ChevronRight, ClipboardCheck, CreditCard, Landmark, Repeat, Smartphone, Sparkles, TrendingDown, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Handshake, BarChart3, CalendarClock, Check, ChevronRight, CreditCard, Landmark, Repeat, Smartphone, Sparkles, TrendingDown, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { DonutChart, TrendChart } from "@/components/charts";
+import { ProgressRing } from "@/components/progress";
+import { verifyProgress } from "@/domain/progress";
 import { Onboarding, SetupCard, setDeviceFlag, useDeviceFlag } from "@/components/onboarding";
 import { MerchantAvatar, TxnBadges, Amount } from "@/components/txn-row";
 import { CategoryGlyph, PersonGlyph } from "@/components/glyphs";
@@ -108,16 +109,6 @@ function Pill({ tone, children }: { tone: "good" | "bad"; children: ReactNode })
 }
 
 /** Shown once after the first review is finished (the review page links here with ?reviewed=1). */
-function ReviewedNotice() {
-  if (!useSearchParams().get("reviewed")) return null;
-  return (
-    <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-good-soft px-4 py-3 text-sm text-good">
-      <span className="min-w-0 flex-1"><b>All caught up.</b> Everything you approved now counts, and this is your dashboard.</span>
-      <Link href="/" className="shrink-0 rounded-full bg-good px-3.5 py-1.5 text-xs font-medium text-white">Dismiss</Link>
-    </div>
-  );
-}
-
 const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet, wallet: Wallet } as const;
 
 export default function Dashboard() {
@@ -143,6 +134,7 @@ export default function Dashboard() {
   // The headline figures. Outflow is every record of the month on screen (all groups): transfers, card-bill payments and
   // excluded rows are not spending, and refunds subtract. My share follows the group lens and the existing split allocations.
   const outflow = useMemo(() => summarize(monthRecords, meId).net, [monthRecords, meId]);
+  const progress = useMemo(() => verifyProgress(shown, month), [shown, month]);
   const attention = useMemo(() => needsAttention({ waiting: staged.length, bills: dueBills, recurring: recurring.filter((r) => r.item.direction !== "in"), uncategorized: monthRecords.filter((r) => r.categoryId === "uncategorized" && !r.voucherBrandId && r.status === "reviewed").length, suggestions: recurringSuggestions.length }), [staged.length, dueBills, recurring, monthRecords, recurringSuggestions.length]);
   // Checklists: every card with a bill (unpaid and soonest first), and this month's recurring payments (money going out, billed this month).
   const billRows = useMemo(() => cardViews(accounts, cardBills, records, today).flatMap((v) => (v.current ? [v.current] : [])).sort((a, b) => (a.state === "paid" ? 1 : 0) - (b.state === "paid" ? 1 : 0) || a.bill.dueDate.localeCompare(b.bill.dueDate)), [accounts, cardBills, records, today]);
@@ -168,13 +160,12 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-3 md:space-y-4">
-      <Suspense fallback={null}><ReviewedNotice /></Suspense>
       {live && householdReady && <SetupCard />}
-      {staged.length > 0 && (
-        <Link href="/review" className="flex min-h-12 items-center gap-3 rounded-[var(--radius-card)] bg-gradient-to-r from-accent to-violet-500 px-4 py-2.5 text-white shadow-lg shadow-accent/25 transition-transform active:scale-[0.99]">
-          <ClipboardCheck size={20} aria-hidden />
-          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Review now</span><span className="block truncate text-xs text-white/80">{staged.length} transaction{staged.length === 1 ? "" : "s"} waiting. Nothing counts until you approve it.</span></span>
-          <ChevronRight size={18} aria-hidden />
+      {progress.total > 0 && (
+        <Link href={progress.left > 0 ? "/transactions?v=unverified" : "/transactions?v=verified"} className="flex min-h-14 items-center gap-3 rounded-[var(--radius-card)] bg-surface px-4 py-2 transition-shadow hover:shadow-md">
+          <ProgressRing pct={progress.pct} />
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{progress.left === 0 ? "All verified" : `${progress.left} left to verify`}</span><span className="block truncate text-xs text-muted">{progress.verified} of {progress.total} transactions in {new Date(`${month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" })}</span></span>
+          <ChevronRight size={18} aria-hidden className="shrink-0 text-muted" />
         </Link>
       )}
 

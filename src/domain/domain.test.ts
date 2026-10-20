@@ -106,6 +106,17 @@ describe("duplicates and receipt matching", () => {
   it("same date+amount+merchant is only possible", () => {
     expect(detectDuplicate({ accountId: "a1", date: "2026-09-05", amountPaise: 45000, merchant: "SWIGGY" }, existing).status).toBe("possible");
   });
+  it("an activity export and a later statement can date a purchase a few days apart, even across a month end", () => {
+    const earlier = [rec({ id: "m", date: "2026-09-30", merchant: "Swiggy", amountPaise: 45000 })];
+    expect(detectDuplicate({ accountId: "a1", date: "2026-10-02", amountPaise: 45000, merchant: "SWIGGY" }, earlier).status).toBe("possible");
+    expect(detectDuplicate({ accountId: "a1", date: "2026-10-05", amountPaise: 45000, merchant: "SWIGGY" }, earlier).status).toBe("none");
+  });
+  it("two identical lines in one file are matched on the same date only", () => {
+    const planned = planImport([
+      { accountId: "a1", date: "2026-09-10", amountPaise: 100, merchant: "Cafe" }, { accountId: "a1", date: "2026-09-11", amountPaise: 100, merchant: "Cafe" },
+    ], []);
+    expect(planned.map((p) => p.dup.status)).toEqual(["none", "none"]);
+  });
   it("a refund of a purchase (same merchant, date, amount) is not a duplicate of it, in either order", () => {
     const purchase = [rec({ id: "p", merchant: "Shop", amountPaise: 999, kind: "purchase" })];
     expect(detectDuplicate({ accountId: "a1", date: "2026-09-05", amountPaise: 999, merchant: "Shop", direction: "credit" }, purchase).status).toBe("none");

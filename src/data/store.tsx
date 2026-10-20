@@ -317,8 +317,9 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
 
   // Until the first approval nothing is "in" the ledger, so the screens would be empty right after an import. In that
   // one situation they show the waiting rows as a clearly labelled preview (see the banner in the app shell).
-  const previewing = !!live && records.length === 0 && staged.length > 0;
-  const shown = previewing ? staged : records;
+  // Unverified rows (imported or captured, not yet confirmed) count in the totals too; verifying one only confirms it and teaches the app.
+  const previewing = false;
+  const shown = useMemo(() => [...records, ...staged], [records, staged]);
   // Live with a partner: shared expenses (both people's) as ledger rows. Mine = my own records plus my share of what my
   // partner paid; Together = only what is shared. My own shared expenses appear once, from my records.
   const sharedRecords = useMemo(() => shared.map(sharedToRecord), [shared]);

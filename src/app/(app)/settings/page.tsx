@@ -197,10 +197,10 @@ export default function Settings() {
         </Section>
 
         {live && (
-          <Section id="ai" icon={<Sparkles size={20} aria-hidden />} title="Smart import" tagline="Import and sort faster. You approve everything.">
+          <Section id="ai" icon={<Sparkles size={20} aria-hidden />} title="Smart import" tagline="Import and sort faster. You verify everything.">
             <AiFeatureCard enabled={aiEnabled} title="AI assistant">
               <p>{aiEnabled
-                ? "AI is on. Claude names merchants, picks categories and reads statements and notes. It learns from what you approve."
+                ? "AI is on. Claude names merchants, picks categories and reads statements and notes. It learns from what you verify."
                 : "AI is off. Everything else still works. Turn it on to read statements and notes with Claude."}</p>
               <p className="text-xs">{aiEnabled
                 ? "Claude sees only text you send, after you click an AI button. Account numbers, emails and phone numbers are hidden first."

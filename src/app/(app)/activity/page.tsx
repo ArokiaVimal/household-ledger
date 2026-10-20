@@ -77,7 +77,7 @@ export default function Activity() {
               <li key={b.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1 basis-48">
                   <div className="truncate text-sm font-medium">{b.filename}</div>
-                  <div className="text-xs text-muted">{when(b.uploadedAt)} · {b.rows} rows · {b.approved} approved · {b.waiting} waiting</div>
+                  <div className="text-xs text-muted">{when(b.uploadedAt)} · {b.rows} rows · {b.approved} verified · {b.waiting} unverified</div>
                 </div>
                 {b.rolledBackAt ? <Badge>Rolled back {when(b.rolledBackAt)}</Badge> : <Button variant="danger" disabled={busy} onClick={() => setRolling(b)}>Roll back…</Button>}
               </li>

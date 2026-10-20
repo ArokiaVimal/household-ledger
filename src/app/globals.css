@@ -63,3 +63,10 @@ img, svg, video, canvas { max-width: 100%; }
 @media (pointer: coarse) { input, select, textarea { font-size: max(16px, 1em); } }
 
 .num { font-variant-numeric: tabular-nums; }
+
+/* Moving to the next or previous transaction slides the form in from that side. */
+@keyframes pf-slide-next { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes pf-slide-prev { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+.pf-slide-next { animation: pf-slide-next 180ms ease-out; }
+.pf-slide-prev { animation: pf-slide-prev 180ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .pf-slide-next, .pf-slide-prev { animation: none; } }

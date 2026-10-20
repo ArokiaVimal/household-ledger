@@ -27,7 +27,7 @@ export default function Timeline() {
 
   return (
     <>
-      <PageHeader title="Timeline" tip="Your month in order. Estimates use only approved transactions and items you added. Nothing is guessed." sub={`${monthLabel(month)} · ${live ? "your real entries" : "sample data"}`} />
+      <PageHeader title="Timeline" tip="Your month in order. Estimates use only verified transactions and items you added. Nothing is guessed." sub={`${monthLabel(month)} · ${live ? "your real entries" : "sample data"}`} />
 
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
         <Card className="col-span-2 px-3.5 py-3 sm:col-span-1 sm:p-4">
@@ -69,7 +69,7 @@ export default function Timeline() {
         <Chip label="Still expected in" value={money(t.totals.expectedIn)} dashed /><Chip label="Still expected out" value={money(-t.totals.expectedOut)} dashed />
       </div>
 
-      {groups.length === 0 ? <Card><EmptyState title="Nothing on the timeline" hint="Approve transactions or add a bill to fill this in." /></Card> : (
+      {groups.length === 0 ? <Card><EmptyState title="Nothing on the timeline" hint="Verify transactions or add a bill to fill this in." /></Card> : (
         <Card className="p-0">
           <CardTitle>{" "}</CardTitle>
           <ol className="relative divide-y divide-border">

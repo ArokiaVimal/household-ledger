@@ -1,18 +1,14 @@
 "use client";
 import { ClipboardCheck, Search, Sparkles, Trash2, X } from "lucide-react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MerchantAvatar, Amount } from "@/components/txn-row";
-import { TxnReviewDialog } from "@/components/txn-edit-dialog";
-import { AiBadge, AiFeatureCard, Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
+import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
+import { AiBadge, AiFeatureCard, Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import type { ExpenseRecord } from "@/domain/types";
 import { needsVoucherBrand } from "@/domain/vouchers";
-
-/** Set the first time the owner clears the review queue, so the jump to the dashboard happens only once on this device. */
-const FIRST_REVIEW_KEY = "pf:first-review-done";
 
 type Quick = "all" | "dups" | "nocat" | "aicheck" | "remembered" | "voucher" | "monthly" | "shared";
 const QUICK: { id: Quick; label: string; test: (r: ExpenseRecord) => boolean }[] = [
@@ -27,11 +23,10 @@ const QUICK: { id: Quick; label: string; test: (r: ExpenseRecord) => boolean }[]
 ];
 const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en", { month: "short", year: "numeric", timeZone: "UTC" });
 
-export default function Review() {
-  return <Suspense fallback={null}><ReviewQueue /></Suspense>;
-}
+const QUEUE = "/transactions?v=unverified";
 
-function ReviewQueue() {
+/** Imported and captured rows that are not verified yet. They count in your totals; verifying one teaches the app. */
+export function UnverifiedQueue() {
   const router = useRouter();
   const params = useSearchParams();
   const imported = Number(params.get("imported") || 0);
@@ -39,13 +34,12 @@ function ReviewQueue() {
   const months = (params.get("months") ?? "").split(",").filter((m) => /^\d{4}-\d{2}$/.test(m)).map((m) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en", { month: "short", year: "numeric", timeZone: "UTC" }));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const { live, aiEnabled, records, staged, nameOf, categoryName, accountName, approveStaged, deleteRecords } = useStore();
-  const [open, setOpen] = useState<ExpenseRecord | null>(null);
+  const { live, aiEnabled, staged, nameOf, categoryName, accountName, approveStaged, deleteRecords } = useStore();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState(false);
   const [deleting, setDeleting] = useState<ExpenseRecord[] | null>(null);
 
-  // Search and filters narrow what you see and what "Start reviewing", "Select all" and the bulk actions work on.
+  // Search and filters narrow what you see and what "Start verifying", "Select all" and the bulk actions work on.
   const [q, setQ] = useState("");
   const [acct, setAcct] = useState("");
   const [cat, setCat] = useState("");
@@ -63,8 +57,7 @@ function ReviewQueue() {
   const clearFilters = () => { setQ(""); setAcct(""); setCat(""); setMon(""); setQuick("all"); setPicked(new Set()); };
   const narrow = (set: () => void) => { set(); setPicked(new Set()); };
 
-  const pending = shown.filter((r) => r.id !== open?.id);
-  const next = open ? { remaining: pending.length, open: () => setOpen(pending[0] ?? null) } : undefined;
+  const view = useRecordNav(shown);
   const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const chosen = shown.filter((r) => picked.has(r.id));
   // Rows the app is confident about: remembered from your own approvals, or Claude was sure. Possible duplicates always need you.
@@ -83,61 +76,45 @@ function ReviewQueue() {
   };
   const flagged = chosen.filter((r) => r.duplicateOf).length;
 
-  // The queue just went from "has rows" to empty. The first time this happens with something approved, show the dashboard.
-  const waiting = useRef(staged.length);
-  useEffect(() => {
-    const was = waiting.current;
-    waiting.current = staged.length;
-    if (was === 0 || staged.length > 0) return;
-    let done = false;
-    try { done = localStorage.getItem(FIRST_REVIEW_KEY) === "1"; } catch { /* storage unavailable: treat as not done */ }
-    if (!done && records.length > 0) {
-      try { localStorage.setItem(FIRST_REVIEW_KEY, "1"); } catch { /* ignore */ }
-      router.push("/?reviewed=1");
-    } else if (imported > 0) router.replace("/review"); // the confirmation has done its job
-  }, [staged.length, records.length, imported, router]);
-
   // Right after an import the rows are still arriving from the server; do not flash "nothing waiting". Give up after a few seconds.
   const arriving = imported > 0 && staged.length === 0;
   useEffect(() => {
     if (!arriving) return;
-    const t = setTimeout(() => router.replace("/review"), 8000);
+    const t = setTimeout(() => router.replace(QUEUE), 8000);
     return () => clearTimeout(t);
   }, [arriving, router]);
 
   return (
     <>
-      <PageHeader tip="Imported rows wait here. Only approved rows count in your totals." title="Review queue" sub="Approve rows to add them to your totals."
-        actions={<Link href="/import" className="rounded-full border border-border bg-surface px-3 py-2 text-sm">Import</Link>} />
       {imported > 0 && staged.length > 0 && (
         <div role="status" className="mb-3 rounded-2xl bg-good-soft p-3 text-sm text-good">
-          <b>{imported}</b> transaction{imported === 1 ? "" : "s"} imported{months.length > 0 ? ` for ${months.join(" and ")}` : ""}{skipped > 0 ? `, ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}. Each one counts in the month it was paid, once you approve it. Check each one and approve it. Once you approve the last one you will land on your dashboard.
+          <b>{imported}</b> transaction{imported === 1 ? "" : "s"} imported{months.length > 0 ? ` for ${months.join(" and ")}` : ""}{skipped > 0 ? `, ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}. They already count in the month they were paid. Verify each one to confirm it and teach the app.
         </div>
       )}
       {arriving ? (
         <p role="status" className="rounded-[var(--radius-card)] bg-surface p-6 text-sm text-muted">Loading your {imported} imported transaction{imported === 1 ? "" : "s"}…</p>
       ) : staged.length === 0 ? (
-        <EmptyState title="Nothing waiting for review" hint="Imported statements will appear here before they are added." />
+        <EmptyState title="Everything is verified" hint="New imports will show up here." />
       ) : (
         <>
           {live && (
             <AiFeatureCard enabled={aiEnabled} title="AI-powered review assist" className="mb-3 hidden sm:block">
-              <p>{aiEnabled ? "AI rows were categorized by Claude. Remembered rows match what you approved before. Approve the sure ones together and fix the rest." : "AI is off. Rows are filled from what you approved before."}</p>
+              <p>{aiEnabled ? "AI rows were categorized by Claude. Remembered rows match what you verified before. Verify the sure ones together and fix the rest." : "AI is off. Rows are filled from what you verified before."}</p>
             </AiFeatureCard>
           )}
           <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-0.5 sm:mb-3 sm:flex-wrap [&>*]:shrink-0">
-            <Badge tone="warn">{filtered ? `${shown.length} of ${staged.length} shown` : `${staged.length} awaiting review`}</Badge>
-            <Button onClick={() => shown[0] && setOpen(shown[0])} variant="primary" disabled={shown.length === 0}><ClipboardCheck size={16} aria-hidden />Start reviewing</Button>
+            {filtered && <Badge tone="warn">{`${shown.length} of ${staged.length} shown`}</Badge>}
+            <Button onClick={() => shown[0] && view.open(shown[0])} variant="primary" disabled={shown.length === 0}><ClipboardCheck size={16} aria-hidden />Start verifying</Button>
             <Button disabled={shown.length === 0} onClick={() => setPicked(picked.size === shown.length ? new Set() : new Set(shown.map((r) => r.id)))}>{picked.size === shown.length && shown.length > 0 ? "Clear selection" : filtered ? `Select these ${shown.length}` : "Select all"}</Button>
             {live && fillable > 0 && <Button onClick={fillWithAi} disabled={busy}><Sparkles size={15} aria-hidden />{busy ? "Asking AI…" : `Fill in ${fillable} with AI`}<AiBadge>AI</AiBadge></Button>}
             {confident.length > 0 && <Button onClick={() => setPicked(new Set(confident.map((r) => r.id)))}><Sparkles size={15} aria-hidden />Select {confident.length} confident ones</Button>}
-            {picked.size > 0 && <Button onClick={() => setConfirm(true)}>Approve {picked.size} as they are…</Button>}
+            {picked.size > 0 && <Button onClick={() => setConfirm(true)}>Verify {picked.size} as they are…</Button>}
             {picked.size > 0 && <Button variant="danger" onClick={() => setDeleting(chosen)}><Trash2 size={15} aria-hidden />Delete {picked.size}…</Button>}
           </div>
-          <div className="mb-2 space-y-2 sm:mb-3" role="search" aria-label="Search and filter the review queue">
+          <div className="mb-2 space-y-2 sm:mb-3" role="search" aria-label="Search and filter unverified transactions">
             <div className="relative">
               <Search size={16} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-              <Input aria-label="Search the review queue" placeholder="Search merchant, text or amount" value={q} onChange={(e) => narrow(() => setQ(e.target.value))} className="pl-10 pr-10" />
+              <Input aria-label="Search unverified transactions" placeholder="Search merchant, text or amount" value={q} onChange={(e) => narrow(() => setQ(e.target.value))} className="pl-10 pr-10" />
               {q && <button type="button" aria-label="Clear search" onClick={() => narrow(() => setQ(""))} className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-muted hover:bg-background"><X size={14} aria-hidden /></button>}
             </div>
             <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
@@ -159,7 +136,7 @@ function ReviewQueue() {
             {shown.map((r) => (
               <li key={r.id} className="flex items-center gap-3 rounded-[var(--radius-card)] bg-surface p-3">
                 <input type="checkbox" aria-label={`Select ${r.merchant}`} checked={picked.has(r.id)} onChange={() => toggle(r.id)} className="size-4 accent-[var(--accent)]" />
-                <button onClick={() => setOpen(r)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                <button onClick={() => view.open(r)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
                   <MerchantAvatar name={r.merchant} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{r.merchant}</div>
@@ -184,15 +161,15 @@ function ReviewQueue() {
       )}
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} title={deleting && deleting.length > 1 ? `Delete ${deleting.length} transactions?` : "Delete this transaction?"}
         onConfirm={() => { if (deleting) { deleteRecords(deleting.map((r) => r.id)); setPicked(new Set()); } }}>
-        {deleting && deleting.length === 1 ? <p><strong>{deleting[0].merchant}</strong> · {deleting[0].date}</p> : <p>The {deleting?.length} selected rows will be removed from the review queue.</p>}
-        <p className="text-muted">Nothing was added to your reports. Original lines stay in import history. This can&apos;t be undone.</p>
+        {deleting && deleting.length === 1 ? <p><strong>{deleting[0].merchant}</strong> · {deleting[0].date}</p> : <p>The {deleting?.length} selected rows will be deleted.</p>}
+        <p className="text-muted">They stop counting in your totals. Original lines stay in import history. This can&apos;t be undone.</p>
       </ConfirmDialog>
-      <TxnReviewDialog record={open} onClose={() => setOpen(null)} next={next} />
-      <Dialog open={confirm} onClose={() => setConfirm(false)} title={`Approve ${picked.size} transactions?`}>
-        <p className="text-sm">They will be added to the ledger with the categories and splits shown, and marked Reviewed.{flagged > 0 && ` ${flagged} of them are flagged as possible duplicates.`}</p>
+      <TxnEditDialog record={view.record} onClose={view.close} nav={view.nav} />
+      <Dialog open={confirm} onClose={() => setConfirm(false)} title={`Verify ${picked.size} transactions?`}>
+        <p className="text-sm">They will be marked Verified with the categories and splits shown, and the app learns from them.{flagged > 0 && ` ${flagged} of them are flagged as possible duplicates.`}</p>
         <div className="sticky bottom-0 -mx-4 mt-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3">
           <Button onClick={() => setConfirm(false)}>Cancel</Button>
-          <Button variant="primary" onClick={() => { chosen.forEach((r) => approveStaged(r.id)); setPicked(new Set()); setConfirm(false); }}>Approve {picked.size}</Button>
+          <Button variant="primary" onClick={() => { chosen.forEach((r) => approveStaged(r.id)); setPicked(new Set()); setConfirm(false); }}>Verify {picked.size}</Button>
         </div>
       </Dialog>
     </>

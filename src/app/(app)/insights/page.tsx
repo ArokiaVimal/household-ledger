@@ -81,7 +81,7 @@ export default function Insights() {
           <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-accent text-white"><Sparkles size={20} /></span>
           <div className="min-w-0">
             <h2 className="font-semibold">{monthName(month)}</h2>
-            <p className="text-sm text-muted">{count > 0 ? `${count} approved transaction${count === 1 ? "" : "s"} this month.` : "No approved transactions this month yet."}</p>
+            <p className="text-sm text-muted">{count > 0 ? `${count} transaction${count === 1 ? "" : "s"} this month.` : "No transactions this month yet."}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -144,7 +144,7 @@ export default function Insights() {
       <section id="tools" aria-labelledby="tools-h" className="mt-8 space-y-3">
         <div>
           <h2 id="tools-h" className="text-lg font-semibold tracking-tight">All AI tools</h2>
-          <p className="text-sm text-muted">Every AI feature in one place. Each runs only when you click, and nothing counts until you approve it.</p>
+          <p className="text-sm text-muted">Every AI feature in one place. Each runs only when you click, and you verify what it finds.</p>
         </div>
         <ul className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-2">
           <li><AiTool icon={Sparkles} title="Read notes with AI" where="Also on Transactions" blurb="Reads the notes you wrote on payments and suggests the category each one really belongs to. You pick which suggestions to apply."><NotesAi /></AiTool></li>
@@ -152,7 +152,7 @@ export default function Insights() {
           <li><AiTool icon={FileUp} title="Read statements and describe payments" where="Also on Import" blurb="Reads a bank, card or UPI statement the app has not seen before, or turns a sentence like “paid 450 at Swiggy” into a transaction. It senses the payment method, EMIs and recurring payments, and the card bill due amount and date."><Link href="/import" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Import</Link></AiTool></li>
           <li><AiTool icon={FileUp} title="Read a screenshot" where="Also on Import" blurb="Reads orders or payments from a screenshot, such as a Shopwise order list. Failed orders are skipped, matches are tagged on the card transaction you already have, and new ones go to review."><Link href="/import" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Import</Link></AiTool></li>
           <li><AiTool icon={FileUp} title="Scan a bill" where="Also on Add transaction" blurb="Reads a photo or PDF of a bill: the store, date, total and every item. The items become an item-wise split, with tax and fees shared in proportion."><Link href="/transactions" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Transactions</Link></AiTool></li>
-          <li><AiTool icon={ClipboardCheck} title="Name and sort merchants" where="Also in Review" blurb="Names merchants and suggests categories for imported rows, marked with an AI badge until you approve them. It remembers what you approve, so each month needs less review."><Link href="/review" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Review</Link></AiTool></li>
+          <li><AiTool icon={ClipboardCheck} title="Name and sort merchants" where="Also in Transactions" blurb="Names merchants and suggests categories for imported rows, marked with an AI badge until you approve them. It remembers what you approve, so each month needs less review."><Link href="/review" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Review</Link></AiTool></li>
         </ul>
         {off && <p className="px-1 text-xs text-muted">{off}</p>}
         <p className="px-1 text-xs text-muted">Privacy: only text you send leaves the app. Account numbers, emails and phone numbers are hidden first.<Link href="/settings?s=ai" className="text-accent underline">AI settings</Link></p>

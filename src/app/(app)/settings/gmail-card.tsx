@@ -56,7 +56,7 @@ export function GmailCard() {
   return (
     <Card className="space-y-4">
       <CardTitle action={<Badge tone={s?.connected && !s.needsReconnect ? "good" : "neutral"}>{s === null ? "…" : s.connected ? (s.needsReconnect ? "Reconnect" : "On") : "Off"}</Badge>}><span className="inline-flex items-center gap-2"><Mail size={16} aria-hidden className="text-accent" />Bank emails (Gmail)</span></CardTitle>
-      <p className="text-sm text-muted">Reads bank, card and UPI emails (read-only) into your review queue. You approve everything.</p>
+      <p className="text-sm text-muted">Reads bank, card and UPI emails (read-only) into Transactions as unverified. You verify them.</p>
 
       {s && !s.configured && (
         <p className="rounded-xl bg-warn-soft p-3 text-sm text-warn">Gmail isn&apos;t set up yet. The app owner needs to configure it once.<code>docs/GMAIL_SETUP.md</code>), and after that everyone can connect their own mailbox.</p>
@@ -78,7 +78,7 @@ export function GmailCard() {
       )}
       {msg && <p role={msg.ok ? "status" : "alert"} className={`text-sm ${msg.ok ? "text-good" : "text-danger"}`}>{msg.text}</p>}
       <ConfirmDialog open={off} onClose={() => setOff(false)} title="Disconnect Gmail?" confirmLabel="Disconnect" onConfirm={() => void disconnect()}>
-        <p>Stops reading your email and disconnects Google. Captured entries stay in review.</p>
+        <p>Stops reading your email and disconnects Google. Captured entries stay unverified.</p>
       </ConfirmDialog>
     </Card>
   );

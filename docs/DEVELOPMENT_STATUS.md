@@ -422,3 +422,12 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - **Owner setup (once):** keys are made with `node scripts/make-vapid.mjs you@example.com` (saved to `.env.local`, private key never printed). Add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` and `CRON_SECRET` in Vercel, then redeploy. Without them the Reminders card says it is not set up and nothing else changes.
 - Skipped on purpose: App Store packaging, Face ID lock (a passkey sign-in could come later), offline copies of data.
 
+## Verified and unverified (replaces the Review tab)
+- There is **no Review screen**. Imported and captured rows go straight into **Transactions** as **Unverified**; the tabs are **All, Verified, Unverified**. `/review` redirects to `/transactions?v=unverified`. Internally the status values are still `unreviewed` and `reviewed`.
+- **Unverified rows count in totals** (Home, Reports, Transactions: the store's `shown` is verified plus unverified). People balances, card-bill payments and recurring "paid" still follow verified rows only.
+- The **Unverified** tab ignores the month and group switches (they are hidden there), so nothing waiting is hidden. It keeps everything the old queue had: search and filters, Possible duplicates, Fill in with AI, select and verify many, delete.
+- **Verify teaches the app**: Save & verify (or verifying a batch) records the merchant, category, type, voucher seller and usual split for next time. Unverified rows teach nothing; saving without verifying keeps a row unverified.
+- Edit form for an unverified row has two buttons, **Save** and **Save & verify** (moves to the next one). Any transaction opened from a list has a "‹ previous · 3 of 12 · next ›" strip and swipes left or right to the neighbours (changes are kept when you move).
+- Progress: a ring on Home and a slim bar on Transactions show verified out of all transactions of the **month on screen**; the header icon with its count opens Unverified.
+- Duplicates: a line is flagged as possible when the same money trail has the same amount and a like merchant within **3 days**, in any month and any earlier upload (an activity export and the later statement can date a purchase a day or two apart). Lines inside one file still match on the same date only. The import preview has **Refresh with AI** to re-run categories before importing.
+

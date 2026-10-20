@@ -1,7 +1,7 @@
 "use client";
 import { ChevronLeft, ChevronRight, ClipboardCheck, FileUp, Lock, LockOpen, LogOut, MoreHorizontal, Plus, Search, Settings, UserRound } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useStore } from "@/data/store";
 import { cn } from "@/lib/cn";
@@ -86,13 +86,15 @@ function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
 export function AppShell({ children, user }: { children: ReactNode; user: { email: string } | null }) {
   const path = usePathname();
   const router = useRouter();
-  const { live, demo, previewing, staged, syncError, dismissSyncError, nameOf, meId } = useStore();
+  const { live, demo, staged, syncError, dismissSyncError, nameOf, meId } = useStore();
   // Solo use is complete on its own: settle-up and the Mine/Together switch appear once a partner is linked.
   // The month and group switches only appear on screens they change. Everywhere else they just push the content down.
   const monthScreens = ["/timeline", "/recurring", "/vouchers", "/insights"];
   const lensScreens = ["/", "/transactions", "/reports"];
-  const showGroup = lensScreens.some((h) => (h === "/" ? path === "/" : path.startsWith(h)));
-  const showMonth = showGroup || monthScreens.some((h) => path.startsWith(h));
+  // The Unverified list shows every month and group at once, so the switches would mislead there.
+  const unverifiedList = useSearchParams().get("v") === "unverified" && path.startsWith("/transactions");
+  const showGroup = !unverifiedList && lensScreens.some((h) => (h === "/" ? path === "/" : path.startsWith(h)));
+  const showMonth = !unverifiedList && (showGroup || monthScreens.some((h) => path.startsWith(h)));
   const visibleNav = NAV;
   const phoneBar = BAR_ORDER.flatMap((h) => visibleNav.filter((n) => n.href === h));
   const phoneMore = NAV.filter((n) => !n.bar);
@@ -155,7 +157,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 {showMonth && path !== "/" && <MonthStepper className="min-w-0 flex-1 md:hidden" />}
                 {showMonth && <MonthStepper className="hidden md:flex" />}
                 {showGroup && <GroupSwitch className="hidden max-w-lg md:flex" />}
-                <Link href="/review" aria-label={staged.length ? `Review, ${staged.length} waiting` : "Review"} title="Review" className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
+                <Link href="/transactions?v=unverified" aria-label={staged.length ? `${staged.length} unverified transactions` : "Unverified transactions"} title="Unverified" className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
                   <ClipboardCheck size={18} aria-hidden />
                   {staged.length > 0 && <span aria-hidden className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-semibold leading-5 text-white">{staged.length > 99 ? "99+" : staged.length}</span>}
                 </Link>
@@ -169,12 +171,6 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 </div>
               )}
             </header>
-            {previewing && (
-              <div role="status" className="mx-4 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-warn-soft px-4 py-2.5 text-sm text-warn md:mx-0">
-                <span className="min-w-0 flex-1"><b>Preview.</b> {staged.length} imported transaction{staged.length === 1 ? " is" : "s are"} waiting for your review. These numbers are provisional, and nothing counts until you approve it.</span>
-                <Link href="/review" className="shrink-0 rounded-full bg-warn px-3.5 py-1.5 text-xs font-medium text-white">Review now</Link>
-              </div>
-            )}
             <main className="px-4 pb-[calc(var(--sab)+9rem)] md:px-0 md:pb-4">{children}</main>
           </div>
         </div>

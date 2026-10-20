@@ -27,7 +27,7 @@ export function TxnBadges({ r, quiet }: { r: ExpenseRecord; quiet?: boolean }) {
   const brand = (id?: string) => voucherBrands.find((b) => b.id === id)?.name ?? "voucher";
   return (
     <>
-      {r.status === "unreviewed" ? <Badge tone="warn">Unreviewed</Badge> : quiet ? null : <Badge tone="good">Reviewed</Badge>}
+      {r.status === "unreviewed" ? <Badge tone="warn">Unverified</Badge> : quiet ? null : <Badge tone="good">Verified</Badge>}
       {r.duplicateOf && <Badge tone="bad">Possible duplicate</Badge>}
       {r.receiptId && !quiet && <Badge tone="good">Receipt linked</Badge>}
       {r.excluded && <Badge>Excluded</Badge>}

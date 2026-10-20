@@ -35,7 +35,11 @@ export type DupResult =
  * Possible: same account, date and amount with alike merchant. Only flagged
  * for review; amount alone never matches, and nothing is merged automatically.
  */
-type Existing = Pick<ExpenseRecord, "id" | "accountId" | "date" | "amountPaise" | "merchant" | "referenceId"> & { kind?: TxnKind; direction?: Dir; fundedBy?: string };
+type Existing = Pick<ExpenseRecord, "id" | "accountId" | "date" | "amountPaise" | "merchant" | "referenceId"> & { kind?: TxnKind; direction?: Dir; fundedBy?: string; /** Another line of the file being read (matched on the same date only). */ inFile?: boolean };
+
+/** An activity export and the statement for the same card can date one purchase a day or two apart. */
+export const DUPLICATE_WINDOW_DAYS = 3;
+const daysApart = (a: string, b: string) => Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86_400_000;
 
 /** Same account, or a UPI-app payment and the bank that funded it: one movement of money seen from two statements. */
 const sameMoneyTrail = (e: Existing, t: IncomingTxn) => e.accountId === t.accountId || (!!e.fundedBy && e.fundedBy === t.accountId) || (!!t.fundedBy && t.fundedBy === e.accountId);
@@ -46,7 +50,7 @@ export function detectDuplicate(t: IncomingTxn, existing: Existing[]): DupResult
     if (hit) return { status: "exact", matchId: hit.id };
   }
   const poss = existing.find(
-    (e) => sameMoneyTrail(e, t) && e.date === t.date && e.amountPaise === t.amountPaise && merchantsAlike(e.merchant, t.merchant) && sameDirection(t.direction, e.direction ?? dirOfKind(e.kind)),
+    (e) => sameMoneyTrail(e, t) && (e.inFile ? e.date === t.date : daysApart(e.date, t.date) <= DUPLICATE_WINDOW_DAYS) && e.amountPaise === t.amountPaise && merchantsAlike(e.merchant, t.merchant) && sameDirection(t.direction, e.direction ?? dirOfKind(e.kind)),
   );
   return poss ? { status: "possible", matchId: poss.id } : { status: "none" };
 }
@@ -101,7 +105,7 @@ export function planImport<T extends IncomingTxn>(rows: T[], existing: Existing[
   const seen = [...existing];
   return rows.map((row, i) => {
     const dup = detectDuplicate(row, seen);
-    if (dup.status !== "exact") seen.push({ id: `incoming-${i}`, accountId: row.accountId, date: row.date, amountPaise: row.amountPaise, merchant: row.merchant, referenceId: row.referenceId, direction: row.direction, fundedBy: row.fundedBy });
+    if (dup.status !== "exact") seen.push({ inFile: true, id: `incoming-${i}`, accountId: row.accountId, date: row.date, amountPaise: row.amountPaise, merchant: row.merchant, referenceId: row.referenceId, direction: row.direction, fundedBy: row.fundedBy });
     return { row, dup };
   });
 }

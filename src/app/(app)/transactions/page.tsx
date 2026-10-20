@@ -3,8 +3,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
 import { Amount, MerchantAvatar, TxnBadges, TxnCard } from "@/components/txn-row";
-import { TxnEditDialog } from "@/components/txn-edit-dialog";
+import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { NotesAi } from "./notes-ai";
+import { UnverifiedQueue } from "./unverified-queue";
+import { ProgressBar } from "@/components/progress";
+import { verifyProgress } from "@/domain/progress";
 import { Badge, Button, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { rootOf } from "@/domain/accounts";
@@ -78,10 +81,9 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
 }
 
 function TransactionsView() {
-  const { meId, accounts, categories, groupRecords, groups, activeGroup, month, nameOf, categoryName, accountName, recurringName, voucherBrands } = useStore();
+  const { meId, accounts, categories, groupRecords, groups, activeGroup, month, shown, staged, nameOf, categoryName, accountName, recurringName, voucherBrands } = useStore();
   const params = useSearchParams();
   const router = useRouter();
-  const [editing, setEditing] = useState<ExpenseRecord | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const get = (k: string) => params.get(k) ?? "";
@@ -99,6 +101,7 @@ function TransactionsView() {
       .filter((r) => !get("category") || r.categoryId === get("category"))
       .filter((r) => !get("merchant") || r.merchant === get("merchant"))
       .filter((r) => !get("status") || r.status === get("status"))
+      .filter((r) => get("v") !== "verified" || r.status === "reviewed")
       .filter((r) => !get("kind") || r.kind === get("kind"))
       // A payment method includes the ones under it (Amex includes Amazon Pay and Swiggy Money).
       .filter((r) => !get("account") || r.accountId === get("account") || rootOf(accounts, r.accountId) === get("account"))
@@ -112,7 +115,11 @@ function TransactionsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupRecords, month, params]);
 
+  const view0 = useRecordNav(rows);
+  const setEditing = view0.open;
   const total = summarizeGroup(rows, activeGroup, groups, meId);
+  const v = get("v");
+  const progress = verifyProgress(shown, get("month") || month);
   const view = get("view") || "all";
   const active = ["recurring", "q", "category", "merchant", "status", "kind", "account", "shared", "voucher", "paidWith"].filter((k) => get(k));
 
@@ -133,7 +140,14 @@ function TransactionsView() {
 
   return (
     <>
-      <PageHeader tip="Your approved transactions. AI suggests categories from your notes; you approve each one." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
+      <PageHeader tip="Every transaction, including imported ones you have not verified yet. Verifying one confirms it and teaches the app." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
+      {progress.total > 0 && <ProgressBar {...progress} />}
+      <div role="tablist" aria-label="Verified or not" className="mb-3 flex gap-1 rounded-full bg-surface p-1">
+        {([["", "All"], ["verified", "Verified"], ["unverified", `Unverified${staged.length ? ` · ${staged.length}` : ""}`]] as const).map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={v === id} onClick={() => set("v", id)} className={cn("min-h-9 flex-1 rounded-full px-3 text-sm", v === id ? "bg-foreground font-medium text-white" : "text-muted hover:bg-background")}>{label}</button>
+        ))}
+      </div>
+      {v === "unverified" ? <UnverifiedQueue /> : <>
       {/* Phone: search plus one Filters button. From tablet width the three selects sit in the row. */}
       <div className="mb-3 flex gap-2 md:hidden">
         <Input className="min-w-0 flex-1" placeholder="Search" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
@@ -192,7 +206,8 @@ function TransactionsView() {
           </div>
         </>
       )}
-      <TxnEditDialog record={editing} onClose={() => setEditing(null)} />
+      </>}
+      <TxnEditDialog record={view0.record} onClose={view0.close} nav={view0.nav} />
     </>
   );
 }

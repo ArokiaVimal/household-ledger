@@ -144,12 +144,12 @@ export function LiveImport() {
     setBusy(false);
     if (!r.ok) return setError(r.error ?? "Could not save the import.");
     const c = r.result!.counts;
-    setDone(`${c.staged} transaction${c.staged === 1 ? "" : "s"} sent to the review queue.`);
+    setDone(`${c.staged} transaction${c.staged === 1 ? "" : "s"} added as unverified.`);
     setPreview(null); setSrc(null);
     if (aiInput.current) aiInput.current.value = "";
     router.refresh();
     // Straight to the review queue: that is the next thing to do. The queue shows a short confirmation.
-    if (c.staged > 0) router.push(`/review?imported=${c.staged}&skipped=${c.skipped}&months=${monthsParam}`);
+    if (c.staged > 0) router.push(`/transactions?v=unverified&imported=${c.staged}&skipped=${c.skipped}&months=${monthsParam}`);
   };
 
   const failed = preview ? preview.checks.filter((c) => !c.ok) : [];
@@ -163,7 +163,7 @@ export function LiveImport() {
   return (
     <>
       <ShotImport open={shotOpen} onClose={() => setShotOpen(false)} aiEnabled={aiEnabled} />
-      <PageHeader title="Import" sub="Bring in a statement or a note. You approve everything before it counts." />
+      <PageHeader title="Import" sub="Bring in a statement or a note. Everything arrives unverified for you to check." />
       {usable.length === 0 ? (
         <EmptyState title="Add a payment method first" hint="Open Settings and add the card or account this belongs to." />
       ) : (
@@ -197,7 +197,7 @@ export function LiveImport() {
             <div className="space-y-2">
               {busy && !preview && <p role="status" className="rounded-xl bg-background p-3 text-sm text-muted">Reading…</p>}
               {error && <p role="alert" className="rounded-xl bg-danger/10 p-3 text-sm text-danger">{error}</p>}
-              {done && <p role="status" className="rounded-xl bg-good-soft p-3 text-sm text-good">{done} <Link href="/review" className="font-medium underline">Review them now</Link></p>}
+              {done && <p role="status" className="rounded-xl bg-good-soft p-3 text-sm text-good">{done} <Link href="/transactions?v=unverified" className="font-medium underline">See them now</Link></p>}
             </div>
           )}
 
@@ -329,11 +329,14 @@ export function LiveImport() {
                   {preview.rows.length > 100 && <p className="text-xs text-muted">Showing the first 100 of {preview.rows.length}. All of them are used.</p>}
                   {preview.smart && (
                     <p className="text-xs text-muted">
-                      {preview.smart.fromMemory} filled in from what you approved before, {preview.smart.fromAi} suggested by AI, {preview.smart.needYou} need your category.
+                      {preview.smart.fromMemory} filled in from what you verified before, {preview.smart.fromAi} suggested by AI, {preview.smart.needYou} need your category.
                       {preview.smart.ai.calls > 0 && ` Claude looked at ${preview.smart.ai.asked} new merchant${preview.smart.ai.asked === 1 ? "" : "s"}.`}
                       {extraction && extraction.calls > 0 && ` Claude also read the text itself (${(extraction.inputTokens + extraction.outputTokens).toLocaleString("en-IN")} tokens).`}
                       {preview.smart.ai.error && ` ${preview.smart.ai.error}, so the rest were left for you.`}
                     </p>
+                  )}
+                  {preview.smart && aiEnabled && (preview.smart.needYou > 0 || preview.smart.ai.error) && src && (
+                    <Button disabled={busy} onClick={() => void read(src)}><Sparkles size={15} aria-hidden />{busy ? "Asking AI…" : "Refresh with AI"}<AiBadge>AI</AiBadge></Button>
                   )}
                   {preview.skipped.length > 0 && (
                     <div className="rounded-xl bg-danger/5 p-3 text-sm">
@@ -355,7 +358,7 @@ export function LiveImport() {
                   <li key={b.id} className="rounded-xl bg-surface p-3 text-sm">
                     <div className="truncate font-medium">{b.filename}</div>
                     <div className="text-xs text-muted">{accountName(b.accountId)} · {b.uploadedAt.slice(0, 10)}{b.readBy === "ai" ? " · read by AI" : ""}</div>
-                    <div className="mt-1 text-xs text-muted">{b.counts.staged} sent to review{b.counts.skippedDuplicate ? ` · ${b.counts.skippedDuplicate} skipped` : ""}{b.reimportOf ? " · read again" : ""}</div>
+                    <div className="mt-1 text-xs text-muted">{b.counts.staged} added as unverified{b.counts.skippedDuplicate ? ` · ${b.counts.skippedDuplicate} skipped` : ""}{b.reimportOf ? " · read again" : ""}</div>
                   </li>
                 ))}
               </ul>
@@ -401,14 +404,14 @@ export function LiveImport() {
       <Dialog open={askReimport} onClose={() => { if (askReimport) cancelReimport(); }} title="Read this file again?">
         {preview?.previousImport && (
           <div className="space-y-3 pb-1 text-sm">
-            <p>You already imported this exact file on <b>{preview.previousImport.uploadedAt.slice(0, 10)}</b> (&ldquo;{preview.previousImport.filename}&rdquo;, {preview.previousImport.staged} transaction{preview.previousImport.staged === 1 ? "" : "s"} sent to review).</p>
+            <p>You already imported this exact file on <b>{preview.previousImport.uploadedAt.slice(0, 10)}</b> (&ldquo;{preview.previousImport.filename}&rdquo;, {preview.previousImport.staged} transaction{preview.previousImport.staged === 1 ? "" : "s"} added as unverified).</p>
             {toStage > 0 ? (
               <ul className="space-y-1.5 rounded-xl bg-background p-3">
-                <li><b className="num">{toStage}</b> of its {preview.counts.rows} rows are not in your ledger or review queue right now (for example ones you rejected or removed). They will come back for review.</li>
+                <li><b className="num">{toStage}</b> of its {preview.counts.rows} rows are not in your transactions right now (for example ones you rejected or removed). They will come back for review.</li>
                 <li><b className="num">{lookalikes.length}</b> {lookalikes.length === 1 ? "is" : "are"} already there and will be skipped unless you choose otherwise, so nothing is counted twice.</li>
               </ul>
             ) : (
-              <p className="rounded-xl bg-good-soft p-3 text-good">Every row in it is already in your ledger or review queue, so reading it again would add nothing.</p>
+              <p className="rounded-xl bg-good-soft p-3 text-good">Every row in it is already in your transactions, so reading it again would add nothing.</p>
             )}
             <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3">
               <Button onClick={cancelReimport}>{toStage > 0 ? "No, cancel" : "Close"}</Button>

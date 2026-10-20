@@ -1,4 +1,4 @@
-import { BarChart3, History, CalendarClock, ClipboardCheck, CreditCard, FileUp, LayoutDashboard, List, Receipt, Repeat, Settings, Sparkles, Ticket, Users, type LucideIcon } from "lucide-react";
+import { BarChart3, History, CalendarClock, CreditCard, FileUp, LayoutDashboard, List, Receipt, Repeat, Settings, Sparkles, Ticket, Users, type LucideIcon } from "lucide-react";
 
 export interface NavItem { href: string; label: string; icon: LucideIcon; /** One line shown in the phone menu. */ hint?: string; /** Lives in the phone's bottom bar; everything else is under "More". */ bar?: boolean }
 
@@ -9,7 +9,6 @@ export const BAR_ORDER = ["/", "/people", "/transactions", "/reports"];
 export const NAV: NavItem[] = [
   { href: "/", label: "Home", icon: LayoutDashboard, hint: "Your month at a glance", bar: true },
   { href: "/transactions", label: "Transactions", icon: List, hint: "Everything you spent", bar: true },
-  { href: "/review", label: "Review", icon: ClipboardCheck, hint: "Approve imported rows" },
   { href: "/import", label: "Import", icon: FileUp, hint: "Statements, paste, describe" },
   { href: "/people", label: "People", icon: Users, hint: "Who you share with, who owes whom", bar: true },
   { href: "/timeline", label: "Timeline", icon: CalendarClock, hint: "What happened, what is coming" },

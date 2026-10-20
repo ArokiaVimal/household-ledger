@@ -1,6 +1,7 @@
 "use client";
-import { ArrowLeftRight, Ban, Banknote, CalendarDays, Camera, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeftRight, Ban, Banknote, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
+import { cn } from "@/lib/cn";
 import { billFileToDataUrl } from "@/lib/image";
 import type { Bill } from "@/lib/import/bill-extract";
 import { useStore } from "@/data/store";
@@ -33,21 +34,29 @@ const kinds: { id: TxnKind; label: string; icon: ReactNode }[] = [
   { id: "cc_payment", label: "Card bill", icon: <Dot icon={CreditCard} tone="bg-indigo-100 text-indigo-700" /> },
 ];
 
-interface Props { record: ExpenseRecord | null; onClose: () => void; /** Open the next unreviewed record, with how many remain. */ next?: { remaining: number; open: () => void } }
+/** Where this transaction sits in the list it was opened from, so you can move to the neighbours. */
+export interface RecordNav { index: number; total: number; prev?: ExpenseRecord; next?: ExpenseRecord; dir: 1 | -1; go: (d: 1 | -1) => void; /** After a row is verified out of its list: show its neighbour, or close. */ after: () => void }
+interface Props { record: ExpenseRecord | null; onClose: () => void; nav?: RecordNav }
 
-export function TxnEditDialog({ record, onClose, next }: Props) {
-  return (
-    <Dialog open={!!record} onClose={onClose} title="Edit transaction">
-      {record && <Form key={record.id} mode="edit" record={record} onClose={onClose} next={next} />}
-    </Dialog>
-  );
+/** Open one transaction from a list, with arrows and swipes to the previous and next ones in that list. */
+export function useRecordNav(items: ExpenseRecord[]) {
+  const [id, setId] = useState<string | null>(null);
+  const [dir, setDir] = useState<1 | -1>(1);
+  const index = id ? items.findIndex((r) => r.id === id) : -1;
+  const record = index >= 0 ? items[index] : null;
+  const nav: RecordNav | undefined = record ? {
+    index, total: items.length, prev: items[index - 1], next: items[index + 1], dir,
+    go: (d) => { const t = items[index + d]; if (t) { setDir(d); setId(t.id); } },
+    after: () => { const t = items[index + 1] ?? items[index - 1]; setDir(1); setId(t?.id ?? null); },
+  } : undefined;
+  return { record, nav, open: (r: ExpenseRecord) => { setDir(1); setId(r.id); }, close: () => setId(null) };
 }
 
-/** Review queue: edit, then approve into the ledger (or reject). Nothing counts until approved. */
-export function TxnReviewDialog({ record, onClose, next }: Props) {
+/** Edit any transaction. One that is not verified yet gets Save and Save & verify (which also teaches the app). */
+export function TxnEditDialog({ record, onClose, nav }: Props) {
   return (
-    <Dialog open={!!record} onClose={onClose} title="Review imported transaction">
-      {record && <Form key={record.id} mode="review" record={record} onClose={onClose} next={next} />}
+    <Dialog open={!!record} onClose={onClose} title={record?.status === "unreviewed" ? "Verify transaction" : "Edit transaction"}>
+      {record && <Form key={record.id} mode={record.status === "unreviewed" ? "review" : "edit"} record={record} onClose={onClose} nav={nav} />}
     </Dialog>
   );
 }
@@ -67,7 +76,7 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
   );
 }
 
-function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
+function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; nav?: RecordNav; onAnother?: () => void; onAdded?: (msg: string) => void }) {
   const { aiEnabled, cardBills, meId, nameOf, groups, rules, partnerId, splitRatio, today, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
   const [deleting, setDeleting] = useState(false);
   const [sheet, setSheet] = useState<null | "pay" | "via" | "wallet" | "merchant" | "category" | "kind" | "topup" | "card" | "bank" | "recurring">(null);
@@ -250,7 +259,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
     if (!merchantTouched.current && !merchant.trim()) { const n = shortName(accounts.find((a) => a.id === id)?.name ?? ""); setMerchant(`Payment to ${n}`); autoMerchant.current = `Payment to ${n}`; }
   };
 
-  const save = (action: "close" | "next" | "another" | "draft") => {
+  const save = (action: "save" | "verify" | "another" | "move") => {
     // "Repeat every month": turn this payment into a recurring item (usual amount, due day, split) and link it.
     let linkId = recurringId;
     if (recurringId === NEW_RECURRING) {
@@ -273,17 +282,34 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       return;
     }
     const patch = { ...fields, fundedBy: isUpi ? fundedBy || undefined : record.fundedBy };
+    // Moving to a neighbour keeps what you typed, but only when something actually changed.
+    const same = (x: unknown, y: unknown) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
+    const changed = Object.entries(patch).some(([k, v]) => k !== "status" && !same(v, (record as unknown as Record<string, unknown>)[k]));
     if (mode === "review") {
-      if (action === "draft") updateStaged(record.id, patch); else approveStaged(record.id, patch);
-      if (action === "next" && next) next.open(); else onClose();
+      if (action === "verify") { approveStaged(record.id, patch); if (nav) nav.after(); else onClose(); return; }
+      if (action === "move") { if (changed) updateStaged(record.id, patch); return; }
+      updateStaged(record.id, patch); onClose();
       return;
     }
+    if (action === "move") { if (changed) updateRecord(record.id, patch); return; }
     updateRecord(record.id, patch);
-    if (action === "next" && next) next.open(); else onClose();
+    onClose();
   };
+  const goTo = (d: 1 | -1) => { if (bad) return; save("move"); nav?.go(d); };
+  // Swipe sideways to move to the next or previous transaction. Scrolling rows of chips is left alone.
+  const swipe = useRef<{ x: number; y: number; ok: boolean } | null>(null);
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", nav && (nav.dir === 1 ? "pf-slide-next" : "pf-slide-prev"))}
+      onTouchStart={(e) => { const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY, ok: !!nav && !(e.target as HTMLElement).closest(".overflow-x-auto, input[type=range]") }; }}
+      onTouchEnd={(e) => { const s0 = swipe.current; swipe.current = null; if (!s0?.ok || !nav) return; const t = e.changedTouches[0]; const dx = t.clientX - s0.x, dy = t.clientY - s0.y; if (Math.abs(dx) > 70 && Math.abs(dy) < 50) goTo(dx < 0 ? 1 : -1); }}>
+      {nav && nav.total > 1 && (
+        <div className="-mt-1 flex items-center justify-between gap-2 rounded-xl bg-background px-2 py-1 text-xs text-muted" aria-label="Move between transactions">
+          <button type="button" onClick={() => goTo(-1)} disabled={!nav.prev} aria-label={nav.prev ? `Previous: ${nav.prev.merchant}` : "No previous transaction"} className="flex min-h-9 min-w-0 flex-1 items-center gap-1 rounded-lg px-1 text-left disabled:opacity-30"><ChevronLeft size={16} aria-hidden className="shrink-0" /><span className="truncate">{nav.prev?.merchant ?? ""}</span></button>
+          <span className="num shrink-0 font-medium text-foreground">{nav.index + 1} of {nav.total}</span>
+          <button type="button" onClick={() => goTo(1)} disabled={!nav.next} aria-label={nav.next ? `Next: ${nav.next.merchant}` : "No next transaction"} className="flex min-h-9 min-w-0 flex-1 items-center justify-end gap-1 rounded-lg px-1 text-right disabled:opacity-30"><span className="truncate">{nav.next?.merchant ?? ""}</span><ChevronRight size={16} aria-hidden className="shrink-0" /></button>
+        </div>
+      )}
       {adding && (
         <div>
           <input ref={billInput} type="file" accept="image/*,application/pdf" className="sr-only" aria-label="Choose a bill" onChange={(e) => void scanBill(e.target.files?.[0])} />
@@ -326,9 +352,9 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       {mode === "review" && (record.suggested === "ai" || record.suggested === "ai_unsure") && (
         <p className="flex items-start gap-2 text-xs text-muted"><AiBadge tone={record.suggested === "ai" ? "ai" : "unsure"}>{record.suggested === "ai" ? "AI-powered" : "AI unsure"}</AiBadge>Merchant and category suggested by AI. Approving confirms them and teaches the app.</p>
       )}
-      {mode === "review" && record.suggested === "memory" && <p className="text-xs text-muted">Filled in from what you approved before.</p>}
+      {mode === "review" && record.suggested === "memory" && <p className="text-xs text-muted">Filled in from what you verified before.</p>}
       {mode === "review" && dupOf && (
-        <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Approve only if this is a separate purchase; otherwise reject it.</p>
+        <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Verify only if this is a separate purchase; otherwise reject it.</p>
       )}
       {adding && !paidWithId && <PickerRow icon={<MerchantAvatar name={accounts.find((a) => a.id === primaryId)?.name ?? "?"} size={32} />} label="Paid with" value={accounts.find((a) => a.id === primaryId) ? shortName(accounts.find((a) => a.id === primaryId)!.name) : "Choose"} sub={accounts.find((a) => a.id === primaryId) ? typeText[accounts.find((a) => a.id === primaryId)!.type] : undefined} onClick={() => setSheet("pay")} />}
       {adding && !paidWithId && subs.length > 0 && <PickerRow icon={subId ? <MerchantAvatar name={accounts.find((a) => a.id === subId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="Via (optional)" value={subId ? shortName(accounts.find((a) => a.id === subId)?.name ?? "") : "Direct"} muted={!subId} sub={subId ? undefined : `Paid with ${shortName(accounts.find((a) => a.id === primaryId)?.name ?? "it")} itself`} onClick={() => setSheet("via")} />}
@@ -406,21 +432,20 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       <CategorySheet open={sheet === "category"} onClose={() => setSheet(null)} value={categoryId} onPick={(id) => { catTouched.current = true; setCatHint(null); setCategoryId(id); }} />
 
       <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center">
-        {/* One clear main action; the rest sit quietly beside or below it. */}
-        <Button variant="primary" className="w-full sm:order-last sm:ml-auto sm:w-auto" onClick={() => save(mode !== "add" && next && next.remaining > 0 ? "next" : "close")} disabled={!!bad}>
-          {adding ? "Add" : mode === "review" ? (next && next.remaining > 0 ? `Approve & next (${next.remaining})` : "Approve") : next && next.remaining > 0 ? `Save & next (${next.remaining})` : "Save"}
-        </Button>
+        {/* Two clear actions for an unverified row: keep it as it is, or verify it. One for everything else. */}
+        <div className="flex gap-2 sm:order-last sm:ml-auto">
+          {mode === "review" && <Button className="flex-1 sm:flex-none" onClick={() => save("save")} disabled={!!bad}>Save</Button>}
+          <Button variant="primary" className="flex-1 sm:flex-none" onClick={() => save(mode === "review" ? "verify" : "save")} disabled={!!bad}>{adding ? "Add" : mode === "review" ? "Save & verify" : "Save"}</Button>
+        </div>
         <div className="flex items-center justify-between gap-1 sm:justify-start">
           {mode !== "add" && <Button variant="danger" onClick={() => setDeleting(true)} className="border-0" aria-label="Delete transaction"><Trash2 size={15} aria-hidden /><span>Delete</span></Button>}
-          {mode === "review" && <Button onClick={() => save("draft")} disabled={!!bad} className="border-0">Save draft</Button>}
-          {mode !== "review" && <Button onClick={onClose} className="border-0">Cancel</Button>}
+          {mode === "edit" && <Button onClick={onClose} className="border-0">Cancel</Button>}
           {adding && <Button onClick={() => save("another")} disabled={!!bad} className="border-0">Add another</Button>}
-          {mode !== "add" && next && next.remaining > 0 && <Button onClick={() => save("close")} disabled={!!bad} className="border-0">{mode === "review" ? "Approve only" : "Save only"}</Button>}
         </div>
         {mode !== "add" && (
           <ConfirmDialog open={deleting} onClose={() => setDeleting(false)} title="Delete this transaction?" onConfirm={() => { deleteRecords([record.id]); onClose(); }}>
             <p><strong>{record.merchant}</strong> · {formatINR(record.amountPaise)} · {record.date}</p>
-            <p className="text-muted">{record.status === "reviewed" ? "It will disappear from your reports, balances and dashboard. " : "It will be removed from the review queue. "}The original line stays in the import history, so you can tell what was removed. This cannot be undone.</p>
+            <p className="text-muted">{record.status === "reviewed" ? "It will disappear from your reports, balances and dashboard. " : "It stops counting in your totals. "}The original line stays in the import history, so you can tell what was removed. This cannot be undone.</p>
           </ConfirmDialog>
         )}
       </div>

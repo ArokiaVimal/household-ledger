@@ -25,7 +25,7 @@ export function needsAttention(i: AttentionInput): AttentionItem[] {
   const dueSoon = i.bills.filter((b) => b.state !== "overdue" && b.daysLeft <= soon).length;
   const overdueRecurring = i.recurring.filter((r) => r.state === "overdue").length;
   const items: AttentionItem[] = [
-    { key: "review", label: "to review", count: i.waiting, href: "/review", tone: "warn" },
+    { key: "review", label: "unverified", count: i.waiting, href: "/transactions?v=unverified", tone: "warn" },
     { key: "bills-overdue", label: "bills overdue", count: overdueBills, href: "/cards", tone: "bad" },
     { key: "bills-soon", label: `bills due in ${soon} days`, count: dueSoon, href: "/cards", tone: "warn" },
     { key: "recurring-overdue", label: "recurring overdue", count: overdueRecurring, href: "/recurring", tone: "bad" },

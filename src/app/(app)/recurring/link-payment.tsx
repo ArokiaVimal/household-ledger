@@ -1,5 +1,5 @@
 "use client";
-// Pick a transaction (already approved, or still waiting in Review) that paid this recurring item for the month.
+// Pick a transaction (already approved, or still unverified) that paid this recurring item for the month.
 // The transaction gets linked to the item, so the item shows as paid and stays in sync with the import.
 import { Badge, Button, Dialog } from "@/components/ui";
 import { useStore } from "@/data/store";
@@ -31,7 +31,7 @@ export function LinkPaymentDialog({ item, month, onClose }: { item: RecurringIte
               ))}
             </ul>
           )}
-          {rows.some((x) => x.waiting) && <p className="text-xs text-muted">A payment still in Review counts as paid once you approve it.</p>}
+          {rows.some((x) => x.waiting) && <p className="text-xs text-muted">An unverified payment counts as paid once you verify it.</p>}
         </div>
       )}
     </Dialog>
