@@ -35,7 +35,7 @@ export default function Activity() {
   }, []);
   useEffect(() => { if (live) void Promise.resolve().then(load); }, [live, load]);
 
-  const who = (uid: string) => (`u_${uid}` === meId ? "You" : participants.find((p) => p.userId === uid || p.id === `u_${uid}`)?.name ?? "Someone");
+  const who = (uid: string) => (uid === "demo" || `u_` === meId ? "You" : participants.find((p) => p.userId === uid || p.id === `u_${uid}`)?.name ?? "Someone");
   const run = async (action: object) => {
     setBusy(true); setError(null);
     const r = await post("/api/data", action);

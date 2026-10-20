@@ -143,9 +143,9 @@ export function ShotImport({ open, onClose, aiEnabled }: { open: boolean; onClos
                     <input type="checkbox" aria-label={`Include ${p.item.merchant} ${formatINR(p.item.amountPaise)}`} disabled={skip} checked={!skip && !off.has(i)} onChange={() => setOff((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; })} className="size-4 accent-[var(--color-accent,#5b3fd6)]" />
                     <MerchantAvatar name={p.item.voucherBrand ?? p.item.merchant} size={34} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{p.item.voucherBrand ? `${p.item.voucherBrand}${p.item.faceValuePaise ? ` · ${formatINR(p.item.faceValuePaise)} card` : ""}` : p.item.merchant}</span>
+                      <span className="block truncate font-medium">{p.item.voucherBrand ?? p.item.merchant}</span>
                       <span className="block truncate text-xs text-muted">
-                        {p.action === "skip" ? p.why : p.action === "tag" ? `Matches ${accountName(p.record.accountId)} · ${dateLabel(p.record.date)}${p.item.voucherBrand ? " · tag as voucher" : ""}` : "New · goes to review"}
+                        {[p.item.faceValuePaise ? `${formatINR(p.item.faceValuePaise)} card` : "", p.action === "skip" ? p.why : p.action === "tag" ? `Matches ${accountName(p.record.accountId)} · ${dateLabel(p.record.date)}` : "New"].filter(Boolean).join(" · ")}
                       </span>
                     </span>
                     <span className="num shrink-0 font-medium">{formatINR(p.item.amountPaise)}<span className="block text-right text-xs font-normal text-muted">{dateLabel(p.item.date)}</span></span>
