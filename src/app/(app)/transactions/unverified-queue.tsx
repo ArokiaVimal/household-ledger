@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { CompactRow } from "@/components/txn-compact";
 import { HScroll } from "@/components/hscroll";
+import { undoImport } from "../import/undo";
 import { AiBadge, AiFeatureCard, Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -32,6 +33,8 @@ export function UnverifiedQueue({ month }: { month?: string }) {
   const params = useSearchParams();
   const imported = Number(params.get("imported") || 0);
   const skipped = Number(params.get("skipped") || 0);
+  const batchId = params.get("batch") ?? "";
+  const [undoOpen, setUndoOpen] = useState(false);
   const months = (params.get("months") ?? "").split(",").filter((m) => /^\d{4}-\d{2}$/.test(m)).map((m) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en", { month: "short", year: "numeric", timeZone: "UTC" }));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -94,8 +97,19 @@ export function UnverifiedQueue({ month }: { month?: string }) {
       {imported > 0 && staged.length > 0 && (
         <div role="status" className="mb-3 rounded-2xl bg-good-soft p-3 text-sm text-good">
           <b>{imported}</b> transaction{imported === 1 ? "" : "s"} imported{months.length > 0 ? ` for ${months.join(" and ")}` : ""}{skipped > 0 ? `, ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}. They already count in the month they were paid. Verify each one to confirm it and teach the app.
+          {batchId && <button type="button" onClick={() => setUndoOpen(true)} className="ml-2 min-h-9 rounded-full px-1 font-medium text-danger underline underline-offset-2">Undo this import</button>}
         </div>
       )}
+      <ConfirmDialog open={undoOpen} onClose={() => setUndoOpen(false)} title="Undo this import?" confirmLabel="Undo import" onConfirm={async () => {
+        setUndoOpen(false); setBusy(true);
+        const r = await undoImport(batchId);
+        setBusy(false);
+        if (!r.ok) { setNote(r.error); return; }
+        router.replace("/import");
+        router.refresh();
+      }}>
+        <p>This removes the {imported} transaction{imported === 1 ? "" : "s"} this import added, including any you have verified since. Your original file is not touched, and you can import it again.</p>
+      </ConfirmDialog>
       {arriving ? (
         <p role="status" className="rounded-[var(--radius-card)] bg-surface p-6 text-sm text-muted">Loading your {imported} imported transaction{imported === 1 ? "" : "s"}…</p>
       ) : staged.length === 0 ? (

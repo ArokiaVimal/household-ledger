@@ -3,12 +3,13 @@ import { CheckCircle2, ChevronDown, ClipboardPaste, FileUp, Image as ImageIcon, 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { AiBadge, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, Dialog, EmptyState, PageHeader } from "@/components/ui";
+import { AiBadge, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
 import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import type { Preview, PreviewRow } from "@/lib/import/service";
 import { BusyOverlay } from "./busy-overlay";
+import { undoImport } from "./undo";
 import { ShotImport } from "./shot-import";
 
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -22,7 +23,7 @@ type Decisions = Record<string, "import" | "skip">;
 type Reply = {
   ok: boolean; error?: string; preview?: Preview; extraction?: Extraction;
   needAccount?: { reason: string; candidates: { id: string; name: string; score: number }[] };
-  result?: { counts: { staged: number; skipped: number; unreadable: number } };
+  result?: { batchId?: string; counts: { staged: number; skipped: number; unreadable: number } };
 };
 
 function Entry({ icon: I, title, text, badge, primary, children }: { icon: LucideIcon; title: string; text: string; badge?: ReactNode; primary?: boolean; children: ReactNode }) {
@@ -58,7 +59,8 @@ export function LiveImport() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [phase, setPhase] = useState<"read" | "save">("read");
+  const [phase, setPhase] = useState<"read" | "save" | "undo">("read");
+  const [undoing, setUndoing] = useState<{ id: string; filename: string; rows: number } | null>(null);
   const [accept, setAccept] = useState(false);
   const [reimportOk, setReimportOk] = useState(false); // the owner said yes to reading a file that was imported before
   const [decisions, setDecisions] = useState<Decisions>({});
@@ -138,6 +140,15 @@ export function LiveImport() {
   const lookalikes = preview ? preview.rows.filter((r) => r.status !== "new") : [];
   const toStage = adding.length;
 
+  const runUndo = async (u: { id: string; filename: string }) => {
+    setPhase("undo"); setBusy(true); setError(null);
+    const r = await undoImport(u.id);
+    setBusy(false);
+    if (!r.ok) return setError(r.error);
+    setDone(`Undid “${u.filename}”. The transactions it added were removed.`);
+    router.refresh();
+  };
+
   const commit = async () => {
     if (!src) return;
     setPhase("save"); setBusy(true); setError(null);
@@ -151,7 +162,7 @@ export function LiveImport() {
     if (aiInput.current) aiInput.current.value = "";
     router.refresh();
     // Straight to the review queue: that is the next thing to do. The queue shows a short confirmation.
-    if (c.staged > 0) router.push(`/transactions?v=unverified&scope=all&imported=${c.staged}&skipped=${c.skipped}&months=${monthsParam}`);
+    if (c.staged > 0) router.push(`/transactions?v=unverified&scope=all&imported=${c.staged}&skipped=${c.skipped}&months=${monthsParam}${r.result!.batchId ? `&batch=${r.result!.batchId}` : ""}`);
   };
 
   const failed = preview ? preview.checks.filter((c) => !c.ok) : [];
@@ -167,8 +178,12 @@ export function LiveImport() {
       <ShotImport open={shotOpen} onClose={() => setShotOpen(false)} aiEnabled={aiEnabled} />
       {/* Slow work is always announced, and a problem always pops up where you are looking, not somewhere down the page. */}
       <BusyOverlay open={busy}
-        title={phase === "save" ? "Saving to your review queue…" : preview ? "Asking AI about new merchants…" : (src?.kind === "file" && src.ai) || (src?.kind === "text" && src.mode === "ai") ? "Reading your statement with AI…" : "Reading your statement…"}
-        detail={phase === "save" ? "Adding the transactions. This only takes a moment." : preview ? "Only merchant names are sent. This can take a few seconds." : (src?.kind === "file" && src.ai) || (src?.kind === "text" && src.mode === "ai") ? "Claude is finding every transaction and checking each one against the text. A long statement can take up to a minute." : "Checking every row against the statement's own totals."} />
+        title={phase === "undo" ? "Undoing the import…" : phase === "save" ? "Saving to your review queue…" : preview ? "Asking AI about new merchants…" : (src?.kind === "file" && src.ai) || (src?.kind === "text" && src.mode === "ai") ? "Reading your statement with AI…" : "Reading your statement…"}
+        detail={phase === "undo" ? "Removing the transactions it added. This only takes a moment." : phase === "save" ? "Adding the transactions. This only takes a moment." : preview ? "Only merchant names are sent. This can take a few seconds." : (src?.kind === "file" && src.ai) || (src?.kind === "text" && src.mode === "ai") ? "Claude is finding every transaction and checking each one against the text. A long statement can take up to a minute." : "Checking every row against the statement's own totals."} />
+      <ConfirmDialog open={!!undoing} onClose={() => setUndoing(null)} title="Undo this import?" confirmLabel="Undo import" onConfirm={() => { const u = undoing; setUndoing(null); if (u) void runUndo(u); }}>
+        <p>This removes the {undoing?.rows} transaction{undoing?.rows === 1 ? "" : "s"} “{undoing?.filename}” added, including any you have verified since. Your original file is not touched, and you can import it again.</p>
+        <p className="mt-2 text-muted">If something from it was already settled with someone, you will be asked to void that first.</p>
+      </ConfirmDialog>
       <Dialog open={!!error} onClose={() => setError(null)} title="That didn’t work">
         <div className="space-y-3 pb-1 text-sm">
           <p role="alert" className="rounded-xl bg-danger/10 p-3 text-danger">{error}</p>
@@ -368,7 +383,8 @@ export function LiveImport() {
                   <li key={b.id} className="rounded-xl bg-surface p-3 text-sm">
                     <div className="truncate font-medium">{b.filename}</div>
                     <div className="text-xs text-muted">{accountName(b.accountId)} · {b.uploadedAt.slice(0, 10)}{b.readBy === "ai" ? " · read by AI" : ""}</div>
-                    <div className="mt-1 text-xs text-muted">{b.counts.staged} added as unverified{b.counts.skippedDuplicate ? ` · ${b.counts.skippedDuplicate} skipped` : ""}{b.reimportOf ? " · read again" : ""}</div>
+                    <div className="mt-1 text-xs text-muted">{b.rolledBackAt ? "Undone" : `${b.counts.staged} added as unverified`}{b.counts.skippedDuplicate ? ` · ${b.counts.skippedDuplicate} skipped` : ""}{b.reimportOf ? " · read again" : ""}</div>
+                    {!b.rolledBackAt && b.counts.staged > 0 && <button type="button" onClick={() => setUndoing({ id: b.id, filename: b.filename, rows: b.counts.staged })} className="mt-1.5 min-h-9 rounded-full px-1 text-xs font-medium text-danger hover:underline">Undo this import</button>}
                   </li>
                 ))}
               </ul>
