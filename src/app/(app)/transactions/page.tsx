@@ -6,6 +6,7 @@ import { Amount, MerchantAvatar, TxnBadges, TxnCard } from "@/components/txn-row
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { NotesAi } from "./notes-ai";
 import { UnverifiedQueue } from "./unverified-queue";
+import { ProgressRing } from "@/components/progress";
 import { verifyProgress } from "@/domain/progress";
 import { Badge, Button, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
@@ -141,18 +142,13 @@ function TransactionsView() {
     <>
       <PageHeader tip="Every transaction, including imported ones you have not verified yet. Verifying one confirms it and teaches the app." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
       {/* Verified or not, with how far along you are, in one tidy block. */}
-      <div className="mb-2 rounded-2xl bg-surface p-1">
-        <div role="tablist" aria-label="Verified or not" className="flex gap-1">
+      <div className="mb-2 flex items-center gap-2 rounded-2xl bg-surface p-1 pr-2">
+        <div role="tablist" aria-label="Verified or not" className="flex min-w-0 flex-1 gap-1">
           {([["", "All"], ["verified", "Verified"], ["unverified", `Unverified${staged.length ? ` · ${staged.length}` : ""}`]] as const).map(([id, label]) => (
-            <button key={id} role="tab" aria-selected={v === id} onClick={() => set("v", id)} className={cn("min-h-9 flex-1 rounded-full px-3 text-sm", v === id ? "bg-foreground font-medium text-white" : "text-muted hover:bg-background")}>{label}</button>
+            <button key={id} role="tab" aria-selected={v === id} onClick={() => set("v", id)} className={cn("min-h-9 flex-1 whitespace-nowrap rounded-full px-2.5 text-sm", v === id ? "bg-foreground font-medium text-white" : "text-muted hover:bg-background")}>{label}</button>
           ))}
         </div>
-        {progress.total > 0 && (
-          <div role="progressbar" aria-valuenow={progress.pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${progress.verified} of ${progress.total} verified`} className="flex items-center gap-2 px-3 pb-1.5 pt-2">
-            <div className="h-1 flex-1 overflow-hidden rounded-full bg-border"><div className={cn("h-full rounded-full transition-[width] duration-500", progress.pct === 100 ? "bg-good" : "bg-accent")} style={{ width: `${progress.pct}%` }} /></div>
-            <span className="num shrink-0 text-[11px] text-muted">{progress.verified}/{progress.total} verified</span>
-          </div>
-        )}
+        {progress.total > 0 && <ProgressRing pct={progress.pct} size={40} label={`${progress.verified} of ${progress.total} verified (${progress.pct}%)`} />}
       </div>
       {v === "unverified" ? <UnverifiedQueue /> : <>
       {/* Phone: search plus one Filters button. From tablet width the three selects sit in the row. */}
