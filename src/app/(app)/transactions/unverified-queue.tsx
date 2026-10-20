@@ -2,8 +2,8 @@
 import { ClipboardCheck, Search, Sparkles, Trash2, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { MerchantAvatar, Amount } from "@/components/txn-row";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
+import { CompactRow } from "@/components/txn-compact";
 import { AiBadge, AiFeatureCard, Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -34,7 +34,7 @@ export function UnverifiedQueue() {
   const months = (params.get("months") ?? "").split(",").filter((m) => /^\d{4}-\d{2}$/.test(m)).map((m) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en", { month: "short", year: "numeric", timeZone: "UTC" }));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const { live, aiEnabled, staged, nameOf, categoryName, accountName, approveStaged, deleteRecords } = useStore();
+  const { live, aiEnabled, staged, categoryName, accountName, approveStaged, deleteRecords } = useStore();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState(false);
   const [deleting, setDeleting] = useState<ExpenseRecord[] | null>(null);
@@ -46,10 +46,12 @@ export function UnverifiedQueue() {
   const [mon, setMon] = useState("");
   const [quick, setQuick] = useState<Quick>("all");
   const needle = q.trim().toLowerCase();
+  // The ones that need you come first (duplicates, no category, AI unsure), then the AI guesses, then what the app remembered.
+  const urgency = (r: ExpenseRecord) => (r.duplicateOf ? 0 : r.suggested === "ai_unsure" ? 1 : !r.suggested && r.categoryId === "uncategorized" && !r.voucherBrandId ? 2 : r.suggested === "ai" ? 3 : r.suggested === "memory" ? 4 : 3);
   const shown = useMemo(() => staged.filter((r) =>
     (!acct || r.accountId === acct) && (!cat || r.categoryId === cat) && (!mon || r.date.startsWith(mon)) && QUICK.find((x) => x.id === quick)!.test(r) &&
     (!needle || `${r.merchant} ${r.originalDescription} ${r.notes ?? ""} ${formatINR(r.amountPaise)} ${(r.amountPaise / 100).toFixed(2)}`.toLowerCase().includes(needle)),
-  ), [staged, acct, cat, mon, quick, needle]);
+  ).sort((a, b) => urgency(a) - urgency(b) || b.date.localeCompare(a.date)), [staged, acct, cat, mon, quick, needle]);
   const filtered = !!(needle || acct || cat || mon || quick !== "all");
   const accountsIn = [...new Set(staged.map((r) => r.accountId))];
   const categoriesIn = [...new Set(staged.map((r) => r.categoryId))];
@@ -104,10 +106,10 @@ export function UnverifiedQueue() {
           )}
           <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-0.5 sm:mb-3 sm:flex-wrap [&>*]:shrink-0">
             {filtered && <Badge tone="warn">{`${shown.length} of ${staged.length} shown`}</Badge>}
-            <Button onClick={() => shown[0] && view.open(shown[0])} variant="primary" disabled={shown.length === 0}><ClipboardCheck size={16} aria-hidden />Start verifying</Button>
+            {confident.length > 0 && <Button variant="primary" onClick={() => { setPicked(new Set(confident.map((r) => r.id))); setConfirm(true); }}><Sparkles size={15} aria-hidden />Verify {confident.length} sure ones</Button>}
+            <Button onClick={() => shown[0] && view.open(shown[0])} variant={confident.length > 0 ? "ghost" : "primary"} disabled={shown.length === 0}><ClipboardCheck size={16} aria-hidden />Start verifying</Button>
             <Button disabled={shown.length === 0} onClick={() => setPicked(picked.size === shown.length ? new Set() : new Set(shown.map((r) => r.id)))}>{picked.size === shown.length && shown.length > 0 ? "Clear selection" : filtered ? `Select these ${shown.length}` : "Select all"}</Button>
             {live && fillable > 0 && <Button onClick={fillWithAi} disabled={busy}><Sparkles size={15} aria-hidden />{busy ? "Asking AI…" : `Fill in ${fillable} with AI`}<AiBadge>AI</AiBadge></Button>}
-            {confident.length > 0 && <Button onClick={() => setPicked(new Set(confident.map((r) => r.id)))}><Sparkles size={15} aria-hidden />Select {confident.length} confident ones</Button>}
             {picked.size > 0 && <Button onClick={() => setConfirm(true)}>Verify {picked.size} as they are…</Button>}
             {picked.size > 0 && <Button variant="danger" onClick={() => setDeleting(chosen)}><Trash2 size={15} aria-hidden />Delete {picked.size}…</Button>}
           </div>
@@ -132,28 +134,11 @@ export function UnverifiedQueue() {
           </div>
           {note && <p role="status" className="mb-3 rounded-xl bg-accent/5 p-3 text-sm">{note}</p>}
           {shown.length === 0 && <p role="status" className="rounded-[var(--radius-card)] bg-surface p-6 text-center text-sm text-muted">Nothing in the queue matches. <button type="button" onClick={clearFilters} className="text-accent underline underline-offset-2">Clear filters</button></p>}
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {shown.map((r) => (
-              <li key={r.id} className="flex items-center gap-3 rounded-[var(--radius-card)] bg-surface p-3">
-                <input type="checkbox" aria-label={`Select ${r.merchant}`} checked={picked.has(r.id)} onChange={() => toggle(r.id)} className="size-4 accent-[var(--accent)]" />
-                <button onClick={() => view.open(r)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                  <MerchantAvatar name={r.merchant} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{r.merchant}</div>
-                    <div className="flex flex-wrap items-center gap-1 text-xs text-muted">
-                      {r.date} · {accountName(r.accountId)} · {categoryName(r.categoryId)} · paid by {nameOf(r.payerId)}
-                      {r.duplicateOf && <Badge tone="bad">Possible duplicate</Badge>}
-                      {r.shared && <Badge tone="good">Shared</Badge>}
-                      {r.suggested === "memory" && <Badge tone="good">Remembered</Badge>}
-                      {r.suggested === "ai" && <AiBadge>AI guess</AiBadge>}
-                      {r.suggested === "ai_unsure" && <AiBadge tone="unsure">AI unsure, check</AiBadge>}
-                      {!r.suggested && r.categoryId === "uncategorized" && !r.voucherBrandId && <Badge tone="warn">Needs a category</Badge>}
-                    </div>
-                  </div>
-                  <Amount r={r} />
-                </button>
-                <button type="button" onClick={() => setDeleting([r])} aria-label={`Delete ${r.merchant}`} title="Delete"
-                  className="grid size-9 shrink-0 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={16} aria-hidden /></button>
+              <li key={r.id}>
+                <CompactRow r={r} showDate onOpen={() => view.open(r)} onVerify={() => approveStaged(r.id)} onDelete={() => setDeleting([r])}
+                  leading={<input type="checkbox" aria-label={`Select ${r.merchant}`} checked={picked.has(r.id)} onChange={() => toggle(r.id)} className="size-4 shrink-0 accent-[var(--accent)]" />} />
               </li>
             ))}
           </ul>

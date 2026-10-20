@@ -2,13 +2,14 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
-import { Amount, MerchantAvatar, TxnBadges, TxnCard } from "@/components/txn-row";
+import { Amount, MerchantAvatar, TxnBadges } from "@/components/txn-row";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { NotesAi } from "./notes-ai";
 import { UnverifiedQueue } from "./unverified-queue";
 import { ProgressRing } from "@/components/progress";
 import { verifyProgress } from "@/domain/progress";
-import { Badge, Button, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
+import { Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
+import { CompactRow } from "@/components/txn-compact";
 import { useStore } from "@/data/store";
 import { rootOf } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
@@ -81,7 +82,7 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
 }
 
 function TransactionsView() {
-  const { meId, accounts, categories, groupRecords, groups, activeGroup, month, shown, staged, nameOf, categoryName, accountName, recurringName, voucherBrands } = useStore();
+  const { meId, accounts, categories, groupRecords, groups, activeGroup, month, shown, staged, today, approveStaged, deleteRecords, attributionOf, nameOf, categoryName, accountName, recurringName, voucherBrands } = useStore();
   const params = useSearchParams();
   const router = useRouter();
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -115,6 +116,18 @@ function TransactionsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupRecords, month, params]);
 
+  const [deleting, setDeleting] = useState<ExpenseRecord | null>(null);
+  const days = useMemo(() => {
+    const m = new Map<string, { date: string; rows: ExpenseRecord[]; total: number }>();
+    for (const r of rows) { const d = m.get(r.date) ?? { date: r.date, rows: [], total: 0 }; d.rows.push(r); d.total += attributionOf(r)?.allocatedPaise ?? 0; m.set(r.date, d); }
+    return [...m.values()];
+  }, [rows, attributionOf]);
+  const dayLabel = (iso: string) => {
+    const diff = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${iso}T00:00:00Z`)) / 86_400_000);
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Yesterday";
+    return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  };
   const view0 = useRecordNav(rows);
   const setEditing = view0.open;
   const total = summarizeGroup(rows, activeGroup, groups, meId);
@@ -140,7 +153,9 @@ function TransactionsView() {
 
   return (
     <>
-      <PageHeader tip="Every transaction, including imported ones you have not verified yet. Verifying one confirms it and teaches the app." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
+      <div className="hidden md:block">
+        <PageHeader tip="Every transaction, including imported ones you have not verified yet. Verifying one confirms it and teaches the app." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
+      </div>
       {/* Verified or not, with how far along you are. */}
       <div className="mb-3 flex items-center gap-3">
         <div role="tablist" aria-label="Verified or not" className="flex min-w-0 flex-1 rounded-full bg-border/60 p-1">
@@ -156,6 +171,7 @@ function TransactionsView() {
       {/* Phone: search plus one Filters button. From tablet width the three selects sit in the row. */}
       <div className="mb-3 flex gap-2 md:hidden">
         <Input className="min-w-0 flex-1" placeholder="Search" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
+        <NotesAi />
         <button type="button" onClick={() => setFiltersOpen(true)} aria-label={`Filters${filterCount ? `, ${filterCount} on` : ""}`} className="relative grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background">
           <SlidersHorizontal size={17} aria-hidden />
           {filterCount > 0 && <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-accent text-[10px] font-semibold text-white">{filterCount}</span>}
@@ -190,7 +206,16 @@ function TransactionsView() {
         <GroupedView rows={rows} view={view} onEdit={setEditing} />
       ) : (
         <>
-          <div className="space-y-2 md:hidden">{rows.map((r) => <TxnCard key={r.id} r={r} onClick={() => setEditing(r)} />)}</div>
+          <div className="space-y-3 md:hidden">
+            {days.map((d) => (
+              <section key={d.date} aria-label={dayLabel(d.date)}>
+                <div className="mb-1 flex items-baseline justify-between px-1 text-xs"><span className="font-semibold text-foreground">{dayLabel(d.date)}</span><span className="num text-muted">{formatINR(d.total)}</span></div>
+                <ul className="space-y-1.5">
+                  {d.rows.map((r) => <li key={r.id}><CompactRow r={r} onOpen={() => setEditing(r)} onVerify={() => approveStaged(r.id)} onDelete={() => setDeleting(r)} /></li>)}
+                </ul>
+              </section>
+            ))}
+          </div>
           <div className="hidden overflow-hidden rounded-[var(--radius-card)] bg-surface md:block">
             <table className="w-full text-sm">
               <thead className="border-b border-border bg-background text-left text-xs text-muted">
@@ -218,6 +243,10 @@ function TransactionsView() {
       )}
       </>}
       <TxnEditDialog record={view0.record} onClose={view0.close} nav={view0.nav} />
+      <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} title="Delete this transaction?" onConfirm={() => { if (deleting) deleteRecords([deleting.id]); }}>
+        {deleting && <p><strong>{deleting.merchant}</strong> · {formatINR(deleting.amountPaise)} · {deleting.date}</p>}
+        <p className="text-muted">It stops counting in your totals. The original line stays in the import history. This can&apos;t be undone.</p>
+      </ConfirmDialog>
     </>
   );
 }

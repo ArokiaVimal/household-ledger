@@ -1,5 +1,5 @@
 "use client";
-import { ChevronLeft, ChevronRight, ClipboardCheck, FileUp, Lock, LockOpen, LogOut, MoreHorizontal, Plus, Search, Settings, UserRound } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, FileUp, Lock, LockOpen, LogOut, MoreHorizontal, Plus, Search, Settings, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -18,7 +18,7 @@ import { Dialog } from "./ui";
 
 
 /** Previous / next month. The next month is disabled once you reach the current month. */
-function MonthStepper({ className }: { className?: string }) {
+function MonthStepper({ className, compact }: { className?: string; compact?: boolean }) {
   const { month, setMonth, today, monthLocked, toggleMonthLock } = useStore();
   // The demo's pretend "today" can be behind the real calendar; never block months that have really arrived.
   const real = new Date().toISOString().slice(0, 10);
@@ -27,9 +27,9 @@ function MonthStepper({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center rounded-full bg-surface p-0.5 ring-1 md:ring-2", monthLocked ? "ring-accent" : "ring-accent/30", className)} role="group" aria-label="Month">
       <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className={btn}><ChevronLeft size={18} aria-hidden /></button>
-      <span className="num min-w-[5.75rem] flex-1 text-center text-[15px] font-bold md:text-base" aria-live="polite">{monthLabel(month)}</span>
+      <span className={cn("num flex-1 text-center text-[15px] font-bold md:min-w-[5.75rem] md:text-base", compact ? "min-w-[4.75rem]" : "min-w-[5.75rem]")} aria-live="polite">{monthLabel(month)}</span>
       <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} disabled={isAfterMonth(shiftMonth(month, 1), latest)} aria-label="Next month" className={btn}><ChevronRight size={18} aria-hidden /></button>
-      <button type="button" onClick={toggleMonthLock} aria-pressed={monthLocked} aria-label={monthLocked ? `Unlock ${monthLabel(month)}` : `Lock to ${monthLabel(month)}`} title={monthLocked ? "Locked to this month. Tap to unlock." : "Lock the app to this month"} className={cn("grid size-9 place-items-center rounded-full", monthLocked ? "bg-accent text-white" : "text-muted hover:bg-background")}>{monthLocked ? <Lock size={16} aria-hidden /> : <LockOpen size={16} aria-hidden />}</button>
+      <button type="button" onClick={toggleMonthLock} aria-pressed={monthLocked} aria-label={monthLocked ? `Unlock ${monthLabel(month)}` : `Lock to ${monthLabel(month)}`} title={monthLocked ? "Locked to this month. Tap to unlock." : "Lock the app to this month"} className={cn("size-9 place-items-center rounded-full", compact ? "hidden md:grid" : "grid", monthLocked ? "bg-accent text-white" : "text-muted hover:bg-background")}>{monthLocked ? <Lock size={16} aria-hidden /> : <LockOpen size={16} aria-hidden />}</button>
     </div>
   );
 }
@@ -49,6 +49,26 @@ function GroupSwitch({ className }: { className?: string }) {
         );
       })}
     </div>
+  );
+}
+
+/** The group on phones: its name as a small button that opens a list. Saves a whole row compared with tabs. */
+function GroupMenu({ className }: { className?: string }) {
+  const { groups, activeGroup, setGroupId } = useStore();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label={`Group: ${activeGroup.name}`} className={cn("flex min-h-10 max-w-[7.5rem] shrink-0 items-center gap-1 rounded-full bg-surface px-3 text-sm font-medium", className)}>
+        <span className="truncate">{activeGroup.name}</span><ChevronDown size={14} aria-hidden className="shrink-0 text-muted" />
+      </button>
+      <Dialog open={open} onClose={() => setOpen(false)} title="Group">
+        <ul className="space-y-1.5 pb-3" role="radiogroup" aria-label="Payment group">
+          {groups.map((g) => (
+            <li key={g.id}><button type="button" role="radio" aria-checked={g.id === activeGroup.id} onClick={() => { setGroupId(g.id); setOpen(false); }} className={cn("flex min-h-12 w-full items-center justify-between rounded-2xl border px-4 text-left", g.id === activeGroup.id ? "border-accent bg-accent/10 font-medium text-accent" : "border-border bg-background")}>{g.name}{g.id === activeGroup.id && <Check size={16} aria-hidden />}</button></li>
+          ))}
+        </ul>
+      </Dialog>
+    </>
   );
 }
 
@@ -154,7 +174,8 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                   <Search size={16} className="text-muted" aria-hidden />
                   <input aria-label="Search transactions" placeholder="Search transactions…" value={q} onChange={(e) => setQ(e.target.value)} className="min-h-10 w-full bg-transparent text-sm outline-none" />
                 </form>
-                {showMonth && path !== "/" && <MonthStepper className="min-w-0 flex-1 md:hidden" />}
+                {showMonth && path !== "/" && <MonthStepper compact className="min-w-0 flex-1 md:hidden" />}
+                {showGroup && path !== "/" && <GroupMenu className="md:hidden" />}
                 {showMonth && <MonthStepper className="hidden md:flex" />}
                 {showGroup && <GroupSwitch className="hidden max-w-lg md:flex" />}
                 <Link href="/transactions?v=unverified" aria-label={staged.length ? `${staged.length} unverified transactions` : "Unverified transactions"} title="Unverified" className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
@@ -164,10 +185,10 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 <NotificationsBell />
                 {user && <AccountMenu onSignOut={signOut} />}
               </div>
-              {showMonth && (
-                <div className="mt-2 space-y-1.5 md:hidden">
-                  {path === "/" && <MonthStepper className="w-full" />}
-                  {showGroup && <GroupSwitch className="w-full" />}
+              {path === "/" && showMonth && (
+                <div className="mt-2 flex items-center gap-2 md:hidden">
+                  <MonthStepper className="min-w-0 flex-1" />
+                  <GroupMenu />
                 </div>
               )}
             </header>
