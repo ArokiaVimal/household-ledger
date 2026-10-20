@@ -61,6 +61,8 @@ body { overflow-x: clip; max-width: 100vw; }
 img, svg, video, canvas { max-width: 100%; }
 /* iPhone zooms into any field under 16px when it gets focus. Keep fields at 16px on touch screens so it never does. */
 @media (pointer: coarse) { input, select, textarea { font-size: max(16px, 1em); } }
+/* The big amount field must stay big on phones; the rule above would shrink it to 16px. */
+@media (pointer: coarse) { input#amount-input { font-size: 2.25rem; } }
 
 .num { font-variant-numeric: tabular-nums; }
 
