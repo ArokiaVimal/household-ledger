@@ -3,8 +3,9 @@ import { ArrowLeft, Bell, Camera, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Badge, Button, Card, ChipGroup, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
+import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
 import { PersonGlyph } from "@/components/glyphs";
+import { cn } from "@/lib/cn";
 import { toSquareJpeg } from "@/lib/profile/image";
 import { useStore } from "@/data/store";
 import { relationshipText } from "@/domain/contacts";
@@ -71,13 +72,13 @@ export default function PersonSettle() {
 
   return (
     <>
-      <Card className="mb-3 overflow-hidden p-0">
-        <div className={`flex items-center gap-3 px-3.5 py-3 ${out > 0 ? "bg-good/[0.06]" : out < 0 ? "bg-warn/[0.06]" : "bg-background/60"}`}>
-          <Link href="/people" aria-label="Back to People" className="grid size-8 shrink-0 place-items-center rounded-full text-muted hover:bg-surface hover:text-foreground"><ArrowLeft size={18} aria-hidden /></Link>
+      <section aria-label={`${name} summary`} className={`mb-3 rounded-3xl border border-border/60 p-4 shadow-sm ${out > 0 ? "bg-gradient-to-br from-good/[0.12] via-surface to-surface" : out < 0 ? "bg-gradient-to-br from-warn/[0.12] via-surface to-surface" : "bg-surface"}`}>
+        <div className="flex items-center gap-3">
+          <Link href="/people" aria-label="Back to People" className="grid size-9 shrink-0 place-items-center rounded-full bg-surface/80 text-muted ring-1 ring-border/60 hover:text-foreground"><ArrowLeft size={17} aria-hidden /></Link>
           <span className="relative shrink-0">
-            <PersonGlyph name={name} id={personId} size={52} />
+            <span className="block rounded-full ring-4 ring-surface"><PersonGlyph name={name} id={personId} size={56} /></span>
             {canEditPhoto && (
-              <label title={person.photo ? "Change photo" : "Add photo"} className="absolute -bottom-1 -right-1 grid size-6 cursor-pointer place-items-center rounded-full border border-border bg-surface text-muted shadow-sm hover:text-foreground focus-within:outline-2 focus-within:outline-accent">
+              <label title={person.photo ? "Change photo" : "Add photo"} className="absolute -bottom-0.5 -right-0.5 grid size-6 cursor-pointer place-items-center rounded-full border border-border bg-surface text-muted shadow-sm hover:text-foreground focus-within:outline-2 focus-within:outline-accent">
                 <Camera size={12} aria-hidden />
                 <input type="file" accept="image/*" className="sr-only" aria-label={`Upload a photo of ${name}`} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void pickPhoto(f); }} />
               </label>
@@ -85,30 +86,30 @@ export default function PersonSettle() {
           </span>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-semibold leading-tight tracking-tight">{name}</h1>
-            <p className="truncate text-xs text-muted">{personId === partnerId ? "Partner" : relationshipText(person)}</p>
+            <span className="mt-0.5 inline-block rounded-full bg-surface/90 px-2 py-0.5 text-[11px] font-medium text-muted ring-1 ring-border/60">{personId === partnerId ? "Partner" : relationshipText(person)}</span>
           </div>
+          {out > 0 && canSettle && <button type="button" aria-label={`Remind ${name}`} title={`Remind ${name}`} onClick={() => void remind()} className="grid size-10 shrink-0 place-items-center rounded-full bg-surface/80 text-foreground ring-1 ring-border/60 hover:bg-surface"><Bell size={17} aria-hidden /></button>}
         </div>
-        <div className="space-y-3 px-4 py-3">
-          <div className="flex items-baseline gap-2">
-            <span className={`num text-3xl font-semibold leading-none tracking-tight ${out > 0 ? "text-good" : ""}`}>{out === 0 ? "₹0" : formatINR(Math.abs(out))}</span>
-            <span className="text-sm text-muted">{out === 0 ? "all settled" : out > 0 ? "owes you" : "you owe"}</span>
-          </div>
-          {out !== 0 && canSettle && (
-            <div className="flex items-center gap-2">
-              <Button variant="primary" className="min-h-10 px-5" onClick={() => setConfirm("everything")}>Settle everything</Button>
-              {out > 0 && <button type="button" aria-label={`Remind ${name}`} title={`Remind ${name}`} onClick={() => void remind()} className="grid size-10 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background"><Bell size={17} aria-hidden /></button>}
-            </div>
-          )}
-          {person.photo && canEditPhoto && <button type="button" onClick={() => setPhotoError(setParticipantPhoto(personId, null))} className="text-xs font-medium text-muted hover:text-danger">Remove photo</button>}
-          {photoError && <p role="alert" className="text-xs text-danger">{photoError}</p>}
-          {ledger.unlinkedPaise !== 0 && <p className="text-xs text-muted">{formatINR(Math.abs(ledger.unlinkedPaise))} of this comes from earlier payments recorded as a plain amount, not tied to specific purchases.</p>}
+        <div className="mt-4">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">{out === 0 ? "All settled" : out > 0 ? `${name} owes you` : `You owe ${name}`}</div>
+          <div className={`num text-[34px] font-semibold leading-tight tracking-tight ${out > 0 ? "text-good" : out < 0 ? "text-warn" : ""}`}>{out === 0 ? "₹0" : formatINR(Math.abs(out))}</div>
         </div>
-      </Card>
+        {out !== 0 && canSettle && <Button variant="primary" className="mt-3 min-h-10 px-5" onClick={() => setConfirm("everything")}>Settle everything</Button>}
+        {person.photo && canEditPhoto && <button type="button" onClick={() => setPhotoError(setParticipantPhoto(personId, null))} className="mt-2 block text-xs font-medium text-muted hover:text-danger">Remove photo</button>}
+        {photoError && <p role="alert" className="mt-2 text-xs text-danger">{photoError}</p>}
+        {ledger.unlinkedPaise !== 0 && <p className="mt-3 text-xs text-muted">{formatINR(Math.abs(ledger.unlinkedPaise))} of this comes from earlier payments recorded as a plain amount, not tied to specific purchases.</p>}
+      </section>
 
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <ChipGroup tabs label="Payments" value={tab} onChange={(v) => { setTab(v); setPicked(new Set()); }} options={[{ id: "open", label: `To settle (${ledger.open.length})` }, { id: "settled", label: `Settled (${ledger.settled.length})` }]} />
+      <div className="mb-2 flex items-center gap-2">
+        <div role="tablist" aria-label="Payments" className="flex min-w-0 flex-1 rounded-full bg-border/60 p-1">
+          {([["open", "To settle", ledger.open.length], ["settled", "Settled", ledger.settled.length]] as const).map(([id, label, n]) => (
+            <button key={id} role="tab" aria-selected={tab === id} onClick={() => { setTab(id); setPicked(new Set()); }} className={cn("flex min-h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm transition-all", tab === id ? "bg-surface font-semibold text-foreground shadow-sm" : "text-muted hover:text-foreground")}>
+              {label}<span className={cn("num rounded-full px-1.5 text-[11px] font-semibold leading-5", tab === id ? "bg-accent/10 text-accent" : "bg-border text-muted")}>{n}</span>
+            </button>
+          ))}
+        </div>
         {tab === "open" && canSettle && ledger.open.length > 1 && (
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={allOpenPicked} onChange={() => setPicked(allOpenPicked ? new Set() : new Set(ledger.open.map((e) => e.record.id)))} className="size-4 accent-[var(--accent)]" />Select all</label>
+          <label className="flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2 text-sm text-muted hover:text-foreground"><input type="checkbox" checked={allOpenPicked} onChange={() => setPicked(allOpenPicked ? new Set() : new Set(ledger.open.map((e) => e.record.id)))} className="size-[18px] accent-[var(--accent)]" />All</label>
         )}
       </div>
 
