@@ -441,3 +441,6 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - **Unverified is per month by default:** the tab on Transactions lists and counts the unverified rows of the month on screen (the month stepper stays). The header review icon, the Home "unverified" chip and the post-import redirect open `?v=unverified&scope=all`: every month, no switches, with a "Show <month> only" link.
 - **Compare duplicates:** an unverified row flagged as a possible duplicate has a **Compare** button in its form (`src/components/dup-compare.tsx`): the two rows side by side with what matches and what differs highlighted, and three actions: **Keep both** (clears the flag), **Delete this one**, **Delete the one I already have** (both ask first). Deleting a record clears the duplicate flag on any row that pointed to it.
 
+
+## Gmail and SMS: no default card (2026-10-20)
+The "default card" pickers are gone. An email or text that names no card is saved with `needsCard` set; the row shows "Pick a card", Verify opens the edit screen with "Paid with: Choose", and Save & verify stays off until a card is picked. Swipe-verify and "Verify N sure ones" skip these rows. Setting a payment method is allowed only while a row is unverified (server checks this). A stored placeholder account still exists internally for these rows.

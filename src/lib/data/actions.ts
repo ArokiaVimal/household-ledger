@@ -26,7 +26,7 @@ const money = z.number().int().safe();
 const editable = z.object({
   merchant: z.string().min(1).max(120), categoryId: id, kind: z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]),
   payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).nullable(),
-  recurringId: id.nullable(), fundedBy: id.nullable(), paidCardId: id.nullable(), recurringHint: z.boolean().nullable(), voucherBrandId: id.nullable(), paidWithVoucherId: id.nullable(), voucherPending: z.boolean().nullable(), receiptId: id.nullable(), countsInGroupId: id.nullable(), duplicateOf: id.nullable(), shareNote: z.boolean(),
+  recurringId: id.nullable(), fundedBy: id.nullable(), paidCardId: id.nullable(), recurringHint: z.boolean().nullable(), voucherBrandId: id.nullable(), paidWithVoucherId: id.nullable(), voucherPending: z.boolean().nullable(), receiptId: id.nullable(), countsInGroupId: id.nullable(), duplicateOf: id.nullable(), shareNote: z.boolean(), accountId: id, needsCard: z.boolean().nullable(),
 }).partial();
 
 const manualRecord = z.object({
@@ -246,6 +246,12 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       if (a.type === "record.approve" && cur.status !== "unreviewed") throw new ActionError("conflict", "That record is already reviewed.");
       // A linked person changed the shared terms since this screen loaded: refuse rather than silently overwrite their edit.
       if (a.ifRev !== undefined && a.ifRev !== (cur.sharedRev ?? 0)) throw new ActionError("conflict", "Someone you share this expense with changed it while you were editing. Your screen has been refreshed; nothing was overwritten.");
+      if (a.patch?.accountId && a.patch.accountId !== cur.accountId) {
+        // The payment method can be set only while the row waits for verification, and only to one of your own.
+        if (cur.status !== "unreviewed") throw new ActionError("invalid", "A verified transaction keeps its payment method.");
+        const acc = await repo.accounts.get(a.patch.accountId);
+        if (!acc || acc.archived) throw new ActionError("invalid", "Unknown payment method.");
+      }
       const next = applyPatch(cur, a.patch ?? {});
       if (a.type === "record.approve") { next.status = "reviewed"; delete next.suggested; }
       await checkVoucherRefs(next);

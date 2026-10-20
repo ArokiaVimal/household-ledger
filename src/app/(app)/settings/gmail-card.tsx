@@ -1,9 +1,7 @@
 "use client";
 import { Mail } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { MerchantAvatar } from "@/components/txn-row";
-import { Badge, Button, Card, CardTitle, CompactChips, ConfirmDialog } from "@/components/ui";
-import { useStore } from "@/data/store";
+import { Badge, Button, Card, CardTitle, ConfirmDialog } from "@/components/ui";
 
 interface Status { configured: boolean; connected: boolean; email: string | null; lastSyncAt: string | null; lastResult: { scanned: number; added: number; bills: number; duplicates: number } | null; needsReconnect: boolean; defaultAccountId: string | null }
 const NOTE: Record<string, { ok: boolean; text: string }> = {
@@ -25,8 +23,6 @@ async function call<T>(payload: Record<string, unknown>): Promise<{ ok: boolean;
 
 /** Reads your bank emails (only from bank, card and UPI senders) into the review queue. Read-only access, revocable any time. */
 export function GmailCard() {
-  const { accounts } = useStore();
-  const usable = accounts.filter((a) => a.type !== "cash" && !a.archived);
   const [s, setS] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -51,7 +47,6 @@ export function GmailCard() {
     void load();
   };
   const disconnect = async () => { await call<object>({ action: "disconnect" }); setMsg({ ok: true, text: "Gmail is disconnected." }); void load(); };
-  const changeDefault = async (id: string) => { setS((x) => (x ? { ...x, defaultAccountId: id } : x)); const r = await call<object>({ action: "setDefault", defaultAccountId: id }); if (!r.ok) setMsg({ ok: false, text: r.error ?? "Could not change that." }); };
 
   return (
     <Card className="space-y-4">
@@ -65,10 +60,7 @@ export function GmailCard() {
       {s?.connected && (
         <div className="space-y-3">
           <p className="text-sm">Connected as <b>{s.email || "your Gmail"}</b>.{s.lastSyncAt ? ` Last checked ${new Date(s.lastSyncAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}${s.lastResult ? `: ${s.lastResult.added} new, ${s.lastResult.bills} card bill${s.lastResult.bills === 1 ? "" : "s"}` : ""}.` : " Not checked yet."}</p>
-          <div className="space-y-1.5">
-            <div><div className="text-sm font-medium">Default card</div><div className="text-xs text-muted">Used when an email does not name a card. You can change it when you verify.</div></div>
-            <CompactChips label="Default card for emails" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={s.defaultAccountId ? [s.defaultAccountId] : []} onPick={(id) => void changeDefault(id)} />
-          </div>
+          <p className="text-xs text-muted">Emails that do not name a card wait for you to pick one when you verify.</p>
           <div className="flex flex-wrap gap-2">
             {s.needsReconnect ? <a href="/api/gmail/connect" className="inline-flex min-h-9 items-center justify-center rounded-full bg-accent px-4 text-sm font-medium text-white">Connect again</a> : <Button variant="primary" disabled={busy} onClick={() => void sync()}>{busy ? "Checking…" : "Sync now"}</Button>}
             <Button variant="danger" onClick={() => setOff(true)}>Disconnect</Button>

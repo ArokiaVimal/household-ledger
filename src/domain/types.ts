@@ -137,6 +137,8 @@ export interface ExpenseRecord {
   paidWithVoucherId?: string;
   /** Import only: a voucher seller whose brand has not been chosen yet. Review asks which voucher was bought; cleared on approval. */
   voucherPending?: boolean;
+  /** Import only: the email or text did not name a card, so the payment method is a placeholder. Verifying asks which card; cleared when you pick one. */
+  needsCard?: boolean;
   /** Import only: looks like a monthly commitment (EMI, rent, premium). Pre-selects "Repeat every month" in review; cleared on approval. */
   recurringHint?: boolean;
   /** Recurring commitment this payment fulfils (rent, EMI, insurance...). */

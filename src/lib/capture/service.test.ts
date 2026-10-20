@@ -36,6 +36,13 @@ describe("captureMessage", () => {
     const recs = (await repo.records.list()).sort((a, b) => a.amountPaise - b.amountPaise);
     expect(recs.map((r) => r.accountId)).toEqual(["bank_hdfc", "cc_icici"]);
   });
+  it("marks a message that names no card as needing one, and leaves a named one alone", async () => {
+    const repo = await setup();
+    await captureMessage(repo, who, "INR 2,350.50 spent on ICICI Bank Card XX4321 on 18-Oct-26 at AMAZON PAY INDIA. Avl Limit INR 1,00,000.00", deps());
+    await captureMessage(repo, who, "Rs 99.00 debited from a/c XX1234 to PAYTM", deps());
+    const recs = (await repo.records.list()).sort((a, b) => b.amountPaise - a.amountPaise);
+    expect(recs.map((r) => !!r.needsCard)).toEqual([false, true]);
+  });
   it("the same message twice, or the same reference, is added once", async () => {
     const repo = await setup();
     expect((await captureMessage(repo, who, UPI, deps())).result).toBe("added");

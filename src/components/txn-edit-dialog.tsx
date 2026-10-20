@@ -91,7 +91,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
   // "Direct" means the primary itself (a plain Amex payment).
   const startAcct = accounts.find((a) => a.id === record.accountId);
   const startParent = startAcct?.parentId && accounts.some((a) => a.id === startAcct.parentId) ? startAcct.parentId : "";
-  const [primaryId, setPrimaryId] = useState(startParent || record.accountId);
+  const [primaryId, setPrimaryId] = useState(record.needsCard ? "" : startParent || record.accountId);
   const [subId, setSubId] = useState(startParent ? record.accountId : "");
   const accountId = subId || primaryId;
   const keep = (a: { id: string; archived?: boolean }) => !a.archived || a.id === record.accountId || a.id === primaryId || a.id === subId;
@@ -144,7 +144,8 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
   const missing = adding ? (!accountId ? "Add a payment method first (Settings)" : amountPaise <= 0 ? "Enter an amount" : !merchant.trim() ? "Enter a merchant" : !/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Pick a date" : null) : null;
   // New rows must say which voucher (or decide later). Editing something that is already approved is never blocked by it.
   const voucherProblem = promptVoucher && !voucherId && !voucherLater && record.status !== "reviewed" ? "Pick the wallet that was topped up, or choose Decide later" : voucherId && walletId ? "A payment cannot both buy a voucher and be paid with one" : null;
-  const bad = splitError ?? missing ?? voucherProblem;
+  const cardPick = !adding && !!record.needsCard;
+  const bad = splitError ?? missing ?? voucherProblem ?? (cardPick && !accountId ? "Pick the card first" : null);
 
   // Guesses from what was typed, no AI: the merchant from the note, the category from the merchant (your history and rules) or the words used.
   // They only fill empty places and never replace something you chose yourself.
@@ -284,7 +285,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
       if (action === "another") onAnother?.(); else onClose();
       return;
     }
-    const patch = { ...fields, fundedBy: isUpi ? fundedBy || undefined : record.fundedBy };
+    const patch = { ...fields, fundedBy: isUpi ? fundedBy || undefined : record.fundedBy, ...(cardPick ? { accountId, needsCard: undefined } : {}) };
     // Moving to a neighbour keeps what you typed, but only when something actually changed.
     const same = (x: unknown, y: unknown) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
     const changed = Object.entries(patch).some(([k, v]) => k !== "status" && !same(v, (record as unknown as Record<string, unknown>)[k]));
@@ -344,7 +345,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
           <div className="rounded-xl bg-background p-3">
             <div className="flex items-baseline justify-between gap-2">
               <span className="num text-lg font-semibold">{formatINR(record.amountPaise)}</span>
-              <span className="text-xs text-muted">{record.date} · {accountName(record.accountId)}{record.fundedBy ? ` via ${accountName(record.fundedBy)}` : ""}</span>
+              <span className="text-xs text-muted">{record.date} · {record.needsCard ? "Card not chosen" : accountName(record.accountId)}{record.fundedBy ? ` via ${accountName(record.fundedBy)}` : ""}</span>
             </div>
             <div className="mt-1 truncate font-mono text-xs text-muted" title="Original bank text, never edited">{record.originalDescription}</div>
           </div>
@@ -363,8 +364,8 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
         </div>
       )}
       {dupOf && <DupCompare open={comparing} onClose={() => setComparing(false)} onDeletedMine={() => (nav ? nav.after() : onClose())} mine={record} other={dupOf} />}
-      {adding && !paidWithId && <PickerRow icon={<MerchantAvatar name={accounts.find((a) => a.id === primaryId)?.name ?? "?"} size={32} />} label="Paid with" value={accounts.find((a) => a.id === primaryId) ? shortName(accounts.find((a) => a.id === primaryId)!.name) : "Choose"} sub={accounts.find((a) => a.id === primaryId) ? typeText[accounts.find((a) => a.id === primaryId)!.type] : undefined} onClick={() => setSheet("pay")} />}
-      {adding && !paidWithId && subs.length > 0 && <PickerRow icon={subId ? <MerchantAvatar name={accounts.find((a) => a.id === subId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="Via (optional)" value={subId ? shortName(accounts.find((a) => a.id === subId)?.name ?? "") : "Direct"} muted={!subId} sub={subId ? undefined : `Paid with ${shortName(accounts.find((a) => a.id === primaryId)?.name ?? "it")} itself`} onClick={() => setSheet("via")} />}
+      {(adding || cardPick) && !paidWithId && <PickerRow icon={<MerchantAvatar name={accounts.find((a) => a.id === primaryId)?.name ?? "?"} size={32} />} label="Paid with" value={accounts.find((a) => a.id === primaryId) ? shortName(accounts.find((a) => a.id === primaryId)!.name) : "Choose"} sub={accounts.find((a) => a.id === primaryId) ? typeText[accounts.find((a) => a.id === primaryId)!.type] : undefined} onClick={() => setSheet("pay")} />}
+      {(adding || cardPick) && !paidWithId && subs.length > 0 && <PickerRow icon={subId ? <MerchantAvatar name={accounts.find((a) => a.id === subId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="Via (optional)" value={subId ? shortName(accounts.find((a) => a.id === subId)?.name ?? "") : "Direct"} muted={!subId} sub={subId ? undefined : `Paid with ${shortName(accounts.find((a) => a.id === primaryId)?.name ?? "it")} itself`} onClick={() => setSheet("via")} />}
       {adding && impliedBrand && <p className="-mt-1 rounded-xl bg-accent/5 px-3 py-2 text-xs text-muted">Paid from the {impliedBrand.name} wallet: it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
       {voucherBrands.length > 0 && !topUp && !impliedBrand && kind === "purchase" && (!!paidWithId || !accounts.some((a) => a.type === "wallet" && !a.archived)) && (
         <>

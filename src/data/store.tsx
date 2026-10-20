@@ -204,7 +204,7 @@ const Ctx = createContext<Store | null>(null);
 const uuid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 
 /** Fields a person can change on an existing record; undefined means "clear it" on the wire. */
-const EDITABLE = ["merchant", "categoryId", "kind", "payerId", "shared", "split", "excluded", "notes", "recurringId", "fundedBy", "paidCardId", "recurringHint", "voucherBrandId", "paidWithVoucherId", "voucherPending", "receiptId", "countsInGroupId", "duplicateOf"] as const;
+const EDITABLE = ["merchant", "categoryId", "kind", "payerId", "shared", "split", "excluded", "notes", "recurringId", "fundedBy", "paidCardId", "recurringHint", "voucherBrandId", "paidWithVoucherId", "voucherPending", "receiptId", "countsInGroupId", "duplicateOf", "accountId", "needsCard"] as const;
 function toWirePatch(patch: Partial<ExpenseRecord>) {
   const out: Record<string, unknown> = {};
   for (const k of EDITABLE) if (k in patch) out[k] = patch[k] === undefined ? null : patch[k];

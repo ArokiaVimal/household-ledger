@@ -12,6 +12,7 @@ import type { ExpenseRecord } from "@/domain/types";
 export function attentionOf(r: ExpenseRecord): { text: string; bad: boolean } | null {
   if (r.status !== "unreviewed") return null;
   if (r.duplicateOf) return { text: "Possible duplicate", bad: true };
+  if (r.needsCard) return { text: "Pick a card", bad: false };
   if (r.suggested === "ai_unsure") return { text: "AI unsure", bad: false };
   if (!r.suggested && r.categoryId === "uncategorized" && !r.voucherBrandId) return { text: "Needs a category", bad: false };
   return null;
@@ -37,7 +38,7 @@ export function CompactRow({ r, onOpen, onVerify, onDelete, showDate, leading }:
   const flag = attentionOf(r);
   const unverified = r.status === "unreviewed";
   return (
-    <SwipeRow onRight={unverified ? onVerify : undefined} onLeft={onDelete}>
+    <SwipeRow onRight={unverified && !r.needsCard ? onVerify : undefined} onLeft={onDelete}>
       <div className="flex items-center gap-2 pl-3 pr-3">
         {leading}
         <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left active:bg-background">

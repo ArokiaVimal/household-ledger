@@ -66,7 +66,7 @@ export function UnverifiedQueue({ month }: { month?: string }) {
   const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const chosen = shown.filter((r) => picked.has(r.id));
   // Rows the app is confident about: remembered from your own approvals, or Claude was sure. Possible duplicates always need you.
-  const confident = shown.filter((r) => (r.suggested === "memory" || r.suggested === "ai") && !r.duplicateOf);
+  const confident = shown.filter((r) => (r.suggested === "memory" || r.suggested === "ai") && !r.duplicateOf && !r.needsCard);
   const fillable = staged.filter((r) => !r.suggested).length;
   const fillWithAi = async () => {
     setBusy(true); setNote(null);
@@ -157,7 +157,7 @@ export function UnverifiedQueue({ month }: { month?: string }) {
         <p className="text-sm">They will be marked Verified with the categories and splits shown, and the app learns from them.{flagged > 0 && ` ${flagged} of them are flagged as possible duplicates.`}</p>
         <div className="sticky bottom-0 -mx-4 mt-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3">
           <Button onClick={() => setConfirm(false)}>Cancel</Button>
-          <Button variant="primary" onClick={() => { chosen.forEach((r) => approveStaged(r.id)); setPicked(new Set()); setConfirm(false); }}>Verify {picked.size}</Button>
+          <Button variant="primary" onClick={() => { chosen.filter((r) => !r.needsCard).forEach((r) => approveStaged(r.id)); setPicked(new Set()); setConfirm(false); }}>Verify {picked.size}</Button>
         </div>
       </Dialog>
     </>

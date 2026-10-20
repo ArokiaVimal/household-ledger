@@ -63,7 +63,7 @@ export async function captureMessage(repo: Repository, who: { uid: string; parti
   const pick = pickAccount(text, accounts, who.defaultAccountId);
   if (!pick) return { result: "unreadable", message: "Add a payment method under Settings first, so messages know where to go." };
   const input: ImportInput = {
-    accountId: pick.account.id, filename: "Captured message", fileHash: d.sha256(`${who.uid}|${text}`), format: "text", readBy: byAi ? "ai" : "parser",
+    accountId: pick.account.id, ...(pick.sensed ? {} : { cardUnsure: true }), filename: "Captured message", fileHash: d.sha256(`${who.uid}|${text}`), format: "text", readBy: byAi ? "ai" : "parser",
     rows: [{ line: 1, date: parsed.date, description: parsed.description, amountPaise: parsed.amountPaise, direction: parsed.direction, ...(parsed.referenceId ? { referenceId: parsed.referenceId } : {}), raw: [text.slice(0, 500)] }],
   };
   if (opts.dryRun) {

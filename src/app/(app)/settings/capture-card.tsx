@@ -54,19 +54,14 @@ export function CaptureCard() {
     if (!r.ok) return setError(r.error ?? "Could not check that.");
     setTried(r);
   };
-  const changeDefault = async (id: string) => { setAccountId(id); if (status?.active) { const r = await call<object>({ action: "setDefault", defaultAccountId: id }); if (!r.ok) setError(r.error ?? "Could not change that."); } };
   const revoke = async () => { await call<object>({ action: "revoke" }); setLink(null); setStatus((s) => (s ? { ...s, active: false } : s)); void load(); };
 
   if (usable.length === 0) return <Card><CardTitle>Messages</CardTitle><p className="text-sm text-muted">Add a payment method first, so captured messages know where to go.</p></Card>;
   return (
     <Card className="space-y-4">
       <CardTitle action={<Badge tone={status?.active ? "good" : "neutral"}>{status === null ? "…" : status.active ? "On" : "Off"}</Badge>}><span className="inline-flex items-center gap-2"><MessageSquare size={16} aria-hidden className="text-accent" />Bank messages (SMS)</span></CardTitle>
-      <p className="text-sm text-muted">Bank, card and UPI texts land in Transactions as unverified. OTPs and offers are skipped.</p>
+      <p className="text-sm text-muted">Bank, card and UPI texts land in Transactions as unverified. OTPs and offers are skipped. Texts that do not name a card wait for you to pick one when you verify.</p>
 
-      <div className="space-y-1.5">
-        <div><div className="text-sm font-medium">Default card</div><div className="text-xs text-muted">Used when a message does not name a card. You can change it when you verify.</div></div>
-        <CompactChips label="Default card for messages" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={(id) => void changeDefault(id)} />
-      </div>
 
       {status?.active && !link && (
         <p className="rounded-xl bg-good-soft p-3 text-sm text-good">Capture is on.{status.lastUsedAt ? ` Last message ${new Date(status.lastUsedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}.` : " Waiting for the first message."}{status.today > 0 ? ` ${status.today} today.` : ""}</p>

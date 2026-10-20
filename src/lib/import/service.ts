@@ -121,6 +121,8 @@ interface ImportBase {
   acceptMismatch?: boolean;
   /** The person confirmed they want to read a file that was already imported. Without it a repeat import is refused. */
   allowReimport?: boolean;
+  /** The source did not name a payment method, so rows wait for the person to pick one (marks them needsCard). */
+  cardUnsure?: boolean;
   /** How the payment method was decided (for the preview). */
   detected?: Preview["detected"];
   /** Your decision for lines that look like entries you already have, keyed by the row's line number. */
@@ -347,7 +349,7 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
   for (const r of stage) {
     const rec: ExpenseRecord = {
       id: d.newId(), date: r.date, postedDate: r.parsed.postedDate, merchant: r.merchant, originalDescription: r.description.slice(0, 500), amountPaise: r.amountPaise, currency: "INR",
-      accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), ...(r.paidCardId ? { paidCardId: r.paidCardId } : {}), ...(r.recurring ? { recurringHint: true } : {}), ...(r.voucher ? { voucherPending: true } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
+      accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), ...(r.paidCardId ? { paidCardId: r.paidCardId } : {}), ...(input.cardUnsure && r.accountId === input.accountId ? { needsCard: true } : {}), ...(r.recurring ? { recurringHint: true } : {}), ...(r.voucher ? { voucherPending: true } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
       excluded: false, status: "unreviewed", suggested: r.suggested, importSource: `${input.filename.slice(0, 150)} (import ${batchId.slice(0, 8)})`, batchId, referenceId: r.referenceId, duplicateOf: r.status !== "new" ? r.matchId : undefined,
     };
     await repo.records.put(JSON.parse(JSON.stringify(rec)) as ExpenseRecord);

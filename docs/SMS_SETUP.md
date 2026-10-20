@@ -3,7 +3,7 @@
 Each bank or card text can add itself to Transactions as **Unverified** the moment it arrives. You verify it later. OTPs, offers and balance-only texts are skipped.
 
 ## 1. Make your private link (in the app)
-Settings > Integrations > **Bank texts**: pick the default payment method (used when a text does not say which card or bank), then **Create link**. Copy the link. Treat it like a password: anyone with it can add entries (not read them). If it leaks, create a new link and the old one stops.
+Settings > Integrations > **Bank texts**: press **Create link**. Copy the link. Treat it like a password: anyone with it can add entries (not read them). If it leaks, create a new link and the old one stops.
 
 Press **Try a message** and paste a sample SMS to see what would be added. Nothing is saved there.
 
@@ -21,6 +21,6 @@ Press **Try a message** and paste a sample SMS to see what would be added. Nothi
 Use any SMS forwarder app that can POST JSON `{"text": "<message>"}` to the link on each matching message.
 
 ## Good to know
-- The default payment method is used only when the text names no card or bank.
+- A text that names no card or bank is marked "Pick a card". You choose the card when you verify it.
 - A card-due text ("Total Amt Due ... Due Date ...") creates the card bill (the full amount, never the minimum).
 - Up to 300 texts a day per link. Duplicates are skipped.

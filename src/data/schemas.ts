@@ -51,6 +51,7 @@ export const ExpenseRecordSchema = z
     fundedBy: id.optional(),
     paidCardId: id.optional(),
     recurringHint: z.boolean().optional(),
+    needsCard: z.boolean().optional(),
     voucherBrandId: id.optional(),
     paidWithVoucherId: id.optional(),
     voucherPending: z.boolean().optional(),
