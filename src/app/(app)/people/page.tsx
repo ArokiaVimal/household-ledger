@@ -3,7 +3,7 @@ import { Bell, ChevronRight, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PersonGlyph } from "@/components/glyphs";
-import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, Field, Input, PageHeader, Select } from "@/components/ui";
+import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, Field, InfoTip, Input, PageHeader, Select } from "@/components/ui";
 import { LinkedWithYou } from "@/components/links";
 import { useStore } from "@/data/store";
 import { personLedger, settlementFor } from "@/domain/ledger";
@@ -76,7 +76,13 @@ export default function People() {
   }
   return (
     <>
-      <PageHeader title="People" tip="Who owes whom. Settling up records a payment, never an expense." actions={<><Button onClick={() => { setAddError(null); setAdding(true); }}><UserPlus size={15} aria-hidden />Add person</Button>{canRecord && <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button>}</>} />
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h1 className="flex items-center gap-1 text-xl font-semibold tracking-tight">People<InfoTip text="Who owes whom. Settling up records a payment, never an expense." /></h1>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button aria-label="Add person" title="Add person" onClick={() => { setAddError(null); setAdding(true); }}><UserPlus size={16} aria-hidden /><span className="hidden sm:inline">Add person</span></Button>
+          {canRecord && <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record payment</Button>}
+        </div>
+      </div>
 
       <LinkedWithYou />
       <div className="mb-3 grid grid-cols-2 gap-2">
