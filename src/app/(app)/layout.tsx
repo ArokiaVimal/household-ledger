@@ -3,6 +3,8 @@ import { Suspense, type ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { StoreProvider, type LiveInit } from "@/data/store";
 import { createFirestoreRepository } from "@/data/firestore-repository";
+import { profilePhotos } from "@/lib/profile/photos-server";
+import { uidOf, withProfilePhotos } from "@/lib/profile/photos";
 import { loadReadyHouseholdData, participantIdFor, type HouseholdData } from "@/lib/data/load";
 import { loadCoupleData } from "@/lib/data/couple";
 import { getCouple } from "@/lib/households/couple";
@@ -82,6 +84,12 @@ async function AuthedShell({ children }: { children: ReactNode }) {
             .then((c) => (c ? loadCoupleData(createFirestoreRepository(c.household.id), c) : null))
             .catch((e) => { console.error("couple load failed:", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 200)); return null; }),
         ]);
+        // People with their own account show their current profile photo (partner and linked friends too).
+        const linkUid = Object.fromEntries(linkData.links.map((l) => [l.key, l.other.uid]));
+        const everyone = [...data.participants, ...(couple?.participants ?? [])];
+        const photos = await profilePhotos(everyone.flatMap((p) => { const u = uidOf(p, session.uid, linkUid); return u ? [u] : []; })).catch(() => ({}));
+        data.participants = withProfilePhotos(data.participants, session.uid, linkUid, photos);
+        if (couple) couple.participants = withProfilePhotos(couple.participants, session.uid, linkUid, photos);
         live = {
           couple: couple ?? undefined,
           data, today, ready: true,
