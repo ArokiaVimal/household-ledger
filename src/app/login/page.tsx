@@ -60,6 +60,7 @@ export default function LoginPage() {
             <LoginBody />
           </Suspense>
           <p className="mt-6 flex items-start gap-2 text-xs text-muted"><ShieldCheck size={14} className="mt-0.5 shrink-0" aria-hidden />Private to you. You choose what to share, and only with people you invite.</p>
+                  <p className="mt-3 text-xs text-muted"><Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy policy</Link></p>
         </section>
       </div>
     </main>

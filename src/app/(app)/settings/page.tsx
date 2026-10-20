@@ -137,6 +137,7 @@ export default function Settings() {
               );
             })}
           </nav>
+          <p className="mt-6 px-1 text-xs text-muted"><Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy policy</Link></p>
         </>
       )}
 
