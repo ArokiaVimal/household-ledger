@@ -88,6 +88,8 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const router = useRouter();
   const { live, previewing, staged, syncError, dismissSyncError, nameOf, meId } = useStore();
   // Solo use is complete on its own: settle-up and the Mine/Together switch appear once a partner is linked.
+  // Balances between people do not depend on the month or the group lens, so those switches are hidden there.
+  const noLens = path.startsWith("/people");
   const visibleNav = NAV.filter((n) => n.href !== "/profile");
   const phoneBar = BAR_ORDER.flatMap((h) => visibleNav.filter((n) => n.href === h));
   const phoneMore = NAV.filter((n) => !n.bar);
@@ -147,8 +149,8 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                   <Search size={16} className="text-muted" aria-hidden />
                   <input aria-label="Search transactions" placeholder="Search transactions…" value={q} onChange={(e) => setQ(e.target.value)} className="min-h-10 w-full bg-transparent text-sm outline-none" />
                 </form>
-                <MonthStepper className="hidden md:flex" />
-                <GroupSwitch className="hidden max-w-lg md:flex" />
+                {!noLens && <MonthStepper className="hidden md:flex" />}
+                {!noLens && <GroupSwitch className="hidden max-w-lg md:flex" />}
                 <Link href="/review" aria-label={staged.length ? `Review, ${staged.length} waiting` : "Review"} title="Review" className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
                   <ClipboardCheck size={18} aria-hidden />
                   {staged.length > 0 && <span aria-hidden className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-semibold leading-5 text-white">{staged.length > 99 ? "99+" : staged.length}</span>}
@@ -156,10 +158,12 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 <NotificationsBell />
                 {user && <AccountMenu onSignOut={signOut} />}
               </div>
-              <div className="mt-2 space-y-1.5 md:hidden">
-                <MonthStepper className="w-full" />
-                <GroupSwitch className="w-full" />
-              </div>
+              {!noLens && (
+                <div className="mt-2 space-y-1.5 md:hidden">
+                  <MonthStepper className="w-full" />
+                  <GroupSwitch className="w-full" />
+                </div>
+              )}
             </header>
             {previewing && (
               <div role="status" className="mx-4 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-warn-soft px-4 py-2.5 text-sm text-warn md:mx-0">

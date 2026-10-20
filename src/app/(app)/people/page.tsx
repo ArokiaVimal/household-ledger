@@ -55,18 +55,16 @@ export default function People() {
   }
   return (
     <>
-      <PageHeader title="People" tip="Who owes whom. Settling up records a payment, never an expense." sub="Shared expenses and balances with each person." actions={canRecord ? <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button> : undefined} />
+      <PageHeader title="People" tip="Who owes whom. Settling up records a payment, never an expense." actions={canRecord ? <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button> : undefined} />
 
       <LinkedWithYou />
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3">
         <Card className="p-4"><div className="text-xs text-muted">You are owed</div><div className="num text-xl font-semibold text-good">{formatINR(owedToMe)}</div></Card>
         <Card className="p-4"><div className="text-xs text-muted">You owe</div><div className="num text-xl font-semibold">{formatINR(iOwe)}</div></Card>
-        <Card className="p-4"><div className="text-xs text-muted">Net</div><div className={`num text-xl font-semibold ${owedToMe - iOwe > 0 ? "text-good" : ""}`}>{owedToMe - iOwe === 0 ? "Even" : `${owedToMe - iOwe > 0 ? "+" : "−"}${formatINR(Math.abs(owedToMe - iOwe))}`}</div></Card>
-        <Card className="p-4"><div className="text-xs text-muted">People</div><div className="num text-xl font-semibold">{others.length}</div><div className="text-xs text-muted">{toSettle.length === 0 ? "all settled" : `${toSettle.length} to settle`}</div></Card>
       </div>
       {toSettle.length > 0 && <Button variant="primary" className="mb-4 min-h-11 w-full sm:w-auto sm:px-6" onClick={() => setAll(true)}>Settle all with {toSettle.length} {toSettle.length === 1 ? "person" : "people"}</Button>}
 
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-2">
+      <div className="space-y-3">
         <Card>
           <CardTitle>Everyone</CardTitle>
           {ledgers.length === 0 ? <EmptyState title="No one here yet" hint="Add a friend in Settings, then split an expense with them." /> : (
@@ -95,8 +93,9 @@ export default function People() {
             </ul>
           )}
         </Card>
-        <Card>
-          <CardTitle>History</CardTitle>
+        <details className="group rounded-[var(--radius-card)] bg-surface p-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium"><span>History{settlements.length > 0 ? ` · ${settlements.length}` : ""}</span><ChevronRight size={16} aria-hidden className="text-muted transition-transform group-open:rotate-90" /></summary>
+          <div className="mt-3">
           {settlements.length === 0 ? <p className="text-sm text-muted">No settlements yet.</p> : (
             <ul className="divide-y divide-border">
               {[...settlements].sort((a, b) => b.date.localeCompare(a.date)).map((s) => (
@@ -110,8 +109,8 @@ export default function People() {
               ))}
             </ul>
           )}
-          <p className="mt-2 text-xs text-muted">Voided entries stay in history but stop counting, and their payments become unsettled again.</p>
-        </Card>
+          </div>
+        </details>
       </div>
 
       <Dialog open={all} onClose={() => setAll(false)} title="Settle everything?">
