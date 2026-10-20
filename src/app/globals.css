@@ -61,6 +61,7 @@ body { overflow-x: clip; max-width: 100vw; }
 img, svg, video, canvas { max-width: 100%; }
 /* iPhone zooms into any field under 16px when it gets focus. Keep fields at 16px on touch screens so it never does. */
 @media (pointer: coarse) { input, select, textarea { font-size: max(16px, 1em); } }
+@keyframes busy-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
 /* A bar that appears at the bottom (for example "3 selected, Settle these") takes the place of the Add button while it is open. */
 body:has([data-selection-bar]) [data-fab] { display: none; }
 /* The big amount field must stay big on phones; the rule above would shrink it to 16px. */

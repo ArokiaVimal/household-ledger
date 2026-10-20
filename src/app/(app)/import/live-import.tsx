@@ -8,6 +8,7 @@ import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import type { Preview, PreviewRow } from "@/lib/import/service";
+import { BusyOverlay } from "./busy-overlay";
 import { ShotImport } from "./shot-import";
 
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -57,6 +58,7 @@ export function LiveImport() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<"read" | "save">("read");
   const [accept, setAccept] = useState(false);
   const [reimportOk, setReimportOk] = useState(false); // the owner said yes to reading a file that was imported before
   const [decisions, setDecisions] = useState<Decisions>({});
@@ -104,7 +106,7 @@ export function LiveImport() {
   const reset = () => { setPreview(null); setNeed(null); setError(null); setDone(null); setSign("auto"); setAccept(false); setReimportOk(false); setExtraction(null); setDecisions({}); setChanging(false); };
 
   const read = async (s: Src, signOverride = sign) => {
-    setSrc(s); setBusy(true); setError(null); setDone(null); setNeed(null); setDecisions({}); setChanging(false);
+    setSrc(s); setPhase("read"); setBusy(true); setError(null); setDone(null); setNeed(null); setDecisions({}); setChanging(false);
     const r = await send(s, "preview", signOverride);
     setBusy(false);
     setExtraction(r.extraction ?? null);
@@ -138,7 +140,7 @@ export function LiveImport() {
 
   const commit = async () => {
     if (!src) return;
-    setBusy(true); setError(null);
+    setPhase("save"); setBusy(true); setError(null);
     const monthsParam = months.map(([m]) => m).join(",");
     const r = await send(src, "commit");
     setBusy(false);
@@ -163,6 +165,16 @@ export function LiveImport() {
   return (
     <>
       <ShotImport open={shotOpen} onClose={() => setShotOpen(false)} aiEnabled={aiEnabled} />
+      {/* Slow work is always announced, and a problem always pops up where you are looking, not somewhere down the page. */}
+      <BusyOverlay open={busy}
+        title={phase === "save" ? "Saving to your review queue…" : preview ? "Asking AI about new merchants…" : (src?.kind === "file" && src.ai) || (src?.kind === "text" && src.mode === "ai") ? "Reading your statement with AI…" : "Reading your statement…"}
+        detail={phase === "save" ? "Adding the transactions. This only takes a moment." : preview ? "Only merchant names are sent. This can take a few seconds." : (src?.kind === "file" && src.ai) || (src?.kind === "text" && src.mode === "ai") ? "Claude is finding every transaction and checking each one against the text. A long statement can take up to a minute." : "Checking every row against the statement's own totals."} />
+      <Dialog open={!!error} onClose={() => setError(null)} title="That didn’t work">
+        <div className="space-y-3 pb-1 text-sm">
+          <p role="alert" className="rounded-xl bg-danger/10 p-3 text-danger">{error}</p>
+          <div className="sticky bottom-0 -mx-4 flex justify-end border-t border-border bg-surface px-4 py-3"><Button variant="primary" onClick={() => setError(null)}>OK</Button></div>
+        </div>
+      </Dialog>
       <PageHeader title="Import" sub="Bring in a statement or a note. Everything arrives unverified for you to check." />
       {usable.length === 0 ? (
         <EmptyState title="Add a payment method first" hint="Open Settings and add the card or account this belongs to." />
@@ -193,10 +205,8 @@ export function LiveImport() {
             </ul>
           </details>
 
-          {(error || done || (busy && !preview)) && (
+          {done && (
             <div className="space-y-2">
-              {busy && !preview && <p role="status" className="rounded-xl bg-background p-3 text-sm text-muted">Reading…</p>}
-              {error && <p role="alert" className="rounded-xl bg-danger/10 p-3 text-sm text-danger">{error}</p>}
               {done && <p role="status" className="rounded-xl bg-good-soft p-3 text-sm text-good">{done} <Link href="/transactions?v=unverified&scope=all" className="font-medium underline">See them now</Link></p>}
             </div>
           )}
