@@ -1,5 +1,5 @@
 "use client";
-import { Bell, ChevronRight } from "lucide-react";
+import { Bell, ChevronRight, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PersonGlyph } from "@/components/glyphs";
@@ -10,7 +10,17 @@ import { personLedger, settlementFor } from "@/domain/ledger";
 import { formatINR, parseRupees } from "@/domain/money";
 
 export default function People() {
-  const { settlements, ledgerRecords, addSettlement, voidSettlement, nameOf, participants, meId, today, live, partner } = useStore();
+  const { settlements, ledgerRecords, addSettlement, voidSettlement, addParticipant, nameOf, participants, meId, today, live, partner } = useStore();
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
+  const addPerson = (e: React.FormEvent) => {
+    e.preventDefault();
+    const r = addParticipant(newName, newEmail.trim() ? { email: newEmail.trim() } : {});
+    if (r.error) { setAddError(r.error); return; }
+    setAdding(false); setNewName(""); setNewEmail(""); setAddError(null);
+  };
   const [open, setOpen] = useState(false);
   const [all, setAll] = useState(false);
   const [voiding, setVoiding] = useState<string | null>(null);
@@ -49,13 +59,24 @@ export default function People() {
       <>
         <PageHeader title="People" />
         <LinkedWithYou />
-        <Card><EmptyState title="No one here yet" hint="Add a friend in Settings, then split an expense with them." /><Link href="/settings" className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white">Open Settings</Link></Card>
+        <Card><EmptyState title="No one here yet" hint="Add someone you split with, then split an expense with them." /><Button variant="primary" className="mt-3" onClick={() => setAdding(true)}><UserPlus size={16} aria-hidden />Add person</Button></Card>
+      <Dialog open={adding} onClose={() => setAdding(false)} title="Add person">
+        <form onSubmit={addPerson} className="space-y-3 pb-1 text-sm">
+          <Field label="Name"><Input autoFocus value={newName} onChange={(e) => { setNewName(e.target.value); setAddError(null); }} maxLength={60} placeholder="e.g. Karthik" /></Field>
+          <Field label="Email (optional)"><Input type="email" inputMode="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Only used to match them if they join later" /></Field>
+          {addError && <p role="alert" className="text-danger">{addError}</p>}
+          <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3">
+            <Button type="button" onClick={() => setAdding(false)}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={!newName.trim()}>Add</Button>
+          </div>
+        </form>
+      </Dialog>
       </>
     );
   }
   return (
     <>
-      <PageHeader title="People" tip="Who owes whom. Settling up records a payment, never an expense." actions={canRecord ? <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button> : undefined} />
+      <PageHeader title="People" tip="Who owes whom. Settling up records a payment, never an expense." actions={<><Button onClick={() => { setAddError(null); setAdding(true); }}><UserPlus size={15} aria-hidden />Add person</Button>{canRecord && <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button>}</>} />
 
       <LinkedWithYou />
       <div className="mb-3 grid grid-cols-2 gap-2">
@@ -112,6 +133,17 @@ export default function People() {
         </details>
       </div>
 
+      <Dialog open={adding} onClose={() => setAdding(false)} title="Add person">
+        <form onSubmit={addPerson} className="space-y-3 pb-1 text-sm">
+          <Field label="Name"><Input autoFocus value={newName} onChange={(e) => { setNewName(e.target.value); setAddError(null); }} maxLength={60} placeholder="e.g. Karthik" /></Field>
+          <Field label="Email (optional)"><Input type="email" inputMode="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Only used to match them if they join later" /></Field>
+          {addError && <p role="alert" className="text-danger">{addError}</p>}
+          <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3">
+            <Button type="button" onClick={() => setAdding(false)}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={!newName.trim()}>Add</Button>
+          </div>
+        </form>
+      </Dialog>
       <Dialog open={all} onClose={() => setAll(false)} title="Settle everything?">
         <div className="space-y-3 pb-1 text-sm">
           <ul className="divide-y divide-border rounded-xl bg-background px-3">
