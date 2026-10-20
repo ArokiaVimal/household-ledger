@@ -233,7 +233,8 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
           ) : (
             <>
               <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface" aria-label="Who is in this expense">
-                {participants.map((p) => {
+                {/* Only the people in the split; add or remove people in the picker above. */}
+                {participants.filter((p) => ids.includes(p.id)).map((p) => {
                   const on = ids.includes(p.id);
                   const tag = p.pendingEmail ? "invited" : p.id === partnerId || p.relationship === "partner" ? "" : p.userId === null ? relationshipText(p).toLowerCase() : "";
                   const values = value.values ?? {};
