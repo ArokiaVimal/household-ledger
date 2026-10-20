@@ -1,17 +1,15 @@
 "use client";
-import { Check, Equal, Gift, HandCoins, IndianRupee, ListChecks, Minus, Percent, PieChart, Plus, SlidersHorizontal, Trash2, User, Wallet, type LucideIcon } from "lucide-react";
+import { Check, Equal, Gift, HandCoins, IndianRupee, ListChecks, Minus, Percent, PieChart, Plus, SlidersHorizontal, Trash2, User, Wallet, Zap, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 import { computeShares, equalSplit, itemsExtra, itemSubtotals, ratioSplit, sameSplit, validateSplit } from "@/domain/splits";
 import type { Paise, SplitConfig, SplitItem, SplitMode } from "@/domain/types";
 import { relationshipText } from "@/domain/contacts";
 import { Dot, PersonGlyph } from "./glyphs";
-import { TileGrid } from "./pickers";
 import { Button, Input } from "./ui";
 
-const ADD = "__add";
 
 /** The three one-tap splits: who pays it all, or that you covered it for them. */
 const quickLook = (label: string): { Icon: LucideIcon; tone: string } =>
@@ -54,6 +52,14 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   const meIn = value.participantIds.includes(meId);
   const excludeMe = others.length > 0 && !meIn;
   const people = participants.filter((p) => p.id !== meId);
+  // People you split with most come first.
+  const { records, staged } = useStore();
+  const rankedPeople = useMemo(() => {
+    const uses = new Map<string, number>();
+    for (const r of [...records, ...staged]) if (r.split.mode !== "personal") for (const id of r.split.participantIds) uses.set(id, (uses.get(id) ?? 0) + 1);
+    return people.map((p, i) => ({ p, i })).sort((a, b) => (uses.get(b.p.id) ?? 0) - (uses.get(a.p.id) ?? 0) || a.i - b.i).map((x) => x.p);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [records, staged, participants, meId]);
   // The usual way to split with one person: your couple ratio with your partner, otherwise down the middle.
   const usualWith = (o: string): SplitConfig => (o === partnerId && splitRatio.leaderBps !== 5000
     ? ratioSplit(ownerId, ownerId === meId ? o : meId, splitRatio.leaderBps)
@@ -126,11 +132,14 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   };
   const presetId = howOptions.find((p) => sameSplit(p.config, value))?.label ?? "";
   const [adding, setAdding] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   // Two one-tap splits ("Varru owes all", "I owe all"); every other way is the row of method icons.
   const quick = howOptions.filter((p) => /owes all$|^I owe all$|^I paid for them$/.test(p.label));
   const owesAll = quick.some((p) => p.label === presetId);
+  // Quick splits are the first option of the How row; their three cards show while it is chosen (or one of them is in use).
+  const quickOn = quick.length > 0 && (quickOpen || owesAll);
   const showPanel = others.length > 0 && !owesAll && value.mode !== "equal";
   const summary = ids.map((id) => `${nameOf(id)} ${formatINR(shares[id] ?? 0)}`).join(" · ");
   const pickPreset = (label: string) => {
@@ -174,9 +183,24 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
     <div className="space-y-2">
       <section aria-label={peopleLabel}>
         <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{peopleLabel}</h3>
-        <TileGrid multi label="Split with" columns={2}
-          options={[{ id: ME, label: `${nameOf(meId)} (Me)`, icon: <PersonGlyph name="Me" id={meId} size={32} /> }, ...people.map((p) => ({ id: p.id, icon: <PersonGlyph name={nameOf(p.id)} id={p.id} size={32} />, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : nameOf(p.id), hint: p.id === partnerId ? "Partner" : p.relationship ? relationshipText(p) : undefined })), { id: ADD, label: "Add someone", icon: <Dot icon={Plus} tone="bg-accent/10 text-accent" size={32} /> }]}
-          selected={[...(meIn ? [ME] : []), ...others]} onPick={(id) => (id === ADD ? setAdding((v) => !v) : pickPerson(id))} />
+        <ul role="group" aria-label="Split with" className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+          {[{ id: ME, name: "Me", full: `${nameOf(meId)} (Me)`, glyph: <PersonGlyph name="Me" id={meId} size={36} />, on: meIn }, ...rankedPeople.map((p) => ({ id: p.id, name: firstName(nameOf(p.id)), full: p.pendingEmail ? `${nameOf(p.id)} (invited)` : nameOf(p.id), glyph: <PersonGlyph name={nameOf(p.id)} id={p.id} size={36} />, on: others.includes(p.id) }))].map((t) => (
+            <li key={t.id} className="w-[calc((100%-2rem)/5)] min-w-[3.75rem] shrink-0">
+              <button type="button" aria-pressed={t.on} aria-label={t.full} title={t.full} onClick={() => pickPerson(t.id)}
+                className={`relative flex min-h-[4.75rem] w-full flex-col items-center justify-center gap-1 rounded-2xl border px-1 py-2 transition-colors focus-visible:outline-2 focus-visible:outline-accent ${t.on ? "border-accent bg-accent/10" : "border-transparent bg-background hover:border-border"}`}>
+                {t.glyph}
+                <span className="w-full truncate text-center text-[12px] font-medium leading-tight">{t.name}</span>
+                {t.on && <span aria-hidden className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-accent text-white"><Check size={11} strokeWidth={3} /></span>}
+              </button>
+            </li>
+          ))}
+          <li className="w-[calc((100%-2rem)/5)] min-w-[3.75rem] shrink-0">
+            <button type="button" aria-label="Add someone" aria-expanded={adding} onClick={() => setAdding((v) => !v)} className="flex min-h-[4.75rem] w-full flex-col items-center justify-center gap-1 rounded-2xl border border-transparent bg-background px-1 py-2 hover:border-border focus-visible:outline-2 focus-visible:outline-accent">
+              <Dot icon={Plus} tone="bg-accent/10 text-accent" size={36} />
+              <span className="w-full truncate text-center text-[12px] font-medium leading-tight">Add</span>
+            </button>
+          </li>
+        </ul>
         {adding && (
           <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); const r = addParticipant(newName); if (r.error || !r.id) { setAddError(r.error ?? "Could not add that."); return; } setNewName(""); setAddError(null); setAdding(false); pickPerson(r.id); }}>
             <Input aria-label="New person's name" autoFocus value={newName} onChange={(e) => { setNewName(e.target.value); setAddError(null); }} placeholder="Friend's name, e.g. Karthik" maxLength={60} />
@@ -192,13 +216,17 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
         <section aria-label="How">
           <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">How</h3>
           <div role="radiogroup" aria-label="Split method" className="flex gap-1 rounded-2xl bg-background p-1">
-            {MODES.filter((m) => m.id !== "personal").map((m) => { const on = value.mode === m.id && !owesAll; const [I] = MODE_ICON[m.id]; return (
-              <button key={m.id} type="button" role="radio" aria-checked={on} aria-label={m.label} title={m.label} onClick={() => { onChange(build(m.id, ids.length ? ids : [meId])); }}
+            {quick.length > 0 && (
+              <button type="button" role="radio" aria-checked={quickOn} aria-label="Quick splits" title="Quick splits" onClick={() => setQuickOpen(true)}
+                className={`grid min-h-10 flex-1 place-items-center rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-accent ${quickOn ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-surface hover:text-foreground"}`}><Zap size={18} aria-hidden /></button>
+            )}
+            {MODES.filter((m) => m.id !== "personal").map((m) => { const on = value.mode === m.id && !quickOn; const [I] = MODE_ICON[m.id]; return (
+              <button key={m.id} type="button" role="radio" aria-checked={on} aria-label={m.label} title={m.label} onClick={() => { setQuickOpen(false); onChange(build(m.id, ids.length ? ids : [meId])); }}
                 className={`grid min-h-10 flex-1 place-items-center rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-accent ${on ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-surface hover:text-foreground"}`}><I size={18} aria-hidden /></button>
             ); })}
           </div>
-          <p className="mt-1.5 text-xs text-muted"><b className="font-medium text-foreground">{owesAll ? howOptions.find((p) => p.label === presetId)?.label : mode.label}</b>. {owesAll ? howOptions.find((p) => p.label === presetId) && describe(howOptions.find((p) => p.label === presetId)!.config) : mode.hint}</p>
-          {quick.length > 0 && (
+          <p className="mt-1.5 text-xs text-muted"><b className="font-medium text-foreground">{quickOn ? (owesAll ? howOptions.find((p) => p.label === presetId)?.label : "Quick splits") : mode.label}</b>. {quickOn ? (owesAll ? howOptions.find((p) => p.label === presetId) && describe(howOptions.find((p) => p.label === presetId)!.config) : "One tap for the usual cases.") : mode.hint}</p>
+          {quickOn && (
             <div role="radiogroup" aria-label="Quick splits" className="mt-2 grid grid-cols-3 gap-2">
               {quick.map((p) => {
                 const on = owesAll && presetId === p.label;
