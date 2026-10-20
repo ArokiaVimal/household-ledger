@@ -27,6 +27,7 @@ import type { HouseholdData } from "@/lib/data/load";
 import { pickMonth } from "@/domain/months";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { validateSplit } from "@/domain/splits";
+import { installDemoApi } from "@/lib/demo/api";
 import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, historyRecords, initialRecords, initialSettlements, merchantRules, paymentGroups as mockPaymentGroups, participants as mockParticipants, recurringItems as mockRecurring, cardBills as mockCardBills, voucherBrands as mockVoucherBrands, voucherRecords as mockVoucherRecords, trendHistory as mockTrend } from "./mock";
 
 export type View = "household" | "personal";
@@ -43,11 +44,15 @@ export interface LiveInit {
   couple?: CoupleData;
   /** The server has an AI key, so import suggestions use Claude (merchant memory works either way). */
   aiEnabled?: boolean;
+  /** The demo: fictional data on the real screens, answered by a fake server in the browser. */
+  demo?: boolean;
 }
 
 interface Store {
   /** True when AI-powered suggestions are switched on for this app. */
   aiEnabled: boolean;
+  /** Showing the demo: fictional data and a fake server. */
+  demo: boolean;
   /** True when connected to the household's saved data; false in demo mode. */
   live: boolean;
   /** Live mode only: whether the user belongs to a household. Always true in demo mode. */
@@ -232,6 +237,7 @@ function seed(live?: LiveInit) {
 export function StoreProvider({ children, initialView = "personal", live }: { children: ReactNode; initialView?: View; live?: LiveInit }) {
   const { profile } = useProfile();
   const router = useRouter();
+  useState(() => { if (live?.demo) installDemoApi(); }); // before any screen asks the server for anything
   const init = useMemo(() => seed(live), [live]);
   const [records, setRecords] = useState(init.records);
   const [staged, setStaged] = useState(init.staged);
@@ -284,7 +290,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const pendingPartner = participants.find((p) => p.pendingEmail) ?? null;
   const partnerId = couple?.partner.participantId ?? (live ? pendingPartner?.id ?? null : participants.find((p) => p.id !== meId && p.userId)?.id ?? participants.find((p) => p.id !== meId)?.id ?? null);
   const splitRatio = useMemo(() => (live ? (couple ? { leaderId: couple.ratio.leaderId, leaderBps: couple.ratio.leaderBps } : { leaderId: meId, leaderBps: pendingPartner ? pendingPartner.inviterShareBps ?? 6400 : 5000 }) : { leaderId: ME, leaderBps: OWNER_SHARE_BPS }), [live, couple, meId, pendingPartner]);
-  const trendHistory = live ? {} : mockTrend;
+  const trendHistory = live && !live.demo ? {} : mockTrend;
 
   // After a failed save the server re-sends the household's data; adopt it (React's "adjust state on prop change" pattern).
   const [prevInit, setPrevInit] = useState(init);
@@ -706,7 +712,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   }, []);
 
   const value: Store = {
-    aiEnabled: !!live?.aiEnabled, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
+    aiEnabled: !!live?.aiEnabled, demo: !!live?.demo, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
     categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, setParticipantPhoto, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, recurringSuggestions, recurringAlerts, confirmRecurringSuggestion, dismissRecurringSuggestion, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,

@@ -122,7 +122,7 @@ const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cas
 
 export default function Dashboard() {
   const skipSetup = useDeviceFlag("pf-setup-open") === "1";
-  const { live, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, balances, month, categoryName, nameOf, accountName, partner, groups, activeGroup, groupSummary, monthRecords, recurring, recurringSuggestions, attributionOf, allocatedByKey, categories, saveCardBill, markRecurringPaid } = useStore();
+  const { live, demo, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, balances, month, categoryName, nameOf, accountName, partner, groups, activeGroup, groupSummary, monthRecords, recurring, recurringSuggestions, attributionOf, allocatedByKey, categories, saveCardBill, markRecurringPaid } = useStore();
   const [paying, setPaying] = useState<{ kind: "bill"; bill: BillStatus } | { kind: "recurring"; id: string; name: string } | null>(null);
   const withPartner = !live || !!partner;
   const prevMonth = (() => { const [y, m] = month.split("-").map(Number); return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7); })();
@@ -138,7 +138,7 @@ export default function Dashboard() {
   const owedToMe = balances.filter((b) => b.to === meId && b.outstanding > 0);
   const q = `month=${month}`;
   const prevKey = (() => { const [y, m] = month.split("-").map(Number); return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7); })();
-  const delta = live && prevAllocated > 0 ? Math.round(((groupSummary.allocated - prevAllocated) / prevAllocated) * 1000) / 10 : null;
+  const delta = live && !demo && prevAllocated > 0 ? Math.round(((groupSummary.allocated - prevAllocated) / prevAllocated) * 1000) / 10 : null;
   const dueBills = useMemo(() => upcomingBills(cardViews(accounts, cardBills, records, today)), [accounts, cardBills, records, today]);
   // The headline figures. Outflow is every record of the month on screen (all groups): transfers, card-bill payments and
   // excluded rows are not spending, and refunds subtract. My share follows the group lens and the existing split allocations.

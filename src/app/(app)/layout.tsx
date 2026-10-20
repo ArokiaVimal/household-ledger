@@ -5,6 +5,7 @@ import { StoreProvider, type LiveInit } from "@/data/store";
 import { createFirestoreRepository } from "@/data/firestore-repository";
 import { profilePhotos } from "@/lib/profile/photos-server";
 import { uidOf, withProfilePhotos } from "@/lib/profile/photos";
+import { DEMO_PROFILE, demoLiveInit } from "@/lib/demo/data";
 import { loadReadyHouseholdData, participantIdFor, type HouseholdData } from "@/lib/data/load";
 import { loadCoupleData } from "@/lib/data/couple";
 import { getCouple } from "@/lib/households/couple";
@@ -102,6 +103,11 @@ async function AuthedShell({ children }: { children: ReactNode }) {
       }
     }
     if (dataError) live = { data: empty, meId: "", today, ready: false };
+  } else {
+    // No sign-in configured: the demo, with fictional data on the real screens.
+    live = demoLiveInit();
+    profile = DEMO_PROFILE;
+    status = "ok";
   }
   const partnerInfo: PartnerInfo | null = coupleMembership
     ? { active: coupleMembership.active, endedAt: coupleMembership.household.endedAt, partner: coupleMembership.partner ? { uid: coupleMembership.partner.uid, name: coupleMembership.partner.displayName || "Partner", email: coupleMembership.partner.email } : null, ratio: coupleMembership.household.splitRatio ?? null }

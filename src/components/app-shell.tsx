@@ -86,7 +86,7 @@ function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
 export function AppShell({ children, user }: { children: ReactNode; user: { email: string } | null }) {
   const path = usePathname();
   const router = useRouter();
-  const { live, previewing, staged, syncError, dismissSyncError, nameOf, meId } = useStore();
+  const { live, demo, previewing, staged, syncError, dismissSyncError, nameOf, meId } = useStore();
   // Solo use is complete on its own: settle-up and the Mine/Together switch appear once a partner is linked.
   // The month and group switches only appear on screens they change. Everywhere else they just push the content down.
   const monthScreens = ["/timeline", "/recurring", "/vouchers", "/insights"];
@@ -137,7 +137,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
             ))}
           </aside>
           <div className="min-w-0">
-            {!live && (
+            {(!live || demo) && (
               <div className="mx-4 mt-3 rounded-full bg-warn-soft px-4 py-1 text-center text-xs text-warn md:mx-0 md:mt-0" role="status">
                 Demo mode · fictional data · nothing is saved
               </div>
