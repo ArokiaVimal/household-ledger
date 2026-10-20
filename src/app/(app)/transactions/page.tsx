@@ -38,7 +38,7 @@ function ChipFilter({ label, value, onPick, options }: { label: string; value: s
   return (
     <fieldset>
       <legend className="mb-1.5 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{label}</legend>
-      <div className="flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="grid grid-flow-col grid-rows-2 auto-cols-max gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {options.map((o) => {
           const on = o.id === value;
           return (
