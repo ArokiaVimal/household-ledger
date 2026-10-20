@@ -15,7 +15,7 @@ const KEYWORDS: { re: RegExp; key: IconKey }[] = [
   { re: /utilit|electric|water|bill/i, key: "zap" }, { re: /broadband|internet|wifi/i, key: "wifi" }, { re: /rent|house|home|maintenance|household/i, key: "home" },
   { re: /travel|flight|hotel|trip|holiday/i, key: "plane" }, { re: /entertain|movie|stream|subscription|game/i, key: "film" }, { re: /health|medic|pharma|doctor|fitness|gym/i, key: "heart" },
   { re: /education|school|course|tuition|book/i, key: "graduation" }, { re: /insur|premium/i, key: "landmark" }, { re: /emi|loan|credit card|card bill/i, key: "repeat" },
-  { re: /invest|sip|mutual|stock/i, key: "trend" }, { re: /salary|income|refund|cashback/i, key: "banknote" }, { re: /gift|donat|charity/i, key: "gift" }, { re: /pet/i, key: "paw" },
+  { re: /invest|sip|mutual|stock/i, key: "trend" }, { re: /salary|income|refund|cashback/i, key: "banknote" }, { re: /gift|donat|charity/i, key: "gift" }, { re: /\bdate\b|dating|romance|couple|anniversar|valentine/i, key: "sparkles" }, { re: /pet/i, key: "paw" },
   { re: /mobile|phone|recharge/i, key: "phone" }, { re: /personal care|salon|beauty|grooming/i, key: "sparkles" }, { re: /repair|service/i, key: "wrench" }, { re: /fee|tax|charge/i, key: "receipt" },
 ];
 /** The icon the name matcher picks, or null when it has no idea (those are the ones worth asking AI about). */
