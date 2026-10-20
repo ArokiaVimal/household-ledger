@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { CompactRow } from "@/components/txn-compact";
+import { HScroll } from "@/components/hscroll";
 import { AiBadge, AiFeatureCard, Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -106,7 +107,7 @@ export function UnverifiedQueue({ month }: { month?: string }) {
               <p>{aiEnabled ? "AI rows were categorized by Claude. Remembered rows match what you verified before. Verify the sure ones together and fix the rest." : "AI is off. Rows are filled from what you verified before."}</p>
             </AiFeatureCard>
           )}
-          <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-0.5 sm:mb-3 sm:flex-wrap [&>*]:shrink-0">
+          <HScroll className="mb-2 flex items-center gap-2 pb-0.5 sm:mb-3 sm:flex-wrap [&>*]:shrink-0">
             {filtered && <Badge tone="warn">{`${shown.length} of ${staged.length} shown`}</Badge>}
             {confident.length > 0 && <Button variant="primary" onClick={() => { setPicked(new Set(confident.map((r) => r.id))); setConfirm(true); }}><Sparkles size={15} aria-hidden />Verify {confident.length} sure ones</Button>}
             <Button onClick={() => shown[0] && view.open(shown[0])} variant={confident.length > 0 ? "ghost" : "primary"} disabled={shown.length === 0}><ClipboardCheck size={16} aria-hidden />Start verifying</Button>
@@ -114,7 +115,7 @@ export function UnverifiedQueue({ month }: { month?: string }) {
             {live && fillable > 0 && <Button onClick={fillWithAi} disabled={busy}><Sparkles size={15} aria-hidden />{busy ? "Asking AI…" : `Fill in ${fillable} with AI`}<AiBadge>AI</AiBadge></Button>}
             {picked.size > 0 && <Button onClick={() => setConfirm(true)}>Verify {picked.size} as they are…</Button>}
             {picked.size > 0 && <Button variant="danger" onClick={() => setDeleting(chosen)}><Trash2 size={15} aria-hidden />Delete {picked.size}…</Button>}
-          </div>
+          </HScroll>
           <div className="mb-2 space-y-2 sm:mb-3" role="search" aria-label="Search and filter unverified transactions">
             <div className="relative">
               <Search size={16} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
@@ -126,13 +127,13 @@ export function UnverifiedQueue({ month }: { month?: string }) {
               <Select aria-label="Category" value={cat} onChange={(e) => narrow(() => setCat(e.target.value))}><option value="">All categories</option>{categoriesIn.map((id) => <option key={id} value={id}>{categoryName(id)}</option>)}</Select>
               {!month && <Select aria-label="Month" value={mon} onChange={(e) => narrow(() => setMon(e.target.value))}><option value="">All months</option>{monthsIn.map((m) => <option key={m} value={m}>{monthName(m)}</option>)}</Select>}
             </div>
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap [&>*]:shrink-0" role="group" aria-label="Quick filters">
+            <HScroll className="flex items-center gap-1.5 pb-0.5 sm:flex-wrap [&>*]:shrink-0" role="group" aria-label="Quick filters">
               {QUICK.filter((x) => x.id === "all" || staged.some(x.test)).map((x) => {
                 const n = staged.filter(x.test).length;
                 return <button key={x.id} type="button" aria-pressed={quick === x.id} onClick={() => narrow(() => setQuick(x.id))} className={`min-h-8 rounded-full border px-3 text-sm ${quick === x.id ? "border-accent bg-accent text-white" : "border-border bg-surface text-muted hover:text-foreground"}`}>{x.label}{x.id !== "all" && <span className="ml-1.5 text-xs opacity-80">{n}</span>}</button>;
               })}
               {filtered && <button type="button" onClick={clearFilters} className="ml-1 text-sm text-accent underline-offset-2 hover:underline">Clear filters</button>}
-            </div>
+            </HScroll>
           </div>
           {note && <p role="status" className="mb-3 rounded-xl bg-accent/5 p-3 text-sm">{note}</p>}
           {shown.length === 0 && <p role="status" className="rounded-[var(--radius-card)] bg-surface p-6 text-center text-sm text-muted">Nothing in the queue matches. <button type="button" onClick={clearFilters} className="text-accent underline underline-offset-2">Clear filters</button></p>}

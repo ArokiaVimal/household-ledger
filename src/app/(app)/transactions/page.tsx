@@ -10,6 +10,7 @@ import { ProgressRing } from "@/components/progress";
 import { verifyProgress } from "@/domain/progress";
 import { Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { CompactRow, StatusMark } from "@/components/txn-compact";
+import { HScroll } from "@/components/hscroll";
 import { CategoryGlyph } from "@/components/glyphs";
 import { useStore } from "@/data/store";
 import { rootOf, shortName } from "@/domain/accounts";
@@ -40,9 +41,9 @@ function ChipFilter({ label, value, onPick, options }: { label: string; value: s
   const widths = [0, 0];
   for (const o of options) { const w = o.label.length + 6; const k = widths[0] <= widths[1] ? 0 : 1; rows[k].push(o); widths[k] += w; }
   return (
-    <fieldset>
+    <fieldset className="min-w-0">
       <legend className="mb-1.5 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{label}</legend>
-      <div className="overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <HScroll className="px-4">
         <div className="flex w-max flex-col gap-1.5">
           {rows.map((row, i) => (
             <div key={i} className="flex gap-1.5">
@@ -57,7 +58,7 @@ function ChipFilter({ label, value, onPick, options }: { label: string; value: s
             </div>
           ))}
         </div>
-      </div>
+      </HScroll>
     </fieldset>
   );
 }
@@ -233,12 +234,12 @@ function TransactionsView() {
           <button className="text-muted underline" onClick={() => router.replace(`/transactions${get("month") ? `?month=${get("month")}` : ""}`)}>Clear filters</button>
         </div>
       )}
-      <div role="tablist" aria-label="Group transactions" className="mb-3 hidden gap-1 md:flex overflow-x-auto rounded-full bg-surface p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <HScroll role="tablist" aria-label="Group transactions" className="mb-3 hidden gap-1 rounded-full bg-surface p-1 md:flex">
         {VIEWS.map((v) => (
           <button key={v.id} role="tab" aria-selected={view === v.id} onClick={() => set("view", v.id === "all" ? "" : v.id)}
             className={cn("shrink-0 rounded-full px-3 py-1.5 text-[13px] md:px-3.5 md:text-sm", view === v.id ? "bg-foreground text-white" : "text-muted hover:bg-background")}>{v.label}</button>
         ))}
-      </div>
+      </HScroll>
       {rows.length === 0 ? <EmptyState title="No transactions match" hint="Try clearing a filter." /> : view !== "all" ? (
         <GroupedView rows={rows} view={view} onEdit={setEditing} />
       ) : (
