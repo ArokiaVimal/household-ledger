@@ -58,27 +58,26 @@ export default function People() {
       <PageHeader title="People" tip="Who owes whom. Settling up records a payment, never an expense." actions={canRecord ? <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record a payment</Button> : undefined} />
 
       <LinkedWithYou />
-      <div className="mb-4 grid grid-cols-2 gap-3">
-        <Card className="p-4"><div className="text-xs text-muted">You are owed</div><div className="num text-xl font-semibold text-good">{formatINR(owedToMe)}</div></Card>
-        <Card className="p-4"><div className="text-xs text-muted">You owe</div><div className="num text-xl font-semibold">{formatINR(iOwe)}</div></Card>
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <Card className="px-3.5 py-2.5"><div className="text-xs text-muted">You are owed</div><div className="num text-lg font-semibold text-good">{formatINR(owedToMe)}</div></Card>
+        <Card className="px-3.5 py-2.5"><div className="text-xs text-muted">You owe</div><div className="num text-lg font-semibold">{formatINR(iOwe)}</div></Card>
       </div>
-      {toSettle.length > 0 && <Button variant="primary" className="mb-4 min-h-11 w-full sm:w-auto sm:px-6" onClick={() => setAll(true)}>Settle all with {toSettle.length} {toSettle.length === 1 ? "person" : "people"}</Button>}
+      {toSettle.length > 0 && <Button variant="primary" className="mb-3 min-h-10 w-full sm:w-auto sm:px-6" onClick={() => setAll(true)}>Settle all with {toSettle.length} {toSettle.length === 1 ? "person" : "people"}</Button>}
 
       <div className="space-y-3">
-        <Card>
-          <CardTitle>Everyone</CardTitle>
+        <Card className="px-3 py-1">
           {ledgers.length === 0 ? <EmptyState title="No one here yet" hint="Add a friend in Settings, then split an expense with them." /> : (
             <ul className="divide-y divide-border">
               {ledgers.map((l) => {
                 const name = nameOf(l.personId);
                 const owes = l.outstandingPaise > 0;
                 return (
-                  <li key={l.personId} className="flex items-center gap-2 py-1.5">
-                    <Link href={`/people/${encodeURIComponent(l.personId)}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-2 hover:bg-background sm:px-2">
-                      <PersonGlyph name={name} id={l.personId} size={40} />
+                  <li key={l.personId} className="flex items-center gap-2 py-0.5">
+                    <Link href={`/people/${encodeURIComponent(l.personId)}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-1.5 hover:bg-background sm:px-2">
+                      <PersonGlyph name={name} id={l.personId} size={36} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{name}</span>
-                        <span className="block text-xs text-muted">{l.open.length === 0 ? (l.outstandingPaise === 0 ? (l.settled.length === 0 ? "Nothing shared yet" : "All settled") : "Balance from earlier payments") : `${l.open.length} payment${l.open.length === 1 ? "" : "s"} to settle`}</span>
+                        <span className="block text-xs text-muted">{l.open.length === 0 ? (l.outstandingPaise === 0 ? (l.settled.length === 0 ? "Nothing shared yet" : "All settled") : "Earlier balance") : `${l.open.length} open`}</span>
                       </span>
                       <span className="text-right">
                         <span className={`num block font-semibold ${l.outstandingPaise === 0 ? "text-muted" : owes ? "text-good" : ""}`}>{l.outstandingPaise === 0 ? "₹0" : formatINR(Math.abs(l.outstandingPaise))}</span>
@@ -86,14 +85,14 @@ export default function People() {
                       </span>
                       <ChevronRight size={16} aria-hidden className="shrink-0 text-muted" />
                     </Link>
-                    {owes && canSettleWith(l.personId) && <button type="button" aria-label={`Remind ${name}`} title="Send a reminder" onClick={() => void remind(name, l.outstandingPaise)} className="grid size-10 shrink-0 place-items-center rounded-full border border-border text-muted hover:bg-background"><Bell size={15} aria-hidden /></button>}
+                    {owes && canSettleWith(l.personId) && <button type="button" aria-label={`Remind ${name}`} title="Send a reminder" onClick={() => void remind(name, l.outstandingPaise)} className="grid size-9 shrink-0 place-items-center rounded-full border border-border text-muted hover:bg-background"><Bell size={15} aria-hidden /></button>}
                   </li>
                 );
               })}
             </ul>
           )}
         </Card>
-        <details className="group rounded-[var(--radius-card)] bg-surface p-4">
+        <details className="group rounded-[var(--radius-card)] bg-surface px-3.5 py-3">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium"><span>History{settlements.length > 0 ? ` · ${settlements.length}` : ""}</span><ChevronRight size={16} aria-hidden className="text-muted transition-transform group-open:rotate-90" /></summary>
           <div className="mt-3">
           {settlements.length === 0 ? <p className="text-sm text-muted">No settlements yet.</p> : (
