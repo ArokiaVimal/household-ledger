@@ -12,6 +12,7 @@ import { checkContact, normalizeEmail } from "@/domain/contacts";
 import { RELATIONSHIPS } from "@/domain/types";
 import { validateAvatarDataUrl } from "@/lib/profile/profile";
 import { ICON_KEYS } from "@/domain/icons";
+import { LOGO_KEYS } from "@/lib/logos";
 import { impliedVoucherId, planUpiSetup, suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
@@ -57,7 +58,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("group.put"), group: z.object({ id, name: z.string().min(1).max(40), kind: z.enum(["mine", "people"]), memberIds: z.array(id).max(30), coverMembers: z.boolean(), includeMe: z.boolean() }) }),
   z.object({ type: z.literal("group.delete"), id }),
   z.object({ type: z.literal("groups.reorder"), ids: z.array(id).min(1).max(50) }),
-  z.object({ type: z.literal("icons.apply"), categories: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), accounts: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), merchants: z.array(z.object({ name: z.string().min(1).max(60), icon: z.enum(ICON_KEYS) })).max(300) }),
+  z.object({ type: z.literal("icons.apply"), categories: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), accounts: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), merchants: z.array(z.object({ name: z.string().min(1).max(60), icon: z.enum(ICON_KEYS).optional(), logo: z.enum(LOGO_KEYS).optional() }).refine((m) => !!m.icon || !!m.logo, "Pick an icon or a logo")).max(300) }),
   z.object({ type: z.literal("accounts.reorder"), ids: z.array(id).min(1).max(200) }),
   z.object({ type: z.literal("accounts.addSuggested") }),
   z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60), email: z.string().max(200).nullable().optional(), nickname: z.string().max(30).nullable().optional(), relationship: z.enum(RELATIONSHIPS).optional(), relationshipLabel: z.string().max(30).nullable().optional() }),
@@ -504,7 +505,11 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       let n = 0;
       for (const x of a.categories) { const c = cats.find((y) => y.id === x.id); if (c) { await repo.categories.put({ ...c, icon: x.icon }); n++; } }
       for (const x of a.accounts) { const c = accts.find((y) => y.id === x.id); if (c) { await repo.accounts.put({ ...c, icon: x.icon }); n++; } }
-      for (const x of a.merchants) for (const m of memories.filter((y) => y.name.toLowerCase() === x.name.toLowerCase())) { await repo.merchantMemory.put({ ...m, icon: x.icon }); n++; }
+      // A merchant shows either a logo or an icon: choosing one replaces the other.
+      for (const x of a.merchants) for (const m of memories.filter((y) => y.name.toLowerCase() === x.name.toLowerCase())) {
+        const { icon: _i, logo: _l, ...rest } = m; void _i; void _l;
+        await repo.merchantMemory.put({ ...rest, ...(x.logo ? { logo: x.logo } : { icon: x.icon }) }); n++;
+      }
       await log("edit", "household", "icons", `Set ${n} icons`);
       return;
     }

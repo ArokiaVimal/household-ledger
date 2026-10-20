@@ -589,3 +589,24 @@ describe("voucher wallets", () => {
     expect((await audit(repo)).filter((a) => a === "edit")).toHaveLength(1);
   });
 });
+
+describe("merchant look", () => {
+  const mem = { id: "m1", key: "instamart", name: "Swiggy Instamart", categoryId: "groceries", kind: "purchase" as const, source: "user" as const, confident: true, confirmed: 1, lastSeen: "2026-09-01" };
+  it("a logo replaces the icon and an icon replaces the logo", async () => {
+    const repo = await setup();
+    await repo.merchantMemory.put({ ...mem, icon: "basket" });
+    await applyAction(repo, actor, { type: "icons.apply", categories: [], accounts: [], merchants: [{ name: "swiggy instamart", logo: "swiggy" }] });
+    expect(await repo.merchantMemory.list()).toMatchObject([{ logo: "swiggy" }]);
+    expect((await repo.merchantMemory.list())[0].icon).toBeUndefined();
+    await applyAction(repo, actor, { type: "icons.apply", categories: [], accounts: [], merchants: [{ name: "Swiggy Instamart", icon: "store" }] });
+    const [m] = await repo.merchantMemory.list();
+    expect(m.icon).toBe("store");
+    expect(m.logo).toBeUndefined();
+  });
+  it("refuses a logo that is not one of ours, and an entry with neither", async () => {
+    const repo = await setup();
+    await repo.merchantMemory.put(mem);
+    await fails(applyAction(repo, actor, { type: "icons.apply", categories: [], accounts: [], merchants: [{ name: "Swiggy Instamart", logo: "evil" as never }] }), "invalid");
+    await fails(applyAction(repo, actor, { type: "icons.apply", categories: [], accounts: [], merchants: [{ name: "Swiggy Instamart" }] }), "invalid");
+  });
+});

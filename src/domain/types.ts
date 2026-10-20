@@ -170,6 +170,8 @@ export interface MerchantMemory {
   voucherSeller?: boolean;
   /** Chosen icon for a merchant with no brand logo (a key from the built-in set). */
   icon?: string;
+  /** Chosen brand logo (a file in public/logos). Picking a logo replaces the icon and the other way round. */
+  logo?: string;
   /** user = you approved or corrected it (always wins); ai = Claude's suggestion, not yet confirmed. */
   source: "user" | "ai";
   /** AI entries only: Claude said it was sure. */

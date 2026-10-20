@@ -31,7 +31,7 @@ const MENU: { id: string; group: string; label: string; hint: string; icon: Luci
   { id: "groups", group: "Set up", label: "Payment groups", hint: "View spending by person", icon: LayoutGrid },
   { id: "categories", group: "Set up", label: "Categories and rules", hint: "Rename, add, auto-sort", icon: Tags },
   { id: "sharing", group: "Set up", label: "Friends & Family", hint: "People you split with", icon: Users },
-  { id: "icons", group: "Set up", label: "Icons", hint: "Pictures for categories and merchants", icon: Sparkles },
+  { id: "icons", group: "Set up", label: "Icons & logos", hint: "Pictures for categories and merchants", icon: Sparkles },
   { id: "ai", group: "Smart tools", label: "Smart import", hint: "AI and import help", icon: Sparkles, liveOnly: true },
   { id: "integrations", group: "Smart tools", label: "Integrations", hint: "SMS and Gmail capture", icon: Plug, liveOnly: true },
   { id: "reminders", group: "Smart tools", label: "Reminders", hint: "Card bill alerts", icon: Bell, liveOnly: true },
@@ -227,7 +227,7 @@ export default function Settings() {
           <CategoriesView embedded />
         </Section>
 
-        <Section id="icons" icon={<Sparkles size={20} aria-hidden />} title="Icons" tagline="Pictures for categories and merchants.">
+        <Section id="icons" icon={<Sparkles size={20} aria-hidden />} title="Icons & logos" tagline="Pick an icon or a brand logo.">
           <IconsCard live={live} aiEnabled={aiEnabled} />
         </Section>
 

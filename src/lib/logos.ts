@@ -13,6 +13,12 @@ const LOGOS: Record<string, string> = {
 // A renamed card still gets its bank's picture: "HDFC BizGrow Card" -> hdfc, "SBI OCTANE BPCL Credit Card" -> sbi.
 const BY_WORD: [RegExp, string][] = [[/\bhdfc\b/i, "hdfc"], [/\bsbi\b/i, "sbi"], [/\bicici\b/i, "icici"], [/\b(amex|american express)\b/i, "amex"], [/\bgpay\b|google pay/i, "gpay"], [/\bpaytm\b/i, "paytm"], [/\bbhim\b/i, "bhim"], [/\bcred\b/i, "cred"], [/amazon prime|prime video/i, "primevideo"], [/\bamazon\b/i, "amazon"], [/\bswiggy\b|\binstamart\b/i, "swiggy"], [/\bairtel\b/i, "airtel"], [/\b(hotstar|disney)/i, "hotstar"], [/\bmeesho\b/i, "meesho"], [/\bshell\b/i, "shell"], [/\b(bharat|bharath)( petroleum)?\b|\bbpcl\b/i, "bpcl"]];
 
+/** Every logo file that exists in public/logos. AI may only point at one of these, and a person can pick one; nothing is fetched from outside. */
+export const LOGO_KEYS = ["act", "airtel", "amazon", "amex", "apollo", "bhim", "bigbasket", "blinkit", "bookmyshow", "bpcl", "ccd", "cred", "cultfit", "decathlon", "gpay", "hdfc", "hotstar", "icici", "iocl", "meesho", "myntra", "netflix", "ola", "paytm", "primevideo", "rapido", "reliance", "sbi", "shell", "shopwise", "spotify", "starbucks", "swiggy", "uber", "zepto"] as const;
+export type LogoKey = (typeof LOGO_KEYS)[number];
+export const isLogoKey = (v: unknown): v is LogoKey => typeof v === "string" && (LOGO_KEYS as readonly string[]).includes(v);
+export const logoSrc = (key: string) => `/logos/${key}.png`;
+
 export function logoFor(name: string): string | null {
   const key = name.trim().toLowerCase();
   const exact = LOGOS[key];

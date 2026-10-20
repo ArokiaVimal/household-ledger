@@ -143,8 +143,10 @@ interface Store {
   setPartnerNickname: (nickname: string) => string | null;
   /** Icons by lowercase name for payment methods and merchants that have no brand logo. */
   iconsByName: Record<string, string>;
+  /** Logo chosen for a merchant, by lowercase name: a file name in public/logos. */
+  logosByName: Record<string, string>;
   /** Saves icon choices (from the AI refresh) for categories, payment methods and merchants. */
-  applyIcons: (p: { categories: { id: string; icon: string }[]; accounts: { id: string; icon: string }[]; merchants: { name: string; icon: string }[] }) => void;
+  applyIcons: (p: { categories: { id: string; icon: string }[]; accounts: { id: string; icon: string }[]; merchants: { name: string; icon?: string; logo?: string }[] }) => void;
   /** Saves the order of payment methods (every id, in the order wanted); pick lists everywhere follow it. */
   reorderAccounts: (ids: string[]) => void;
   /** Adds GPay, CRED, Paytm and BHIM under every bank ("GPay HDFC UPI") and hides the old stand-alone ones. Returns how many were added. */
@@ -229,12 +231,12 @@ function seed(live?: LiveInit) {
     return {
       records: d.records.filter((r) => r.status === "reviewed"), staged: d.records.filter((r) => r.status === "unreviewed"), categories: d.categories, rules: d.rules, settlements: [...(c?.settlements ?? []), ...d.settlements.filter((x) => !(c?.settlements ?? []).some((y) => y.id === x.id))],
       shared: c?.shared ?? ([] as SharedExpense[]),
-      receipts: d.receipts, participants: people, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches, cardBills: d.cardBills, voucherBrands: d.voucherBrands, paymentGroups: d.paymentGroups, merchantIcons: d.merchantIcons,
+      receipts: d.receipts, participants: people, accounts: d.accounts, recurringItems: d.recurring, importBatches: d.importBatches, cardBills: d.cardBills, voucherBrands: d.voucherBrands, paymentGroups: d.paymentGroups, merchantIcons: d.merchantIcons, merchantLogos: d.merchantLogos,
     };
   }
   return {
     records: [...initialRecords, ...mockVoucherRecords, ...historyRecords].filter((r) => r.status === "reviewed"), staged: [...initialRecords, ...mockVoucherRecords].filter((r) => r.status === "unreviewed"), categories: mockCategories, rules: merchantRules,
-    settlements: initialSettlements, shared: [] as SharedExpense[], receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[], cardBills: mockCardBills, voucherBrands: mockVoucherBrands, paymentGroups: mockPaymentGroups, merchantIcons: {} as Record<string, string>,
+    settlements: initialSettlements, shared: [] as SharedExpense[], receipts: initialReceipts, participants: mockParticipants, accounts: mockAccounts, recurringItems: mockRecurring, importBatches: [] as ImportBatch[], cardBills: mockCardBills, voucherBrands: mockVoucherBrands, paymentGroups: mockPaymentGroups, merchantIcons: {} as Record<string, string>, merchantLogos: {} as Record<string, string>,
   };
 }
 
@@ -257,6 +259,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const [cardBills, setCardBills] = useState<CardBill[]>(init.cardBills);
   const [voucherBrands, setVoucherBrands] = useState<VoucherBrand[]>(init.voucherBrands);
   const [merchantIcons, setMerchantIcons] = useState<Record<string, string>>(init.merchantIcons);
+  const [merchantLogos, setMerchantLogos] = useState<Record<string, string>>(init.merchantLogos);
   /** Icon chosen for a payment method or merchant, by lowercase name, for places that only know the name. */
   const iconsByName = useMemo(() => ({ ...merchantIcons, ...Object.fromEntries(accounts.filter((a) => a.icon).map((a) => [a.name.toLowerCase(), a.icon as string])) }), [merchantIcons, accounts]);
   const today = live?.today ?? MOCK_TODAY;
@@ -301,7 +304,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   if (prevInit !== init) {
     setPrevInit(init);
     setRecords(init.records); setStaged(init.staged); setCategories(init.categories); setRules(init.rules); setSettlements(init.settlements); setShared(init.shared);
-    setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems); setCardBills(init.cardBills); setVoucherBrands(init.voucherBrands); setMerchantIcons(init.merchantIcons); setPaymentGroups(init.paymentGroups);
+    setReceipts(init.receipts); setParticipants(init.participants); setAccounts(init.accounts); setRecurringItems(init.recurringItems); setCardBills(init.cardBills); setVoucherBrands(init.voucherBrands); setMerchantIcons(init.merchantIcons); setMerchantLogos(init.merchantLogos); setPaymentGroups(init.paymentGroups);
     // New data may live in a month other than the one on screen (e.g. an older statement): keep the month if it has data, else move to one that does.
     const dates = [...init.records, ...init.staged].map((r) => r.date);
     setMonth((m) => (lockedMonth || dates.length === 0 || dates.some((d) => d.startsWith(m)) ? m : pickMonth(today, dates)));
@@ -513,12 +516,15 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     void send({ type: "account.delete", id });
     return null;
   }, [setAccounts, accounts, records, staged, cardBills, init.importBatches, recurringItems, send]);
-  const applyIcons = useCallback((p: { categories: { id: string; icon: string }[]; accounts: { id: string; icon: string }[]; merchants: { name: string; icon: string }[] }) => {
+  const applyIcons = useCallback((p: { categories: { id: string; icon: string }[]; accounts: { id: string; icon: string }[]; merchants: { name: string; icon?: string; logo?: string }[] }) => {
     const cat = new Map(p.categories.map((x) => [x.id, x.icon]));
     const acc = new Map(p.accounts.map((x) => [x.id, x.icon]));
     setCategories((cs) => cs.map((c) => (cat.has(c.id) ? { ...c, icon: cat.get(c.id) } : c)));
     setAccounts((as) => as.map((a) => (acc.has(a.id) ? { ...a, icon: acc.get(a.id) } : a)));
-    setMerchantIcons((m) => ({ ...m, ...Object.fromEntries(p.merchants.map((x) => [x.name.toLowerCase(), x.icon])) }));
+    // A merchant shows a logo or an icon, never both: the latest choice wins.
+    const key = (x: { name: string }) => x.name.toLowerCase();
+    setMerchantIcons((m) => { const n = { ...m }; for (const x of p.merchants) { if (x.logo) delete n[key(x)]; else if (x.icon) n[key(x)] = x.icon; } return n; });
+    setMerchantLogos((m) => { const n = { ...m }; for (const x of p.merchants) { if (x.logo) n[key(x)] = x.logo; else if (x.icon) delete n[key(x)]; } return n; });
     void send({ type: "icons.apply", ...p });
   }, [send, setAccounts]);
   const reorderAccounts = useCallback((ids: string[]) => {
@@ -733,7 +739,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, demo: !!live?.demo, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, recordsFor: baseFor, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, setParticipantPhoto, setPartnerNickname, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, recurringSuggestions, recurringAlerts, confirmRecurringSuggestion, dismissRecurringSuggestion, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, recordsFor: baseFor, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, setParticipantPhoto, setPartnerNickname, iconsByName, logosByName: merchantLogos, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, recurringSuggestions, recurringAlerts, confirmRecurringSuggestion, dismissRecurringSuggestion, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     // Nicknames everywhere: what you call each person, and your own profile nickname for yourself.

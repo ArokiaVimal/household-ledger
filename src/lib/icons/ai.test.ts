@@ -10,6 +10,11 @@ describe("icon choices", () => {
     expect(out).toEqual([{ ...wants[0], icon: "paw" }, { ...wants[2], icon: "basket" }]);
     expect(validateIcons("junk", wants)).toEqual([]);
   });
+  it("takes a logo only for a merchant, and only one of our own logo files", () => {
+    const w: IconWant[] = [{ kind: "merchant", ref: "Swiggy Instamart", name: "Swiggy Instamart" }, { kind: "merchant", ref: "Corner Shop", name: "Corner Shop" }, { kind: "account", ref: "wl_x", name: "Swiggy Money" }];
+    const out = validateIcons({ items: [{ n: 1, icon: "basket", logo: "swiggy" }, { n: 2, icon: "store", logo: "http://evil/x.png" }, { n: 3, icon: "wallet", logo: "swiggy" }] }, w);
+    expect(out).toEqual([{ ...w[0], icon: "basket", logo: "swiggy" }, { ...w[1], icon: "store" }, { ...w[2], icon: "wallet" }]);
+  });
   it("sends only names to Claude and returns the validated picks", async () => {
     let sent = "";
     const fetchImpl = (async (_u: unknown, init: { body: string }) => { sent = init.body; return new Response(JSON.stringify({ content: [{ type: "tool_use", input: { items: [{ n: 1, icon: "paw" }] } }], usage: { input_tokens: 5, output_tokens: 3 } }), { status: 200 }); }) as unknown as typeof fetch;

@@ -11,7 +11,7 @@ export function demoLiveInit(): LiveInit {
     demo: true, ready: true, aiEnabled: true, meId: ME, today: MOCK_TODAY,
     data: {
       records: [...initialRecords, ...voucherRecords, ...historyRecords], settlements: initialSettlements, receipts: initialReceipts, recurring: recurringItems,
-      cardBills, voucherBrands, paymentGroups, merchantIcons: {}, participants, accounts, categories,
+      cardBills, voucherBrands, paymentGroups, merchantIcons: {}, merchantLogos: {}, participants, accounts, categories,
       rules: merchantRules.map((r) => ({ merchant: r.merchant, categoryId: r.categoryId })), importBatches: [],
     },
   };

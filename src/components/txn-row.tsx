@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { brandBadge, logoFor } from "@/lib/logos";
+import { useState, type ReactNode } from "react";
+import { brandBadge, logoFor, logoSrc } from "@/lib/logos";
 import { Glyph } from "./glyphs";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -41,10 +41,15 @@ export function TxnBadges({ r, quiet, hideStatus }: { r: ExpenseRecord; quiet?: 
 }
 
 const tints = ["bg-accent-soft text-accent", "bg-good-soft text-good", "bg-warn-soft text-warn", "bg-background text-foreground"];
-export function MerchantAvatar({ name, size = 40 }: { name: string; size?: number }) {
+/**
+ * The picture for a merchant: a logo you or AI chose, else a known brand's logo or badge, else a chosen icon, else `fallback`
+ * (for example the category's icon), else the first letter.
+ */
+export function MerchantAvatar({ name, size = 40, fallback }: { name: string; size?: number; fallback?: ReactNode }) {
   const badge = brandBadge(name);
-  const logo = badge ? null : logoFor(name);
-  const { iconsByName } = useStore();
+  const { iconsByName, logosByName } = useStore();
+  const chosenLogo = logosByName[name.trim().toLowerCase()];
+  const logo = chosenLogo ? logoSrc(chosenLogo) : badge ? null : logoFor(name);
   const [failed, setFailed] = useState(false);
   const chosen = iconsByName[name.trim().toLowerCase()];
   if (logo && !failed) {
@@ -57,6 +62,7 @@ export function MerchantAvatar({ name, size = 40 }: { name: string; size?: numbe
   }
   if (badge && !logo) return <span aria-hidden style={{ width: size, height: size, background: badge.bg, color: badge.fg, fontSize: size * (badge.mark.length > 2 ? 0.28 : badge.mark.length > 1 ? 0.36 : 0.5) }} className="grid shrink-0 place-items-center rounded-full font-bold leading-none tracking-tight">{badge.mark}</span>;
   if (chosen && (!logo || failed)) return <Glyph iconKey={chosen} size={size} />;
+  if (fallback) return <>{fallback}</>;
   const tint = tints[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % tints.length];
   return <span aria-hidden style={{ width: size, height: size }} className={cn("grid shrink-0 place-items-center rounded-full text-sm font-semibold", tint)}>{name[0]?.toUpperCase()}</span>;
 }
