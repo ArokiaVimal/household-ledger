@@ -19,6 +19,7 @@ export async function getProfile(session: Session): Promise<Profile> {
     defaultView: d.defaultView === "household" ? "household" : "personal", // personal first
     avatarDataUrl: typeof d.avatarDataUrl === "string" ? d.avatarDataUrl : null,
     providerPhotoUrl: session.picture,
+    dismissedRecurring: Array.isArray(d.dismissedRecurring) ? d.dismissedRecurring.filter((x: unknown): x is string => typeof x === "string").slice(0, 200) : [],
   };
 }
 

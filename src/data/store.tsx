@@ -204,7 +204,7 @@ const Ctx = createContext<Store | null>(null);
 const uuid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 
 /** Fields a person can change on an existing record; undefined means "clear it" on the wire. */
-const EDITABLE = ["merchant", "categoryId", "kind", "payerId", "shared", "split", "excluded", "notes", "recurringId", "fundedBy", "paidCardId", "recurringHint", "voucherBrandId", "paidWithVoucherId", "voucherPending", "receiptId"] as const;
+const EDITABLE = ["merchant", "categoryId", "kind", "payerId", "shared", "split", "excluded", "notes", "recurringId", "fundedBy", "paidCardId", "recurringHint", "voucherBrandId", "paidWithVoucherId", "voucherPending", "receiptId", "countsInGroupId"] as const;
 function toWirePatch(patch: Partial<ExpenseRecord>) {
   const out: Record<string, unknown> = {};
   for (const k of EDITABLE) if (k in patch) out[k] = patch[k] === undefined ? null : patch[k];
@@ -341,22 +341,25 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const allocatedByKey = useCallback((key: (r: ExpenseRecord) => string) => allocatedBy(groupBase, activeGroup, groups, meId, key), [groupBase, activeGroup, groups, meId]);
   const summary = useMemo(() => summarize(scoped, meId), [scoped, meId]);
   const recurring = useMemo(() => recurringStatuses(recurringItems, records, month, today), [recurringItems, records, month, today]);
-  // Recurring suggestions come from approved history by rules; "not recurring" answers are remembered on this device.
-  const [dismissedRecurring, setDismissedRecurring] = useState<string[]>([]);
+  // Recurring suggestions come from approved history by rules; "not recurring" answers are saved on your account.
+  const [dismissedRecurring, setDismissedRecurring] = useState<string[]>(() => profile?.dismissedRecurring ?? []);
+  const saveDismissed = useCallback((keys: string[]) => { void fetch("/api/dismissed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keys }) }).catch(() => undefined); }, []);
+  // Answers saved on this device before they lived on the account move over once.
   useEffect(() => {
     let saved: string[] = [];
     try { saved = JSON.parse(localStorage.getItem("pf-recurring-dismissed") ?? "[]") as string[]; } catch { /* storage unavailable */ }
-    if (Array.isArray(saved) && saved.length) Promise.resolve().then(() => setDismissedRecurring(saved.filter((x) => typeof x === "string")));
-  }, []);
+    const keys = Array.isArray(saved) ? saved.filter((x) => typeof x === "string") : [];
+    if (keys.length === 0) return;
+    Promise.resolve().then(() => setDismissedRecurring((d) => [...new Set([...d, ...keys])]));
+    if (live) saveDismissed(keys);
+    try { localStorage.removeItem("pf-recurring-dismissed"); } catch { /* ignore */ }
+  }, [live, saveDismissed]);
   const recurringSuggestions = useMemo(() => detectRecurring(records, recurringItems, today, new Set(dismissedRecurring)), [records, recurringItems, today, dismissedRecurring]);
   const recurringAlerts = useMemo(() => trackedAlerts(recurringItems, records, month, today, (it) => recurring.find((r) => r.item.id === it.id)?.state ?? ""), [recurringItems, records, month, today, recurring]);
   const dismissRecurringSuggestion = useCallback((key: string) => {
-    setDismissedRecurring((d) => {
-      const next = d.includes(key) ? d : [...d, key];
-      try { localStorage.setItem("pf-recurring-dismissed", JSON.stringify(next)); } catch { /* storage unavailable */ }
-      return next;
-    });
-  }, []);
+    setDismissedRecurring((d) => (d.includes(key) ? d : [...d, key]));
+    if (live) saveDismissed([key]);
+  }, [live, saveDismissed]);
   // Everything that can make one person owe another: what is shared with your partner (couple space) plus what you split with
   // friends and an invited partner (your own space). A record already shared with your partner is counted once, from the couple copy.
   const ledgerRecords = useMemo(() => (live ? [...sharedRecords, ...records.filter((r) => !r.sharedWithPartner && r.split.participantIds.some((id) => id !== meId))] : records), [live, sharedRecords, records, meId]);

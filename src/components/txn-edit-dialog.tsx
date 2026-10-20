@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeftRight, Ban, Banknote, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeftRight, Ban, Banknote, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2, Users } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { billFileToDataUrl } from "@/lib/image";
@@ -79,7 +79,7 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; nav?: RecordNav; onAnother?: () => void; onAdded?: (msg: string) => void }) {
   const { aiEnabled, cardBills, meId, nameOf, groups, rules, partnerId, splitRatio, today, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
   const [deleting, setDeleting] = useState(false);
-  const [sheet, setSheet] = useState<null | "pay" | "via" | "wallet" | "merchant" | "category" | "kind" | "topup" | "card" | "bank" | "recurring">(null);
+  const [sheet, setSheet] = useState<null | "pay" | "via" | "wallet" | "merchant" | "category" | "kind" | "topup" | "card" | "bank" | "recurring" | "group">(null);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";
   const [merchant, setMerchant] = useState(record.merchant);
@@ -102,6 +102,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
   // An import that looks like a monthly commitment starts with "Repeat every month" selected (or its existing recurring item),
   // so approving it adds it to Recurring. You can switch to None before approving.
   const sameItem = recurringItems.find((i) => { const a = i.name.toLowerCase(), b = record.merchant.toLowerCase(); return !!b && (a.includes(b) || b.includes(a)); });
+  const [alsoIn, setAlsoIn] = useState(record.countsInGroupId ?? "");
   const [recurringId, setRecurringId] = useState(record.recurringId ?? (record.recurringHint ? sameItem?.id ?? NEW_RECURRING : ""));
   const [fundedBy, setFundedBy] = useState(record.fundedBy ?? "");
   const [paidCardId, setPaidCardId] = useState(record.paidCardId ?? "");
@@ -269,7 +270,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
     }
     const fields = {
       merchant: merchant.trim(), categoryId: topUp && categories.some((c) => c.id === "vouchers") ? "vouchers" : categoryId, kind: voucherId ? ("purchase" as const) : kind, voucherBrandId: voucherId || undefined, paidWithVoucherId: walletId || undefined, voucherPending: voucherLater && !voucherId ? true : undefined, payerId, split: topUp ? { mode: "personal" as const, participantIds: [payerId] } : split, shared: topUp ? false : split.mode !== "personal", notes: notes || undefined, excluded,
-      recurringId: linkId || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, recurringHint: undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
+      recurringId: linkId || undefined, countsInGroupId: alsoIn || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, recurringHint: undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
     };
     if (adding) {
       // Bought from a wallet: it belongs to the card that topped the wallet up last (the wallet itself is the funding source).
@@ -407,6 +408,9 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
           {record.recurringHint && !record.recurringId && <p className="-mt-1.5 px-1 text-xs text-muted">Looks like a monthly payment. Approving adds it to Recurring. Choose None to skip.</p>}
           {recurringId === NEW_RECURRING && <p className="-mt-1.5 px-1 text-xs text-muted">Adds “{merchant.trim() || "this payment"}” to Recurring: {formatINR(amountPaise)} due on the {dueDay}{[11, 12, 13].includes(dueDay) ? "th" : ["th", "st", "nd", "rd"][dueDay % 10 < 4 ? dueDay % 10 : 0]} each month, split the same way. You can change it later under Recurring.</p>}
           {recurringError && <p role="alert" className="-mt-1.5 px-1 text-xs text-danger">{recurringError}</p>}
+          {groups.some((g) => g.kind === "people") && (
+            <PickerRow icon={<Dot icon={Users} size={32} tone={alsoIn ? "bg-accent/10 text-accent" : undefined} />} label="Also count in" value={groups.find((g) => g.id === alsoIn)?.name ?? "No other group"} muted={!alsoIn} onClick={() => setSheet("group")} />
+          )}
           <PickerRow icon={<Dot icon={EyeOff} size={32} tone={excluded ? "bg-danger/10 text-danger" : undefined} />} label="Reports" value={excluded ? "Excluded from reports" : "Counted in reports"} muted={!excluded} onClick={() => setExcluded(!excluded)}>
             <span aria-hidden className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${excluded ? "bg-danger" : "bg-border"}`}><span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${excluded ? "left-[1.15rem]" : "left-0.5"}`} /></span>
           </PickerRow>
@@ -417,6 +421,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
       <ListSheet open={sheet === "topup"} onClose={() => setSheet(null)} title="Tops up wallet" value={voucherId} options={[{ id: "", label: "No", icon: <Dot icon={Ban} size={32} /> }, ...brandOptions.map((o) => ({ id: o.id, label: o.label, icon: o.icon }))]} onPick={(id) => pickBrand(id, setVoucherId)} />
       <ListSheet open={sheet === "card"} onClose={() => setSheet(null)} title="Which card was paid" value={paidCardId} options={[{ id: "", label: "Not sure", icon: <Dot icon={Ban} size={32} /> }, ...accounts.filter((a) => a.type === "credit_card").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={(id) => { setPaidCardId(id); if (id) prefillCardPayment(id); }} />
       <ListSheet open={sheet === "bank"} onClose={() => setSheet(null)} title="Paid from bank" value={fundedBy} options={[{ id: "", label: "Unknown", icon: <Dot icon={Ban} size={32} /> }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setFundedBy} />
+      <ListSheet open={sheet === "group"} onClose={() => setSheet(null)} title="Also count in" value={alsoIn} options={[{ id: "", label: "No other group", icon: <Dot icon={Ban} size={32} /> }, ...groups.filter((g) => g.kind === "people").map((g) => ({ id: g.id, label: g.name, icon: <Dot icon={Users} size={32} /> }))]} onPick={setAlsoIn} />
       <ListSheet open={sheet === "recurring"} onClose={() => { setSheet(null); setRecurringError(null); }} title="Recurring" value={recurringId} options={[{ id: "", label: "None", icon: <Dot icon={Ban} size={32} /> }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name, icon: <Dot icon={Repeat} size={32} tone="bg-red-100 text-red-700" /> })), { id: NEW_RECURRING, label: "Repeat every month", hint: "Adds this payment to Recurring", icon: <Dot icon={Plus} size={32} tone="bg-accent/10 text-accent" /> }]} onPick={(v) => { touch("recurring"); setRecurringId(v); setRecurringError(null); }} />
       <Dialog open={splitOpen} onClose={() => setSplitOpen(false)} title="Split with">
         <div className="space-y-3 pb-2">

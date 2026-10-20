@@ -65,6 +65,7 @@ async function handle(path: string, init?: RequestInit): Promise<{ status?: numb
   const method = (init?.method ?? "GET").toUpperCase();
   const json = (): Record<string, unknown> => { try { return JSON.parse(String(init?.body ?? "{}")); } catch { return {}; } };
   if (path === "/api/data") return { body: { ok: true } };
+  if (path === "/api/dismissed") return { body: { ok: true } };
   if (path === "/api/version") return { body: { version: "dev" } };
   if (path === "/api/import" || path === "/api/import/text") {
     const form = init?.body instanceof FormData ? init.body : null;

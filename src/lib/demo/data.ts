@@ -4,7 +4,7 @@ import { ME, MOCK_TODAY, accounts, cardBills, categories, historyRecords, initia
 import type { LiveInit } from "@/data/store";
 import type { Profile } from "@/lib/profile/profile";
 
-export const DEMO_PROFILE: Profile = { email: "demo@example.com", displayName: "Vimal", nickname: "Vimal", phone: "", defaultView: "personal", avatarDataUrl: null, providerPhotoUrl: null };
+export const DEMO_PROFILE: Profile = { email: "demo@example.com", displayName: "Vimal", nickname: "Vimal", phone: "", defaultView: "personal", avatarDataUrl: null, providerPhotoUrl: null, dismissedRecurring: [] };
 
 export function demoLiveInit(): LiveInit {
   return {

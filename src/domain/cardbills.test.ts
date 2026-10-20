@@ -58,3 +58,17 @@ describe("suggestPaidCard", () => {
   it("will not guess when several bills are open and none match", () => expect(suggestPaidCard(123, views)).toBeUndefined());
   it("uses the only open bill", () => expect(suggestPaidCard(123, views.slice(0, 1))).toBe("cc"));
 });
+
+describe("unverified card payments", () => {
+  it("do not mark the bill paid, but are reported so you can verify them", () => {
+    const s = billStatus(bill(), [pay("u", { status: "unreviewed", amountPaise: 1_000_000, date: "2026-09-20" })], "2026-10-01");
+    expect(s.state).not.toBe("paid");
+    expect(s.paidPaise).toBe(0);
+    expect(s.unverifiedPaise).toBe(1_000_000);
+  });
+  it("an unverified copy of a verified payment is not counted twice", () => {
+    const s = billStatus(bill(), [pay("a", { status: "unreviewed", amountPaise: 400_000, date: "2026-09-20" }), pay("b", { amountPaise: 400_000, date: "2026-09-20" })], "2026-10-01");
+    expect(s.paidPaise).toBe(400_000);
+    expect(s.unverifiedPaise).toBe(0);
+  });
+});

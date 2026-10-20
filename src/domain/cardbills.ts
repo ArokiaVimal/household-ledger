@@ -4,6 +4,8 @@ export type BillState = "paid" | "partial" | "due" | "overdue";
 
 export interface BillStatus {
   bill: CardBill;
+  /** Card-bill payments you have not verified yet. They do not mark the bill paid until you verify them. */
+  unverifiedPaise: Paise;
   /** Card-bill payments recorded since the statement date (each date and amount counted once). */
   paidPaise: Paise;
   /** What is still to pay of the full amount due. 0 once paid. */
@@ -23,21 +25,23 @@ export const daysBetween = (from: string, to: string) => Math.round((Date.parse(
  */
 export function billStatus(bill: CardBill, records: ExpenseRecord[], today: string): BillStatus {
   const seen = new Set<string>();
-  let paid = 0;
-  for (const r of records) {
-    if (r.status !== "reviewed" || r.excluded || r.kind !== "cc_payment") continue;
+  let paid = 0, unverified = 0;
+  // Verified payments first, so an unverified copy of the same payment never hides the verified one.
+  const ordered = [...records.filter((r) => r.status === "reviewed"), ...records.filter((r) => r.status !== "reviewed")];
+  for (const r of ordered) {
+    if (r.excluded || r.kind !== "cc_payment") continue;
     if (r.date < bill.statementDate || r.date > today) continue;
     if (r.accountId !== bill.accountId && r.paidCardId !== bill.accountId) continue;
     const key = `${r.date}|${r.amountPaise}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    paid += r.amountPaise;
+    if (r.status === "reviewed") paid += r.amountPaise; else unverified += r.amountPaise;
   }
   const settled = !!bill.paid || paid >= bill.totalDuePaise;
   const remainingPaise = settled ? 0 : bill.totalDuePaise - paid;
   const daysLeft = daysBetween(today, bill.dueDate);
   const state: BillState = settled ? "paid" : daysLeft < 0 ? "overdue" : paid > 0 ? "partial" : "due";
-  return { bill, paidPaise: paid, remainingPaise, state, daysLeft };
+  return { bill, paidPaise: paid, unverifiedPaise: unverified, remainingPaise, state, daysLeft };
 }
 
 export interface CardView { card: Account; /** The latest bill, or null when none has been added. */ current: BillStatus | null; earlier: BillStatus[] }

@@ -432,3 +432,10 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - Duplicates: a line is flagged as possible when the same money trail has the same amount and a like merchant within **3 days**, in any month and any earlier upload (an activity export and the later statement can date a purchase a day or two apart). Lines inside one file still match on the same date only. The import preview has **Refresh with AI** to re-run categories before importing.
 - **Compact Transactions on phones:** month and group share one row (the group is a small dropdown beside the month; the month lock hides on phones), the page title goes, sparkle and filters sit on the search row, and "Group by" moved into Filters. Rows are two tight lines grouped under day headers with a day total (`CompactRow`, `src/components/txn-compact.tsx`): an amber dot while unverified, a people icon when shared, "mine" share, and a short flag (Possible duplicate, AI unsure, Needs a category). **Swipe a row right to verify, left to delete** (`SwipeRow`; delete still asks). The Unverified tab lists what needs you first and has **Verify N sure ones** (remembered or sure AI rows, never possible duplicates).
 
+## Known gaps closed
+- **Timeline** now includes unverified rows (flagged with a dashed circle) and they move the estimated balance: the money really moved, only the details are unconfirmed. **Card bills** still count only verified payments as "paid" (a wrong guess must not hide a due date), but an unverified payment is shown on the bill with a link to verify it (`BillStatus.unverifiedPaise`).
+- **Desktop:** the table uses the same tick, dashed circle and people marks; the app title no longer crowds the header on non-home screens.
+- **Also count in:** a transaction can count, in full, in one people group whatever its split (More options, "Also count in", field `countsInGroupId`).
+- **Not recurring** answers are saved on your account (`users/{uid}.dismissedRecurring`, route `/api/dismissed`); answers kept on a device before are moved over once.
+- Still open: Firestore rules tests (no Java on this Mac) and real-Safari testing.
+

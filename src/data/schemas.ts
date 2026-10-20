@@ -55,6 +55,7 @@ export const ExpenseRecordSchema = z
     paidWithVoucherId: id.optional(),
     voucherPending: z.boolean().optional(),
     recurringId: id.optional(),
+    countsInGroupId: id.optional(),
     suggested: z.enum(["memory", "ai", "ai_unsure"]).optional(),
     sharedWithPartner: z.boolean().optional(),
     sharedRev: z.number().int().min(0).optional(),

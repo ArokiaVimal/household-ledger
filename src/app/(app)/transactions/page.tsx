@@ -9,7 +9,7 @@ import { UnverifiedQueue } from "./unverified-queue";
 import { ProgressRing } from "@/components/progress";
 import { verifyProgress } from "@/domain/progress";
 import { Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
-import { CompactRow } from "@/components/txn-compact";
+import { CompactRow, StatusMark } from "@/components/txn-compact";
 import { useStore } from "@/data/store";
 import { rootOf } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
@@ -158,7 +158,7 @@ function TransactionsView() {
       </div>
       {/* Verified or not, with how far along you are. */}
       <div className="mb-3 flex items-center gap-3">
-        <div role="tablist" aria-label="Verified or not" className="flex min-w-0 flex-1 rounded-full bg-border/60 p-1">
+        <div role="tablist" aria-label="Verified or not" className="flex min-w-0 flex-1 rounded-full bg-border/60 p-1 md:max-w-md">
           {([["", "All", 0], ["verified", "Verified", 0], ["unverified", "Unverified", staged.length]] as const).map(([id, label, n]) => (
             <button key={id} role="tab" aria-selected={v === id} onClick={() => set("v", id)} className={cn("flex min-h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2 text-sm transition-all", v === id ? "bg-surface font-semibold text-foreground shadow-sm" : "text-muted hover:text-foreground")}>
               {label}{n > 0 && <span className={cn("num rounded-full px-1.5 text-[11px] font-semibold leading-5", v === id ? "bg-warn-soft text-warn" : "bg-warn/15 text-warn")}>{n}</span>}
@@ -225,7 +225,7 @@ function TransactionsView() {
                 {rows.map((r) => (
                   <tr key={r.id} onClick={() => setEditing(r)} className="cursor-pointer border-b border-border last:border-0 hover:bg-background">
                     <td className="num p-2.5 text-muted">{r.date.slice(5)}</td>
-                    <td><div className="flex items-center gap-2.5 py-1.5"><MerchantAvatar name={r.merchant} size={32} /><div><div className="font-medium">{r.merchant}</div><div className="mt-0.5 flex flex-wrap gap-1"><TxnBadges r={r} /></div></div></div></td>
+                    <td><div className="flex items-center gap-2.5 py-1.5"><MerchantAvatar name={r.merchant} size={32} /><div><div className="flex items-center gap-1.5 font-medium">{r.merchant}<StatusMark r={r} /></div><div className="mt-0.5 flex flex-wrap gap-1 empty:hidden"><TxnBadges r={r} quiet hideStatus /></div></div></div></td>
                     <td>{categoryName(r.categoryId)}</td><td>{nameOf(r.payerId)}</td><td className="text-muted">{accountName(r.accountId)}</td>
                     <td className="text-right"><Amount r={r} /></td>
                     <td className="num pr-2.5 text-right text-muted">{summarize([r], meId).myShare ? formatINR(summarize([r], meId).myShare) : "—"}</td>

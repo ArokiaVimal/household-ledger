@@ -17,6 +17,16 @@ export function attentionOf(r: ExpenseRecord): { text: string; bad: boolean } | 
   return null;
 }
 
+/** The small mark after a merchant: a green tick when verified, an amber dashed circle when not, and a people icon when shared. */
+export function StatusMark({ r }: { r: ExpenseRecord }) {
+  return (
+    <>
+      {r.status === "unreviewed" ? <CircleDashed size={15} role="img" aria-label="Unverified" className="shrink-0 text-warn" /> : <CircleCheck size={15} role="img" aria-label="Verified" className="shrink-0 text-good" />}
+      {r.shared && <Users size={13} aria-label="Shared" className="shrink-0 text-good" />}
+    </>
+  );
+}
+
 /**
  * One transaction in two tight lines: merchant (with a green tick when verified or an amber dashed circle when not, and a people icon when shared) and amount, then
  * category, any flag and your share. Swipe right to verify an unverified row, left to delete it.
@@ -35,8 +45,7 @@ export function CompactRow({ r, onOpen, onVerify, onDelete, showDate, leading }:
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5">
               <span className="truncate font-medium">{r.merchant}</span>
-              {unverified ? <CircleDashed size={15} role="img" aria-label="Unverified" className="shrink-0 text-warn" /> : <CircleCheck size={15} role="img" aria-label="Verified" className="shrink-0 text-good" />}
-              {r.shared && <Users size={13} aria-label="Shared" className="shrink-0 text-good" />}
+              <StatusMark r={r} />
             </span>
             <span className="block truncate text-xs text-muted">
               {showDate ? `${new Date(`${r.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · ` : ""}{categoryName(r.categoryId)}

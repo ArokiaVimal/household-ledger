@@ -21,6 +21,8 @@ export interface TimelineEvent {
   amountPaise: Paise;
   /** The amount is an estimate (a bill that changes each time). */
   estimated?: boolean;
+  /** Not verified yet: the amount is real (it came from a statement) but the details are not confirmed. */
+  unverified?: boolean;
   /** Expected but already past its date: shown on today, still counted. */
   overdue?: boolean;
   href?: string;
@@ -64,7 +66,8 @@ const clampDay = (m: string, day: number) => `${m}-${String(Math.min(day, Number
 
 /** Does a confirmed record move money in or out of this bank or cash account? Returns the signed effect, or null when it does not (or is unknown). */
 function effectOn(acc: Account, r: ExpenseRecord): { paise: Paise } | "unknown" | null {
-  if (r.status !== "reviewed" || r.excluded) return null;
+  // Unverified rows count: the money really moved, only the category or split is unconfirmed.
+  if (r.excluded) return null;
   const touches = r.accountId === acc.id || r.fundedBy === acc.id;
   if (!touches) return null;
   if (r.kind === "income" || r.kind === "refund") return { paise: r.amountPaise };
@@ -77,14 +80,16 @@ export function buildTimeline(i: TimelineInput): Timeline {
   const todayMonth = today.slice(0, 7);
   const events: TimelineEvent[] = [];
 
-  // ---- what happened (confirmed) ----
+  // ---- what happened (verified or not; unverified ones are flagged) ----
   for (const r of i.records) {
-    if (r.status !== "reviewed" || r.excluded || !r.date.startsWith(month)) continue;
+    if (r.excluded || !r.date.startsWith(month)) continue;
+    const before = events.length;
     if (r.kind === "income") events.push({ id: r.id, date: r.date, kind: "actual", type: "income", label: r.merchant, amountPaise: r.amountPaise, href: `/transactions?month=${month}&kind=income` });
     else if (r.kind === "refund") events.push({ id: r.id, date: r.date, kind: "actual", type: "refund", label: r.merchant, amountPaise: r.amountPaise });
     else if ((r.kind === "purchase" || r.kind === "fee") && !r.paidWithVoucherId) events.push({ id: r.id, date: r.date, kind: "actual", type: "spend", label: r.merchant, amountPaise: -r.amountPaise });
     else if (r.kind === "cc_payment") events.push({ id: r.id, date: r.date, kind: "actual", type: "card_bill_paid", label: r.merchant, amountPaise: -r.amountPaise });
     else if (r.kind === "transfer") events.push({ id: r.id, date: r.date, kind: "actual", type: "transfer", label: r.merchant, amountPaise: 0 });
+    if (r.status === "unreviewed") for (let k = before; k < events.length; k++) events[k].unverified = true;
   }
 
   // ---- recorded balances and the estimate for today ----

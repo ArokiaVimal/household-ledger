@@ -1,5 +1,5 @@
 "use client";
-import { AlertTriangle, CalendarClock, Info } from "lucide-react";
+import { AlertTriangle, CalendarClock, CircleDashed, Info } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 import { Badge, Card, CardTitle, EmptyState, PageHeader } from "@/components/ui";
@@ -15,7 +15,7 @@ const money = (p: number) => `${p < 0 ? "−" : ""}${formatINR(Math.abs(p))}`;
 
 /** What happened this month, what is coming, and a forecast balance. Recorded figures are solid; everything else says it is an estimate. */
 export default function Timeline() {
-  const { month, today, records, accounts, cardBills, recurringItems, accountName, live } = useStore();
+  const { month, today, shown: records, accounts, cardBills, recurringItems, accountName, live } = useStore();
   const t = useMemo(() => buildTimeline({ month, today, records, accounts, cardBills, recurringItems, accountName }), [month, today, records, accounts, cardBills, recurringItems, accountName]);
   const isPast = month < today.slice(0, 7);
   const groups = useMemo(() => {
@@ -27,7 +27,7 @@ export default function Timeline() {
 
   return (
     <>
-      <PageHeader title="Timeline" tip="Your month in order. Estimates use only verified transactions and items you added. Nothing is guessed." sub={`${monthLabel(month)} · ${live ? "your real entries" : "sample data"}`} />
+      <PageHeader title="Timeline" tip="Your month in order. Estimates use your transactions, verified or not, and items you added. Nothing is guessed." sub={`${monthLabel(month)} · ${live ? "your real entries" : "sample data"}`} />
 
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
         <Card className="col-span-2 px-3.5 py-3 sm:col-span-1 sm:p-4">
@@ -82,7 +82,7 @@ export default function Timeline() {
                       <div className="flex items-start gap-3">
                         <span aria-hidden className={`mt-1.5 size-3 shrink-0 rounded-full ${e.kind === "actual" ? "bg-accent" : "border-2 border-dashed border-accent bg-surface"}`} />
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5"><span className="truncate text-sm font-medium">{e.label}</span>{e.kind === "expected" && <Badge>Expected</Badge>}{e.estimated && <Badge tone="warn">Estimate</Badge>}{e.overdue && <Badge tone="bad">Overdue</Badge>}</div>
+                          <div className="flex flex-wrap items-center gap-1.5"><span className="truncate text-sm font-medium">{e.label}</span>{e.unverified && <CircleDashed size={14} role="img" aria-label="Unverified" className="shrink-0 text-warn" />}{e.kind === "expected" && <Badge>Expected</Badge>}{e.estimated && <Badge tone="warn">Estimate</Badge>}{e.overdue && <Badge tone="bad">Overdue</Badge>}</div>
                           <div className="text-xs text-muted">{TYPE_LABEL[e.type]}</div>
                         </div>
                         <div className="num text-right">

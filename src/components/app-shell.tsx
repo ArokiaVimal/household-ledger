@@ -167,7 +167,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
             <header className="px-4 pb-2 pt-3 md:px-0 md:pb-4">
               <div className="flex items-center gap-3 max-md:justify-end">
                 <div className={cn("min-w-0", path === "/" ? "mr-auto" : "hidden md:mr-auto md:block")}>
-                  <p className={cn("truncate text-xl font-semibold tracking-tight", path !== "/" && "hidden md:block")}>{path === "/" ? <>Hi {profile ? greetingName(profile) : (() => { const n = nameOf(meId); return n && n !== meId ? n.split(/\s+/)[0] : "there"; })()} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
+                  <p className={cn("truncate text-xl font-semibold tracking-tight", path !== "/" && "hidden")}>{path === "/" ? <>Hi {profile ? greetingName(profile) : (() => { const n = nameOf(meId); return n && n !== meId ? n.split(/\s+/)[0] : "there"; })()} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
                   <p className="hidden text-sm text-muted xl:block">{path === "/" ? "Here's where your money went this month" : "Where your money went, and who owes what"}</p>
                 </div>
                 <form onSubmit={go} role="search" className="hidden w-64 items-center gap-2 rounded-full bg-surface px-4 lg:flex">

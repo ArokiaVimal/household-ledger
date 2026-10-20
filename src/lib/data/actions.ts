@@ -26,7 +26,7 @@ const money = z.number().int().safe();
 const editable = z.object({
   merchant: z.string().min(1).max(120), categoryId: id, kind: z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]),
   payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).nullable(),
-  recurringId: id.nullable(), fundedBy: id.nullable(), paidCardId: id.nullable(), recurringHint: z.boolean().nullable(), voucherBrandId: id.nullable(), paidWithVoucherId: id.nullable(), voucherPending: z.boolean().nullable(), receiptId: id.nullable(), shareNote: z.boolean(),
+  recurringId: id.nullable(), fundedBy: id.nullable(), paidCardId: id.nullable(), recurringHint: z.boolean().nullable(), voucherBrandId: id.nullable(), paidWithVoucherId: id.nullable(), voucherPending: z.boolean().nullable(), receiptId: id.nullable(), countsInGroupId: id.nullable(), shareNote: z.boolean(),
 }).partial();
 
 const manualRecord = z.object({
@@ -91,7 +91,7 @@ export interface CoupleContext {
 }
 
 /** The classification, split and status fields an undo can restore. Raw bank fields are never in this list. */
-const UNDO_FIELDS = ["categoryId", "merchant", "kind", "excluded", "status", "split", "shared", "payerId", "notes", "recurringId", "fundedBy", "paidCardId", "voucherBrandId", "paidWithVoucherId", "voucherPending", "recurringHint", "suggested", "receiptId"] as const;
+const UNDO_FIELDS = ["categoryId", "merchant", "kind", "excluded", "status", "split", "shared", "payerId", "notes", "recurringId", "fundedBy", "paidCardId", "voucherBrandId", "paidWithVoucherId", "voucherPending", "recurringHint", "suggested", "receiptId", "countsInGroupId"] as const;
 const sameValue = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 /** What changed between two versions of a record, in the undoable fields only. Absent values are stored as null. */
 function changeOf(before: ExpenseRecord, after: ExpenseRecord): { before: Record<string, unknown>; after: Record<string, unknown> } | null {

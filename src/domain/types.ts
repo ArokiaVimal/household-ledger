@@ -141,6 +141,8 @@ export interface ExpenseRecord {
   recurringHint?: boolean;
   /** Recurring commitment this payment fulfils (rent, EMI, insurance...). */
   recurringId?: string;
+  /** Also counts, in full, in this Payment Group (a people group), whoever is in the split. For things you paid for them that the split does not show. */
+  countsInGroupId?: string;
   /** Set when a redacted copy of this expense was shared with the partner (see SharedExpense). */
   sharedWithPartner?: boolean;
   /** Goes up only when a linked person (not the owner) changes the shared terms of this record, so a stale screen of the owner is refused instead of overwriting it. */

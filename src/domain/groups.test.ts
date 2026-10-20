@@ -63,4 +63,11 @@ describe("payment groups", () => {
     const r = rec({ amountPaise: 100000, split: { mode: "equal", participantIds: ["a", "b"] } });
     expect(pairBalances([r], []).map((x) => [x.from, x.to, x.outstanding]).sort()).toEqual([["a", ME, 50000], ["b", ME, 50000]]);
   });
+  it("a transaction can be counted in a group on purpose, in full, whoever is in the split", () => {
+    const tv = rec({ amountPaise: 80000, split: { mode: "personal", participantIds: [ME] }, countsInGroupId: "g_parents" });
+    expect(attribute(tv, parents, groups, ME)).toMatchObject({ allocatedPaise: 80000, myPaise: 80000, onBehalfPaise: 0, paidPaise: 80000 });
+    expect(attribute(tv, wife, groups, ME)).toBeNull();
+    expect(attribute(tv, mine, groups, ME)).toMatchObject({ allocatedPaise: 80000 });
+    expect(attribute(rec({ amountPaise: 80000, split: { mode: "personal", participantIds: [ME] } }), parents, groups, ME)).toBeNull();
+  });
 });
