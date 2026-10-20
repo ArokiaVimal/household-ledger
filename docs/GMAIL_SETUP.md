@@ -15,7 +15,7 @@ The app reads only emails from bank, card and UPI senders (`src/lib/gmail/mail.t
 Redeploy afterwards. Never paste these values into chat.
 
 ## 3. Connect
-Settings > Integrations > **Connect Gmail** > choose your Google account > allow read-only access. Press **Sync now** to read the last 14 days of bank mail. After that it checks when you open the app and once a day.
+Settings > Integrations > **Connect Gmail** > choose your Google account > allow read-only access. Press **Sync now** to read the last 30 days of bank mail. After that it checks when you open the app and once a day.
 
 ## What it does and does not do
 - Fetches only messages from the bank sender list; anything else is never opened. Sender domains are checked again after fetching.
