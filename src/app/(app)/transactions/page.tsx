@@ -16,7 +16,7 @@ import { CategoryGlyph } from "@/components/glyphs";
 import { useStore } from "@/data/store";
 import { rootOf, shortName, walletBrandFor } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
-import { summarize } from "@/domain/reports";
+import { signedSpend, summarize } from "@/domain/reports";
 import { summarizeGroup } from "@/domain/groups";
 import { isVoucherPurchase, needsVoucherBrand } from "@/domain/vouchers";
 import { cn } from "@/lib/cn";
@@ -200,6 +200,9 @@ function TransactionsView() {
   const view0 = useRecordNav(rows);
   const setEditing = view0.open;
   const total = summarizeGroup(rows, activeGroup, groups, meId);
+  // Charged in full vs what counts as yours: the difference is other people's share of split bills.
+  const charged = rows.reduce((s, r) => s + signedSpend(r), 0);
+  const owedByOthers = charged - total.allocated;
   const v = get("v");
   const allScope = get("scope") === "all";
   const progress = verifyProgress(shown, get("month") || month);
@@ -255,7 +258,8 @@ function TransactionsView() {
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1 px-1" aria-label="Total for this view">
               <div className="num text-[22px] font-semibold leading-tight tracking-tight">{formatINR(total.allocated)}</div>
-              <div className="text-xs leading-snug text-muted">{rows.length} transaction{rows.length === 1 ? "" : "s"}{total.my !== total.allocated ? ` · mine ${formatINR(total.my)}` : ""}{total.onBehalf !== 0 ? ` · for others ${formatINR(total.onBehalf)}` : ""}</div>
+              <div className="text-xs leading-snug text-muted">{rows.length} transaction{rows.length === 1 ? "" : "s"}{owedByOthers > 0 ? ` · charged ${formatINR(charged)}` : total.my !== total.allocated ? ` · mine ${formatINR(total.my)}` : ""}</div>
+              {owedByOthers > 0 && <div className="text-xs leading-snug text-muted">less others&apos; share {formatINR(owedByOthers)}</div>}
             </div>
             <button type="button" aria-label="Search" onClick={() => setSearching(true)} className="grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background"><Search size={17} aria-hidden /></button>
             <NotesAi />
