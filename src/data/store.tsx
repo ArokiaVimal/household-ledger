@@ -139,6 +139,8 @@ interface Store {
   addStarterGroups: () => number;
   /** Sets (or with null removes) the photo of a person other than yourself. Returns an error message when it is refused. */
   setParticipantPhoto: (id: string, photo: string | null) => string | null;
+  /** What you call your linked partner (saved on your own account). Empty clears it. */
+  setPartnerNickname: (nickname: string) => string | null;
   /** Icons by lowercase name for payment methods and merchants that have no brand logo. */
   iconsByName: Record<string, string>;
   /** Saves icon choices (from the AI refresh) for categories, payment methods and merchants. */
@@ -608,6 +610,14 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     void send({ type: "participant.photo", id, photo });
     return null;
   }, [participants, send]);
+  const setPartnerNickname = useCallback((nickname: string) => {
+    const n = nickname.trim();
+    if (n.length > 30) return "Keep it under 30 characters.";
+    if (!partnerId) return "Link your partner first.";
+    setParticipants((ps) => ps.map((p) => { if (p.id !== partnerId) return p; const { nickname: _o, ...rest } = p; void _o; return { ...rest, ...(n ? { nickname: n } : {}) }; }));
+    if (live) void fetch("/api/partner-nickname", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nickname: n }) }).catch(() => undefined);
+    return null;
+  }, [partnerId, live]);
   const deleteParticipant = useCallback((id: string) => {
     const check = checkFriendDelete(participants.find((p) => p.id === id), meId, friendUsage(id, { records: [...records, ...staged], settlements, recurring: recurringItems }));
     if (!check.ok) return check.reason;
@@ -723,7 +733,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     aiEnabled: !!live?.aiEnabled, demo: !!live?.demo, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, recordsFor: baseFor, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, setParticipantPhoto, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, recurringSuggestions, recurringAlerts, confirmRecurringSuggestion, dismissRecurringSuggestion, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, recordsFor: baseFor, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, setParticipantPhoto, setPartnerNickname, iconsByName, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, recurringSuggestions, recurringAlerts, confirmRecurringSuggestion, dismissRecurringSuggestion, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     // Nicknames everywhere: what you call each person, and your own profile nickname for yourself.

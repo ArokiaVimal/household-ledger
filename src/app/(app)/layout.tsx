@@ -91,6 +91,14 @@ async function AuthedShell({ children }: { children: ReactNode }) {
         const photos = await profilePhotos(everyone.flatMap((p) => { const u = uidOf(p, session.uid, linkUid); return u ? [u] : []; })).catch(() => ({}));
         data.participants = withProfilePhotos(data.participants, session.uid, linkUid, photos);
         if (couple) couple.participants = withProfilePhotos(couple.participants, session.uid, linkUid, photos);
+        // What you call your partner (set under Settings > Friends & Family) shows instead of their account name everywhere.
+        const partnerNick = profile?.partnerNickname?.trim();
+        if (partnerNick && couple) {
+          const pid = couple.partner.participantId;
+          const named = <T extends { id: string }>(ps: T[]): T[] => ps.map((p) => (p.id === pid ? { ...p, nickname: partnerNick } : p));
+          data.participants = named(data.participants);
+          couple.participants = named(couple.participants);
+        }
         live = {
           couple: couple ?? undefined,
           data, today, ready: true,

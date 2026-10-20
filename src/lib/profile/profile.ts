@@ -21,6 +21,8 @@ export interface Profile extends ProfileInput {
   providerPhotoUrl: string | null;
   /** Recurring suggestions you answered "not recurring" to. Saved on the account, so every device agrees. */
   dismissedRecurring: string[];
+  /** What you call your linked partner. Their own name stays theirs; this is only how it shows to you. */
+  partnerNickname?: string;
 }
 
 /**

@@ -392,7 +392,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
             {countsIn.length > 0 && <p className="-mt-1 px-1 text-xs text-muted">Counts in <b className="font-medium text-foreground">{countsIn.join(" · ")}</b></p>}
           </>
         )}
-      {(sharing || payerId !== meId) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={(id) => { touch("payer"); setPayerId(id); }} /></FormRow>}
+      {(sharing || payerId !== meId) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: nameOf(p.id), icon: <PersonGlyph name={nameOf(p.id)} id={p.id} /> }))} selected={[payerId]} onPick={(id) => { touch("payer"); setPayerId(id); }} /></FormRow>}
       <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="group flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-border bg-surface px-3 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent">
         <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={26} />
         <span className="flex-1 text-sm font-semibold">More options</span>

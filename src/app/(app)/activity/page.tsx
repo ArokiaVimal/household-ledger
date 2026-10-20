@@ -19,7 +19,7 @@ async function post(url: string, body?: unknown): Promise<{ ok: boolean; error?:
 
 /** The audit trail: who changed what and when, with one-step undo, and the import history with rollback. */
 export default function Activity() {
-  const { live, meId, participants } = useStore();
+  const { live, meId, participants, nameOf } = useStore();
   const router = useRouter();
   const [tab, setTab] = useState<"changes" | "imports">("changes");
   const [changes, setChanges] = useState<Change[] | null>(null);
@@ -35,7 +35,7 @@ export default function Activity() {
   }, []);
   useEffect(() => { if (live) void Promise.resolve().then(load); }, [live, load]);
 
-  const who = (uid: string) => (uid === "demo" || `u_` === meId ? "You" : participants.find((p) => p.userId === uid || p.id === `u_${uid}`)?.name ?? "Someone");
+  const who = (uid: string) => (uid === "demo" || `u_` === meId ? "You" : (() => { const p = participants.find((x) => x.userId === uid || x.id === `u_${uid}`); return p ? nameOf(p.id) : "Someone"; })());
   const run = async (action: object) => {
     setBusy(true); setError(null);
     const r = await post("/api/data", action);

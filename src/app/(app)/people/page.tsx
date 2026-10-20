@@ -173,8 +173,8 @@ export default function People() {
       <Dialog open={open} onClose={() => setOpen(false)} title="Record a payment">
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Paid by"><Select value={from} onChange={(e) => setFrom(e.target.value)}>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
-            <Field label="Paid to"><Select value={to} onChange={(e) => setTo(e.target.value)}>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></Field>
+            <Field label="Paid by"><Select value={from} onChange={(e) => setFrom(e.target.value)}>{people.map((p) => <option key={p.id} value={p.id}>{nameOf(p.id)}</option>)}</Select></Field>
+            <Field label="Paid to"><Select value={to} onChange={(e) => setTo(e.target.value)}>{people.map((p) => <option key={p.id} value={p.id}>{nameOf(p.id)}</option>)}</Select></Field>
           </div>
           <Field label="Amount (₹)" error={amount ? err : null}><Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
           <Field label="Note"><Input value={note} onChange={(e) => setNote(e.target.value)} /></Field>

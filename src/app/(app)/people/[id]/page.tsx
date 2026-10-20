@@ -32,7 +32,7 @@ export default function PersonSettle() {
       </>
     );
   }
-  const name = person.name;
+  const name = nameOf(person.id);
   // Friends (no account) and demo people can have a photo set here; yourself and a linked partner come from their own profiles.
   const canEditPhoto = personId !== meId && (!live || person.userId === null);
   const pickPhoto = async (file: File) => {

@@ -1,4 +1,5 @@
 import "server-only";
+import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { Session } from "@/lib/auth/session";
 import { syncDisplayName } from "./sync-name";
@@ -19,6 +20,7 @@ export async function getProfile(session: Session): Promise<Profile> {
     defaultView: d.defaultView === "household" ? "household" : "personal", // personal first
     avatarDataUrl: typeof d.avatarDataUrl === "string" ? d.avatarDataUrl : null,
     providerPhotoUrl: session.picture,
+    partnerNickname: typeof d.partnerNickname === "string" ? d.partnerNickname : "",
     dismissedRecurring: Array.isArray(d.dismissedRecurring) ? d.dismissedRecurring.filter((x: unknown): x is string => typeof x === "string").slice(0, 200) : [],
   };
 }
@@ -31,4 +33,11 @@ export async function saveProfile(session: Session, input: ProfileInput, avatarD
   // Keep the household's copies of your name in step. A failure here must not lose the profile save.
   try { await syncDisplayName(session.uid, input.displayName); } catch (e) { console.error("name sync failed", (e as { code?: string }).code); }
   return getProfile(session);
+}
+
+/** What you call your partner, kept on your own account. An empty name removes it. */
+export async function savePartnerNickname(session: Session, nickname: string): Promise<string> {
+  const n = nickname.trim().slice(0, 30);
+  await doc(session.uid).set({ partnerNickname: n || FieldValue.delete(), updatedAt: new Date().toISOString() }, { merge: true });
+  return n;
 }
