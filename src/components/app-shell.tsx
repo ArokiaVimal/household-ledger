@@ -1,5 +1,5 @@
 "use client";
-import { Bell, ChevronLeft, ChevronRight, Lock, LockOpen, LogOut, MoreHorizontal, Plus, Search, Settings, UserRound } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardCheck, FileUp, Lock, LockOpen, LogOut, MoreHorizontal, Plus, Search, Settings, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -12,7 +12,8 @@ import { LogoMark } from "./logo";
 import { useProfile } from "./profile-context";
 import { OPEN_ADD_EVENT } from "./onboarding";
 import { TxnAddDialog } from "./txn-edit-dialog";
-import { NAV } from "./nav-items";
+import { BAR_ORDER, NAV } from "./nav-items";
+import { NotificationsBell } from "./notifications";
 import { Dialog } from "./ui";
 
 
@@ -88,12 +89,13 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const { live, previewing, staged, syncError, dismissSyncError, nameOf, meId } = useStore();
   // Solo use is complete on its own: settle-up and the Mine/Together switch appear once a partner is linked.
   const visibleNav = NAV.filter((n) => n.href !== "/profile");
-  const phoneBar = visibleNav.filter((n) => n.bar);
+  const phoneBar = BAR_ORDER.flatMap((h) => visibleNav.filter((n) => n.href === h));
   const phoneMore = NAV.filter((n) => !n.bar);
   const [moreOpen, setMoreOpen] = useState(false);
   const [q, setQ] = useState("");
   const { profile } = useProfile();
   const [adding, setAdding] = useState(false);
+  const [addMenu, setAddMenu] = useState(false);
   const [round, setRound] = useState(0);
   // Quiet Gmail check once per tab session when the app opens (the server skips it when Gmail is not connected or was checked recently).
   useEffect(() => {
@@ -147,10 +149,11 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 </form>
                 <MonthStepper className="hidden md:flex" />
                 <GroupSwitch className="hidden max-w-lg md:flex" />
-                <Link href="/review" aria-label={`${staged.length} transactions awaiting review`} className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
-                  <Bell size={18} aria-hidden />
-                  {staged.length > 0 && <span className="absolute right-1.5 top-1.5 size-2.5 rounded-full bg-danger" />}
+                <Link href="/review" aria-label={staged.length ? `Review, ${staged.length} waiting` : "Review"} title="Review" className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
+                  <ClipboardCheck size={18} aria-hidden />
+                  {staged.length > 0 && <span aria-hidden className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-semibold leading-5 text-white">{staged.length > 99 ? "99+" : staged.length}</span>}
                 </Link>
+                <NotificationsBell />
                 {user && <AccountMenu onSignOut={signOut} />}
               </div>
               <div className="mt-2 space-y-1.5 md:hidden">
@@ -168,10 +171,16 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
           </div>
         </div>
       </div>
-      <button onClick={() => setAdding(true)} aria-label="Add transaction"
+      <button onClick={() => (path.startsWith("/transactions") ? setAddMenu(true) : setAdding(true))} aria-label="Add transaction"
         className="fixed bottom-[calc(var(--sab)+4.75rem)] right-4 z-30 flex items-center gap-1.5 rounded-full bg-accent px-4 py-3 text-sm font-medium text-white shadow-lg hover:bg-accent/90 md:bottom-8 md:right-8">
         <Plus size={18} aria-hidden /> Add
       </button>
+      <Dialog open={addMenu} onClose={() => setAddMenu(false)} title="Add">
+        <div className="grid grid-cols-2 gap-2 pb-3">
+          <button type="button" onClick={() => { setAddMenu(false); setAdding(true); }} className="flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-background p-3 text-center text-sm font-medium"><Plus size={22} aria-hidden className="text-accent" />Add transaction</button>
+          <button type="button" onClick={() => { setAddMenu(false); router.push("/import"); }} className="flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-background p-3 text-center text-sm font-medium"><FileUp size={22} aria-hidden className="text-accent" />Import</button>
+        </div>
+      </Dialog>
       <TxnAddDialog open={adding} round={round} onClose={() => setAdding(false)} onAnother={() => setRound((r) => r + 1)}
         onAdded={(m) => { setToast(m); setTimeout(() => setToast(""), 3000); }} />
       {syncError && (
@@ -186,7 +195,6 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
           <Link key={href} href={href} aria-current={active(href) ? "page" : undefined}
             className={cn("relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", active(href) ? "font-medium text-accent" : "text-muted")}>
             <I size={20} aria-hidden /> {label}
-            {href === "/review" && staged.length > 0 && <span aria-label={`${staged.length} waiting`} className="absolute right-[22%] top-1.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-semibold leading-4 text-white">{staged.length > 99 ? "99+" : staged.length}</span>}
           </Link>
         ))}
         <button type="button" onClick={() => setMoreOpen(true)} aria-haspopup="dialog" aria-expanded={moreOpen}
