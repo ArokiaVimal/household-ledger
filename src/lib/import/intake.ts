@@ -65,7 +65,7 @@ export async function intakeFile(bytes: Uint8Array, filename: string, opts: Inta
   if (!opts.ai || !opts.claude) throw new ImportError("invalid", `${why} Try “Import with AI”, or paste the transactions into the text box.`);
   const out = await extractWithClaude(opts.claude, sample, "statement", { accounts: opts.accounts, today: opts.today });
   if (out.usage.error) throw new ImportError("invalid", `${why} Claude could not help either: ${out.usage.error}.`);
-  if (out.rows.length === 0) throw new ImportError("invalid", `${why} Claude found no transactions it could verify in the text.`);
+  if (out.rows.length === 0) throw new ImportError("invalid", `${why} Claude found no transactions it could verify in the text.${out.warnings.length ? ` ${out.warnings.join(" ")}` : ""}`);
   const d = decide(opts, sample.slice(0, SAMPLE), out.accountId);
   if (!d.accountId) return { kind: "need_account", reason: d.detected.reason, candidates: d.sensed.candidates, ai: out.usage };
   return { kind: "ready", ai: out.usage, input: { ...opts.base, accountId: d.accountId, detected: d.detected, format: "text", rows: out.rows, readBy: "ai", unverified: out.unverified, warnings: out.warnings, bill: out.bill } };
