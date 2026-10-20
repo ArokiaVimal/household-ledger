@@ -1,6 +1,8 @@
 "use client";
-import { ArrowLeftRight, Ban, Banknote, CalendarDays, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeftRight, Ban, Banknote, CalendarDays, Camera, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
+import { billFileToDataUrl } from "@/lib/image";
+import type { Bill } from "@/lib/import/bill-extract";
 import { useStore } from "@/data/store";
 import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
 import { CategoryGlyph, Dot, PersonGlyph } from "@/components/glyphs";
@@ -66,7 +68,7 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded }: { ope
 }
 
 function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { cardBills, meId, nameOf, groups, rules, partnerId, splitRatio, today, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
+  const { aiEnabled, cardBills, meId, nameOf, groups, rules, partnerId, splitRatio, today, accounts, participants, recurringItems, categories, records, staged, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
   const [deleting, setDeleting] = useState(false);
   const [sheet, setSheet] = useState<null | "pay" | "via" | "wallet" | "merchant" | "category" | "kind" | "topup" | "card" | "bank" | "recurring">(null);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
@@ -207,6 +209,34 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
     if (got.length) setFilled(got.map((g) => `${g} (usual for ${name})`));
   };
   const onAmount = (v: string) => { touch("amount"); setAmount(v); };
+  // Scan or upload a bill: Claude reads it, the form is filled and the items become an item-wise split to share out.
+  const billInput = useRef<HTMLInputElement>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState<{ error: boolean; text: string } | null>(null);
+  const applyBill = (bill: Bill, warnings: string[]) => {
+    const got: string[] = [];
+    if (bill.merchant && !merchantTouched.current) { setMerchant(bill.merchant); autoMerchant.current = bill.merchant; setMerchantHint("From the bill"); got.push("merchant"); applyCategory(bill.merchant, notes); }
+    setAmount(String(bill.totalPaise / 100)); got.push("amount");
+    if (bill.date) { setDate(bill.date); got.push("date"); }
+    if (bill.items.length > 0) {
+      const who = split.participantIds.length ? split.participantIds : [meId];
+      setSplit({ mode: "items", participantIds: who, items: bill.items.map((i) => ({ id: `i_${Math.random().toString(36).slice(2, 9)}`, name: i.name, amountPaise: i.amountPaise, participantIds: who })) });
+      got.push(`${bill.items.length} item${bill.items.length === 1 ? "" : "s"}`);
+      setSplitOpen(true); // straight to sharing the items out
+    }
+    setFilled(got);
+    setScanMsg(warnings.length ? { error: false, text: warnings.join(" ") } : null);
+  };
+  const scanBill = async (file: File | undefined | null) => {
+    if (!file) return;
+    setScanning(true); setScanMsg(null);
+    try {
+      const url = await billFileToDataUrl(file);
+      const res = await fetch("/api/bill", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ file: url }) });
+      const r = (await res.json()) as { bill?: Bill; warnings?: string[]; error?: string };
+      if (!res.ok || !r.bill) setScanMsg({ error: true, text: r.error ?? "Could not read that bill." }); else applyBill(r.bill, r.warnings ?? []);
+    } catch (e) { setScanMsg({ error: true, text: (e as Error).message || "Could not read that bill." }); } finally { setScanning(false); if (billInput.current) billInput.current.value = ""; }
+  };
   /** A card-bill payment: pick the card (named, or the one open bill that matches), then fill what is still owed on it. */
   const prefillCardPayment = (cardId: string, amountPaise?: number) => {
     const views = cardViews(accounts, cardBills, [...records, ...staged], today);
@@ -254,6 +284,18 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
 
   return (
     <div className="space-y-4">
+      {adding && (
+        <div>
+          <input ref={billInput} type="file" accept="image/*,application/pdf" className="sr-only" aria-label="Choose a bill" onChange={(e) => void scanBill(e.target.files?.[0])} />
+          <button type="button" disabled={scanning || !aiEnabled} onClick={() => billInput.current?.click()} className="flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-dashed border-accent/40 bg-accent/5 px-3.5 text-left text-sm font-medium text-accent transition-colors hover:bg-accent/10 disabled:opacity-60">
+            <Camera size={18} aria-hidden />
+            <span className="flex-1">{scanning ? "Reading your bill…" : "Scan or upload a bill"}</span>
+            <AiBadge />
+          </button>
+          {!aiEnabled && <p className="mt-1 px-1 text-xs text-muted">AI is off on this server.</p>}
+          {scanMsg && <p role={scanMsg.error ? "alert" : "status"} className={`mt-1.5 px-1 text-xs ${scanMsg.error ? "text-danger" : "text-warn"}`}>{scanMsg.text}</p>}
+        </div>
+      )}
       {adding ? (
         <div className="rounded-2xl bg-gradient-to-br from-accent/10 to-accent/[0.04] p-4">
           <div className="flex items-center justify-between gap-2">

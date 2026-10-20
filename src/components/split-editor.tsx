@@ -133,7 +133,24 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   const pickPreset = (label: string) => {
     onChange(structuredClone(howOptions.find((p) => p.label === label)!.config));
   };
+  // An item-wise split keeps its items when people are added or removed: a new person joins every item (untick the ones they skipped).
+  const reshapeItems = (nextIds: string[], added?: string): SplitConfig => ({
+    mode: "items", participantIds: nextIds,
+    items: (value.items ?? []).map((it) => {
+      let p = it.participantIds.filter((x) => nextIds.includes(x));
+      if (added && !p.includes(added)) p = [...p, added];
+      return { ...it, participantIds: p.length ? p : nextIds };
+    }),
+  });
   const pickPerson = (id: string) => {
+    if (value.mode === "items" && (value.items?.length ?? 0) > 0) {
+      const cur = value.participantIds;
+      const who = id === ME ? meId : id;
+      const has = cur.includes(who);
+      const next = has ? cur.filter((x) => x !== who) : [...cur, who];
+      if (next.length === 0) return;
+      return onChange(reshapeItems(next, has ? undefined : who));
+    }
     if (id === ME) {
       if (meIn && others.length === 0) return; // someone has to be in the split
       if (meIn) return onChange(build(value.mode === "personal" ? "equal" : value.mode, others));

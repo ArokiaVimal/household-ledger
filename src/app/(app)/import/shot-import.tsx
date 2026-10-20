@@ -6,23 +6,10 @@ import { AiBadge, Button, Dialog, Input } from "@/components/ui";
 import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
+import { imageToJpegDataUrl } from "@/lib/image";
 import { brandFor, planShots, shotNote, type ShotLike, type ShotPlan } from "@/domain/import/screenshot";
 
-const MAX_SIDE = 1600;
 const dateLabel = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleString("en", { day: "numeric", month: "short", timeZone: "UTC" });
-
-/** Shrinks a screenshot in the browser so it uploads fast and fits the size limit. Always returns a JPEG data URL. */
-async function toJpegDataUrl(file: File): Promise<string> {
-  const bmp = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("no canvas");
-  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.85);
-}
 
 /** Read payments from a screenshot with AI, match them to what you already have, then save only what you confirm. */
 export function ShotImport({ open, onClose, aiEnabled }: { open: boolean; onClose: () => void; aiEnabled: boolean }) {
@@ -48,7 +35,7 @@ export function ShotImport({ open, onClose, aiEnabled }: { open: boolean; onClos
     if (!f) return;
     setError(null); setDone(null); setPlans(null);
     if (!/^image\/(png|jpe?g|webp|gif)$/.test(f.type)) return setError("Use a PNG, JPG or WebP screenshot.");
-    try { setImage({ url: await toJpegDataUrl(f), name: f.name || "Pasted screenshot" }); } catch { setError("Could not open that image."); }
+    try { setImage({ url: await imageToJpegDataUrl(f), name: f.name || "Pasted screenshot" }); } catch { setError("Could not open that image."); }
   };
   // Paste a screenshot straight from the clipboard while the pop-up is open.
   useEffect(() => {

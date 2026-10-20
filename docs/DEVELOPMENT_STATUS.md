@@ -410,3 +410,8 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 - `src/domain/import/screenshot.ts` plans each row: **failed or processing orders are skipped**; a payment with the same amount as an existing purchase within 4 days is **matched** (closest date, each record used once) and, for a voucher order, tagged with the voucher brand and a short note (face value, order number) through the normal record update (audited); anything else is **new** and goes to the review queue through the same import path as a statement (action `add`, order number as reference id). Voucher brands are matched to the ones you have ("Amazon Pay" finds "Amazon") or created.
 - Needs the Anthropic key on the server; AI is off otherwise. Not tested against the live API from this machine.
 
+## Scan a bill (added)
+- **Add transaction** has **Scan or upload a bill** (photo, screenshot or PDF; images are shrunk in the browser). Claude reads it (`src/lib/import/bill-extract.ts`, route `/api/bill`, only on click, nothing stored) and the form fills: merchant, category (from the merchant), date, total, and the **line items as an item-wise split** (tax, service charge, delivery and discounts are whatever is left of the total and are shared in proportion by the existing items split). The Split sheet opens straight away to share the items out.
+- In an item-wise split, adding or removing a person in "Split with" keeps the items: a new person joins every item (untick the ones they skipped).
+- Warnings: total unclear (items added up instead) and items that do not add up to the total. Needs the Anthropic key; not tested against the live API from this machine.
+
