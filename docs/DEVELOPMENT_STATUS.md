@@ -459,3 +459,6 @@ Every place that shows a person now goes through `nameOf` (nickname first): Peop
 
 ## Logos and icons you can choose (2026-10-21)
 A merchant now shows a logo or an icon, never both. Order: a logo you or AI chose (`merchantMemory.logo`, a file in `public/logos`, list in `LOGO_KEYS`), else a known brand logo or badge, else a chosen icon, else a fallback (the person page uses the category icon), else the first letter. AI may answer with a logo only from our own files and only for merchants. Settings > Icons & logos: "Suggest for new items" and "Redo everything"; each suggestion with a logo has a Logo / Icon switch; saving a logo clears the icon and the other way round (`icons.apply`). Not yet checked on screen because the Firestore free daily read quota ran out during testing (see chat).
+
+## Self-healing for a frozen app (2026-10-21)
+`Pwa` (src/components/pwa.tsx, rules in src/lib/self-heal.ts): a tap on a link that has not reached its page after 8 s loads that page the plain way; coming back to the front after 5+ minutes checks `/api/version` and reloads when a newer build is live; after an hour away the screen reloads; nothing reloads while a dialog is open. Cause of the reported freezes is not proven (no way to reproduce on the phone); these make the app recover by itself.
