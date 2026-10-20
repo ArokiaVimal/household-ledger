@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
 import { PersonGlyph } from "@/components/glyphs";
 import { MerchantAvatar } from "@/components/txn-row";
+import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { cn } from "@/lib/cn";
 import { toSquareJpeg } from "@/lib/profile/image";
 import { useStore } from "@/data/store";
@@ -26,6 +27,8 @@ export default function PersonSettle() {
   const person = participants.find((p) => p.id === personId);
   const ledger = useMemo(() => personLedger(personId, meId, ledgerRecords, settlements), [personId, meId, ledgerRecords, settlements]);
   const canSettle = !(live && partner && !partner.active && personId === partner.participantId);
+  // Tapping a payment opens its full edit screen (with next/previous); the checkbox only selects it for settling.
+  const recNav = useRecordNav((tab === "open" ? ledger.open : ledger.settled).map((e) => e.record));
 
   if (!person) {
     return (
@@ -139,18 +142,22 @@ export default function PersonSettle() {
                           const wallet = r.paidWithVoucherId ? voucherBrands.find((b) => b.id === r.paidWithVoucherId)?.name ?? "voucher" : "";
                           return (
                             <li key={r.id}>
-                              <label className={`flex items-center gap-2.5 rounded-xl px-2 py-2 ${tab === "open" && canSettle ? "cursor-pointer hover:bg-background" : ""} ${sel ? "bg-accent/5" : ""}`}>
-                                {tab === "open" && canSettle && <input type="checkbox" checked={sel} onChange={() => toggle(r.id)} aria-label={`Select ${r.merchant}`} className="size-[18px] shrink-0 accent-[var(--accent)]" />}
-                                <MerchantAvatar name={r.merchant} size={34} />
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-sm font-medium leading-tight">{r.merchant}</span>
-                                  <span className="block truncate text-[11px] leading-tight text-muted">{r.payerId === meId ? "you paid" : `${name} paid`} {formatINR(r.amountPaise)}{wallet ? ` · ${wallet} wallet` : ""}</span>
-                                </span>
-                                <span className="shrink-0 text-right leading-tight">
-                                  <span className={`num block text-sm font-semibold ${theyOwe ? "text-good" : ""}`}>{formatINR(Math.abs(e.sharePaise))}</span>
-                                  <span className={`block text-[10px] ${theyOwe ? "text-good/80" : "text-muted"}`}>{theyOwe ? "you lent" : "you owe"}</span>
-                                </span>
-                              </label>
+                              <div className={`flex items-center rounded-xl ${sel ? "bg-accent/5" : ""}`}>
+                                {tab === "open" && canSettle && (
+                                  <label className="grid size-11 shrink-0 cursor-pointer place-items-center"><input type="checkbox" checked={sel} onChange={() => toggle(r.id)} aria-label={`Select ${r.merchant}`} className="size-[18px] accent-[var(--accent)]" /></label>
+                                )}
+                                <button type="button" onClick={() => recNav.open(r)} aria-label={`Open ${r.merchant}`} className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-xl py-2 pr-2 text-left hover:bg-background active:bg-background ${tab === "open" && canSettle ? "" : "pl-2"}`}>
+                                  <MerchantAvatar name={r.merchant} size={34} />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-medium leading-tight">{r.merchant}</span>
+                                    <span className="block truncate text-[11px] leading-tight text-muted">{r.payerId === meId ? "you paid" : `${name} paid`} {formatINR(r.amountPaise)}{wallet ? ` · ${wallet} wallet` : ""}</span>
+                                  </span>
+                                  <span className="shrink-0 text-right leading-tight">
+                                    <span className={`num block text-sm font-semibold ${theyOwe ? "text-good" : ""}`}>{formatINR(Math.abs(e.sharePaise))}</span>
+                                    <span className={`block text-[10px] ${theyOwe ? "text-good/80" : "text-muted"}`}>{theyOwe ? "you lent" : "you owe"}</span>
+                                  </span>
+                                </button>
+                              </div>
                             </li>
                           );
                         })}
@@ -189,6 +196,7 @@ export default function PersonSettle() {
         </div>
       )}
 
+      <TxnEditDialog record={recNav.record} onClose={recNav.close} nav={recNav.nav} />
       <Dialog open={confirm !== null} onClose={() => setConfirm(null)} title={confirm === "everything" ? `Settle everything with ${name}?` : "Settle these payments?"}>
         {confirm && (() => {
           const s = confirm === "everything" ? allSettlement : selSettlement;
