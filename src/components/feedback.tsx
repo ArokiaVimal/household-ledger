@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { Button, Dialog } from "@/components/ui";
 
 /**
  * A pop-up that blocks the screen while something slow is happening (reading a statement, asking AI, saving), so it is always clear
@@ -32,5 +33,17 @@ export function BusyOverlay({ open, title, detail }: { open: boolean; title: str
         </div>
       )}
     </dialog>
+  );
+}
+
+/** A problem, shown as a pop-up where the person is looking instead of a message somewhere down the page. */
+export function ErrorDialog({ message, onClose, title = "That didn’t work" }: { message: string | null; onClose: () => void; title?: string }) {
+  return (
+    <Dialog open={!!message} onClose={onClose} title={title}>
+      <div className="space-y-3 pb-1 text-sm">
+        <p role="alert" className="rounded-xl bg-danger/10 p-3 text-danger">{message}</p>
+        <div className="sticky bottom-0 -mx-4 flex justify-end border-t border-border bg-surface px-4 py-3"><Button variant="primary" onClick={onClose}>OK</Button></div>
+      </div>
+    </Dialog>
   );
 }

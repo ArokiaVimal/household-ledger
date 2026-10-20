@@ -8,7 +8,8 @@ import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import type { Preview, PreviewRow } from "@/lib/import/service";
-import { BusyOverlay } from "./busy-overlay";
+import { BusyOverlay, ErrorDialog } from "@/components/feedback";
+import { useDropZone } from "@/components/drop-zone";
 import { undoImport } from "./undo";
 import { ShotImport } from "./shot-import";
 
@@ -26,9 +27,10 @@ type Reply = {
   result?: { batchId?: string; counts: { staged: number; skipped: number; unreadable: number } };
 };
 
-function Entry({ icon: I, title, text, badge, primary, children }: { icon: LucideIcon; title: string; text: string; badge?: ReactNode; primary?: boolean; children: ReactNode }) {
+function Entry({ icon: I, title, text, badge, primary, onDropFile, children }: { icon: LucideIcon; title: string; text: string; badge?: ReactNode; primary?: boolean; /** Drag and drop: called with the dropped file. */ onDropFile?: (f: File) => void; children: ReactNode }) {
+  const { over, bind } = useDropZone((f) => onDropFile?.(f), !onDropFile);
   return (
-    <section className={`flex flex-col gap-2.5 rounded-[var(--radius-card)] p-4 md:p-5 ${primary ? "bg-gradient-to-br from-accent/10 via-surface to-surface ring-1 ring-accent/25" : "bg-surface"}`}>
+    <section {...bind} className={`relative flex flex-col gap-2.5 rounded-[var(--radius-card)] p-4 transition-shadow md:p-5 ${over ? "ring-2 ring-accent" : ""} ${primary ? "bg-gradient-to-br from-accent/10 via-surface to-surface ring-1 ring-accent/25" : "bg-surface"}`}>
       <div className="flex items-start gap-3">
         <span aria-hidden className={`grid size-10 shrink-0 place-items-center rounded-full ${primary ? "bg-accent text-white" : "bg-background text-accent"}`}><I size={19} /></span>
         <div className="min-w-0 flex-1">
@@ -38,6 +40,8 @@ function Entry({ icon: I, title, text, badge, primary, children }: { icon: Lucid
         {badge}
       </div>
       <div className="mt-auto">{children}</div>
+      {onDropFile && <p className="hidden text-[11px] text-muted md:block">or drop a file here</p>}
+      {over && <div aria-hidden className="pointer-events-none absolute inset-0 grid place-items-center rounded-[var(--radius-card)] bg-accent/10 text-sm font-semibold text-accent">Drop to use this</div>}
     </section>
   );
 }
@@ -51,6 +55,7 @@ export function LiveImport() {
   const router = useRouter();
   const usable = accounts.filter((a) => a.type !== "cash" && !a.archived);
   const [shotOpen, setShotOpen] = useState(false);
+  const [shotFile, setShotFile] = useState<File | null>(null);
   const [src, setSrc] = useState<Src | null>(null);
   const [sign, setSign] = useState<"auto" | "out" | "in">("auto");
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -74,6 +79,7 @@ export function LiveImport() {
   const [pasteText, setPasteText] = useState("");
   const aiInput = useRef<HTMLInputElement>(null);
   const manualInput = useRef<HTMLInputElement>(null);
+  const manualDrop = useDropZone((f) => setManualFile(f));
 
   const send = async (s: Src, mode: "preview" | "commit", signOverride = sign): Promise<Reply> => {
     const flip = signOverride === "auto" ? undefined : signOverride === "out";
@@ -175,7 +181,7 @@ export function LiveImport() {
 
   return (
     <>
-      <ShotImport open={shotOpen} onClose={() => setShotOpen(false)} aiEnabled={aiEnabled} />
+      <ShotImport open={shotOpen} onClose={() => { setShotOpen(false); setShotFile(null); }} aiEnabled={aiEnabled} initialFile={shotFile} />
       {/* Slow work is always announced, and a problem always pops up where you are looking, not somewhere down the page. */}
       <BusyOverlay open={busy}
         title={phase === "undo" ? "Undoing the import…" : phase === "save" ? "Saving to your review queue…" : preview ? "Asking AI about new merchants…" : (src?.kind === "file" && src.ai) || (src?.kind === "text" && src.mode === "ai") ? "Reading your statement with AI…" : "Reading your statement…"}
@@ -184,29 +190,24 @@ export function LiveImport() {
         <p>This removes the {undoing?.rows} transaction{undoing?.rows === 1 ? "" : "s"} “{undoing?.filename}” added, including any you have verified since. Your original file is not touched, and you can import it again.</p>
         <p className="mt-2 text-muted">If something from it was already settled with someone, you will be asked to void that first.</p>
       </ConfirmDialog>
-      <Dialog open={!!error} onClose={() => setError(null)} title="That didn’t work">
-        <div className="space-y-3 pb-1 text-sm">
-          <p role="alert" className="rounded-xl bg-danger/10 p-3 text-danger">{error}</p>
-          <div className="sticky bottom-0 -mx-4 flex justify-end border-t border-border bg-surface px-4 py-3"><Button variant="primary" onClick={() => setError(null)}>OK</Button></div>
-        </div>
-      </Dialog>
+      <ErrorDialog message={error} onClose={() => setError(null)} />
       <PageHeader title="Import" sub="Bring in a statement or a note. Everything arrives unverified for you to check." />
       {usable.length === 0 ? (
         <EmptyState title="Add a payment method first" hint="Open Settings and add the card or account this belongs to." />
       ) : (
         <div className="space-y-5">
           <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Entry icon={Sparkles} primary title="Import with AI" text="Drop in any statement. We find the bank or card for you." badge={<Badge tone={aiEnabled ? "good" : "neutral"}>{aiEnabled ? "On" : "Off"}</Badge>}>
+            <Entry icon={Sparkles} primary title="Import with AI" onDropFile={(f) => pickFile(f, true)} text="Drop in any statement. We find the bank or card for you." badge={<Badge tone={aiEnabled ? "good" : "neutral"}>{aiEnabled ? "On" : "Off"}</Badge>}>
               <input ref={aiInput} type="file" accept=".csv,.txt,.xlsx,.pdf" className="sr-only" aria-label="Choose statement file for AI import" onChange={(e) => { pickFile(e.target.files?.[0], true); e.target.value = ""; }} />
               <Button variant="primary" disabled={busy} onClick={() => aiInput.current?.click()}><UploadCloud size={16} aria-hidden />{busy && src?.kind === "file" && src.ai ? "Reading…" : "Choose statement"}</Button>
             </Entry>
-            <Entry icon={FileUp} title="Choose bank, then file" text="You pick the payment method, we read the file. No AI involved.">
+            <Entry icon={FileUp} title="Choose bank, then file" onDropFile={(f) => { setManualFile(f); setManualOpen(true); }} text="You pick the payment method, we read the file. No AI involved.">
               <Button disabled={busy} onClick={() => { setManualFile(null); setManualOpen(true); }}>Choose method and file</Button>
             </Entry>
-            <Entry icon={ClipboardPaste} title="Paste or describe" text="Paste rows from your bank app, or just write it in your own words.">
+            <Entry icon={ClipboardPaste} title="Paste or describe" onDropFile={(f) => { if (!/\.(txt|csv)$/i.test(f.name) || f.size > 200_000) { setError("Drop a small .txt or .csv file to paste its text, or use the other options for statements."); return; } void f.text().then((t) => { setPasteText(t.slice(0, 100000)); setPasteOpen(true); }); }} text="Paste rows from your bank app, or just write it in your own words.">
               <Button disabled={busy} onClick={() => setPasteOpen(true)}>Paste or type</Button>
             </Entry>
-            <Entry icon={ImageIcon} title="Read a screenshot" text="Orders or payments from an app. We match them to what you have." badge={<Badge tone={aiEnabled ? "good" : "neutral"}>{aiEnabled ? "AI" : "Off"}</Badge>}>
+            <Entry icon={ImageIcon} title="Read a screenshot" onDropFile={aiEnabled ? (f) => { setShotFile(f); setShotOpen(true); } : undefined} text="Orders or payments from an app. We match them to what you have." badge={<Badge tone={aiEnabled ? "good" : "neutral"}>{aiEnabled ? "AI" : "Off"}</Badge>}>
               <Button disabled={busy || !aiEnabled} onClick={() => setShotOpen(true)}>Choose screenshot</Button>
             </Entry>
           </div>
@@ -402,8 +403,9 @@ export function LiveImport() {
           <div className="space-y-1.5">
             <div className="text-xs font-medium text-muted">Statement file</div>
             <input ref={manualInput} type="file" accept=".csv,.txt,.xlsx,.pdf" className="sr-only" aria-label="Choose statement file" onChange={(e) => setManualFile(e.target.files?.[0] ?? null)} />
-            <div className="flex flex-wrap items-center gap-2">
+            <div {...manualDrop.bind} className={`flex flex-wrap items-center gap-2 rounded-2xl border border-dashed p-3 transition-colors ${manualDrop.over ? "border-accent bg-accent/10" : "border-border"}`}>
               <Button onClick={() => manualInput.current?.click()}><FileUp size={16} aria-hidden />{manualFile ? "Change file" : "Choose .csv, .xlsx or .pdf"}</Button>
+              {!manualFile && <span className="text-xs text-muted">or drop it here</span>}
               {manualFile && <span className="text-muted">{manualFile.name} · {(manualFile.size / 1024).toFixed(0)} KB</span>}
             </div>
           </div>

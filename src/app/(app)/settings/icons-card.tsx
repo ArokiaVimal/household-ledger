@@ -2,6 +2,7 @@
 import { Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Glyph } from "@/components/glyphs";
+import { BusyOverlay, ErrorDialog } from "@/components/feedback";
 import { AiBadge, Button } from "@/components/ui";
 import { useStore } from "@/data/store";
 import type { IconPick } from "@/lib/icons/ai";
@@ -21,16 +22,17 @@ export function IconsCard({ live, aiEnabled }: { live: boolean; aiEnabled: boole
   const [picks, setPicks] = useState<IconPick[] | null>(null);
   const [use, setUse] = useState<Record<string, "logo" | "icon">>({});
   const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = async (all: boolean) => {
     setBusy(all ? "all" : "new"); setMsg(null); setPicks(null);
     try {
       const res = await fetch("/api/icons", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ all }) });
       const data = (await res.json().catch(() => ({}))) as { picks?: IconPick[]; error?: string; message?: string };
-      if (!res.ok) setMsg(data.error ?? "Could not refresh icons.");
+      if (!res.ok) setError(data.error ?? "Could not refresh icons.");
       else if (!data.picks?.length) setMsg(data.message ?? "Nothing new needs an icon or logo.");
       else { setPicks(data.picks); setUse(Object.fromEntries(data.picks.map((p) => [keyOf(p), p.logo ? "logo" : "icon"]))); }
-    } catch { setMsg("Network problem. Try again."); }
+    } catch { setError("Network problem. Try again."); }
     setBusy(null);
   };
   const apply = () => {
@@ -59,6 +61,8 @@ export function IconsCard({ live, aiEnabled }: { live: boolean; aiEnabled: boole
       {!live && <p className="text-xs text-muted">This needs a signed-in account. The demo has no AI.</p>}
       {live && !aiEnabled && <p className="text-xs text-muted">AI is off. Add an Anthropic API key to turn it on.</p>}
       {msg && <p role="status" className="text-sm text-muted">{msg}</p>}
+      <BusyOverlay open={!!busy} title="Asking AI for icons and logos…" detail="Only names are sent. This usually takes under half a minute." />
+      <ErrorDialog message={error} onClose={() => setError(null)} />
       {picks && (
         <div className="space-y-2">
           <ul className="max-h-72 divide-y divide-border overflow-auto rounded-xl bg-background px-3 text-sm">

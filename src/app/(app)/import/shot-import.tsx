@@ -3,6 +3,8 @@ import { Image as ImageIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AiBadge, Button, Dialog, Input } from "@/components/ui";
+import { BusyOverlay, ErrorDialog } from "@/components/feedback";
+import { useDropZone } from "@/components/drop-zone";
 import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -12,7 +14,7 @@ import { brandFor, planShots, shotNote, type ShotLike, type ShotPlan } from "@/d
 const dateLabel = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleString("en", { day: "numeric", month: "short", timeZone: "UTC" });
 
 /** Read payments from a screenshot with AI, match them to what you already have, then save only what you confirm. */
-export function ShotImport({ open, onClose, aiEnabled }: { open: boolean; onClose: () => void; aiEnabled: boolean }) {
+export function ShotImport({ open, onClose, aiEnabled, initialFile }: { open: boolean; onClose: () => void; aiEnabled: boolean; /** A screenshot dropped onto the Import page before this opened. */ initialFile?: File | null }) {
   const { accounts, accountName, records, staged, voucherBrands, addVoucherBrand, updateRecord, updateStaged } = useStore();
   const router = useRouter();
   const file = useRef<HTMLInputElement>(null);
@@ -37,6 +39,10 @@ export function ShotImport({ open, onClose, aiEnabled }: { open: boolean; onClos
     if (!/^image\/(png|jpe?g|webp|gif)$/.test(f.type)) return setError("Use a PNG, JPG or WebP screenshot.");
     try { setImage({ url: await imageToJpegDataUrl(f), name: f.name || "Pasted screenshot" }); } catch { setError("Could not open that image."); }
   };
+  const drop = useDropZone((f) => void pick(f));
+  // A screenshot dropped on the page opens this with the picture already chosen.
+  useEffect(() => { if (open && initialFile) void Promise.resolve().then(() => pick(initialFile));
+  }, [open, initialFile]);
   // Paste a screenshot straight from the clipboard while the pop-up is open.
   useEffect(() => {
     if (!open) return;
@@ -104,6 +110,7 @@ export function ShotImport({ open, onClose, aiEnabled }: { open: boolean; onClos
   };
 
   return (
+    <>
     <Dialog open={open} onClose={close} title="Read a screenshot">
       <div className="space-y-4 pb-1 text-sm">
         {done ? (
@@ -115,16 +122,15 @@ export function ShotImport({ open, onClose, aiEnabled }: { open: boolean; onClos
           <>
             <p className="text-muted">Add a screenshot of payments or orders. Claude reads it and you confirm everything before it is saved.</p>
             <input ref={file} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" aria-label="Choose a screenshot" onChange={(e) => void pick(e.target.files?.[0])} />
-            <button type="button" onClick={() => file.current?.click()} className="flex min-h-32 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-background p-4 text-center text-muted hover:border-accent">
+            <button type="button" {...drop.bind} onClick={() => file.current?.click()} className={`flex min-h-32 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed p-4 text-center text-muted hover:border-accent ${drop.over ? "border-accent bg-accent/10" : "border-border bg-background"}`}>
               {image
                 // eslint-disable-next-line @next/next/no-img-element
                 ? <img src={image.url} alt="Your screenshot" className="max-h-56 rounded-lg" />
-                : <><ImageIcon size={22} aria-hidden /><span>Choose a screenshot, or paste one</span></>}
+                : <><ImageIcon size={22} aria-hidden /><span>Choose, drop or paste a screenshot</span></>}
             </button>
             <label className="block space-y-1"><span className="text-xs font-medium text-muted">What is it? (optional)</span>
               <Input value={source} onChange={(e) => setSource(e.target.value)} maxLength={80} placeholder="e.g. Shopwise orders" /></label>
             <p className="rounded-xl bg-background p-3 text-xs text-muted">Claude sees the whole picture, so hide anything private first. It is not stored.</p>
-            {error && <p role="alert" className="rounded-xl bg-danger/10 p-3 text-danger">{error}</p>}
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="primary" disabled={!image || busy || !aiEnabled} onClick={() => void read()}>{busy ? "Reading…" : "Read with AI"}<AiBadge /></Button>
               <Button onClick={close}>Cancel</Button>
@@ -159,7 +165,6 @@ export function ShotImport({ open, onClose, aiEnabled }: { open: boolean; onClos
                   {usable.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select></label>
             )}
-            {error && <p role="alert" className="rounded-xl bg-danger/10 p-3 text-danger">{error}</p>}
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="primary" disabled={busy || active.length === 0 || (adds.length > 0 && !accountId)} onClick={() => void apply()}>{busy ? "Saving…" : `Apply ${active.length}`}</Button>
               <Button onClick={() => setPlans(null)}>Back</Button>
@@ -168,6 +173,9 @@ export function ShotImport({ open, onClose, aiEnabled }: { open: boolean; onClos
         )}
       </div>
     </Dialog>
+    <BusyOverlay open={busy} title={plans ? "Saving your payments…" : "Reading your screenshot with AI…"} detail={plans ? "Matching and adding them. This only takes a moment." : "Claude is finding every payment on it. This usually takes under half a minute."} />
+    <ErrorDialog message={error} onClose={() => setError(null)} />
+    </>
   );
 }
 

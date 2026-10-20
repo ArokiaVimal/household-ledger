@@ -1,6 +1,7 @@
 "use client";
 import { Mail } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { BusyOverlay, ErrorDialog } from "@/components/feedback";
 import { Badge, Button, Card, CardTitle, ConfirmDialog } from "@/components/ui";
 
 interface Status { configured: boolean; connected: boolean; email: string | null; lastSyncAt: string | null; lastResult: { scanned: number; added: number; bills: number; duplicates: number } | null; needsReconnect: boolean; defaultAccountId: string | null }
@@ -69,7 +70,9 @@ export function GmailCard() {
           <p className="text-xs text-muted">It also checks quietly when you open the app and once a day.</p>
         </div>
       )}
-      {msg && <p role={msg.ok ? "status" : "alert"} className={`text-sm ${msg.ok ? "text-good" : "text-danger"}`}>{msg.text}</p>}
+      {msg?.ok && <p role="status" className="text-sm text-good">{msg.text}</p>}
+      <BusyOverlay open={busy} title="Checking your bank emails…" detail="Reading new bank emails and adding them as unverified. This can take up to a minute." />
+      <ErrorDialog message={msg && !msg.ok ? msg.text : null} onClose={() => setMsg(null)} />
       <ConfirmDialog open={off} onClose={() => setOff(false)} title="Disconnect Gmail?" confirmLabel="Disconnect" onConfirm={() => void disconnect()}>
         <p>Stops reading your email and disconnects Google. Captured entries stay unverified.</p>
       </ConfirmDialog>

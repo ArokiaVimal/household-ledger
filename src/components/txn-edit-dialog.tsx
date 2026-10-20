@@ -3,6 +3,8 @@ import { ArrowLeftRight, Ban, Banknote, CalendarDays, Camera, ChevronDown, Chevr
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { DupCompare } from "@/components/dup-compare";
+import { useDropZone } from "@/components/drop-zone";
+import { BusyOverlay, ErrorDialog } from "@/components/feedback";
 import { billFileToDataUrl } from "@/lib/image";
 import type { Bill } from "@/lib/import/bill-extract";
 import { useStore } from "@/data/store";
@@ -260,6 +262,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
       if (!res.ok || !r.bill) setScanMsg({ error: true, text: r.error ?? "Could not read that bill." }); else applyBill(r.bill, r.warnings ?? []);
     } catch (e) { setScanMsg({ error: true, text: (e as Error).message || "Could not read that bill." }); } finally { setScanning(false); if (billInput.current) billInput.current.value = ""; }
   };
+  const billDrop = useDropZone((f) => void scanBill(f), scanning);
   /** A card-bill payment: pick the card (named, or the one open bill that matches), then fill what is still owed on it. */
   const prefillCardPayment = (cardId: string, amountPaise?: number) => {
     const views = cardViews(accounts, cardBills, [...records, ...staged], today);
@@ -327,13 +330,15 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
       {adding && (
         <div>
           <input ref={billInput} type="file" accept="image/*,application/pdf" className="sr-only" aria-label="Choose a bill" onChange={(e) => void scanBill(e.target.files?.[0])} />
-          <button type="button" disabled={scanning || !aiEnabled} onClick={() => billInput.current?.click()} className="flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-dashed border-accent/40 bg-accent/5 px-3.5 text-left text-sm font-medium text-accent transition-colors hover:bg-accent/10 disabled:opacity-60">
+          <button type="button" {...billDrop.bind} disabled={scanning || !aiEnabled} onClick={() => billInput.current?.click()} className={`flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-dashed px-3.5 text-left text-sm font-medium text-accent transition-colors disabled:opacity-60 ${billDrop.over ? "border-accent bg-accent/15" : "border-accent/40 bg-accent/5 hover:bg-accent/10"}`}>
             <Camera size={18} aria-hidden />
-            <span className="flex-1">{scanning ? "Reading your bill…" : "Scan or upload a bill"}</span>
+            <span className="flex-1">{scanning ? "Reading your bill…" : "Scan, upload or drop a bill"}</span>
             <AiBadge />
           </button>
           {!aiEnabled && <p className="mt-1 px-1 text-xs text-muted">AI is off on this server.</p>}
-          {scanMsg && <p role={scanMsg.error ? "alert" : "status"} className={`mt-1.5 px-1 text-xs ${scanMsg.error ? "text-danger" : "text-warn"}`}>{scanMsg.text}</p>}
+          {scanMsg && !scanMsg.error && <p role="status" className="mt-1.5 px-1 text-xs text-warn">{scanMsg.text}</p>}
+          <BusyOverlay open={scanning} title="Reading your bill with AI…" detail="Claude is finding the items and the total. This usually takes under half a minute." />
+          <ErrorDialog message={scanMsg?.error ? scanMsg.text : null} onClose={() => setScanMsg(null)} />
         </div>
       )}
       {adding ? (
