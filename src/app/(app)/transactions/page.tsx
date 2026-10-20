@@ -141,14 +141,16 @@ function TransactionsView() {
   return (
     <>
       <PageHeader tip="Every transaction, including imported ones you have not verified yet. Verifying one confirms it and teaches the app." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
-      {/* Verified or not, with how far along you are, in one tidy block. */}
-      <div className="mb-2 flex items-center gap-2 rounded-2xl bg-surface p-1 pr-2">
-        <div role="tablist" aria-label="Verified or not" className="flex min-w-0 flex-1 gap-1">
-          {([["", "All"], ["verified", "Verified"], ["unverified", `Unverified${staged.length ? ` · ${staged.length}` : ""}`]] as const).map(([id, label]) => (
-            <button key={id} role="tab" aria-selected={v === id} onClick={() => set("v", id)} className={cn("min-h-9 flex-1 whitespace-nowrap rounded-full px-2.5 text-sm", v === id ? "bg-foreground font-medium text-white" : "text-muted hover:bg-background")}>{label}</button>
+      {/* Verified or not, with how far along you are. */}
+      <div className="mb-3 flex items-center gap-3">
+        <div role="tablist" aria-label="Verified or not" className="flex min-w-0 flex-1 rounded-full bg-border/60 p-1">
+          {([["", "All", 0], ["verified", "Verified", 0], ["unverified", "Unverified", staged.length]] as const).map(([id, label, n]) => (
+            <button key={id} role="tab" aria-selected={v === id} onClick={() => set("v", id)} className={cn("flex min-h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2 text-sm transition-all", v === id ? "bg-surface font-semibold text-foreground shadow-sm" : "text-muted hover:text-foreground")}>
+              {label}{n > 0 && <span className={cn("num rounded-full px-1.5 text-[11px] font-semibold leading-5", v === id ? "bg-warn-soft text-warn" : "bg-warn/15 text-warn")}>{n}</span>}
+            </button>
           ))}
         </div>
-        {progress.total > 0 && <ProgressRing pct={progress.pct} size={40} label={`${progress.verified} of ${progress.total} verified (${progress.pct}%)`} />}
+        {progress.total > 0 && <ProgressRing pct={progress.pct} size={44} label={`${progress.verified} of ${progress.total} verified (${progress.pct}%)`} />}
       </div>
       {v === "unverified" ? <UnverifiedQueue /> : <>
       {/* Phone: search plus one Filters button. From tablet width the three selects sit in the row. */}
