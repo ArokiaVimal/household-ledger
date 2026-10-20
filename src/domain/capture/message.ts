@@ -45,6 +45,8 @@ export function parseMessage(raw: string, today: string): ParsedMessage {
   const t = raw.replace(/\s+/g, " ").trim();
   if (!t) return { kind: "ignore", reason: "empty" };
   if (OTP.test(t)) return { kind: "ignore", reason: "one-time password" };
+  // A bank's "balance update" notice is information, not a payment: it lists the balance and recent activity, which is recorded elsewhere.
+  if (/\b(balance update|inform you about the balance)\b/i.test(t)) return { kind: "ignore", reason: "balance notice" };
   if (!/(?:rs\.?|inr|₹)\s*\d/i.test(t)) return { kind: "ignore", reason: "no amount" };
   const bill = /\b(due|statement)\b/i.test(t) ? readBill(t) : null;
   if (bill) return bill;
