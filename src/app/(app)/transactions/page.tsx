@@ -11,7 +11,7 @@ import { verifyProgress } from "@/domain/progress";
 import { Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { CompactRow, StatusMark } from "@/components/txn-compact";
 import { useStore } from "@/data/store";
-import { rootOf } from "@/domain/accounts";
+import { rootOf, shortName } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
 import { summarize } from "@/domain/reports";
 import { summarizeGroup } from "@/domain/groups";
@@ -28,6 +28,23 @@ const VIEWS = [
   { id: "category", label: "Categories" },
   { id: "payer", label: "Paid by" },
 ] as const;
+
+const TYPES = [["purchase", "Purchases"], ["refund", "Refunds"], ["income", "Income"], ["transfer", "Transfers"], ["cc_payment", "Card bills"], ["fee", "Fees"]] as const;
+
+/** A filter as a row of tappable chips: one tap picks it, tap again to clear. The count on the sheet's button updates as you tap. */
+function ChipFilter({ label, value, onPick, options }: { label: string; value: string; onPick: (v: string) => void; options: { id: string; label: string }[] }) {
+  return (
+    <fieldset>
+      <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{label}</legend>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => {
+          const on = o.id === value;
+          return <button key={o.id} type="button" aria-pressed={on} onClick={() => onPick(on ? "" : o.id)} className={cn("min-h-9 rounded-full border px-3.5 text-sm transition-colors", on ? "border-accent bg-accent font-medium text-white" : "border-transparent bg-background text-foreground hover:border-border")}>{o.label}</button>;
+        })}
+      </div>
+    </fieldset>
+  );
+}
 
 /** Grouped view. Group totals come from the domain groupNet (same rule as the dashboard). */
 function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: string; onEdit: (r: ExpenseRecord) => void }) {
@@ -182,11 +199,11 @@ function TransactionsView() {
         </button>
       </div>
       <Dialog open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
-        <div className="space-y-3 pb-3">
-          {filterFields}
-          <Select aria-label="Group by" value={view} onChange={(e) => set("view", e.target.value === "all" ? "" : e.target.value)}>
-            {VIEWS.map((x) => <option key={x.id} value={x.id}>{x.id === "all" ? "No grouping" : `Group by ${x.label.toLowerCase()}`}</option>)}
-          </Select>
+        <div className="space-y-4 pb-3">
+          <ChipFilter label="Type" value={get("kind")} onPick={(v) => set("kind", v)} options={TYPES.map(([id, label]) => ({ id, label }))} />
+          <ChipFilter label="Paid with" value={get("account")} onPick={(v) => set("account", v)} options={accounts.filter((a) => !a.parentId && !a.archived).map((a) => ({ id: a.id, label: shortName(a.name) }))} />
+          <ChipFilter label="Category" value={get("category")} onPick={(v) => set("category", v)} options={categories.map((c) => ({ id: c.id, label: c.name }))} />
+          <ChipFilter label="Group by" value={view === "all" ? "" : view} onPick={(v) => set("view", v)} options={VIEWS.filter((x) => x.id !== "all").map((x) => ({ id: x.id, label: x.label }))} />
         </div>
         <div className="sticky bottom-0 -mx-4 flex justify-between gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => { const p = new URLSearchParams(params.toString()); for (const k of ["category", "kind", "account", "view"]) p.delete(k); router.replace(`/transactions?${p.toString()}`); }}>Reset</Button><Button variant="primary" onClick={() => setFiltersOpen(false)}>Show {rows.length}</Button></div>
       </Dialog>
