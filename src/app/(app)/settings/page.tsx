@@ -137,7 +137,6 @@ export default function Settings() {
               );
             })}
           </nav>
-          <p className="mt-6 px-1 text-xs text-muted"><Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy policy</Link></p>
         </>
       )}
 
@@ -242,6 +241,10 @@ export default function Settings() {
         </Section>
       </div>
       </OpenSection.Provider>
+
+      <footer className="mt-10 pb-2 text-center text-xs text-muted">
+        <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy policy</Link>
+      </footer>
 
       <Dialog open={!!dlg} onClose={() => setDlg(null)} title={dlg?.acc ? `Edit ${dlg.acc.name}` : isSub ? "Add a sub payment method" : "Add a primary payment method"}>
         {dlg && (
