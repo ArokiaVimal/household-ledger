@@ -278,6 +278,13 @@ function TransactionsView() {
         <GroupedView rows={rows} view={view} onEdit={setEditing} />
       ) : (
         <>
+          <div className="num mb-2 flex items-start justify-between gap-3 px-1" aria-label="Total for this view">
+            <span className="pt-0.5 text-xs font-semibold uppercase tracking-wide text-muted">Total · {rows.length}</span>
+            <span className="text-right">
+              <b className="text-base">{formatINR(total.allocated)}</b>
+              {(total.my !== total.allocated || total.onBehalf !== 0) && <span className="block text-xs text-muted">mine {formatINR(total.my)}{total.onBehalf !== 0 ? ` · for others ${formatINR(total.onBehalf)}` : ""}</span>}
+            </span>
+          </div>
           <div className="space-y-3 md:hidden">
             {days.map((d) => (
               <section key={d.date} aria-label={dayLabel(d.date)}>
@@ -305,11 +312,6 @@ function TransactionsView() {
                 ))}
               </tbody>
             </table>
-          </div>
-          <div className="num mt-3 flex flex-wrap justify-end gap-x-6 gap-y-1 text-sm">
-            <span className="text-muted">Counts in {activeGroup.name}</span><b>{formatINR(total.allocated)}</b>
-            <span className="text-muted">My share</span><b>{formatINR(total.my)}</b>
-            {total.onBehalf !== 0 && <><span className="text-muted">Paid for others</span><b>{formatINR(total.onBehalf)}</b></>}
           </div>
           <VoucherSection groups={voucherGroups} showMonth={new Set(voucherGroups.map((g) => g.month)).size > 1} onOpen={setEditing} onVerify={(r) => approveStaged(r.id)} onDelete={setDeleting} />
         </>
