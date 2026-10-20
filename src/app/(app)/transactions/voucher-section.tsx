@@ -22,7 +22,7 @@ export function VoucherSection({ groups, showMonth, onOpen, onVerify, onDelete }
   const rows = (list: ExpenseRecord[]) => <ul className="space-y-1.5">{list.map((r) => <li key={r.id}><CompactRow r={r} showDate onOpen={() => onOpen(r)} onVerify={() => onVerify(r)} onDelete={() => onDelete(r)} /></li>)}</ul>;
   return (
     <section aria-label="Vouchers" className="mt-4 space-y-2">
-      <h2 className="flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted"><Ticket size={14} aria-hidden />Vouchers</h2>
+      <h2 className="flex items-center justify-between gap-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted"><span className="flex items-center gap-1.5"><Ticket size={14} aria-hidden />Vouchers</span><span className="num normal-case tracking-normal text-foreground">{formatINR(groups.reduce((t, g) => t + g.boughtPaise, 0))}<span className="ml-1 font-normal text-muted">bought</span></span></h2>
       {groups.map((g) => {
         const on = !!open[g.id];
         const bits = [g.bought.length ? `${g.bought.length} bought` : "", g.paidWith.length ? `${g.paidWith.length} paid with it` : ""].filter(Boolean).join(" · ");
