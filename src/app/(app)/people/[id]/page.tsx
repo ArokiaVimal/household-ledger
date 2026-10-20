@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
 import { PersonGlyph } from "@/components/glyphs";
+import { MerchantAvatar } from "@/components/txn-row";
 import { cn } from "@/lib/cn";
 import { toSquareJpeg } from "@/lib/profile/image";
 import { useStore } from "@/data/store";
@@ -49,6 +50,13 @@ export default function PersonSettle() {
     for (const e of rows) { const d = m.get(e.record.date) ?? { date: e.record.date, entries: [], total: 0 }; d.entries.push(e); d.total += e.sharePaise; m.set(e.record.date, d); }
     return [...m.values()].sort((x, y) => y.date.localeCompare(x.date));
   })();
+  // Months with their net, so a long history reads in chunks.
+  const months = (() => {
+    const m = new Map<string, { month: string; days: typeof days; total: number }>();
+    for (const d of days) { const k = d.date.slice(0, 7); const g = m.get(k) ?? { month: k, days: [], total: 0 }; g.days.push(d); g.total += d.total; m.set(k, g); }
+    return [...m.values()];
+  })();
+  const monthLabel = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
   const dayLabel = (iso: string) => {
     const diff = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${iso}T00:00:00Z`)) / 86_400_000);
     if (diff === 0) return "Today";
@@ -115,31 +123,42 @@ export default function PersonSettle() {
 
       <Card className="p-1.5 sm:p-2">
         {rows.length === 0 ? <EmptyState title={tab === "open" ? "Nothing to settle" : "Nothing settled yet"} hint={tab === "open" ? `Payments you split with ${name} appear here.` : "Payments you settle move here."} /> : (
-          <div className="space-y-2">
-            {days.map((d) => (
-              <section key={d.date} aria-label={dayLabel(d.date)}>
-                <div className="flex items-baseline justify-between px-2 pb-0.5 pt-1 text-xs"><span className="font-semibold text-foreground">{dayLabel(d.date)}</span><span className="num text-muted">{d.total > 0 ? "+" : d.total < 0 ? "−" : ""}{formatINR(Math.abs(d.total))}</span></div>
-                <ul className="divide-y divide-border">
-                  {d.entries.map((e) => {
-                    const r = e.record;
-                    const theyOwe = e.sharePaise > 0;
-                    const sel = picked.has(r.id);
-                    const wallet = r.paidWithVoucherId ? voucherBrands.find((b) => b.id === r.paidWithVoucherId)?.name ?? "voucher" : "";
-                    return (
-                      <li key={r.id}>
-                        <label className={`flex items-center gap-2.5 rounded-xl px-2 py-2 ${tab === "open" && canSettle ? "cursor-pointer hover:bg-background" : ""} ${sel ? "bg-accent/5" : ""}`}>
-                          {tab === "open" && canSettle && <input type="checkbox" checked={sel} onChange={() => toggle(r.id)} aria-label={`Select ${r.merchant}`} className="size-[18px] shrink-0 accent-[var(--accent)]" />}
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium leading-tight">{r.merchant}</span>
-                            <span className="block truncate text-[11px] leading-tight text-muted">{r.payerId === meId ? "you paid" : `${name} paid`} {formatINR(r.amountPaise)}{wallet ? ` · ${wallet} wallet` : ""}</span>
-                          </span>
-                          <span className={`num shrink-0 text-sm font-semibold ${theyOwe ? "text-good" : ""}`}>{theyOwe ? "+" : "−"}{formatINR(Math.abs(e.sharePaise))}</span>
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
+          <div className="space-y-3">
+            {months.map((mo) => (
+              <div key={mo.month}>
+                {months.length > 1 && <div className="flex items-baseline justify-between px-2 pb-1 pt-1"><h2 className="text-sm font-semibold">{monthLabel(mo.month)}</h2><span className="num text-xs text-muted">{mo.total > 0 ? "+" : mo.total < 0 ? "−" : ""}{formatINR(Math.abs(mo.total))}</span></div>}
+                <div className="space-y-1.5">
+                  {mo.days.map((d) => (
+                    <section key={d.date} aria-label={dayLabel(d.date)}>
+                      <div className="px-2 pb-0.5 pt-1 text-[11px] font-medium text-muted">{dayLabel(d.date)}</div>
+                      <ul className="divide-y divide-border">
+                        {d.entries.map((e) => {
+                          const r = e.record;
+                          const theyOwe = e.sharePaise > 0;
+                          const sel = picked.has(r.id);
+                          const wallet = r.paidWithVoucherId ? voucherBrands.find((b) => b.id === r.paidWithVoucherId)?.name ?? "voucher" : "";
+                          return (
+                            <li key={r.id}>
+                              <label className={`flex items-center gap-2.5 rounded-xl px-2 py-2 ${tab === "open" && canSettle ? "cursor-pointer hover:bg-background" : ""} ${sel ? "bg-accent/5" : ""}`}>
+                                {tab === "open" && canSettle && <input type="checkbox" checked={sel} onChange={() => toggle(r.id)} aria-label={`Select ${r.merchant}`} className="size-[18px] shrink-0 accent-[var(--accent)]" />}
+                                <MerchantAvatar name={r.merchant} size={34} />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-sm font-medium leading-tight">{r.merchant}</span>
+                                  <span className="block truncate text-[11px] leading-tight text-muted">{r.payerId === meId ? "you paid" : `${name} paid`} {formatINR(r.amountPaise)}{wallet ? ` · ${wallet} wallet` : ""}</span>
+                                </span>
+                                <span className="shrink-0 text-right leading-tight">
+                                  <span className={`num block text-sm font-semibold ${theyOwe ? "text-good" : ""}`}>{formatINR(Math.abs(e.sharePaise))}</span>
+                                  <span className={`block text-[10px] ${theyOwe ? "text-good/80" : "text-muted"}`}>{theyOwe ? "you lent" : "you owe"}</span>
+                                </span>
+                              </label>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}
