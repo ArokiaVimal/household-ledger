@@ -1,7 +1,7 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
-import { Suspense, useMemo, useState } from "react";
+import { ArrowDownLeft, ArrowLeftRight, ChevronDown, CreditCard, Landmark, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Tags, Undo2, UserRound, Wallet, type LucideIcon } from "lucide-react";
+import { Suspense, useMemo, useState, type ReactNode } from "react";
 import { Amount, MerchantAvatar, TxnBadges } from "@/components/txn-row";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { NotesAi } from "./notes-ai";
@@ -10,6 +10,7 @@ import { ProgressRing } from "@/components/progress";
 import { verifyProgress } from "@/domain/progress";
 import { Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { CompactRow, StatusMark } from "@/components/txn-compact";
+import { CategoryGlyph } from "@/components/glyphs";
 import { useStore } from "@/data/store";
 import { rootOf, shortName } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
@@ -29,17 +30,22 @@ const VIEWS = [
   { id: "payer", label: "Paid by" },
 ] as const;
 
-const TYPES = [["purchase", "Purchases"], ["refund", "Refunds"], ["income", "Income"], ["transfer", "Transfers"], ["cc_payment", "Card bills"], ["fee", "Fees"]] as const;
+const TYPES = [["purchase", "Purchases", ShoppingBag], ["refund", "Refunds", Undo2], ["income", "Income", ArrowDownLeft], ["transfer", "Transfers", ArrowLeftRight], ["cc_payment", "Card bills", CreditCard], ["fee", "Fees", Receipt]] as const;
+const VIEW_ICON: Record<string, LucideIcon> = { account: Wallet, bank: Landmark, recurring: Repeat, merchant: Store, category: Tags, payer: UserRound };
 
-/** A filter as a row of tappable chips: one tap picks it, tap again to clear. The count on the sheet's button updates as you tap. */
-function ChipFilter({ label, value, onPick, options }: { label: string; value: string; onPick: (v: string) => void; options: { id: string; label: string }[] }) {
+/** A filter as one sideways-scrolling row of chips with a small picture each: one tap picks it, tap again to clear. */
+function ChipFilter({ label, value, onPick, options }: { label: string; value: string; onPick: (v: string) => void; options: { id: string; label: string; icon: ReactNode }[] }) {
   return (
     <fieldset>
-      <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{label}</legend>
-      <div className="flex flex-wrap gap-1.5">
+      <legend className="mb-1.5 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{label}</legend>
+      <div className="flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {options.map((o) => {
           const on = o.id === value;
-          return <button key={o.id} type="button" aria-pressed={on} onClick={() => onPick(on ? "" : o.id)} className={cn("min-h-9 rounded-full border px-3.5 text-sm transition-colors", on ? "border-accent bg-accent font-medium text-white" : "border-transparent bg-background text-foreground hover:border-border")}>{o.label}</button>;
+          return (
+            <button key={o.id} type="button" aria-pressed={on} onClick={() => onPick(on ? "" : o.id)} className={cn("flex min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border py-1 pl-1.5 pr-3.5 text-sm transition-colors", on ? "border-accent bg-accent font-medium text-white" : "border-transparent bg-background text-foreground hover:border-border")}>
+              <span className={cn("grid size-7 shrink-0 place-items-center overflow-hidden rounded-full", on ? "bg-white/20 text-white" : "bg-surface text-muted")}>{o.icon}</span>{o.label}
+            </button>
+          );
         })}
       </div>
     </fieldset>
@@ -199,11 +205,11 @@ function TransactionsView() {
         </button>
       </div>
       <Dialog open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
-        <div className="space-y-4 pb-3">
-          <ChipFilter label="Type" value={get("kind")} onPick={(v) => set("kind", v)} options={TYPES.map(([id, label]) => ({ id, label }))} />
-          <ChipFilter label="Paid with" value={get("account")} onPick={(v) => set("account", v)} options={accounts.filter((a) => !a.parentId && !a.archived).map((a) => ({ id: a.id, label: shortName(a.name) }))} />
-          <ChipFilter label="Category" value={get("category")} onPick={(v) => set("category", v)} options={categories.map((c) => ({ id: c.id, label: c.name }))} />
-          <ChipFilter label="Group by" value={view === "all" ? "" : view} onPick={(v) => set("view", v)} options={VIEWS.filter((x) => x.id !== "all").map((x) => ({ id: x.id, label: x.label }))} />
+        <div className="-mx-4 space-y-4 overflow-x-clip pb-3">
+          <ChipFilter label="Type" value={get("kind")} onPick={(v) => set("kind", v)} options={TYPES.map(([id, label, I]) => ({ id, label, icon: <I size={15} aria-hidden /> }))} />
+          <ChipFilter label="Paid with" value={get("account")} onPick={(v) => set("account", v)} options={accounts.filter((a) => !a.parentId && !a.archived).map((a) => ({ id: a.id, label: shortName(a.name), icon: <MerchantAvatar name={a.name} size={26} /> }))} />
+          <ChipFilter label="Category" value={get("category")} onPick={(v) => set("category", v)} options={categories.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} icon={c.icon} size={26} /> }))} />
+          <ChipFilter label="Group by" value={view === "all" ? "" : view} onPick={(v) => set("view", v)} options={VIEWS.filter((x) => x.id !== "all").map((x) => { const I = VIEW_ICON[x.id] ?? Tags; return { id: x.id, label: x.label, icon: <I size={15} aria-hidden /> }; })} />
         </div>
         <div className="sticky bottom-0 -mx-4 flex justify-between gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => { const p = new URLSearchParams(params.toString()); for (const k of ["category", "kind", "account", "view"]) p.delete(k); router.replace(`/transactions?${p.toString()}`); }}>Reset</Button><Button variant="primary" onClick={() => setFiltersOpen(false)}>Show {rows.length}</Button></div>
       </Dialog>
