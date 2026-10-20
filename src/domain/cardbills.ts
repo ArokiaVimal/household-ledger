@@ -18,24 +18,57 @@ export interface BillStatus {
 const DAY = 86_400_000;
 export const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
 
+/** One payment towards a card, with the card's own record and your bank's record of it joined into a single entry. */
+export interface CardPayment {
+  id: string;
+  /** The date on the card when it has one (it matches the statement), otherwise the bank's date. */
+  date: string;
+  amountPaise: Paise;
+  /** The bank the money left, when a bank record of it exists. */
+  fromId?: string;
+  /** At least one of its records is verified. */
+  verified: boolean;
+  /** Its records, the bank's first. */
+  recordIds: string[];
+  onCard: boolean;
+}
+
+/** The card shows it and the bank shows it a day or two apart. Same amount within this many days is one payment. */
+export const PAYMENT_MATCH_DAYS = 3;
+
+/**
+ * Every payment towards a card, newest first. The card's own "payment received" line and the bank's debit are the same money,
+ * so a card line and a bank line with the same amount within a few days become one payment. Two lines on the same side merge only
+ * on the same day (one payment read twice); a day apart they are two payments.
+ */
+export function cardPayments(cardId: string, records: ExpenseRecord[]): CardPayment[] {
+  const mine = records.filter((r) => !r.excluded && r.kind === "cc_payment" && (r.accountId === cardId || r.paidCardId === cardId));
+  // Verified lines first, so an unverified copy never hides the verified one; then by date.
+  mine.sort((a, b) => Number(b.status === "reviewed") - Number(a.status === "reviewed") || a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  const out: (CardPayment & { hasBank: boolean })[] = [];
+  for (const r of mine) {
+    const cardSide = r.accountId === cardId;
+    const hit = out.find((p) => p.amountPaise === r.amountPaise && Math.abs(daysBetween(p.date, r.date)) <= PAYMENT_MATCH_DAYS && (p.date === r.date || (cardSide ? !p.onCard : !p.hasBank)));
+    if (hit) {
+      if (cardSide) { if (!hit.onCard) hit.date = r.date; hit.onCard = true; hit.recordIds.push(r.id); } else { hit.hasBank = true; hit.fromId ??= r.accountId; hit.recordIds.unshift(r.id); }
+      hit.verified = hit.verified || r.status === "reviewed";
+    } else {
+      out.push({ id: r.id, date: r.date, amountPaise: r.amountPaise, ...(cardSide ? {} : { fromId: r.accountId }), verified: r.status === "reviewed", recordIds: [r.id], onCard: cardSide, hasBank: !cardSide });
+    }
+  }
+  return out.map((p) => ({ id: p.id, date: p.date, amountPaise: p.amountPaise, fromId: p.fromId, verified: p.verified, recordIds: p.recordIds, onCard: p.onCard })).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+}
+
 /**
  * Where a card bill stands. A payment counts when it is a card-bill payment (not an expense) made on or after the statement
  * date, either recorded on the card itself or from a bank with the card named. The same payment seen from both sides (same
- * date and amount) is counted once.
+ * amount, dates within a few days) is counted once.
  */
 export function billStatus(bill: CardBill, records: ExpenseRecord[], today: string): BillStatus {
-  const seen = new Set<string>();
   let paid = 0, unverified = 0;
-  // Verified payments first, so an unverified copy of the same payment never hides the verified one.
-  const ordered = [...records.filter((r) => r.status === "reviewed"), ...records.filter((r) => r.status !== "reviewed")];
-  for (const r of ordered) {
-    if (r.excluded || r.kind !== "cc_payment") continue;
-    if (r.date < bill.statementDate || r.date > today) continue;
-    if (r.accountId !== bill.accountId && r.paidCardId !== bill.accountId) continue;
-    const key = `${r.date}|${r.amountPaise}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    if (r.status === "reviewed") paid += r.amountPaise; else unverified += r.amountPaise;
+  for (const p of cardPayments(bill.accountId, records)) {
+    if (p.date < bill.statementDate || p.date > today) continue;
+    if (p.verified) paid += p.amountPaise; else unverified += p.amountPaise;
   }
   const settled = !!bill.paid || paid >= bill.totalDuePaise;
   const remainingPaise = settled ? 0 : bill.totalDuePaise - paid;

@@ -2,7 +2,7 @@
 // Honesty rules: a balance is "recorded" only when the person entered it (with its date). Everything after that date is an estimate,
 // built ONLY from confirmed transactions and from items the person entered or imported (card bills, recurring items, expected
 // income). Nothing is guessed, and every estimate says how sure it is and why.
-import { cardViews, daysBetween, upcomingBills } from "./cardbills";
+import { cardPayments, cardViews, daysBetween, upcomingBills } from "./cardbills";
 import { isDueMonth } from "./recurring";
 import { recurringStatuses } from "./recurring";
 import { shiftMonth } from "./months";
@@ -81,8 +81,11 @@ export function buildTimeline(i: TimelineInput): Timeline {
   const events: TimelineEvent[] = [];
 
   // ---- what happened (verified or not; unverified ones are flagged) ----
+  // A card-bill payment seen on the card and on the bank is one movement of money: list the bank's line only.
+  const sameAsBank = new Set<string>();
+  for (const a of i.accounts) if (a.type === "credit_card") for (const p of cardPayments(a.id, i.records)) p.recordIds.slice(1).forEach((id) => sameAsBank.add(id));
   for (const r of i.records) {
-    if (r.excluded || !r.date.startsWith(month)) continue;
+    if (r.excluded || !r.date.startsWith(month) || sameAsBank.has(r.id)) continue;
     const before = events.length;
     if (r.kind === "income") events.push({ id: r.id, date: r.date, kind: "actual", type: "income", label: r.merchant, amountPaise: r.amountPaise, href: `/transactions?month=${month}&kind=income` });
     else if (r.kind === "refund") events.push({ id: r.id, date: r.date, kind: "actual", type: "refund", label: r.merchant, amountPaise: r.amountPaise });

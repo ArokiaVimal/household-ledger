@@ -55,7 +55,8 @@ export async function captureMessage(repo: Repository, who: { uid: string; parti
     const statementDate = parsed.statementDate ?? d.today;
     if (parsed.dueDate < statementDate) return { result: "ignored", message: "Skipped (due date is before the statement date)." };
     const id = d.sha256(`${pick.account.id}|${parsed.dueDate}|${parsed.totalDuePaise}`).slice(0, 24);
-    if (await repo.cardBills.get(id)) return { result: "duplicate", message: "That card bill is already tracked." };
+    // Already tracked from a statement or by hand: same card, same due date, same amount, whatever its statement date says.
+    if ((await repo.cardBills.get(id)) || (await repo.cardBills.list()).some((b) => b.accountId === pick.account.id && b.dueDate === parsed.dueDate && b.totalDuePaise === parsed.totalDuePaise)) return { result: "duplicate", message: "That card bill is already tracked." };
     if (!opts.dryRun) await repo.cardBills.put({ id, accountId: pick.account.id, statementDate, dueDate: parsed.dueDate, totalDuePaise: parsed.totalDuePaise, source: "message" });
     return { result: "bill", message: `${pick.account.name}: pay ${rupees(parsed.totalDuePaise)} in full by ${parsed.dueDate}${opts.dryRun ? " (not saved)" : ""}.` };
   }

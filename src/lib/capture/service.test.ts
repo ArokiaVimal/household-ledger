@@ -73,6 +73,13 @@ describe("captureMessage", () => {
     expect(await repo.records.list()).toEqual([]);
     expect((await captureMessage(repo, who, msg, deps())).result).toBe("duplicate");
   });
+  it("a card-due message does not add a second bill when a statement already made one for the same due date and amount", async () => {
+    const repo = await setup();
+    await repo.cardBills.put({ id: "from-statement", accountId: "cc_icici", statementDate: "2026-10-20", dueDate: "2026-11-05", totalDuePaise: 4125000, source: "statement" });
+    const r = await captureMessage(repo, who, "ICICI Bank Credit Card XX4321: Total Amt Due Rs 41,250.00, Min Amt Due Rs 2,060.00, Due Date 05-Nov-26.", deps());
+    expect(r.result).toBe("duplicate");
+    expect(await repo.cardBills.list()).toHaveLength(1);
+  });
   it("a dry run reports what would happen and saves nothing", async () => {
     const repo = await setup();
     const r = await captureMessage(repo, who, UPI, deps(), { dryRun: true });
