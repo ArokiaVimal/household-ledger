@@ -66,8 +66,8 @@ export function GmailCard() {
         <div className="space-y-3">
           <p className="text-sm">Connected as <b>{s.email || "your Gmail"}</b>.{s.lastSyncAt ? ` Last checked ${new Date(s.lastSyncAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}${s.lastResult ? `: ${s.lastResult.added} new, ${s.lastResult.bills} card bill${s.lastResult.bills === 1 ? "" : "s"}` : ""}.` : " Not checked yet."}</p>
           <div className="space-y-1.5">
-            <div className="text-xs font-medium text-muted">If an email does not say which card or bank, file it under</div>
-            <CompactChips label="Default payment method for emails" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={s.defaultAccountId ? [s.defaultAccountId] : []} onPick={(id) => void changeDefault(id)} />
+            <div><div className="text-sm font-medium">Default card</div><div className="text-xs text-muted">Used when an email does not name a card. You can change it when you verify.</div></div>
+            <CompactChips label="Default card for emails" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={s.defaultAccountId ? [s.defaultAccountId] : []} onPick={(id) => void changeDefault(id)} />
           </div>
           <div className="flex flex-wrap gap-2">
             {s.needsReconnect ? <a href="/api/gmail/connect" className="inline-flex min-h-9 items-center justify-center rounded-full bg-accent px-4 text-sm font-medium text-white">Connect again</a> : <Button variant="primary" disabled={busy} onClick={() => void sync()}>{busy ? "Checking…" : "Sync now"}</Button>}

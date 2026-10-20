@@ -64,8 +64,8 @@ export function CaptureCard() {
       <p className="text-sm text-muted">Bank, card and UPI texts land in Transactions as unverified. OTPs and offers are skipped.</p>
 
       <div className="space-y-1.5">
-        <div className="text-xs font-medium text-muted">If a message does not say which card or bank, file it under</div>
-        <CompactChips label="Default payment method" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={(id) => void changeDefault(id)} />
+        <div><div className="text-sm font-medium">Default card</div><div className="text-xs text-muted">Used when a message does not name a card. You can change it when you verify.</div></div>
+        <CompactChips label="Default card for messages" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={(id) => void changeDefault(id)} />
       </div>
 
       {status?.active && !link && (
