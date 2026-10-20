@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeft, Bell, Camera } from "lucide-react";
+import { ArrowLeft, Bell, Camera, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -58,65 +58,62 @@ export default function PersonSettle() {
 
   return (
     <>
-      <Link href="/people" className="mb-2 inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"><ArrowLeft size={14} aria-hidden />People</Link>
-      <div className="mb-4 flex items-center gap-4">
-        <PersonGlyph name={name} id={personId} size={64} />
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-semibold tracking-tight">{name}</h1>
-          <p className="text-sm text-muted">Everything you share, in one place.</p>
-          {canEditPhoto && (
-            <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <label className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-sm font-medium hover:bg-background focus-within:outline-2 focus-within:outline-accent">
-                <Camera size={14} aria-hidden />{person.photo ? "Change photo" : "Add photo"}
+      <Card className="mb-3 space-y-3 p-3.5 sm:p-4">
+        <div className="flex items-center gap-3">
+          <Link href="/people" aria-label="Back to People" className="grid size-9 shrink-0 place-items-center rounded-full text-muted hover:bg-background hover:text-foreground"><ArrowLeft size={18} aria-hidden /></Link>
+          <span className="relative shrink-0">
+            <PersonGlyph name={name} id={personId} size={44} />
+            {canEditPhoto && (
+              <label title={person.photo ? "Change photo" : "Add photo"} className="absolute -bottom-1 -right-1 grid size-6 cursor-pointer place-items-center rounded-full border border-border bg-surface text-muted shadow-sm hover:text-foreground focus-within:outline-2 focus-within:outline-accent">
+                <Camera size={12} aria-hidden />
                 <input type="file" accept="image/*" className="sr-only" aria-label={`Upload a photo of ${name}`} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void pickPhoto(f); }} />
               </label>
-              {person.photo && <button type="button" onClick={() => setPhotoError(setParticipantPhoto(personId, null))} className="min-h-9 px-2 text-sm font-medium text-muted hover:text-danger">Remove</button>}
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-lg font-semibold leading-tight tracking-tight">{name}</h1>
+            <div className="flex items-baseline gap-1.5">
+              <span className={`num text-xl font-semibold leading-tight ${out > 0 ? "text-good" : ""}`}>{out === 0 ? "₹0" : formatINR(Math.abs(out))}</span>
+              <span className="text-xs text-muted">{out === 0 ? "all settled" : out > 0 ? "owes you" : "you owe"}</span>
             </div>
-          )}
-          {photoError && <p role="alert" className="mt-1 text-xs text-danger">{photoError}</p>}
-        </div>
-      </div>
-
-      <Card className="mb-4 space-y-3 p-5">
-        <div>
-          <div className="text-xs text-muted">{out === 0 ? "Balance" : out > 0 ? `${name} owes you` : `You owe ${name}`}</div>
-          <div className={`num text-3xl font-semibold ${out > 0 ? "text-good" : ""}`}>{out === 0 ? "All settled" : formatINR(Math.abs(out))}</div>
+          </div>
         </div>
         {out !== 0 && canSettle && (
-          <div className="flex flex-wrap gap-2">
-            <Button variant="primary" className="min-h-11 px-5" onClick={() => setConfirm("everything")}>Settle everything</Button>
-            {out > 0 && <Button onClick={() => void remind()}><Bell size={14} aria-hidden />Remind {name}</Button>}
+          <div className="flex gap-2">
+            <Button variant="primary" className="min-h-10 flex-1" onClick={() => setConfirm("everything")}>Settle everything</Button>
+            {out > 0 && <Button className="min-h-10" aria-label={`Remind ${name}`} onClick={() => void remind()}><Bell size={15} aria-hidden />Remind</Button>}
           </div>
         )}
-        {ledger.unlinkedPaise !== 0 && <p className="text-xs text-muted">{formatINR(Math.abs(ledger.unlinkedPaise))} of this comes from earlier payments that were recorded as a plain amount, not tied to specific purchases.</p>}
+        {person.photo && canEditPhoto && <button type="button" onClick={() => setPhotoError(setParticipantPhoto(personId, null))} className="text-xs font-medium text-muted hover:text-danger">Remove photo</button>}
+        {photoError && <p role="alert" className="text-xs text-danger">{photoError}</p>}
+        {ledger.unlinkedPaise !== 0 && <p className="text-xs text-muted">{formatINR(Math.abs(ledger.unlinkedPaise))} of this comes from earlier payments recorded as a plain amount, not tied to specific purchases.</p>}
       </Card>
 
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <ChipGroup tabs label="Payments" value={tab} onChange={(v) => { setTab(v); setPicked(new Set()); }} options={[{ id: "open", label: `To settle (${ledger.open.length})` }, { id: "settled", label: `Settled (${ledger.settled.length})` }]} />
         {tab === "open" && canSettle && ledger.open.length > 1 && (
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={allOpenPicked} onChange={() => setPicked(allOpenPicked ? new Set() : new Set(ledger.open.map((e) => e.record.id)))} className="size-4 accent-[var(--accent)]" />Select all</label>
         )}
       </div>
 
-      <Card className="p-2 sm:p-3">
+      <Card className="p-1.5 sm:p-2">
         {rows.length === 0 ? <EmptyState title={tab === "open" ? "Nothing to settle" : "Nothing settled yet"} hint={tab === "open" ? `Payments you split with ${name} appear here.` : "Payments you settle move here."} /> : (
           <ul className="divide-y divide-border">
             {rows.map((e) => {
               const r = e.record;
               const theyOwe = e.sharePaise > 0;
               const sel = picked.has(r.id);
+              const short = new Date(`${r.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+              const wallet = r.paidWithVoucherId ? voucherBrands.find((b) => b.id === r.paidWithVoucherId)?.name ?? "voucher" : "";
               return (
                 <li key={r.id}>
-                  <label className={`flex items-center gap-3 rounded-xl px-2 py-3 ${tab === "open" && canSettle ? "cursor-pointer hover:bg-background" : ""} ${sel ? "bg-accent/5" : ""}`}>
-                    {tab === "open" && canSettle && <input type="checkbox" checked={sel} onChange={() => toggle(r.id)} aria-label={`Select ${r.merchant}`} className="size-5 shrink-0 accent-[var(--accent)]" />}
+                  <label className={`flex items-center gap-2.5 rounded-xl px-2 py-2 ${tab === "open" && canSettle ? "cursor-pointer hover:bg-background" : ""} ${sel ? "bg-accent/5" : ""}`}>
+                    {tab === "open" && canSettle && <input type="checkbox" checked={sel} onChange={() => toggle(r.id)} aria-label={`Select ${r.merchant}`} className="size-[18px] shrink-0 accent-[var(--accent)]" />}
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{r.merchant}</span>
-                      <span className="block text-xs text-muted">{r.date} · {r.payerId === meId ? "You paid" : `${name} paid`} {formatINR(r.amountPaise)}{r.paidWithVoucherId ? ` from the ${voucherBrands.find((b) => b.id === r.paidWithVoucherId)?.name ?? "voucher"} wallet` : ""}</span>
+                      <span className="block truncate text-sm font-medium leading-tight">{r.merchant}</span>
+                      <span className="block truncate text-[11px] leading-tight text-muted">{short} · {r.payerId === meId ? "you paid" : `${name} paid`} {formatINR(r.amountPaise)}{wallet ? ` · ${wallet} wallet` : ""}</span>
                     </span>
-                    <span className="text-right">
-                      <span className={`num block font-semibold ${theyOwe ? "text-good" : ""}`}>{theyOwe ? "+" : "−"}{formatINR(Math.abs(e.sharePaise))}</span>
-                      <span className="block text-xs text-muted">{theyOwe ? "owes you" : "you owe"}</span>
-                    </span>
+                    <span className={`num shrink-0 text-sm font-semibold ${theyOwe ? "text-good" : ""}`}>{theyOwe ? "+" : "−"}{formatINR(Math.abs(e.sharePaise))}</span>
                   </label>
                 </li>
               );
@@ -126,24 +123,25 @@ export default function PersonSettle() {
       </Card>
 
       {mine.length > 0 && (
-        <Card className="mt-4">
-          <h2 className="mb-2 text-sm font-medium text-muted">Settlements with {name}</h2>
-          <ul className="divide-y divide-border">
-            {mine.map((s) => (
-              <li key={s.id} className="flex items-center justify-between gap-2 py-2.5 text-sm">
-                <div className={s.voided ? "text-muted line-through" : ""}>{nameOf(s.fromId)} → {nameOf(s.toId)} <span className="num font-medium">{formatINR(s.amountPaise)}</span><div className="text-xs text-muted">{s.date}{s.recordIds?.length ? ` · ${s.recordIds.length} payment${s.recordIds.length === 1 ? "" : "s"}` : ""}{s.note ? ` · ${s.note}` : ""}</div></div>
-                {s.voided ? <Badge>Voided</Badge> : canSettle ? <Button variant="danger" onClick={() => setVoiding(s.id)}>Void</Button> : null}
+        <details className="group mt-3 rounded-[var(--radius-card)] bg-surface">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-muted"><span>Settlements with {name} · {mine.length}</span><ChevronDown size={16} aria-hidden className="transition-transform group-open:rotate-180" /></summary>
+          <ul className="divide-y divide-border px-4 pb-2">
+            {mine.map((st) => (
+              <li key={st.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                <div className={st.voided ? "text-muted line-through" : ""}>{nameOf(st.fromId)} → {nameOf(st.toId)} <span className="num font-medium">{formatINR(st.amountPaise)}</span><div className="text-xs text-muted">{st.date}{st.recordIds?.length ? ` · ${st.recordIds.length} payment${st.recordIds.length === 1 ? "" : "s"}` : ""}{st.note ? ` · ${st.note}` : ""}</div></div>
+                {st.voided ? <Badge>Voided</Badge> : canSettle ? <Button variant="danger" onClick={() => setVoiding(st.id)}>Void</Button> : null}
               </li>
             ))}
           </ul>
-        </Card>
+        </details>
       )}
 
       {chosen.length > 0 && (
-        <div className="sticky bottom-24 z-20 mt-4 sm:bottom-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-foreground px-4 py-3 text-white shadow-lg">
-            <div className="text-sm"><b>{chosen.length}</b> selected · {net === 0 ? "they cancel out" : <>{net > 0 ? `${name} owes you` : `You owe ${name}`} <b className="num">{formatINR(Math.abs(net))}</b></>}</div>
-            <div className="flex gap-2"><Button className="border-0 bg-white/15 text-white hover:bg-white/25" onClick={() => setPicked(new Set())}>Clear</Button><Button variant="primary" disabled={!selSettlement} onClick={() => setConfirm("selected")}>Settle these</Button></div>
+        <div className="sticky bottom-40 z-20 mt-3 sm:bottom-4">
+          <div className="flex items-center gap-2 rounded-2xl bg-foreground py-2 pl-4 pr-2 text-white shadow-lg">
+            <div className="min-w-0 flex-1 leading-tight"><span className="text-sm"><b>{chosen.length}</b> selected{net !== 0 && <> · <b className="num">{formatINR(Math.abs(net))}</b></>}</span><span className="block truncate text-xs text-white/70">{net === 0 ? "they cancel out" : net > 0 ? `${name} owes you` : `You owe ${name}`}</span></div>
+            <button type="button" onClick={() => setPicked(new Set())} className="min-h-10 rounded-full px-3 text-sm text-white/80 hover:text-white">Clear</button>
+            <Button variant="primary" className="min-h-10" disabled={!selSettlement} onClick={() => setConfirm("selected")}>Settle these</Button>
           </div>
         </div>
       )}
