@@ -18,7 +18,7 @@ import { rootOf, shortName, walletBrandFor } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
 import { summarize } from "@/domain/reports";
 import { summarizeGroup } from "@/domain/groups";
-import { needsVoucherBrand } from "@/domain/vouchers";
+import { isVoucherPurchase, needsVoucherBrand } from "@/domain/vouchers";
 import { cn } from "@/lib/cn";
 import type { ExpenseRecord } from "@/domain/types";
 
@@ -117,7 +117,7 @@ function GroupedView({ rows, view, onEdit }: { rows: ExpenseRecord[]; view: stri
 }
 
 function TransactionsView() {
-  const { meId, accounts, categories, groupRecords, groups, activeGroup, month, shown, staged, today, approveStaged, deleteRecords, attributionOf, nameOf, categoryName, accountName, recurringName, voucherBrands } = useStore();
+  const { meId, accounts, categories, groupRecords, recordsFor, groups, activeGroup, month, shown, staged, today, approveStaged, deleteRecords, attributionOf, nameOf, categoryName, accountName, recurringName, voucherBrands } = useStore();
   const params = useSearchParams();
   const router = useRouter();
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -131,7 +131,11 @@ function TransactionsView() {
 
   const rows = useMemo(() => {
     const m = params.get("month");
-    const base = groupRecords(m || month);
+    const inGroup = groupRecords(m || month);
+    // Money paid with a voucher counts as nothing for you (the voucher purchase was the outflow), so a payment group would drop it; keep it, it is listed under its voucher.
+    const have = new Set(inGroup.map((r) => r.id));
+    const isWallet = (id: string) => accounts.find((a) => a.id === id)?.type === "wallet";
+    const base = activeGroup.kind === "mine" ? [...inGroup, ...recordsFor(m || month).filter((r) => !have.has(r.id) && (r.paidWithVoucherId || isWallet(r.accountId)))] : inGroup;
     const text = (params.get("q") ?? "").trim().toLowerCase();
     return base
       .filter((r) => !get("category") || r.categoryId === get("category"))
@@ -149,24 +153,25 @@ function TransactionsView() {
       .filter((r) => !text || `${r.merchant} ${r.originalDescription} ${r.notes ?? ""}`.toLowerCase().includes(text))
       .sort((a, b) => b.date.localeCompare(a.date));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupRecords, month, params]);
+  }, [groupRecords, recordsFor, accounts, activeGroup.kind, month, params]);
 
   const [deleting, setDeleting] = useState<ExpenseRecord | null>(null);
-  // With a card chosen, what was paid with its vouchers (Amazon Pay and so on) moves under the card's own charges, grouped by voucher.
+  // Vouchers become one line per brand and month: the purchases are added together and the payments made with the voucher sit under it.
   const { mainRows, voucherGroups } = useMemo(() => {
-    if (!get("account") || (get("view") || "all") !== "all" || get("paidWith") || get("voucher")) return { mainRows: rows, voucherGroups: [] as VoucherGroup[] };
-    const brandOf = (r: ExpenseRecord) => r.paidWithVoucherId ?? walletBrandFor(accounts.find((a) => a.id === r.accountId), voucherBrands)?.id;
+    if ((get("view") || "all") !== "all" || get("paidWith") || get("voucher") || get("q")) return { mainRows: rows, voucherGroups: [] as VoucherGroup[] };
+    const brandOf = (r: ExpenseRecord) => r.paidWithVoucherId ?? (r.voucherBrandId && isVoucherPurchase(r) ? r.voucherBrandId : undefined) ?? walletBrandFor(accounts.find((a) => a.id === r.accountId), voucherBrands)?.id;
     const groups = new Map<string, VoucherGroup>();
     const main: ExpenseRecord[] = [];
     for (const r of rows) {
       const b = brandOf(r);
       if (!b) { main.push(r); continue; }
-      const g = groups.get(b) ?? { id: b, name: voucherBrands.find((x) => x.id === b)?.name ?? "Voucher", loadedPaise: 0, spentPaise: 0, rows: [] };
-      g.rows.push(r);
-      if (r.kind === "transfer") g.loadedPaise += r.amountPaise; else if (r.kind === "purchase" || r.kind === "fee") g.spentPaise += r.amountPaise; else if (r.kind === "refund") g.spentPaise -= r.amountPaise;
-      groups.set(b, g);
+      const m = r.date.slice(0, 7);
+      const g = groups.get(`${b}|${m}`) ?? { id: `${b}|${m}`, name: voucherBrands.find((x) => x.id === b)?.name ?? "Voucher", month: m, boughtPaise: 0, bought: [], paidWith: [], spentPaise: 0 };
+      if (isVoucherPurchase(r)) { g.bought.push(r); g.boughtPaise += r.amountPaise; }
+      else { g.paidWith.push(r); if (r.kind === "purchase" || r.kind === "fee") g.spentPaise += r.amountPaise; else if (r.kind === "refund") g.spentPaise -= r.amountPaise; }
+      groups.set(g.id, g);
     }
-    return { mainRows: main, voucherGroups: [...groups.values()].sort((a, b) => b.spentPaise - a.spentPaise) };
+    return { mainRows: main, voucherGroups: [...groups.values()].sort((a, b) => b.month.localeCompare(a.month) || b.boughtPaise - a.boughtPaise) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, params, accounts, voucherBrands]);
   const days = useMemo(() => {
@@ -295,7 +300,7 @@ function TransactionsView() {
             <span className="text-muted">My share</span><b>{formatINR(total.my)}</b>
             {total.onBehalf !== 0 && <><span className="text-muted">Paid for others</span><b>{formatINR(total.onBehalf)}</b></>}
           </div>
-          <VoucherSection groups={voucherGroups} onOpen={setEditing} onVerify={(r) => approveStaged(r.id)} onDelete={setDeleting} />
+          <VoucherSection groups={voucherGroups} showMonth={new Set(voucherGroups.map((g) => g.month)).size > 1} onOpen={setEditing} onVerify={(r) => approveStaged(r.id)} onDelete={setDeleting} />
         </>
       )}
       </>}

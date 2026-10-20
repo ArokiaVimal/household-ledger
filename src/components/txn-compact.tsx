@@ -49,7 +49,7 @@ export function CompactRow({ r, onOpen, onVerify, onDelete, showDate, leading }:
               <StatusMark r={r} />
             </span>
             <span className="block truncate text-xs text-muted">
-              {showDate ? `${new Date(`${r.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · ` : ""}{categoryName(r.categoryId)}
+              {showDate ? `${new Date(`${r.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · ` : ""}{r.voucherBrandId && !r.paidWithVoucherId && r.kind === "purchase" ? "Voucher" : categoryName(r.categoryId)}
               {flag && <span className={flag.bad ? " font-medium text-danger" : " font-medium text-warn"}> · {flag.text}</span>}
             </span>
           </span>
