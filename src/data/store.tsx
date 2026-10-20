@@ -14,7 +14,7 @@ import { greetingName } from "@/lib/profile/profile";
 import { useProfile } from "@/components/profile-context";
 import { checkContact, normalizeEmail } from "@/domain/contacts";
 import { allocatedBy, attribute, inGroup, summarizeGroup, withMine, type Attribution, type GroupSummary } from "@/domain/groups";
-import { planUpiSetup, sortAccounts, suggestedWithParents } from "@/domain/accounts";
+import { impliedVoucherId, planUpiSetup, sortAccounts, suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { recurringStatuses } from "@/domain/recurring";
 import { summarize } from "@/domain/reports";
@@ -390,10 +390,12 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const approveStaged = useCallback((id: string, patch: Partial<ExpenseRecord> = {}) => {
     const r = staged.find((x) => x.id === id);
     if (!r) return;
-    setRecords((rs) => (rs.some((x) => x.id === id) ? rs : [...rs, { ...r, ...patch, status: "reviewed" }]));
+    // A purchase from a voucher wallet (Amazon Pay) is paid with that voucher; the server applies the same rule.
+    const walletPaid = r.paidWithVoucherId ?? patch.paidWithVoucherId ?? impliedVoucherId(accounts.find((a) => a.id === r.accountId), patch.kind ?? r.kind, voucherBrands);
+    setRecords((rs) => (rs.some((x) => x.id === id) ? rs : [...rs, { ...r, ...patch, ...(walletPaid ? { paidWithVoucherId: walletPaid } : {}), status: "reviewed" }]));
     setStaged((xs) => xs.filter((x) => x.id !== id));
     void send({ type: "record.approve", id, patch: toWirePatch(patch) });
-  }, [staged, send]);
+  }, [staged, accounts, voucherBrands, send]);
   const rejectStaged = useCallback((id: string) => {
     setStaged((xs) => xs.filter((x) => x.id !== id));
     void send({ type: "record.reject", id });

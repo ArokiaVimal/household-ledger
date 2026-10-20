@@ -12,7 +12,7 @@ import { checkContact, normalizeEmail } from "@/domain/contacts";
 import { RELATIONSHIPS } from "@/domain/types";
 import { validateAvatarDataUrl } from "@/lib/profile/profile";
 import { ICON_KEYS } from "@/domain/icons";
-import { planUpiSetup, suggestedWithParents } from "@/domain/accounts";
+import { impliedVoucherId, planUpiSetup, suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
 import { buildShared, planShare, SharingError } from "@/domain/sharing";
@@ -41,6 +41,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("audit.undo"), eventId: id }),
   z.object({ type: z.literal("batch.rollback"), id }),
   z.object({ type: z.literal("record.reject"), id }),
+  z.object({ type: z.literal("records.fixWallets") }),
   z.object({ type: z.literal("record.delete"), id }),
   z.object({ type: z.literal("settlement.create"), settlement: z.object({ id, date: z.string(), fromId: id, toId: id, amountPaise: money, note: z.string().max(500).optional(), recordIds: z.array(id).max(500).optional() }) }),
   z.object({ type: z.literal("settlement.void"), id }),
@@ -254,6 +255,11 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       }
       const next = applyPatch(cur, a.patch ?? {});
       if (a.type === "record.approve") { next.status = "reviewed"; delete next.suggested; }
+      // Money spent from a voucher wallet (Amazon Pay) is paid with that voucher: the voucher purchase was the outflow.
+      if (!next.paidWithVoucherId) {
+        const w = impliedVoucherId((await repo.accounts.get(next.accountId)) ?? undefined, next.kind, await repo.voucherBrands.list());
+        if (w) next.paidWithVoucherId = w;
+      }
       await checkVoucherRefs(next);
       const shared = await syncShare(next);
       await syncLinks(shared);
@@ -307,6 +313,20 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       for (const b of (await repo.cardBills.list()).filter((x) => x.batchId === batch.id)) await repo.cardBills.remove(b.id);
       await repo.importBatches.put({ ...batch, rolledBackAt: new Date().toISOString(), rolledBackBy: actor.uid });
       await log("delete", "household", batch.id, `Rolled back import ${batch.filename}: removed ${rows.length} transaction${rows.length === 1 ? "" : "s"} (${rows.filter((r) => r.status === "reviewed").length} approved). The source rows are kept.`);
+      return;
+    }
+    case "records.fixWallets": {
+      // One-time repair: purchases already filed under a voucher wallet get the "paid with voucher" mark.
+      const [accounts, brands] = await Promise.all([repo.accounts.list(), repo.voucherBrands.list()]);
+      let fixed = 0;
+      for (const r of await repo.records.list()) {
+        if (r.paidWithVoucherId) continue;
+        const w = impliedVoucherId(accounts.find((x) => x.id === r.accountId), r.kind, brands);
+        if (!w) continue;
+        await repo.records.put({ ...r, paidWithVoucherId: w });
+        fixed++;
+      }
+      if (fixed > 0) await log("edit", "record", "wallets", `Marked ${fixed} wallet payment${fixed === 1 ? "" : "s"} as paid with the wallet's voucher`);
       return;
     }
     case "record.reject": {

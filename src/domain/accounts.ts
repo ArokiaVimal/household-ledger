@@ -38,6 +38,12 @@ export function walletBrandFor(account: Account | undefined, brands: VoucherBran
   return [...brands].sort((a, b) => b.name.length - a.name.length).find((b) => n.includes(b.name.toLowerCase())) ?? null;
 }
 
+/** What a payment made from this account is paid with: a purchase or fee from a voucher wallet (Amazon Pay) is paid with that voucher, so it never counts again. Undefined for anything else. */
+export function impliedVoucherId(account: Account | undefined, kind: string, brands: VoucherBrand[]): string | undefined {
+  if (kind !== "purchase" && kind !== "fee") return undefined;
+  return walletBrandFor(account, brands)?.id;
+}
+
 /** The wallet payment method for a voucher wallet, when there is one. */
 export function walletAccountFor(brand: VoucherBrand | undefined, accounts: Account[]): Account | null {
   if (!brand) return null;

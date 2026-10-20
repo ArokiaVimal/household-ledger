@@ -555,3 +555,37 @@ describe("undo, audit trail and import rollback", () => {
     await fails(applyAction(repo, actor, { type: "batch.rollback", id: "nope" }), "not_found");
   });
 });
+
+describe("voucher wallets", () => {
+  const wallet = async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "wl_amazonpay", name: "Amazon Pay", type: "wallet", parentId: "cc_hdfc" });
+    await repo.voucherBrands.put({ id: "vb_amazon", name: "Amazon" });
+    return repo;
+  };
+  it("verifying a purchase from the Amazon Pay wallet marks it paid with the Amazon voucher", async () => {
+    const repo = await wallet();
+    await repo.records.put(imported({ id: "w1", accountId: "wl_amazonpay" }));
+    await applyAction(repo, actor, { type: "record.approve", id: "w1" });
+    expect(await repo.records.get("w1")).toMatchObject({ status: "reviewed", paidWithVoucherId: "vb_amazon" });
+  });
+  it("a top-up (transfer) and a card purchase are left alone", async () => {
+    const repo = await wallet();
+    await repo.records.put(imported({ id: "t1", accountId: "wl_amazonpay", kind: "transfer" }));
+    await applyAction(repo, actor, { type: "record.approve", id: "t1" });
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1" });
+    expect((await repo.records.get("t1"))?.paidWithVoucherId).toBeUndefined();
+    expect((await repo.records.get("imp1"))?.paidWithVoucherId).toBeUndefined();
+  });
+  it("the repair marks existing wallet purchases once and changes nothing else", async () => {
+    const repo = await wallet();
+    await repo.records.put(imported({ id: "w1", accountId: "wl_amazonpay" }));
+    await repo.records.put(imported({ id: "w2", accountId: "wl_amazonpay", kind: "transfer" }));
+    await applyAction(repo, actor, { type: "records.fixWallets" });
+    await applyAction(repo, actor, { type: "records.fixWallets" });
+    expect((await repo.records.get("w1"))?.paidWithVoucherId).toBe("vb_amazon");
+    expect((await repo.records.get("w2"))?.paidWithVoucherId).toBeUndefined();
+    expect((await repo.records.get("imp1"))?.paidWithVoucherId).toBeUndefined();
+    expect((await audit(repo)).filter((a) => a === "edit")).toHaveLength(1);
+  });
+});

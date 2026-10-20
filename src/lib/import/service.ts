@@ -6,6 +6,7 @@ import { classifyRow } from "@/domain/import/classify";
 import { extractRows, type ParsedRow } from "@/domain/import/rows";
 import type { PdfParseResult, StatementCheck, StatementSummary } from "@/domain/import/pdf";
 import { planImport } from "@/domain/dedupe";
+import { impliedVoucherId } from "@/domain/accounts";
 import { cardViews, suggestPaidCard } from "@/domain/cardbills";
 import { resolveChannel } from "@/domain/import/channel";
 import { looksRecurring, repeatsMonthly } from "@/domain/import/recurring-hint";
@@ -346,10 +347,13 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
     const raw: RawTransaction = { id: `${batchId}-${r.line}`, batchId, line: r.line, cells: r.parsed.raw.map((c) => c.slice(0, 1000)).slice(0, 60) };
     await repo.rawTransactions.put(raw);
   }
+  const walletAccounts = await repo.accounts.list();
+  const walletBrands = await repo.voucherBrands.list();
   for (const r of stage) {
+    const walletPaid = impliedVoucherId(walletAccounts.find((a) => a.id === r.accountId), r.kind, walletBrands);
     const rec: ExpenseRecord = {
       id: d.newId(), date: r.date, postedDate: r.parsed.postedDate, merchant: r.merchant, originalDescription: r.description.slice(0, 500), amountPaise: r.amountPaise, currency: "INR",
-      accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), ...(r.paidCardId ? { paidCardId: r.paidCardId } : {}), ...(input.cardUnsure && r.accountId === input.accountId ? { needsCard: true } : {}), ...(r.recurring ? { recurringHint: true } : {}), ...(r.voucher ? { voucherPending: true } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
+      accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), ...(r.paidCardId ? { paidCardId: r.paidCardId } : {}), ...(input.cardUnsure && r.accountId === input.accountId ? { needsCard: true } : {}), ...(r.recurring ? { recurringHint: true } : {}), ...(walletPaid ? { paidWithVoucherId: walletPaid } : {}), ...(r.voucher && !walletPaid ? { voucherPending: true } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
       excluded: false, status: "unreviewed", suggested: r.suggested, importSource: `${input.filename.slice(0, 150)} (import ${batchId.slice(0, 8)})`, batchId, referenceId: r.referenceId, duplicateOf: r.status !== "new" ? r.matchId : undefined,
     };
     await repo.records.put(JSON.parse(JSON.stringify(rec)) as ExpenseRecord);

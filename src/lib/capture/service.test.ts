@@ -43,6 +43,14 @@ describe("captureMessage", () => {
     const recs = (await repo.records.list()).sort((a, b) => b.amountPaise - a.amountPaise);
     expect(recs.map((r) => !!r.needsCard)).toEqual([false, true]);
   });
+  it("a purchase filed under the Amazon Pay wallet is marked paid with the Amazon voucher, so it is not counted twice", async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "wl_amazonpay", name: "Amazon Pay", type: "wallet", parentId: "cc_icici" });
+    await repo.voucherBrands.put({ id: "vb_amazon", name: "Amazon" });
+    await captureMessage(repo, { ...who, defaultAccountId: "wl_amazonpay" }, "Rs 99.00 debited from a/c XX1234 to PAYTM", deps());
+    const [rec] = await repo.records.list();
+    expect(rec).toMatchObject({ accountId: "wl_amazonpay", paidWithVoucherId: "vb_amazon" });
+  });
   it("the same message twice, or the same reference, is added once", async () => {
     const repo = await setup();
     expect((await captureMessage(repo, who, UPI, deps())).result).toBe("added");

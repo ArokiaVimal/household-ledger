@@ -444,3 +444,6 @@ Priorities live in [ROADMAP.md](../ROADMAP.md) (owner's order: own spending, the
 
 ## Gmail and SMS: no default card (2026-10-20)
 The "default card" pickers are gone. An email or text that names no card is saved with `needsCard` set; the row shows "Pick a card", Verify opens the edit screen with "Paid with: Choose", and Save & verify stays off until a card is picked. Swipe-verify and "Verify N sure ones" skip these rows. Setting a payment method is allowed only while a row is unverified (server checks this). A stored placeholder account still exists internally for these rows.
+
+## Wallet spends are paid with the wallet's voucher (2026-10-21)
+A purchase or fee under a voucher wallet account (Amazon Pay) now gets `paidWithVoucherId` automatically: at import (statement, pasted text, Gmail, SMS), on verify (server and screen), and through the one-time repair action `records.fixWallets`. These never count again in spending; the Shopwise voucher purchase on the card is the outflow. Found by cross-checking the Amex statements: 32 unmarked Amazon Pay rows counted ₹11,291.25 twice in September.
