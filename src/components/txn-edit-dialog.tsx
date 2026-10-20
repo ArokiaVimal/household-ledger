@@ -136,6 +136,8 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
   const isUpi = accounts.find((a) => a.id === accountId)?.type === "upi";
   const splitError = topUp ? null : validateSplit(amountPaise, split);
   // Which of your Payment Groups this transaction counts in, from who is in the split (the groups are views, so there is nothing to set).
+  // "Just me" only when nobody else is in it; a split that is entirely someone else's (Varru owes all) is not "just me".
+  const onlyMe = split.mode === "personal" || split.participantIds.length === 0 || (split.participantIds.length === 1 && split.participantIds[0] === meId);
   const countsIn = useMemo(() => {
     // A split being built (a By item split with a blank item, percentages that do not add up) has no shares yet: nothing to count.
     if (topUp || amountPaise <= 0 || kind !== "purchase" || validateSplit(amountPaise, split)) return [];
@@ -396,7 +398,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
         ? null
         : (
           <>
-            <PickerRow icon={<span className="flex -space-x-2">{(split.participantIds.length ? split.participantIds : [meId]).slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={26} /></span>)}</span>} label="Split with" value={split.mode === "personal" || split.participantIds.length <= 1 ? "Just me" : split.participantIds.map((id) => (id === meId ? "You" : nameOf(id))).join(", ")} sub={splitError ?? (split.participantIds.length > 1 ? "Tap to change who and how" : "Tap to share with someone")} onClick={() => { touch("split"); setSplitOpen(true); }} />
+            <PickerRow icon={<span className="flex -space-x-2">{(split.participantIds.length ? split.participantIds : [meId]).slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={26} /></span>)}</span>} label="Split with" value={onlyMe ? "Just me" : split.participantIds.map((id) => (id === meId ? "You" : nameOf(id))).join(", ")} sub={splitError ?? (onlyMe ? "Tap to share with someone" : split.gift ? "You paid for them" : !split.participantIds.includes(meId) ? "You are not in this split" : "Tap to change who and how")} onClick={() => { touch("split"); setSplitOpen(true); }} />
             {countsIn.length > 0 && <p className="-mt-1 px-1 text-xs text-muted">Counts in <b className="font-medium text-foreground">{countsIn.join(" · ")}</b></p>}
           </>
         )}
