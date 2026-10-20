@@ -9,7 +9,7 @@ import { buildQuery, extractText, header, messageText, senderAllowed } from "./m
 import type { GmailLink } from "./store";
 
 export const MAX_PER_SYNC = 40;
-const FIRST_SYNC_DAYS = 14;
+const FIRST_SYNC_DAYS = 30;
 type F = typeof fetch;
 export type SyncCounts = NonNullable<GmailLink["lastResult"]>;
 
