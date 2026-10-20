@@ -121,11 +121,11 @@ function ReviewQueue() {
       ) : (
         <>
           {live && (
-            <AiFeatureCard enabled={aiEnabled} title="AI-powered review assist" className="mb-3">
+            <AiFeatureCard enabled={aiEnabled} title="AI-powered review assist" className="mb-3 hidden sm:block">
               <p>{aiEnabled ? "AI rows were categorized by Claude. Remembered rows match what you approved before. Approve the sure ones together and fix the rest." : "AI is off. Rows are filled from what you approved before."}</p>
             </AiFeatureCard>
           )}
-          <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-0.5 sm:mb-3 sm:flex-wrap [&>*]:shrink-0">
             <Badge tone="warn">{filtered ? `${shown.length} of ${staged.length} shown` : `${staged.length} awaiting review`}</Badge>
             <Button onClick={() => shown[0] && setOpen(shown[0])} variant="primary" disabled={shown.length === 0}><ClipboardCheck size={16} aria-hidden />Start reviewing</Button>
             <Button disabled={shown.length === 0} onClick={() => setPicked(picked.size === shown.length ? new Set() : new Set(shown.map((r) => r.id)))}>{picked.size === shown.length && shown.length > 0 ? "Clear selection" : filtered ? `Select these ${shown.length}` : "Select all"}</Button>
@@ -134,18 +134,18 @@ function ReviewQueue() {
             {picked.size > 0 && <Button onClick={() => setConfirm(true)}>Approve {picked.size} as they are…</Button>}
             {picked.size > 0 && <Button variant="danger" onClick={() => setDeleting(chosen)}><Trash2 size={15} aria-hidden />Delete {picked.size}…</Button>}
           </div>
-          <div className="mb-3 space-y-2" role="search" aria-label="Search and filter the review queue">
+          <div className="mb-2 space-y-2 sm:mb-3" role="search" aria-label="Search and filter the review queue">
             <div className="relative">
               <Search size={16} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
               <Input aria-label="Search the review queue" placeholder="Search merchant, text or amount" value={q} onChange={(e) => narrow(() => setQ(e.target.value))} className="pl-10 pr-10" />
               {q && <button type="button" aria-label="Clear search" onClick={() => narrow(() => setQ(""))} className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-muted hover:bg-background"><X size={14} aria-hidden /></button>}
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <Select aria-label="Payment method" value={acct} onChange={(e) => narrow(() => setAcct(e.target.value))}><option value="">All payment methods</option>{accountsIn.map((id) => <option key={id} value={id}>{accountName(id)}</option>)}</Select>
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+              <Select aria-label="Payment method" value={acct} onChange={(e) => narrow(() => setAcct(e.target.value))}><option value="">All methods</option>{accountsIn.map((id) => <option key={id} value={id}>{accountName(id)}</option>)}</Select>
               <Select aria-label="Category" value={cat} onChange={(e) => narrow(() => setCat(e.target.value))}><option value="">All categories</option>{categoriesIn.map((id) => <option key={id} value={id}>{categoryName(id)}</option>)}</Select>
               <Select aria-label="Month" value={mon} onChange={(e) => narrow(() => setMon(e.target.value))}><option value="">All months</option>{monthsIn.map((m) => <option key={m} value={m}>{monthName(m)}</option>)}</Select>
             </div>
-            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Quick filters">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap [&>*]:shrink-0" role="group" aria-label="Quick filters">
               {QUICK.filter((x) => x.id === "all" || staged.some(x.test)).map((x) => {
                 const n = staged.filter(x.test).length;
                 return <button key={x.id} type="button" aria-pressed={quick === x.id} onClick={() => narrow(() => setQuick(x.id))} className={`min-h-8 rounded-full border px-3 text-sm ${quick === x.id ? "border-accent bg-accent text-white" : "border-border bg-surface text-muted hover:text-foreground"}`}>{x.label}{x.id !== "all" && <span className="ml-1.5 text-xs opacity-80">{n}</span>}</button>;

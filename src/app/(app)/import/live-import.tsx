@@ -26,16 +26,16 @@ type Reply = {
 
 function Entry({ icon: I, title, text, badge, primary, children }: { icon: LucideIcon; title: string; text: string; badge?: ReactNode; primary?: boolean; children: ReactNode }) {
   return (
-    <section className={`flex flex-col gap-3 rounded-[var(--radius-card)] p-5 ${primary ? "bg-gradient-to-br from-accent/10 via-surface to-surface ring-1 ring-accent/25" : "bg-surface"}`}>
-      <div className="flex items-start justify-between gap-2">
-        <span aria-hidden className={`grid size-11 place-items-center rounded-full ${primary ? "bg-accent text-white" : "bg-background text-accent"}`}><I size={20} /></span>
+    <section className={`flex flex-col gap-2.5 rounded-[var(--radius-card)] p-4 md:p-5 ${primary ? "bg-gradient-to-br from-accent/10 via-surface to-surface ring-1 ring-accent/25" : "bg-surface"}`}>
+      <div className="flex items-start gap-3">
+        <span aria-hidden className={`grid size-10 shrink-0 place-items-center rounded-full ${primary ? "bg-accent text-white" : "bg-background text-accent"}`}><I size={19} /></span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-semibold leading-tight">{title}</h2>
+          <p className="text-sm text-muted">{text}</p>
+        </div>
         {badge}
       </div>
-      <div className="space-y-1">
-        <h2 className="text-base font-semibold">{title}</h2>
-        <p className="text-sm text-muted">{text}</p>
-      </div>
-      <div className="mt-auto pt-1">{children}</div>
+      <div className="mt-auto">{children}</div>
     </section>
   );
 }

@@ -29,8 +29,8 @@ export default function Timeline() {
     <>
       <PageHeader title="Timeline" tip="Your month in order. Estimates use only approved transactions and items you added. Nothing is guessed." sub={`${monthLabel(month)} · ${live ? "your real entries" : "sample data"}`} />
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card className="p-4">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+        <Card className="col-span-2 px-3.5 py-3 sm:col-span-1 sm:p-4">
           <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium text-muted">Recorded balance</span>{t.recorded && <Badge tone="good">Recorded</Badge>}</div>
           {t.recorded ? (<>
             <div className="num mt-2 text-2xl font-semibold">{money(t.recorded.totalPaise)}</div>
@@ -40,15 +40,15 @@ export default function Timeline() {
             <Link href="/settings?s=methods" className="mt-1 inline-block text-xs font-medium text-accent underline">Add a balance in Payment methods</Link>
           </>)}
         </Card>
-        <Card className="border border-dashed border-border bg-background p-4">
+        <Card className="border border-dashed border-border bg-background px-3.5 py-3 sm:p-4">
           <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium text-muted">Estimated today</span><Badge>Estimate</Badge></div>
-          <div className="num mt-2 text-2xl font-semibold text-muted">{t.estimatedTodayPaise === null ? "—" : `≈ ${money(t.estimatedTodayPaise)}`}</div>
-          <p className="mt-1 text-xs text-muted">Recorded balance plus confirmed transactions since its date. Not a confirmed balance.</p>
+          <div className="num mt-1.5 text-xl font-semibold text-muted sm:mt-2 sm:text-2xl">{t.estimatedTodayPaise === null ? "—" : `≈ ${money(t.estimatedTodayPaise)}`}</div>
+          <p className="mt-1 hidden text-xs text-muted sm:block">Recorded balance plus confirmed transactions since its date. Not a confirmed balance.</p>
         </Card>
-        <Card className="border border-dashed border-border bg-background p-4">
+        <Card className="border border-dashed border-border bg-background px-3.5 py-3 sm:p-4">
           <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium text-muted">Forecast, end of {monthLabel(month).split(" ")[0]}</span><Badge>Forecast</Badge></div>
-          <div className={`num mt-2 text-2xl font-semibold ${t.forecastEndPaise !== null && t.forecastEndPaise < 0 ? "text-danger" : "text-muted"}`}>{t.forecastEndPaise === null ? "—" : `≈ ${money(t.forecastEndPaise)}`}</div>
-          <p className="mt-1 text-xs text-muted">{isPast ? "A past month has no forecast." : "After the bills, recurring payments and income you have entered."}</p>
+          <div className={`num mt-1.5 text-xl font-semibold sm:mt-2 sm:text-2xl ${t.forecastEndPaise !== null && t.forecastEndPaise < 0 ? "text-danger" : "text-muted"}`}>{t.forecastEndPaise === null ? "—" : `≈ ${money(t.forecastEndPaise)}`}</div>
+          <p className="mt-1 hidden text-xs text-muted sm:block">{isPast ? "A past month has no forecast." : "After the bills, recurring payments and income you have entered."}</p>
         </Card>
       </div>
 

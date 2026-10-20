@@ -159,10 +159,10 @@ export function Badge({ tone = "neutral", children }: { tone?: keyof typeof tone
 
 export function PageHeader({ title, sub, actions, tip }: { title: string; sub?: string; actions?: ReactNode; tip?: string }) {
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-3 flex flex-wrap items-end justify-between gap-3 md:mb-4">
       <div>
         <h1 className="flex items-center gap-1 text-xl font-semibold tracking-tight">{title}{tip && <InfoTip text={tip} />}</h1>
-        {sub && <p className="text-sm text-muted">{sub}</p>}
+        {sub && <p className="hidden text-sm text-muted sm:block">{sub}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>

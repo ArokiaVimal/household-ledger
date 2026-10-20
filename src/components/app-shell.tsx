@@ -88,8 +88,11 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const router = useRouter();
   const { live, previewing, staged, syncError, dismissSyncError, nameOf, meId } = useStore();
   // Solo use is complete on its own: settle-up and the Mine/Together switch appear once a partner is linked.
-  // Balances between people do not depend on the month or the group lens, so those switches are hidden there.
-  const noLens = path.startsWith("/people");
+  // The month and group switches only appear on screens they change. Everywhere else they just push the content down.
+  const monthScreens = ["/timeline", "/recurring", "/vouchers", "/insights"];
+  const lensScreens = ["/", "/transactions", "/reports"];
+  const showGroup = lensScreens.some((h) => (h === "/" ? path === "/" : path.startsWith(h)));
+  const showMonth = showGroup || monthScreens.some((h) => path.startsWith(h));
   const visibleNav = NAV.filter((n) => n.href !== "/profile");
   const phoneBar = BAR_ORDER.flatMap((h) => visibleNav.filter((n) => n.href === h));
   const phoneMore = NAV.filter((n) => !n.bar);
@@ -139,18 +142,19 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 Demo mode · fictional data · nothing is saved
               </div>
             )}
-            <header className="px-4 pb-3 pt-4 md:px-0 md:pb-4">
-              <div className="flex items-center gap-3">
-                <div className="mr-auto min-w-0">
-                  <p className="truncate text-xl font-semibold tracking-tight">{path === "/" ? <>Hi {profile ? greetingName(profile) : (() => { const n = nameOf(meId); return n && n !== meId ? n.split(/\s+/)[0] : "there"; })()} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
+            <header className="px-4 pb-2 pt-3 md:px-0 md:pb-4">
+              <div className="flex items-center gap-3 max-md:justify-end">
+                <div className={cn("min-w-0", path === "/" ? "mr-auto" : "hidden md:mr-auto md:block")}>
+                  <p className={cn("truncate text-xl font-semibold tracking-tight", path !== "/" && "hidden md:block")}>{path === "/" ? <>Hi {profile ? greetingName(profile) : (() => { const n = nameOf(meId); return n && n !== meId ? n.split(/\s+/)[0] : "there"; })()} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
                   <p className="hidden text-sm text-muted xl:block">{path === "/" ? "Here's where your money went this month" : "Where your money went, and who owes what"}</p>
                 </div>
                 <form onSubmit={go} role="search" className="hidden w-64 items-center gap-2 rounded-full bg-surface px-4 lg:flex">
                   <Search size={16} className="text-muted" aria-hidden />
                   <input aria-label="Search transactions" placeholder="Search transactions…" value={q} onChange={(e) => setQ(e.target.value)} className="min-h-10 w-full bg-transparent text-sm outline-none" />
                 </form>
-                {!noLens && <MonthStepper className="hidden md:flex" />}
-                {!noLens && <GroupSwitch className="hidden max-w-lg md:flex" />}
+                {showMonth && path !== "/" && <MonthStepper className="min-w-0 flex-1 md:hidden" />}
+                {showMonth && <MonthStepper className="hidden md:flex" />}
+                {showGroup && <GroupSwitch className="hidden max-w-lg md:flex" />}
                 <Link href="/review" aria-label={staged.length ? `Review, ${staged.length} waiting` : "Review"} title="Review" className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
                   <ClipboardCheck size={18} aria-hidden />
                   {staged.length > 0 && <span aria-hidden className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-semibold leading-5 text-white">{staged.length > 99 ? "99+" : staged.length}</span>}
@@ -158,10 +162,10 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 <NotificationsBell />
                 {user && <AccountMenu onSignOut={signOut} />}
               </div>
-              {!noLens && (
+              {showMonth && (
                 <div className="mt-2 space-y-1.5 md:hidden">
-                  <MonthStepper className="w-full" />
-                  <GroupSwitch className="w-full" />
+                  {path === "/" && <MonthStepper className="w-full" />}
+                  {showGroup && <GroupSwitch className="w-full" />}
                 </div>
               )}
             </header>
