@@ -1,5 +1,5 @@
 "use client";
-import { Users } from "lucide-react";
+import { CircleCheck, CircleDashed, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { Amount, MerchantAvatar } from "@/components/txn-row";
 import { SwipeRow } from "@/components/swipe-row";
@@ -18,7 +18,7 @@ export function attentionOf(r: ExpenseRecord): { text: string; bad: boolean } | 
 }
 
 /**
- * One transaction in two tight lines: merchant (with an amber dot while unverified and a people icon when shared) and amount, then
+ * One transaction in two tight lines: merchant (with a green tick when verified or an amber dashed circle when not, and a people icon when shared) and amount, then
  * category, any flag and your share. Swipe right to verify an unverified row, left to delete it.
  */
 export function CompactRow({ r, onOpen, onVerify, onDelete, showDate, leading }: { r: ExpenseRecord; onOpen: () => void; onVerify?: () => void; onDelete?: () => void; showDate?: boolean; leading?: ReactNode }) {
@@ -35,7 +35,7 @@ export function CompactRow({ r, onOpen, onVerify, onDelete, showDate, leading }:
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5">
               <span className="truncate font-medium">{r.merchant}</span>
-              {unverified && <span role="img" aria-label="Unverified" className="size-2 shrink-0 rounded-full bg-warn" />}
+              {unverified ? <CircleDashed size={15} role="img" aria-label="Unverified" className="shrink-0 text-warn" /> : <CircleCheck size={15} role="img" aria-label="Verified" className="shrink-0 text-good" />}
               {r.shared && <Users size={13} aria-label="Shared" className="shrink-0 text-good" />}
             </span>
             <span className="block truncate text-xs text-muted">
