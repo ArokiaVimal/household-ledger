@@ -7,7 +7,7 @@ import { participantIdFor } from "@/lib/data/load";
 import { createFirestoreCaptureStore } from "@/lib/capture/firestore-store";
 import { captureMessage } from "@/lib/capture/service";
 import { MAX_MESSAGE_CHARS } from "@/lib/capture/types";
-import { suggesterFromEnv } from "@/lib/import/ai";
+import { trackedClaude, trackedSuggest } from "@/lib/ai-usage/server";
 import { claudeFromEnv } from "@/lib/import/ai-extract";
 import { authorize } from "../import/shared";
 
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
         const fallback = mine[0]?.token.defaultAccountId ?? accounts.find((x) => x.type !== "cash")?.id ?? "";
         const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
         const out = await captureMessage(repo, { uid, participantId: participantIdFor(uid), defaultAccountId: fallback }, a.text, {
-          sha256, now: () => Date.now(), newId: () => randomUUID(), suggest: suggesterFromEnv(process.env), claude: claudeFromEnv(process.env), today,
+          sha256, now: () => Date.now(), newId: () => randomUUID(), suggest: trackedSuggest(process.env, uid, "messages"), claude: trackedClaude(claudeFromEnv(process.env), uid, "messages"), today,
         }, { dryRun: true });
         return NextResponse.json({ ok: true, ...out });
       }

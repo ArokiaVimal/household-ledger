@@ -1,3 +1,4 @@
+import { trackedClaude } from "@/lib/ai-usage/server";
 import { NextResponse } from "next/server";
 import { createFirestoreRepository } from "@/data/firestore-repository";
 import { claudeFromEnv } from "@/lib/import/ai-extract";
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
   const today = new Date().toISOString().slice(0, 10);
 
   if (b.action === "read") {
-    const claude = claudeFromEnv(process.env);
+    const claude = trackedClaude(claudeFromEnv(process.env), who.session.uid, "screenshot");
     if (!claude) return NextResponse.json({ error: "AI is off. Add an Anthropic API key to the server to read screenshots." }, { status: 400 });
     const image = typeof b.image === "string" ? parseImageDataUrl(b.image) : null;
     if (!image) return NextResponse.json({ error: "Use a PNG, JPG or WebP screenshot under 3 MB." }, { status: 400 });

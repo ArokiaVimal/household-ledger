@@ -1,3 +1,4 @@
+import { trackedClaude } from "@/lib/ai-usage/server";
 import { NextResponse } from "next/server";
 import { createFirestoreRepository } from "@/data/firestore-repository";
 import { iconByName } from "@/domain/icons";
@@ -15,7 +16,7 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   const who = await authorize();
   if (!who.ok) return who.res;
-  const claude = claudeFromEnv(process.env);
+  const claude = trackedClaude(claudeFromEnv(process.env), who.session.uid, "icons");
   if (!claude) return NextResponse.json({ error: "AI is off on this server. Add an Anthropic API key to switch it on." }, { status: 400 });
   try {
     // `all`: ask again about everything (a refresh), not only what has nothing yet.

@@ -17,5 +17,5 @@ export async function POST(req: Request) {
   const accountId = typeof b.accountId === "string" && b.accountId ? b.accountId : undefined;
   return runImport(who, b.action === "commit" ? "commit" : "preview", b.ai === true, (o) => intakeText(text, b.mode === "ai" ? "ai" : "table", {
     ...o, accountId, base: { filename: "Pasted text", fileHash: sha256(text), allowReimport: b.reimport === true, decisions: parseDecisions(b.decisions), positiveIsDebit: typeof b.positiveIsDebit === "boolean" ? b.positiveIsDebit : undefined },
-  }));
+  }), "paste");
 }

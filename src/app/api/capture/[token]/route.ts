@@ -8,7 +8,7 @@ import { captureMessage } from "@/lib/capture/service";
 import { DAILY_LIMIT, MAX_MESSAGE_CHARS } from "@/lib/capture/types";
 import { createFirestoreHouseholdStore } from "@/lib/households/firestore-store";
 import { getMembership } from "@/lib/households/service";
-import { suggesterFromEnv } from "@/lib/import/ai";
+import { trackedClaude, trackedSuggest } from "@/lib/ai-usage/server";
 import { claudeFromEnv } from "@/lib/import/ai-extract";
 
 export const maxDuration = 30;
@@ -49,7 +49,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
 
     const repo = createFirestoreRepository(rec.householdId);
     const out = await captureMessage(repo, { uid: rec.uid, participantId: participantIdFor(rec.uid), defaultAccountId: rec.defaultAccountId }, text, {
-      sha256, now: () => Date.now(), newId: () => randomUUID(), suggest: suggesterFromEnv(process.env), claude: claudeFromEnv(process.env), today,
+      sha256, now: () => Date.now(), newId: () => randomUUID(), suggest: trackedSuggest(process.env, rec.uid, "messages"), claude: trackedClaude(claudeFromEnv(process.env), rec.uid, "messages"), today,
     });
     return NextResponse.json({ ok: true, result: out.result, message: out.message });
   } catch (e) {

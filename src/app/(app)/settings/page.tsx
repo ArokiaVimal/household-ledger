@@ -15,6 +15,7 @@ import { orderByUse, planUpiSetup } from "@/domain/accounts";
 import { CaptureCard } from "./capture-card";
 import { GmailCard } from "./gmail-card";
 import { PartnerCard } from "./partner-card";
+import { AiUsageCard } from "./ai-usage-card";
 import { IconsCard } from "./icons-card";
 import { SyncCard } from "./sync-card";
 import { DataCard } from "./data-card";
@@ -207,6 +208,7 @@ export default function Settings() {
                 : "To turn it on, add an Anthropic API key to the server. Until then, nothing is sent to AI."}</p>
               <Link href="/import" className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 text-sm font-medium hover:bg-background">Go to Import</Link>
             </AiFeatureCard>
+            <AiUsageCard live={live} />
           </Section>
         )}
 

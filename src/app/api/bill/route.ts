@@ -1,3 +1,4 @@
+import { trackedClaude } from "@/lib/ai-usage/server";
 import { NextResponse } from "next/server";
 import { parseBillDataUrl, readBill } from "@/lib/import/bill-extract";
 import { claudeFromEnv } from "@/lib/import/ai-extract";
@@ -11,7 +12,7 @@ export async function POST(req: Request) {
   const who = await authorize();
   if (!who.ok) return who.res;
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY) return NextResponse.json({ error: "That file is too large. Try a smaller one." }, { status: 413 });
-  const claude = claudeFromEnv(process.env);
+  const claude = trackedClaude(claudeFromEnv(process.env), who.session.uid, "bill");
   if (!claude) return NextResponse.json({ error: "AI is off. Add an Anthropic API key to the server to scan bills." }, { status: 400 });
   let b: { file?: unknown };
   try { b = await req.json(); } catch { return NextResponse.json({ error: "Could not read the request." }, { status: 400 }); }

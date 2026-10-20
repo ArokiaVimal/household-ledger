@@ -6,7 +6,7 @@ import { getAuthMode, isSameOrigin } from "@/lib/auth/config";
 import { getSession } from "@/lib/auth/session";
 import { createFirestoreHouseholdStore } from "@/lib/households/firestore-store";
 import { getMembership } from "@/lib/households/service";
-import { suggesterFromEnv } from "@/lib/import/ai";
+import { trackedSuggest } from "@/lib/ai-usage/server";
 import { refreshSuggestions } from "@/lib/import/service";
 
 // Claude is asked about merchants that memory does not know, which can take a few seconds.
@@ -23,7 +23,7 @@ export async function POST() {
     const membership = await getMembership(createFirestoreHouseholdStore(), session.uid);
     if (!membership) return NextResponse.json({ error: "Create or join a household first." }, { status: 403 });
     const repo = createFirestoreRepository(membership.household.id);
-    const result = await refreshSuggestions(repo, { sha256: (s) => createHash("sha256").update(s).digest("hex"), now: () => Date.now(), newId: () => randomUUID(), suggest: suggesterFromEnv(process.env) });
+    const result = await refreshSuggestions(repo, { sha256: (s) => createHash("sha256").update(s).digest("hex"), now: () => Date.now(), newId: () => randomUUID(), suggest: trackedSuggest(process.env, session.uid, "categories") });
     return NextResponse.json({ ok: true, result });
   } catch (e) {
     console.error("suggest failed", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 160));

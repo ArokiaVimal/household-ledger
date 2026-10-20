@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createFirestoreRepository } from "@/data/firestore-repository";
 import { participantIdFor } from "@/lib/data/load";
 import type { CaptureDeps } from "@/lib/capture/service";
-import { suggesterFromEnv } from "@/lib/import/ai";
+import { trackedClaude, trackedSuggest } from "@/lib/ai-usage/server";
 import { claudeFromEnv } from "@/lib/import/ai-extract";
 import { oauthFromEnv, type OAuthConfig } from "./client";
 import { keyFrom } from "./crypto";
@@ -32,7 +32,7 @@ const todayIst = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/
 
 /** Syncs one person's mail and saves the result on their link. */
 export async function runSync(link: GmailLink, cfg: { oauth: OAuthConfig; key: Buffer }, lookbackDays?: number): Promise<{ link: GmailLink; counts: SyncCounts }> {
-  const deps: CaptureDeps = { sha256, now: () => Date.now(), newId: () => randomUUID(), suggest: suggesterFromEnv(process.env), claude: claudeFromEnv(process.env), today: todayIst() };
+  const deps: CaptureDeps = { sha256, now: () => Date.now(), newId: () => randomUUID(), suggest: trackedSuggest(process.env, link.uid, "messages"), claude: trackedClaude(claudeFromEnv(process.env), link.uid, "messages"), today: todayIst() };
   const out = await syncGmail({ link, key: cfg.key, oauth: cfg.oauth, repo: createFirestoreRepository(link.householdId), deps, participantId: participantIdFor(link.uid), now: Date.now(), ...(lookbackDays ? { lookbackDays } : {}) });
   await createFirestoreGmailStore().put(out.link);
   return out;
