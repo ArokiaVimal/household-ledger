@@ -1,7 +1,7 @@
 "use client";
 import { ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { balanceWords, GroupDialog, KindGlyph, PersonStack } from "@/components/split-groups";
 import { SplitTabs } from "@/components/split-tabs";
 import { Badge, Button, Card, CardTitle, EmptyState } from "@/components/ui";
@@ -15,6 +15,8 @@ export default function Groups() {
   const { splitGroups, splitSettlements, records, staged, meId } = useStore();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
+  // Onboarding sends people here with ?new=1 to start a group straight away.
+  useEffect(() => { void Promise.resolve().then(() => { if (new URLSearchParams(window.location.search).get("new") === "1") setCreating(true); }); }, []);
   const [showArchived, setShowArchived] = useState(false);
   const rows = useMemo(() => splitGroups.map((g) => {
     const b = groupBalances(g, records, splitSettlements);

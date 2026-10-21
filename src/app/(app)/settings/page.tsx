@@ -14,7 +14,7 @@ import { SortableList } from "@/components/sortable";
 import { orderByUse, planUpiSetup } from "@/domain/accounts";
 import { CaptureCard } from "./capture-card";
 import { GmailCard } from "./gmail-card";
-import { PartnerCard } from "./partner-card";
+import { OptionalPartner } from "./optional-partner";
 import { AiUsageCard } from "./ai-usage-card";
 import { IconsCard } from "./icons-card";
 import { SyncCard } from "./sync-card";
@@ -192,8 +192,8 @@ export default function Settings() {
 
         <Section id="sharing" icon={<Users size={20} aria-hidden />} title="Friends & Family" tagline="People you split with.">
           <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2">
-            <PartnerCard />
             <ContactsCard onRemove={(id) => { setRemoving(id); setRemoveError(null); }} />
+            <OptionalPartner />
           </div>
         </Section>
 

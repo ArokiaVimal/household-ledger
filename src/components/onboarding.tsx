@@ -1,10 +1,10 @@
 "use client";
 import { Check, ChevronRight, PlusCircle, type LucideIcon, CalendarClock, LayoutGrid, Repeat, Tags, UserRound, UserPlus, Wallet, Landmark, Upload } from "lucide-react";
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useProfile } from "@/components/profile-context";
 import { LogoMark } from "@/components/logo";
-import { Button } from "@/components/ui";
+import { Button, Input } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { greetingName } from "@/lib/profile/profile";
 import { cn } from "@/lib/cn";
@@ -15,6 +15,7 @@ const openAdd = () => window.dispatchEvent(new Event(OPEN_ADD_EVENT));
 
 const SKIP_KEY = "pf-setup-skipped";
 const HIDE_KEY = "pf-setup-hidden";
+const SPLIT_KEY = "pf-split-with";
 
 const CHANGE = "pf:setup-change";
 const readKey = (k: string) => { try { return localStorage.getItem(k) ?? ""; } catch { return ""; } };
@@ -37,17 +38,88 @@ function useSetupPrefs() {
   };
 }
 
+const SPLIT_CHOICES = [["partner", "Partner"], ["friends", "Friends"], ["family", "Family"], ["colleagues", "Colleagues"], ["trips", "Trips and outings"], ["solo", "Just me"]] as const;
+
+/** Who the person splits with, kept on this device so the guide can show it as done. */
+function useSplitWith() {
+  const raw = useDeviceFlag(SPLIT_KEY);
+  let picked: string[] = [];
+  try { picked = raw ? JSON.parse(raw) : []; } catch { /* ignore */ }
+  return { picked, set: (next: string[]) => writeKey(SPLIT_KEY, JSON.stringify(next)) };
+}
+
+/**
+ * "Who do you split with?" Pick any mix; each choice offers its next step right here. Nothing is required:
+ * "Just me" is a complete answer, and people and groups can be added later from the Split tab.
+ */
+function SplitWithStep() {
+  const { addParticipant, participants, meId } = useStore();
+  const { picked, set } = useSplitWith();
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [added, setAdded] = useState<string[]>([]);
+  const toggle = (id: string) => set(id === "solo" ? (picked.includes("solo") ? [] : ["solo"]) : picked.includes(id) ? picked.filter((x) => x !== id) : [...picked.filter((x) => x !== "solo"), id]);
+  const kinds = (["friends", "family", "colleagues"] as const).filter((k) => picked.includes(k));
+  const [kind, setKind] = useState<(typeof kinds)[number] | null>(null);
+  const useKind = kinds.includes(kind as never) ? kind! : kinds[0];
+  const add = (e: React.FormEvent) => {
+    e.preventDefault();
+    const rel = useKind === "family" ? { relationship: "family" as const } : useKind === "colleagues" ? { relationship: "custom" as const, relationshipLabel: "Colleague" } : { relationship: "friend" as const };
+    const r = addParticipant(name, rel);
+    if (r.error) return setError(r.error);
+    setAdded((a) => [...a, name.trim()]); setName(""); setError(null);
+  };
+  const people = participants.filter((p) => p.id !== meId).length;
+  return (
+    <section aria-label="Who you split with" className="space-y-3 rounded-[var(--radius-card)] bg-surface p-4">
+      <div>
+        <h3 className="text-sm font-semibold">Who do you split with?</h3>
+        <p className="text-xs text-muted">Pick any. You can change this later in the Split tab.</p>
+      </div>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Who you split with">
+        {SPLIT_CHOICES.map(([id, label]) => (
+          <button key={id} type="button" aria-pressed={picked.includes(id)} onClick={() => toggle(id)} className={cn("min-h-10 rounded-full border px-3.5 text-sm transition-colors", picked.includes(id) ? "border-accent bg-accent font-medium text-white" : "border-transparent bg-background hover:border-border")}>{label}</button>
+        ))}
+      </div>
+      {picked.includes("partner") && (
+        <p className="flex flex-wrap items-center gap-2 text-sm"><span className="min-w-0 flex-1 text-muted">Link your partner to split in one tap with your usual share.</span><Link href="/settings?s=sharing&partner=1" className="inline-flex min-h-9 items-center rounded-full border border-border px-3.5 hover:bg-background">Link a partner</Link></p>
+      )}
+      {kinds.length > 0 && (
+        <form onSubmit={add} className="space-y-2">
+          {kinds.length > 1 && (
+            <div className="flex gap-1.5 text-xs" role="group" aria-label="Adding as">
+              {kinds.map((k) => <button key={k} type="button" aria-pressed={useKind === k} onClick={() => setKind(k)} className={cn("min-h-8 rounded-full px-3", useKind === k ? "bg-foreground text-white" : "bg-background text-muted")}>{SPLIT_CHOICES.find(([id]) => id === k)![1]}</button>)}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Input aria-label="Name" value={name} maxLength={60} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder={useKind === "family" ? "Add a family member" : useKind === "colleagues" ? "Add a colleague" : "Add a friend"} />
+            <Button type="submit" variant="primary" disabled={!name.trim()}>Add</Button>
+          </div>
+          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+          {added.length > 0 && <p role="status" className="text-xs text-good">Added: {added.join(", ")}</p>}
+        </form>
+      )}
+      {picked.includes("trips") && (
+        <p className="flex flex-wrap items-center gap-2 text-sm"><span className="min-w-0 flex-1 text-muted">Make a group for a trip, dinner or outing and see who owes whom.</span><Link href="/groups?new=1" className="inline-flex min-h-9 items-center rounded-full border border-border px-3.5 hover:bg-background">Create a group</Link></p>
+      )}
+      {picked.includes("solo") && <p className="text-sm text-muted">Fine. Everything stays private to you. You can add people any time from the Split tab.</p>}
+      {people > 0 && !picked.includes("solo") && <p className="text-xs text-muted">{people} {people === 1 ? "person" : "people"} added so far.</p>}
+    </section>
+  );
+}
+
 interface SetupStep { id: string; title: string; hint: string; icon: LucideIcon; done: boolean; href?: string; action: string; essential?: boolean; onClick?: () => void }
 
 function useSetupSteps(): SetupStep[] {
   const { accounts, records, staged, participants, meId, recurringItems, cardBills, groups } = useStore();
+  const splitWith = useSplitWith().picked;
   const { profile } = useProfile();
   const others = participants.filter((p) => p.id !== meId);
   return [
     { id: "profile", title: "Your profile", hint: "Name and photo", icon: UserRound, done: !!profile && (!!profile.nickname || !!profile.avatarDataUrl), href: "/settings?s=profile", action: "Open" },
     { id: "methods", title: "Payment methods", hint: "Cards, UPI apps, banks", icon: Wallet, done: accounts.length > 0, href: "/settings?s=methods", action: "Add", essential: true },
     { id: "balances", title: "Bank balances", hint: "For the cash forecast", icon: Landmark, done: accounts.some((a) => !!a.balance), href: "/settings?s=methods", action: "Add" },
-    { id: "people", title: "Friends & Family", hint: "People you split with", icon: UserPlus, done: others.length > 0, href: "/settings?s=sharing", action: "Add" },
+    { id: "people", title: "Who you split with", hint: "Partner, friends, family, groups", icon: UserPlus, done: others.length > 0 || splitWith.includes("solo"), href: "/settings?s=sharing", action: "Choose" },
     { id: "groups", title: "Payment groups", hint: "Spending by person", icon: LayoutGrid, done: groups.filter((g) => g.kind === "people").length > 0, href: "/settings?s=groups", action: "Add" },
     { id: "categories", title: "Categories", hint: "Rename or add your own", icon: Tags, done: false, href: "/settings?s=categories", action: "Open" },
     { id: "bills", title: "Card bills", hint: "Totals and due dates", icon: CalendarClock, done: cardBills.length > 0, href: "/cards", action: "Add" },
@@ -108,8 +180,10 @@ export function Onboarding({ onSkipAll }: { onSkipAll?: () => void }) {
         </div>
       )}
 
+      <SplitWithStep />
+
       <ul className="divide-y divide-border rounded-[var(--radius-card)] bg-surface px-4">
-        {steps.map((s) => <Row key={s.id} s={s} onSkip={() => skip(s.id)} />)}
+        {steps.filter((s) => s.id !== "people").map((s) => <Row key={s.id} s={s} onSkip={() => skip(s.id)} />)}
       </ul>
 
       {onSkipAll && <div className="text-center"><button type="button" onClick={onSkipAll} className="min-h-10 rounded-full px-4 text-sm text-muted hover:text-foreground hover:underline">Skip for now</button></div>}
