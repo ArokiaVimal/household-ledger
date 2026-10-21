@@ -2,7 +2,7 @@
 
 What is done, what is next, and what is deliberately later. Priorities follow the owner's order: **1) my own spending, 2) splitting with my partner, 3) splitting with friends.** For the product overview see [PROJECT.md](PROJECT.md); for exact build and test status see [docs/DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md).
 
-*Last updated: 2026-10-19 (evening). Status tags: `done`, `next`, `later`, `open question` (needs the owner's decision), `blocked` (waiting on something outside the code).*
+*Last updated: 2026-10-21. Status tags: `done`, `next`, `later`, `open question` (needs the owner's decision), `blocked` (waiting on something outside the code).*
 
 ## Principles that apply to every item
 - **Nothing counts until reviewed.** Anything captured or imported lands in the review queue first.
@@ -39,6 +39,19 @@ What is done, what is next, and what is deliberately later. Priorities follow th
 | Bank statement PDFs (HDFC, ICICI) and UPI-app statements (Paytm, PhonePe emailed statements) | Same approach | `later` |
 | Google Pay history via Google Takeout | Manual and format varies; only for gaps, because UPI payments also appear in the funding bank's statement | `later` |
 
+## Next: split features (a general Splitwise-plus-tracker for couples, friends, family and colleagues)
+The app is people-and-groups first; a linked partner is one optional layer. Done so far: Split tab (People and Groups), simplify payments (fewest payments, or each owes directly), UPI pay button, group spending summary and CSV export, optional partner link and a "who do you split with" onboarding step.
+
+| Item | Why | Status |
+|---|---|---|
+| **Comments on shared expenses** | Friends can ask "what was this?" on an expense they both see | `next` (in progress) |
+| **Invite to a group by link** | A friend joins by tapping a link instead of you adding their email first | `next` (in progress) |
+| **Recurring shared expenses** (rent, Wi-Fi, subscriptions) | Recurring bills exist, but not as a split that repeats for the same people | `later` |
+| **Per-expense history** (who changed what, when) for shared expenses | Trust in groups where several people can edit; the shared-expense log exists, a per-expense view does not | `later` |
+| **Multiple currencies** with a conversion rate per expense | Trips abroad; the data model keeps INR only today (`currency: "INR"`), so amounts, reports and settle-up all need a currency | `later` |
+| **Add an expense by email, and push notifications to friends** ("Meera added Dinner") | Convenience; needs an inbound email address and web push for non-partner contacts | `later` |
+| Pay from the app with payment apps beyond UPI | Splitwise links Venmo and PayPal; UPI covers India | `later` |
+
 ## Next: product decisions and features
 | Item | Why | Status |
 |---|---|---|
@@ -73,7 +86,7 @@ Limits to know: each sender's wording may need a fix; iPhone reads messages only
 ## Later or unlikely
 - **Account Aggregator (RBI framework):** the official way to pull bank data with consent. Production access requires being (or partnering with) a regulated entity, so it is not realistic for a personal project. Revisit if that changes.
 - **Bank APIs:** offered to businesses only.
-- **Multiple currencies:** the data model leaves room; not needed now.
+- **Multiple currencies:** moved to the split features table above (`later`).
 
 ## How this roadmap is kept up to date
 Update it when a priority changes or an item ships, in the same commit as the work. Move shipped items into **Done** and put the detail in `docs/DEVELOPMENT_STATUS.md`. Do not copy status detail here, so there is one source for each fact.
