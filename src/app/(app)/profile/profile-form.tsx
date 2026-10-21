@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Avatar } from "@/components/avatar";
 import { useProfile } from "@/components/profile-context";
-import { Button, Card, CardTitle, ChipGroup, Field, Input, PageHeader } from "@/components/ui";
+import { Button, Card, CardTitle, Field, Input, PageHeader } from "@/components/ui";
 import { toSquareJpeg } from "@/lib/profile/image";
 import { ProfileInputSchema, validateAvatarDataUrl, type Profile, type ProfileInput } from "@/lib/profile/profile";
 
@@ -39,7 +39,6 @@ function Editor({ profile, onSaved, embedded }: { profile: Profile; onSaved: (p:
     defaultValues: { displayName: profile.displayName, nickname: profile.nickname, phone: profile.phone, defaultView: profile.defaultView },
   });
   const nameNow = useWatch({ control, name: "displayName" });
-  const viewNow = useWatch({ control, name: "defaultView" });
   const shown: Profile = { ...profile, displayName: nameNow || profile.displayName, avatarDataUrl: avatar === undefined ? profile.avatarDataUrl : avatar };
   const dirty = isDirty || avatar !== undefined;
 
@@ -95,10 +94,6 @@ function Editor({ profile, onSaved, embedded }: { profile: Profile; onSaved: (p:
           <Field label="Greeting name (optional)" error={errors.nickname?.message}><Input placeholder="e.g. Vimal" {...register("nickname")} /></Field>
           <Field label="Email (from your sign-in, not editable)"><Input value={profile.email} readOnly /></Field>
           <Field label="Phone (optional)" error={errors.phone?.message}><Input type="tel" autoComplete="tel" inputMode="tel" placeholder="+91 98765 43210" {...register("phone")} /></Field>
-          <div className="space-y-1">
-            <span className="text-xs font-medium text-muted">Open the app showing</span>
-            <ChipGroup label="Default view" options={[{ id: "personal", label: "Mine" }, { id: "household", label: "Everything" }]} value={viewNow} onChange={(v) => setValue("defaultView", v, { shouldDirty: true })} />
-          </div>
           {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "text-sm text-good" : "text-sm text-danger"}>{msg.text}</p>}
           <div className="flex justify-end"><Button type="submit" variant="primary" disabled={isSubmitting || !dirty}>{isSubmitting ? "Saving…" : "Save changes"}</Button></div>
         </Card>
