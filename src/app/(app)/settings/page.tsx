@@ -17,6 +17,7 @@ import { GmailCard } from "./gmail-card";
 import { OptionalPartner } from "./optional-partner";
 import { AiUsageCard } from "./ai-usage-card";
 import { IconsCard } from "./icons-card";
+import { LearnCard } from "./learn-card";
 import { SyncCard } from "./sync-card";
 import { DataCard } from "./data-card";
 import { GroupsCard } from "./groups-card";
@@ -230,7 +231,7 @@ export default function Settings() {
 
         <Section id="categories" icon={<Tags size={20} aria-hidden />} title="Categories and rules" tagline="Rename, add and auto-sort.">
           <CategoriesView embedded />
-          <div className="pt-2"><h3 className="mb-2 text-sm font-semibold">Icons & logos</h3><IconsCard live={live} aiEnabled={aiEnabled} /></div>
+          <div className="pt-2"><h3 className="mb-2 text-sm font-semibold">Icons & logos</h3><div className="space-y-3"><LearnCard live={live} /><IconsCard live={live} aiEnabled={aiEnabled} /></div></div>
         </Section>
 
         <Section id="profile" icon={<UserRound size={20} aria-hidden />} title="Profile" tagline="Your name, photo and greeting.">
