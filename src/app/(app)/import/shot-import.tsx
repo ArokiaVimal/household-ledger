@@ -96,14 +96,20 @@ export function ShotImport({ open, onClose, aiEnabled, initialFile }: { open: bo
         if (records.some((r) => r.id === p.record.id)) updateRecord(p.record.id, patch); else updateStaged(p.record.id, patch);
       }
       let added = 0;
+      const first = tags.map(({ p }) => p).find((p) => p.action === "tag");
+      const matchedAccount = first && first.action === "tag" ? first.record.accountId : undefined;
+      if (adds.length === 0 && tags.length > 0 && matchedAccount) {
+        // Nothing new to save, but keep a line under "Earlier imports" so the screenshot is not lost from the history.
+        await fetch("/api/import/screenshot", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "matched", accountId: matchedAccount, matched: tags.length }) }).catch(() => undefined);
+      }
       if (adds.length > 0) {
         const rows = adds.map(({ p }) => ({ date: p.item.date, merchant: p.item.merchant, amountPaise: p.item.amountPaise, orderId: p.item.orderId, voucherBrandId: brandOf(p.item), note: shotNote(p.item) }));
-        const res = await fetch("/api/import/screenshot", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "add", accountId, rows }) });
+        const res = await fetch("/api/import/screenshot", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "add", accountId, rows, matched: tags.length }) });
         const r = (await res.json()) as { ok?: boolean; error?: string; result?: { counts: { staged: number } } };
         if (!res.ok) return setError(r.error ?? "Could not save the new payments.");
         added = r.result?.counts.staged ?? 0;
       }
-      setDone([tags.length ? `${tags.length} matched and tagged` : "", added ? `${added} added as unverified` : ""].filter(Boolean).join(" · ") || "Nothing to save.");
+      setDone([tags.length ? `${tags.length} matched transactions you already have and were tagged (nothing was added twice)` : "", added ? `${added} added as unverified` : ""].filter(Boolean).join(" · ") || "Nothing to save.");
       setPlans(null); setImage(null);
       router.refresh();
     } finally { setBusy(false); }

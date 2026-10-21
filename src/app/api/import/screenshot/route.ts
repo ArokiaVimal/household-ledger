@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   const who = await authorize();
   if (!who.ok) return who.res;
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY) return NextResponse.json({ error: "That screenshot is too large. Try a smaller one." }, { status: 413 });
-  let b: { action?: unknown; image?: unknown; source?: unknown; accountId?: unknown; rows?: unknown };
+  let b: { action?: unknown; image?: unknown; source?: unknown; accountId?: unknown; rows?: unknown; matched?: unknown };
   try { b = await req.json(); } catch { return NextResponse.json({ error: "Could not read the request." }, { status: 400 }); }
   const today = new Date().toISOString().slice(0, 10);
 
@@ -34,6 +34,28 @@ export async function POST(req: Request) {
     const r = await readScreenshot(claude, image, { today, source });
     if (r.usage.error && r.items.length === 0) return NextResponse.json({ error: r.usage.error }, { status: 502 });
     return NextResponse.json({ ok: true, items: r.items, unreadable: r.unreadable, warnings: r.warnings });
+  }
+
+  // A screenshot whose payments all matched transactions you already have adds nothing, but it still gets a line under Earlier imports.
+  const recordMatched = async (matched: number, accountId: string, batchId?: string) => {
+    if (matched <= 0) return;
+    const repo = createFirestoreRepository(who.membership.household.id);
+    const existing = batchId ? (await repo.importBatches.list()).find((x) => x.id === batchId) : undefined;
+    if (existing) { await repo.importBatches.put({ ...existing, counts: { ...existing.counts, matched } }); return; }
+    const id = crypto.randomUUID();
+    await repo.importBatches.put({
+      id, accountId, filename: "Screenshot", fileHash: sha256(`${id}|${matched}`), format: "text", readBy: "ai", uploadedAt: new Date().toISOString(), uploadedBy: who.session.uid,
+      counts: { rows: matched, staged: 0, skippedDuplicate: 0, flaggedDuplicate: 0, unreadable: 0, matched }, totals: { debitPaise: 0, creditPaise: 0 },
+    });
+    await repo.audit.append({ actorId: who.session.uid, action: "import", entity: "household", entityId: id, summary: `Screenshot: ${matched} payment${matched === 1 ? "" : "s"} matched and tagged, none added` });
+  };
+  const matchedCount = Number.isInteger(b.matched) && (b.matched as number) > 0 ? Math.min(b.matched as number, 60) : 0;
+
+  if (b.action === "matched") {
+    const accountId = typeof b.accountId === "string" ? b.accountId : "";
+    if (!accountId || matchedCount === 0) return NextResponse.json({ error: "Nothing to record." }, { status: 400 });
+    try { await recordMatched(matchedCount, accountId); return NextResponse.json({ ok: true }); }
+    catch { return NextResponse.json({ error: "Could not record this screenshot." }, { status: 500 }); }
   }
 
   if (b.action === "add") {
@@ -67,6 +89,10 @@ export async function POST(req: Request) {
         }
       }
     } catch { /* the rows are saved; tagging can be done in review */ }
+    try {
+      const body = (await res.clone().json()) as { ok?: boolean; result?: { batchId?: string } };
+      if (body.ok && body.result?.batchId) await recordMatched(matchedCount, accountId, body.result.batchId);
+    } catch { /* the history line is a convenience */ }
     return res;
   }
   return NextResponse.json({ error: "Unknown request." }, { status: 400 });

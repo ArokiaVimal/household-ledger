@@ -114,7 +114,7 @@ const count = z.number().int().min(0).max(1_000_000);
 export const ImportBatchSchema = z.object({
   id, accountId: id, filename: z.string().min(1).max(200), fileHash: z.string().regex(/^[a-f0-9]{64}$/), format: z.enum(["csv", "xlsx", "pdf", "text"]), readBy: z.enum(["parser", "ai"]).optional(),
   uploadedAt: z.string().datetime(), uploadedBy: id,
-  counts: z.object({ rows: count, staged: count, skippedDuplicate: count, flaggedDuplicate: count, unreadable: count }),
+  counts: z.object({ rows: count, staged: count, skippedDuplicate: count, flaggedDuplicate: count, unreadable: count, matched: count.optional() }),
   totals: z.object({ debitPaise: z.number().int().safe().min(0), creditPaise: z.number().int().safe().min(0) }),
   checksPassed: z.boolean().optional(), acceptedMismatch: z.boolean().optional(), reimportOf: id.optional(), rolledBackAt: z.string().datetime().optional(), rolledBackBy: id.optional(),
 }) satisfies z.ZodType<ImportBatch>;

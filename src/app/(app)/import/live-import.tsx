@@ -433,7 +433,7 @@ export function LiveImport() {
                   <li key={b.id} className="rounded-xl bg-surface p-3 text-sm">
                     <div className="truncate font-medium">{b.filename}</div>
                     <div className="text-xs text-muted">{accountName(b.accountId)} · {b.uploadedAt.slice(0, 10)}{b.readBy === "ai" ? " · read by AI" : ""}</div>
-                    <div className="mt-1 text-xs text-muted">{b.rolledBackAt ? "Undone" : `${b.counts.staged} added as unverified`}{b.counts.skippedDuplicate ? ` · ${b.counts.skippedDuplicate} skipped` : ""}{b.reimportOf ? " · read again" : ""}</div>
+                    <div className="mt-1 text-xs text-muted">{b.rolledBackAt ? "Undone" : [b.counts.staged > 0 || !b.counts.matched ? `${b.counts.staged} added as unverified` : "", b.counts.matched ? `${b.counts.matched} matched and tagged` : ""].filter(Boolean).join(" · ")}{b.counts.skippedDuplicate ? ` · ${b.counts.skippedDuplicate} skipped` : ""}{b.reimportOf ? " · read again" : ""}</div>
                     {!b.rolledBackAt && b.counts.staged > 0 && <button type="button" onClick={() => setUndoing({ id: b.id, filename: b.filename, rows: b.counts.staged })} className="mt-1.5 min-h-9 rounded-full px-1 text-xs font-medium text-danger hover:underline">Undo this import</button>}
                   </li>
                 ))}

@@ -266,7 +266,7 @@ export interface ImportBatch {
   readBy?: "parser" | "ai";
   uploadedAt: string;
   uploadedBy: string;
-  counts: { rows: number; staged: number; skippedDuplicate: number; flaggedDuplicate: number; unreadable: number };
+  counts: { rows: number; staged: number; skippedDuplicate: number; flaggedDuplicate: number; unreadable: number; /** Screenshot reads: payments that matched a transaction you already had and only got its voucher brand and note. */ matched?: number };
   /** Statement totals as read from the file (paise), so a person can compare them with the statement. */
   totals: { debitPaise: number; creditPaise: number };
   /** PDF statements only: did every self-check against the statement's own totals pass, and did the user import despite a failure. */
