@@ -56,7 +56,7 @@ const changes = () => {
 
 const analysis = () => ({
   summary: "September spending was ₹76,762, mostly rent and EMIs. Food and shopping stayed steady.",
-  highlights: [{ title: "Rent and loans are half of the month", detail: "₹37,750 of ₹76,762 went to rent, household and EMIs." }, { title: "Groceries are under control", detail: "₹5,125 across Zepto, BigBasket and Blinkit." }],
+  highlights: [{ title: "Rent and loans are half of the month", detail: "₹37,750 of ₹76,762 went to rent, home and EMIs." }, { title: "Groceries are under control", detail: "₹5,125 across Zepto, BigBasket and Blinkit." }],
   tips: [{ title: "Move small subscriptions to one card", detail: "Four subscriptions renew on different dates, which makes bills harder to track.", saveRupees: 0 }],
   watch: ["SBI card bill is 2 days overdue."],
 });

@@ -33,7 +33,7 @@ const TOOL = {
 
 function system(categories: Category[]): string {
   return [
-    "You help categorise payments for an Indian household's budgeting app.",
+    "You help categorise payments for a personal budgeting app used in India.",
     "Each input line is: n | merchant | amount in rupees | current category id | the person's own note. The note is the best context for what the payment was for, so it outranks the merchant name.",
     "Pick the single best category id for what the NOTE says the money was for. If the current category already fits, answer that same id. If the note does not say enough to decide, answer an empty string.",
     "sure is true only when the note clearly states the purpose. why is a few words.",

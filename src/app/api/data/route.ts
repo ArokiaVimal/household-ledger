@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
   try {
     const membership = await getMembership(createFirestoreHouseholdStore(), session.uid);
-    if (!membership) return NextResponse.json({ error: "Create or join a household first." }, { status: 403 });
+    if (!membership) return NextResponse.json({ error: "Finish setting up your account first." }, { status: 403 });
     const hStore = createFirestoreHouseholdStore();
     const couple = await coupleContextFor(hStore, session.uid, (id) => createFirestoreRepository(id));
     const linkDeps = createLinkDeps();

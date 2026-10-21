@@ -1,6 +1,6 @@
 # Product spec
 
-Users: **Owner** (admin), **Spouse** (own login, same household data), **Friends** (participants, no account; linkable to a user later).
+Users: **Anyone with a Google sign-in**. Each person has a private space. They split expenses with **people** (a linked partner, friends, family, colleagues) and **groups** (trips, outings, flatmates). A partner is one optional kind of link; people without an account are participants and can be linked to one later.
 
 Screens: Dashboard, Transactions, Import centre, Receipts/matching, Settlements, Categories & rules, Reports, Settings (household, members, participants, accounts, export, privacy).
 

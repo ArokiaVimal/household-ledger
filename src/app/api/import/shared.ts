@@ -36,7 +36,7 @@ export async function authorize() {
   const session = await getSession();
   if (!session) return { ok: false as const, res: NextResponse.json({ error: "Not signed in" }, { status: 401 }) };
   const membership = await getMembership(createFirestoreHouseholdStore(), session.uid);
-  if (!membership) return { ok: false as const, res: NextResponse.json({ error: "Create or join a household first." }, { status: 403 }) };
+  if (!membership) return { ok: false as const, res: NextResponse.json({ error: "Finish setting up your account first." }, { status: 403 }) };
   return { ok: true as const, session, membership };
 }
 

@@ -37,7 +37,7 @@ export async function createHousehold(store: HouseholdStore, actor: Actor, name:
 
 async function requireOwner(store: HouseholdStore, actor: Actor) {
   const m = await getMembership(store, actor.uid);
-  if (!m) throw new HouseholdError("forbidden", "Create or join a household first.");
+  if (!m) throw new HouseholdError("forbidden", "Finish setting up your account first.");
   if (!canManageMembers(m.role)) throw new HouseholdError("forbidden", "Only the household owner can do that.");
   return m;
 }

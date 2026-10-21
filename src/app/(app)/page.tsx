@@ -195,7 +195,7 @@ export default function Dashboard() {
         <SectionHead icon={BarChart3} title="Spending overview" href={`/reports`} hrefLabel="Reports" />
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <div className="text-xs text-muted">Total household outflow</div>
+            <div className="text-xs text-muted">Total outflow</div>
             <div className="num whitespace-nowrap text-xl font-semibold tracking-tight sm:text-2xl">{formatINR(outflow)}</div>
             {delta !== null && <Pill tone={delta > 0 ? "bad" : "good"}>{delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{Math.abs(delta)}% vs {prevName}</Pill>}
           </div>

@@ -30,7 +30,7 @@ export const accounts: Account[] = [
 export const categories: Category[] = [
   ["groceries", "Groceries"], ["food_delivery", "Food delivery"], ["restaurants", "Restaurants & cafes"],
   ["transport", "Transport"], ["fuel", "Fuel"], ["shopping", "Shopping"], ["utilities", "Utilities"],
-  ["rent", "Rent & household"], ["travel", "Travel"], ["entertainment", "Entertainment"], ["health", "Health"],
+  ["rent", "Rent & home"], ["travel", "Travel"], ["entertainment", "Entertainment"], ["health", "Health"],
   ["subscriptions", "Subscriptions"], ["emi", "Loans & EMI"], ["insurance", "Insurance"], ["fees", "Fees & charges"], ["income", "Income"], ["transfers", "Transfers"],
   ["refunds", "Refunds"], ["uncategorized", "Uncategorized"],
 ].map(([id, name]) => ({ id, name }));

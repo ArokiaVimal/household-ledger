@@ -21,7 +21,7 @@ export async function POST() {
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   try {
     const membership = await getMembership(createFirestoreHouseholdStore(), session.uid);
-    if (!membership) return NextResponse.json({ error: "Create or join a household first." }, { status: 403 });
+    if (!membership) return NextResponse.json({ error: "Finish setting up your account first." }, { status: 403 });
     const repo = createFirestoreRepository(membership.household.id);
     const result = await refreshSuggestions(repo, { sha256: (s) => createHash("sha256").update(s).digest("hex"), now: () => Date.now(), newId: () => randomUUID(), suggest: trackedSuggest(process.env, session.uid, "categories") });
     return NextResponse.json({ ok: true, result });

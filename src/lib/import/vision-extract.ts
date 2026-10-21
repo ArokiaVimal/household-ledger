@@ -53,7 +53,7 @@ const TOOL = {
 
 function system(ctx: ShotContext): string {
   return [
-    "You read a screenshot of payments from a phone or website for a household budgeting app and list every payment or order in it.",
+    "You read a screenshot of payments from a phone or website for a personal budgeting app and list every payment or order in it.",
     `Today is ${ctx.today}. Amounts are in rupees exactly as written; never add, convert or total anything.`,
     "Include failed and cancelled orders too, marked with status failed, so the app can skip them. Do not invent rows or amounts; skip anything without an amount.",
     ctx.source ? `The person says this screenshot shows: ${ctx.source.slice(0, 80)}. Use it as the merchant when the screen does not name the store.` : "",
