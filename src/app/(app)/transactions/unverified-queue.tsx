@@ -157,7 +157,8 @@ export function UnverifiedQueue({ month }: { month?: string }) {
                   <div className="text-xs leading-snug text-muted">{shown.length} unverified{filtered ? ` of ${staged.length}` : ""}</div>
                 </div>
                 <button type="button" aria-label="Search" onClick={() => setSearching(true)} className="grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background"><Search size={17} aria-hidden /></button>
-                <NotesAi />
+                {/* On a wide screen the page header already has this button. */}
+                <span className="md:hidden"><NotesAi /></span>
                 <button type="button" onClick={() => setFiltersOpen(true)} aria-label={`Filters${filterCount ? `, ${filterCount} on` : ""}`} className="relative grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background">
                   <SlidersHorizontal size={17} aria-hidden />
                   {filterCount > 0 && <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-accent text-[10px] font-semibold text-white">{filterCount}</span>}

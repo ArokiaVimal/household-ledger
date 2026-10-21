@@ -563,3 +563,9 @@ When every payment in a screenshot matches a transaction you already have, nothi
 - **Fix 1:** deleting a shared payment whose original is gone is now allowed for the person who shared it (`record.delete` withdraws, i.e. voids, the copy in the couple space and in link spaces; the server checks `ownerUid`; copies stay as history). A banner on the person's page ("N payments here have no original transaction any more") offers "Remove them" with a confirm.
 - **Fix 2:** "Delete all my data" now withdraws your shared copies first (`withdrawOwnShares`, `src/lib/data/withdraw.ts`), so nobody is left owing money for expenses that no longer exist.
 - **Not covered:** restoring a backup does not touch shared copies; the same orphans would need removing if the backup lacks their originals. Settlements already recorded stay as they are.
+
+## Fixes from screenshots: voucher brand race, cramped split rows, duplicate AI notes button
+- **"Unknown voucher brand" after a screenshot import:** a brand made a moment earlier and used straight away could reach the server after the change that names it. `send` in the store now waits for the brand's own save before sending a change that uses it (`brandSaves`); everything else still goes in parallel.
+- **Split sheet, Adjustments and Percentages rows:** the person row could shrink until the "friend" tag overlapped the input ("frie±₹"). The name block now keeps a minimum width (controls wrap below on narrow screens) and the relationship tag sits under the name.
+- **Unverified list on a wide screen:** the "Read notes with AI" button showed twice (page header and list bar). The list bar copy is phone-only.
+- Verified in the browser (Add transaction > Split with > Adjustments at phone width; one notes button on desktop). Not reproduced end to end: the brand race needs the screenshot reader (AI key on the live site).

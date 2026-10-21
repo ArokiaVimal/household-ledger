@@ -5,7 +5,7 @@
 //   The screen updates immediately; if the server rejects a change the message is shown and the data is re-synced.
 // All calculations live in src/domain.
 import { useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { pairBalances } from "@/domain/balances";
 import { categoryUsage, checkDelete, cleanCategoryName, makeCategoryId, reassign, validateCategoryName } from "@/domain/categories";
 import { validateAvatarDataUrl } from "@/lib/profile/profile";
@@ -324,15 +324,25 @@ export function StoreProvider({ children, live }: { children: ReactNode; live?: 
   }
 
   /** Sends a change to the server (live mode only). On failure, shows why and re-syncs from the server. */
+  // Saves go out in parallel, but a change that names a voucher brand must not reach the server before that brand's own save has
+  // (a brand made a moment ago and used straight away would be refused as "unknown").
+  const brandSaves = useRef(new Map<string, Promise<void>>());
   const send = useCallback(async (action: object) => {
     if (!live) return;
-    try {
-      const res = await fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action) });
-      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Could not save that change.");
-    } catch (e) {
-      setSyncError((e as Error).message || "Could not save that change.");
-      router.refresh();
-    }
+    const a = action as { type?: string; id?: string; patch?: { voucherBrandId?: string; paidWithVoucherId?: string }; record?: { voucherBrandId?: string; paidWithVoucherId?: string } };
+    const needs = [a.patch?.voucherBrandId, a.patch?.paidWithVoucherId, a.record?.voucherBrandId, a.record?.paidWithVoucherId].filter((x): x is string => !!x);
+    await Promise.all(needs.map((id) => brandSaves.current.get(id)));
+    const saved = (async () => {
+      try {
+        const res = await fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action) });
+        if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Could not save that change.");
+      } catch (e) {
+        setSyncError((e as Error).message || "Could not save that change.");
+        router.refresh();
+      }
+    })();
+    if (a.type === "voucherBrand.add" && a.id) brandSaves.current.set(a.id, saved);
+    return saved;
   }, [live, router]);
 
   // Until the first approval nothing is "in" the ledger, so the screens would be empty right after an import. In that

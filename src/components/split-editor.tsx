@@ -288,12 +288,14 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
                   const values = value.values ?? {};
                   return (
                     <li key={p.id} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-sm transition-colors ${on ? "bg-accent/[0.04]" : ""}`}>
-                      <label className="flex min-w-0 flex-1 items-center gap-2.5">
+                      <label className="flex min-w-[11rem] flex-1 items-center gap-2.5">
                         <input type={value.mode === "personal" ? "radio" : "checkbox"} name="split-people" checked={on} onChange={() => toggle(p.id)} className="peer sr-only" />
                         <span aria-hidden className="grid size-5 shrink-0 place-items-center rounded-full border border-border text-transparent transition-colors peer-checked:border-accent peer-checked:bg-accent peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-accent"><Check size={12} strokeWidth={3} /></span>
                         <PersonGlyph name={nameOf(p.id)} id={p.id} size={32} />
-                        <span className="truncate font-medium">{nameOf(p.id)}{p.id === meId && <span className="font-normal text-muted"> (you)</span>}</span>
-                        {tag && <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted">{tag}</span>}
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">{nameOf(p.id)}{p.id === meId && <span className="font-normal text-muted"> (you)</span>}</span>
+                          {tag && <span className="inline-block rounded-full bg-background px-2 py-0.5 text-xs text-muted">{tag}</span>}
+                        </span>
                       </label>
                       {on && value.mode === "percent" && (
                         <span className="relative"><Input aria-label={`${nameOf(p.id)} percent`} inputMode="decimal" className="w-[5.5rem] pr-8 text-right"
