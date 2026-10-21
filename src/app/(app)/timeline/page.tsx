@@ -2,6 +2,7 @@
 import { AlertTriangle, CalendarClock, CircleDashed, Info } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
+import { BillsTabs } from "@/components/bills-tabs";
 import { Badge, Card, CardTitle, EmptyState, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -27,6 +28,7 @@ export default function Timeline() {
 
   return (
     <>
+      <BillsTabs active="timeline" />
       <PageHeader title="Timeline" tip="Your month in order. Estimates use your transactions, verified or not, and items you added. Nothing is guessed." sub={`${monthLabel(month)} · ${live ? "your real entries" : "sample data"}`} />
 
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">

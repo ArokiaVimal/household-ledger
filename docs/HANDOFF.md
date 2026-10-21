@@ -62,7 +62,7 @@ Recorded in full as items 12 onward in [DECISIONS.md](DECISIONS.md). In short:
 | Space (code: household) | The container for one person's data: `households/{id}`. Everyone has a private personal space. |
 | Couple space / link space | Server-written spaces that hold only the expenses two people share (`kind: "couple"` or `"link"`). |
 | Participant / contact | A name you can split with. May be linked to a real account. |
-| Payment group | A **lens on your own spending** (Mine, Parents…). Set up in Settings. Not for splitting. |
+| Payment group (on screen: **Spending view**) | A **lens on your own spending** (Mine, Parents…). Set up in Settings > Spending views. Not for splitting. The code and audit log still say "payment group". |
 | Split group | A trip, dinner or flatmates group with balances and settle-up (`src/domain/split-groups.ts`). Records are tagged `splitGroupId`; a group never owns money. |
 | Split tab | `/people` and `/groups` under one tab. |
 | Verified / Unverified | Review state of a transaction. Unverified rows count nowhere until verified. |

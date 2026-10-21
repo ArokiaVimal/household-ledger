@@ -3,6 +3,7 @@ import { CalendarClock, Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { MerchantAvatar } from "@/components/txn-row";
 import { useState } from "react";
+import { BillsTabs } from "@/components/bills-tabs";
 import { Badge, Button, Card, ConfirmDialog, EmptyState, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { commitmentTotals } from "@/domain/recurring";
@@ -29,6 +30,7 @@ export default function Recurring() {
 
   return (
     <>
+      <BillsTabs active="recurring" />
       <PageHeader tip="Rent, EMIs, subscriptions and other repeating payments." title="Recurring" sub={`Monthly commitments · ${month}`} actions={<><Link href={`/transactions?month=${month}&recurring=1`} className="rounded-full border border-border bg-surface px-3 py-2 text-sm">View payments</Link><Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add recurring</Button></>} />
       <div className="mb-3 grid grid-cols-3 gap-2 sm:gap-4">
         <Card className="px-3 py-2.5 sm:p-4"><div className="text-xs text-muted">Expected</div><div className="num text-base font-semibold sm:text-xl">{formatINR(totals.monthlyPaise)}</div><div className="hidden text-xs text-muted sm:block">≈ {formatINR(totals.yearlyPaise)} over the next 12 months</div></Card>

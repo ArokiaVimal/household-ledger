@@ -39,7 +39,7 @@ function MonthStepper({ className, compact }: { className?: string; compact?: bo
 function GroupSwitch({ className }: { className?: string }) {
   const { groups, activeGroup, setGroupId } = useStore();
   return (
-    <div role="tablist" aria-label="Payment group" className={cn("flex gap-1 overflow-x-auto rounded-full bg-surface p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}>
+    <div role="tablist" aria-label="Spending view" className={cn("flex gap-1 overflow-x-auto rounded-full bg-surface p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}>
       {groups.map((g) => {
         const on = g.id === activeGroup.id;
         return (
@@ -63,7 +63,7 @@ function GroupMenu({ className }: { className?: string }) {
         <span className="truncate">{activeGroup.name}</span><ChevronDown size={14} aria-hidden className="shrink-0 text-muted" />
       </button>
       <Dialog open={open} onClose={() => setOpen(false)} title="Group">
-        <ul className="space-y-1.5 pb-3" role="radiogroup" aria-label="Payment group">
+        <ul className="space-y-1.5 pb-3" role="radiogroup" aria-label="Spending view">
           {groups.map((g) => (
             <li key={g.id}><button type="button" role="radio" aria-checked={g.id === activeGroup.id} onClick={() => { setGroupId(g.id); setOpen(false); }} className={cn("flex min-h-12 w-full items-center justify-between rounded-2xl border px-4 text-left", g.id === activeGroup.id ? "border-accent bg-accent/10 font-medium text-accent" : "border-border bg-background")}>{g.name}{g.id === activeGroup.id && <Check size={16} aria-hidden />}</button></li>
           ))}
@@ -142,7 +142,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
     return () => window.removeEventListener(OPEN_ADD_EVENT, open);
   }, []);
   const [toast, setToast] = useState("");
-  const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href) || (href === "/people" && path.startsWith("/groups"))); // Groups live on the Split tab
+  const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href) || (href === "/people" && path.startsWith("/groups")) || !!NAV.find((n) => n.href === href)?.match?.some((m) => path.startsWith(m))); // Groups live on the Split tab; Recurring and Timeline on Bills
   const signOut = async () => {
     await fetch("/api/session", { method: "DELETE" });
     router.replace("/login");

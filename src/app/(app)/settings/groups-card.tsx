@@ -36,8 +36,8 @@ export function GroupsCard() {
 
   return (
     <Card className="space-y-3">
-      <CardTitle tip="A view of your spending, like Mine or Parents. Switch groups at the top of any screen. Shares are never counted twice." action={<span className="text-xs text-muted">{saved.length} set up</span>}>Your payment groups</CardTitle>
-      <SortableList className="space-y-1 text-sm" ids={groups.map((g) => g.id)} label="payment group" onReorder={(ids) => reorderGroups(ids)}>
+      <CardTitle tip="A view of your spending, like Mine or Parents. Switch views at the top of any screen. Shares are never counted twice." action={<span className="text-xs text-muted">{saved.length} set up</span>}>Your spending views</CardTitle>
+      <SortableList className="space-y-1 text-sm" ids={groups.map((g) => g.id)} label="spending view" onReorder={(ids) => reorderGroups(ids)}>
         {(id, handle) => {
           const g = groups.find((x) => x.id === id)!;
           return (
@@ -50,12 +50,12 @@ export function GroupsCard() {
         }}
       </SortableList>
       <div className="flex flex-wrap gap-2">
-        <Button variant="primary" onClick={() => open()}>+ Add a payment group</Button>
-        <Button onClick={() => { const n = addStarterGroups(); setNote(n === 0 ? "Those groups already exist." : `Added ${n} starter group${n === 1 ? "" : "s"}.`); }}>Add Mine, partner and Parents groups</Button>
+        <Button variant="primary" onClick={() => open()}>+ Add a view</Button>
+        <Button onClick={() => { const n = addStarterGroups(); setNote(n === 0 ? "Those views already exist." : `Added ${n} starter view${n === 1 ? "" : "s"}.`); }}>Add Mine, partner and Parents views</Button>
       </div>
       {note && <p role="status" className="text-sm text-good">{note}</p>}
 
-      <Dialog open={!!dlg} onClose={() => setDlg(null)} title={dlg?.group ? `Edit ${dlg.group.name}` : "Add a payment group"}>
+      <Dialog open={!!dlg} onClose={() => setDlg(null)} title={dlg?.group ? `Edit ${dlg.group.name}` : "Add a view"}>
         {dlg && (
           <div className="space-y-3 pb-1 text-sm">
             <Field label="Name" error={error}><Input value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="e.g. Parents, Flat with Raj" maxLength={40} /></Field>

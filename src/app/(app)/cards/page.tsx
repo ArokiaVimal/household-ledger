@@ -4,6 +4,7 @@ import { useState } from "react";
 import { MerchantAvatar } from "@/components/txn-row";
 import Link from "next/link";
 import { CardMockup } from "@/components/card-mockup";
+import { BillsTabs } from "@/components/bills-tabs";
 import { Badge, Button, Card, CompactChips, ConfirmDialog, Dialog, EmptyState, Field, FormRow, Input, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { cardPayments, cardViews, dueLabel, upcomingBills, type BillState, type BillStatus, type CardPayment } from "@/domain/cardbills";
@@ -29,6 +30,7 @@ export default function Cards() {
   if (cards.length === 0) {
     return (
       <>
+        <BillsTabs active="cards" />
         <PageHeader title="Card bills" />
         <Card><EmptyState art="bills" title="Add a credit card first" hint="Add cards in Settings to track bills here." /></Card>
       </>
@@ -36,6 +38,7 @@ export default function Cards() {
   }
   return (
     <>
+      <BillsTabs active="cards" />
       <PageHeader title="Card bills" sub="What to pay in full, and by when. We never show the minimum due." tip="Add each bill's total and due date, or let AI read it from a statement. Paying a bill is a transfer, not spending." actions={<Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add bill</Button>} />
       <Card className="mb-4 p-5">
         {upcoming.length === 0 ? (

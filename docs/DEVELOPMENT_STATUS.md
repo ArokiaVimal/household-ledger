@@ -531,3 +531,13 @@ Cleanup after removing the household view: deleted the unused `View` state (`vie
 - **Verified:** `pnpm lint` (0 errors, 1 old warning), `pnpm typecheck`, `pnpm test` (668 passed, 18 skipped). Checked in the browser at 375px on demo data: Home, Transactions (search and filters), Split, Groups (create group and record a payment), Settings, Reports (Overview, Categories). Spot-checked Home, Reports and Split at about 1100px.
 - **Not verified:** the Group-dialog tooltip fix after the last edit (opens above the icon), the multi-group picker in Groups, dark mode, a real iPhone, the import flow, the Merchants and AI insights tabs, and the Transactions page at wide width after the row change.
 - **Not done:** regrouping the More menu and the floating "+ Add" button covering rows.
+
+## Navigation tidy-up: fewer menu items, one Bills area
+- **More menu** now has 4 tiles (Import, Bills, AI, Settings); the desktop sidebar has 8 icons. `src/components/nav-items.ts` (`NAV`, new `match` field for tabs of one area).
+- **Bills:** Card bills, Recurring and Timeline are three tabs of one area (`components/bills-tabs.tsx`), still real pages at `/cards`, `/recurring`, `/timeline`, so old links work. One nav item, "Bills", stays highlighted on all three.
+- **Settings** gained link rows: **Wallets** (the voucher screen, `/vouchers`) and **Activity** (`/activity`). **Icons & logos** moved into Categories and rules. **Smart import** is now **AI assistant**. **Payment groups** is now **Spending views** on screen only (code, audit log and data are unchanged).
+- **Receipts** is not in the menu (it only had mock data and no real source); the `/receipts` page still exists.
+- **Kept on purpose:** Import stays in More, because the "+ Add" button on screens other than Transactions opens the add-transaction form, not the Import choice.
+- **Not done:** merging contact editing from Settings > Friends & Family into Split > People; removing Timeline altogether.
+- **Verified:** `pnpm lint`, `pnpm typecheck`, `pnpm test`. In the browser at 375px (demo data): Recurring with the Bills tabs and More highlighted, the More menu, Settings (menu, Spending views, Categories with Icons & logos), and Card bills at about 1100px.
+- **Not verified:** the Wallets and Activity link rows after tapping, the Timeline tab, the AI assistant section, and a real iPhone.

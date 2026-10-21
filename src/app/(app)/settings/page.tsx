@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { LayoutGrid, Lock, Pencil, Plug, ShieldCheck, Sparkles, Tags, UserRound, Users, Wallet, Bell, ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
+import { LayoutGrid, Lock, Pencil, Plug, ShieldCheck, Sparkles, Tags, Ticket, UserRound, Users, Wallet, Bell, ChevronLeft, ChevronRight, History, type LucideIcon } from "lucide-react";
 import { AiFeatureCard, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, ConfirmDialog, Dialog, Field, Input, PageHeader } from "@/components/ui";
 import { THEME_STYLE, themeFor } from "@/components/card-mockup";
 import { useStore } from "@/data/store";
@@ -27,17 +27,18 @@ import { RemindersCard } from "./reminders-card";
 
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet" };
 
-const MENU: { id: string; group: string; label: string; hint: string; icon: LucideIcon; liveOnly?: boolean }[] = [
+const MENU: { id: string; group: string; label: string; hint: string; icon: LucideIcon; liveOnly?: boolean; /** Opens another screen instead of a section here. */ href?: string }[] = [
   { id: "methods", group: "Set up", label: "Payment methods", hint: "Cards, UPI, banks", icon: Wallet },
-  { id: "groups", group: "Set up", label: "Payment groups", hint: "Spending by person", icon: LayoutGrid },
-  { id: "categories", group: "Set up", label: "Categories and rules", hint: "Names and rules", icon: Tags },
+  { id: "groups", group: "Set up", label: "Spending views", hint: "Mine, Parents and more", icon: LayoutGrid },
+  { id: "categories", group: "Set up", label: "Categories and rules", hint: "Names, rules, icons", icon: Tags },
   { id: "sharing", group: "Set up", label: "Friends & Family", hint: "People you split with", icon: Users },
-  { id: "icons", group: "Set up", label: "Icons & logos", hint: "Pictures", icon: Sparkles },
-  { id: "ai", group: "Smart tools", label: "Smart import", hint: "AI import help", icon: Sparkles, liveOnly: true },
+  { id: "wallets", group: "Set up", label: "Wallets", hint: "Voucher top-ups and use", icon: Ticket, href: "/vouchers" },
+  { id: "ai", group: "Smart tools", label: "AI assistant", hint: "On or off, and usage", icon: Sparkles, liveOnly: true },
   { id: "integrations", group: "Smart tools", label: "Integrations", hint: "SMS and Gmail", icon: Plug, liveOnly: true },
   { id: "reminders", group: "Smart tools", label: "Reminders", hint: "Card bill alerts", icon: Bell, liveOnly: true },
   { id: "profile", group: "Account", label: "Profile", hint: "Name and photo", icon: UserRound },
   { id: "data", group: "Account", label: "Your data", hint: "Back up and delete", icon: ShieldCheck },
+  { id: "activity", group: "Account", label: "Activity", hint: "Changes, undo, imports", icon: History, liveOnly: true, href: "/activity" },
 ];
 const GROUPS = ["Set up", "Smart tools", "Account"];
 const OpenSection = createContext<string | null>(null);
@@ -126,13 +127,15 @@ export default function Settings() {
                 <section key={g} aria-label={g}>
                   <h2 className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{g}</h2>
                   <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5 md:grid-cols-2 md:gap-2 xl:grid-cols-3">
-                    {items.map(({ id, label, hint, icon: I }) => (
-                      <button key={id} type="button" onClick={() => go(id)} className="group flex min-h-16 items-center gap-3 rounded-[var(--radius-card)] bg-surface px-3 py-2 text-left transition-shadow hover:shadow-md">
+                    {items.map(({ id, label, hint, icon: I, href }) => {
+                      const cls = "group flex min-h-16 items-center gap-3 rounded-[var(--radius-card)] bg-surface px-3 py-2 text-left transition-shadow hover:shadow-md";
+                      const body = (<>
                         <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-accent/10 text-accent"><I size={17} /></span>
                         <span className="min-w-0 flex-1"><span className="block text-[15px] font-medium leading-tight">{label}</span><span className="block truncate text-[13px] leading-tight text-muted">{hint}</span></span>
                         <ChevronRight size={18} aria-hidden className="shrink-0 text-muted" />
-                      </button>
-                    ))}
+                      </>);
+                      return href ? <Link key={id} href={href} className={cls}>{body}</Link> : <button key={id} type="button" onClick={() => go(id)} className={cls}>{body}</button>;
+                    })}
                   </div>
                 </section>
               );
@@ -186,7 +189,7 @@ export default function Settings() {
           </Card>
         </Section>
 
-        <Section id="groups" icon={<LayoutGrid size={20} aria-hidden />} title="Payment groups" tagline="View spending by person or group.">
+        <Section id="groups" icon={<LayoutGrid size={20} aria-hidden />} title="Spending views" tagline="See your spending as Mine, Parents or any other view.">
           <GroupsCard />
         </Section>
 
@@ -198,7 +201,7 @@ export default function Settings() {
         </Section>
 
         {live && (
-          <Section id="ai" icon={<Sparkles size={20} aria-hidden />} title="Smart import" tagline="Import and sort faster. You verify everything.">
+          <Section id="ai" icon={<Sparkles size={20} aria-hidden />} title="AI assistant" tagline="Import and sort faster. You verify everything.">
             <AiFeatureCard enabled={aiEnabled} title="AI assistant">
               <p>{aiEnabled
                 ? "AI is on. Claude names merchants, picks categories and reads statements and notes. It learns from what you verify."
@@ -227,10 +230,7 @@ export default function Settings() {
 
         <Section id="categories" icon={<Tags size={20} aria-hidden />} title="Categories and rules" tagline="Rename, add and auto-sort.">
           <CategoriesView embedded />
-        </Section>
-
-        <Section id="icons" icon={<Sparkles size={20} aria-hidden />} title="Icons & logos" tagline="Pick an icon or a brand logo.">
-          <IconsCard live={live} aiEnabled={aiEnabled} />
+          <div className="pt-2"><h3 className="mb-2 text-sm font-semibold">Icons & logos</h3><IconsCard live={live} aiEnabled={aiEnabled} /></div>
         </Section>
 
         <Section id="profile" icon={<UserRound size={20} aria-hidden />} title="Profile" tagline="Your name, photo and greeting.">
