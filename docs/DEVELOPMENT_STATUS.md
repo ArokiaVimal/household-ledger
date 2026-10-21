@@ -474,3 +474,6 @@ Add and Edit now always show "Paid with" (and "Via" for sub methods). It can be 
 
 ## Import that "loaded and then nothing" (2026-10-21)
 Cause found: the ICICI reader numbered its rows from 0 and a saved raw row needs a number of at least 1, so saving failed on the first row (nothing was written; the preview had looked fine). Fixed, with a test that saves a whole ICICI statement through `commitImport`. Also: the screen now turns a missing, cut-off or non-JSON reply into an error pop-up (with a 100 second wait limit); the server's save error says the statement was read but not saved; AI merchant naming runs its batches in parallel (20 s each) instead of three in a row; an import the phone cut short leaves a note (`lib/import-marker.ts`) and the next start says so with a link to Earlier imports; the tap-recovery now only fires when the screen did not move at all.
+
+## Import: exact repeats are flagged, never skipped on their own
+The import preview no longer skips an exact repeat by default. It is added to review, marked "Exact repeat" with the entry it matches, and the person can Skip any of them. Messages and Gmail captures (nobody watching) still leave out an exact repeat.

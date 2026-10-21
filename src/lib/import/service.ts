@@ -57,7 +57,7 @@ export interface PreviewRow {
   recurring?: boolean;
   /** A voucher seller (for example Shopwise): review asks which voucher was bought. */
   voucher?: boolean;
-  /** What will happen: skipped duplicates are not added. Defaults to skipping exact duplicates only; your decision overrides it. */
+  /** What will happen: a skipped row is not added. Nothing is skipped on its own: an exact repeat or a lookalike is added and flagged unless you say skip. */
   action: "import" | "skip";
   /** The existing entry this duplicates or resembles (absent when it only repeats another line of the same file). */
   match?: { merchant: string; date: string; amountPaise: number; reviewed: boolean };
@@ -289,7 +289,7 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
     const dup = plan[i].dup;
     const status: PreviewRow["status"] = dup.status === "exact" ? "duplicate" : dup.status === "possible" ? "possible" : "new";
     const chosen = input.decisions?.[String(p.r.line)];
-    const action: PreviewRow["action"] = status === "new" ? "import" : chosen ?? (status === "duplicate" ? "skip" : "import");
+    const action: PreviewRow["action"] = status === "new" ? "import" : chosen ?? "import";
     const found = dup.status === "none" ? undefined : records.find((x) => x.id === dup.matchId);
     return {
       action, match: found ? { merchant: found.merchant, date: found.date, amountPaise: found.amountPaise, reviewed: found.status === "reviewed" } : undefined,

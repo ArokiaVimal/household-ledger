@@ -304,7 +304,7 @@ export function LiveImport() {
                       <TriangleAlert size={17} aria-hidden className="mt-0.5 shrink-0 text-warn" />
                       <div>
                         <h3 className="text-sm font-semibold leading-tight">{lookalikes.length} look{lookalikes.length === 1 ? "s" : ""} like entries you already have</h3>
-                        <p className="text-xs text-muted">Exact repeats are skipped. Close matches are added but flagged. You decide each one.</p>
+                        <p className="text-xs text-muted">Nothing is skipped on its own. These are added and flagged, so you can compare them later. Skip any you do not want.</p>
                       </div>
                     </div>
                     <div className="flex gap-2"><Button className="min-h-9" onClick={() => setAll("skip")}>Skip all</Button><Button className="min-h-9" onClick={() => setAll("import")}>Add all anyway</Button></div>
@@ -381,11 +381,11 @@ export function LiveImport() {
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-medium leading-tight">{r.merchant}</div>
                           <div className="truncate text-[11px] text-muted">{shortDate(r.date)} · {kindLabel[r.kind]}{r.categoryId !== "uncategorized" ? ` · ${categoryName(r.categoryId)}` : ""}{r.accountId !== preview.accountId ? ` · via ${accountName(r.accountId)}` : ""}</div>
-                          {(r.recurring && action(r) === "import") || action(r) === "skip" || (r.status === "possible" && action(r) === "import") ? (
+                          {(r.recurring && action(r) === "import") || action(r) === "skip" || (r.status !== "new" && action(r) === "import") ? (
                             <div className="mt-0.5 flex flex-wrap gap-1">
                               {r.recurring && action(r) === "import" && <Badge tone="good">Looks monthly</Badge>}
                               {action(r) === "skip" && <Badge tone="bad">Skipped</Badge>}
-                              {r.status === "possible" && action(r) === "import" && <Badge tone="warn">Possible duplicate</Badge>}
+                              {r.status !== "new" && action(r) === "import" && <Badge tone="warn">{r.status === "duplicate" ? "Exact repeat" : "Possible duplicate"}</Badge>}
                             </div>
                           ) : null}
                         </div>

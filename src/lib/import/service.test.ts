@@ -27,6 +27,12 @@ async function setup(): Promise<Repository> {
   return repo;
 }
 
+/** Skips the exact repeats, as a person does with "Skip all" in the preview. Nothing is skipped on its own any more. */
+async function skipping<T extends ImportInput>(repo: Repository, input: T): Promise<T> {
+  const p = await previewImport(repo, input, deps);
+  return { ...input, decisions: Object.fromEntries(p.rows.filter((r) => r.status === "duplicate").map((r) => [String(r.line), "skip" as const])) };
+}
+
 describe("preview", () => {
   it("classifies, categorises and totals without writing anything", async () => {
     const repo = await setup();
@@ -105,7 +111,7 @@ describe("commit", () => {
     expect(p.counts).toMatchObject({ new: 2, duplicate: 1 });
     const res = await commitImport(repo, actor, file(bankCsv, {}), deps, ).catch((e) => e);
     expect(res).toBeInstanceOf(ImportError); // still refused without the owner's yes
-    const again = await commitImport(repo, actor, { ...file(bankCsv), allowReimport: true }, deps);
+    const again = await commitImport(repo, actor, await skipping(repo, { ...file(bankCsv), allowReimport: true }), deps);
     expect(again.counts).toMatchObject({ staged: 2, duplicate: 1 });
     expect(await repo.records.list()).toHaveLength(3);
     expect(new Set((await repo.records.list()).map((r) => r.referenceId)).size).toBe(3);
@@ -118,7 +124,7 @@ describe("commit", () => {
   it("confirming when everything is still there adds nothing", async () => {
     const repo = await setup();
     await commitImport(repo, actor, file(bankCsv), deps);
-    const again = await commitImport(repo, actor, { ...file(bankCsv), allowReimport: true }, deps);
+    const again = await commitImport(repo, actor, await skipping(repo, { ...file(bankCsv), allowReimport: true }), deps);
     expect(again.counts).toMatchObject({ staged: 0, duplicate: 3 });
     expect(await repo.records.list()).toHaveLength(3);
   });
@@ -127,7 +133,7 @@ describe("commit", () => {
     const repo = await setup();
     await commitImport(repo, actor, file(bankCsv), deps);
     const overlap = bankCsv + "09/09/26,UPI-ZEPTO-zepto@yesb-987654321098-Order,0000987654321098,09/09/26,899.00,,\n";
-    const res = await commitImport(repo, actor, file(overlap), deps);
+    const res = await commitImport(repo, actor, await skipping(repo, file(overlap)), deps);
     expect(res.counts).toMatchObject({ rows: 4, duplicate: 3, staged: 1 });
     expect(await repo.records.list()).toHaveLength(4);
     expect((await repo.importBatches.list()).map((b) => b.counts.skippedDuplicate).sort()).toEqual([0, 3]);
@@ -139,7 +145,7 @@ describe("commit", () => {
     const first = await commitImport(repo, actor, file(twice, { accountId: "cc_hdfc" }), deps);
     expect(first.counts.staged).toBe(2);
     const other = twice + "04/09/2026,UBER INDIA,200.00,\n"; // different file, same two rows plus one new
-    const second = await commitImport(repo, actor, file(other, { accountId: "cc_hdfc" }), deps);
+    const second = await commitImport(repo, actor, await skipping(repo, file(other, { accountId: "cc_hdfc" })), deps);
     expect(second.counts).toMatchObject({ duplicate: 2, staged: 1 });
     expect(await repo.records.list()).toHaveLength(3);
   });
@@ -195,21 +201,21 @@ describe("smart routing and text input", () => {
 });
 
 describe("duplicate decisions", () => {
-  it("skips exact duplicates by default, shows what they match, and imports them anyway only when told to", async () => {
+  it("never skips an exact repeat on its own: it is added and flagged with what it matches, and skipped only when told to", async () => {
     const repo = await setup();
     const actor = { uid: "u1", participantId: "p1" };
     await commitImport(repo, actor, file(bankCsv), deps);
     const again = { ...file(bankCsv), fileHash: "f".repeat(64) }; // same rows, different file
     const p = await previewImport(repo, again, deps);
-    expect(p.rows.every((r) => r.status === "duplicate" && r.action === "skip" && !!r.match)).toBe(true);
-    expect(p.counts).toMatchObject({ duplicate: 3, toImport: 0 });
+    expect(p.rows.every((r) => r.status === "duplicate" && r.action === "import" && !!r.match)).toBe(true);
+    expect(p.counts).toMatchObject({ duplicate: 3, toImport: 3 });
     const line = p.rows[0].line;
-    const forced = await previewImport(repo, { ...again, decisions: { [String(line)]: "import" } }, deps);
-    expect(forced.counts.toImport).toBe(1);
-    const res = await commitImport(repo, actor, { ...again, decisions: { [String(line)]: "import" } }, deps);
-    expect(res.counts).toMatchObject({ staged: 1, skipped: 2 });
-    const staged = (await repo.records.list()).filter((r) => r.importSource.includes("hdfc_sep") && r.duplicateOf);
-    expect(staged).toHaveLength(1); // the forced one is flagged as a duplicate of the existing entry
+    const skipOne = await previewImport(repo, { ...again, decisions: { [String(line)]: "skip" } }, deps);
+    expect(skipOne.counts.toImport).toBe(2);
+    const res = await commitImport(repo, actor, again, deps);
+    expect(res.counts).toMatchObject({ staged: 3, skipped: 0 });
+    const flagged = (await repo.records.list()).filter((r) => r.importSource.includes("hdfc_sep") && r.duplicateOf);
+    expect(flagged).toHaveLength(3); // every repeat is flagged as a duplicate of the existing entry
   });
   it("a possible duplicate is added (flagged) by default and can be skipped", async () => {
     const repo = await setup();

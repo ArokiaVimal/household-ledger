@@ -67,13 +67,15 @@ export async function captureMessage(repo: Repository, who: { uid: string; parti
     accountId: pick.account.id, ...(pick.sensed ? {} : { cardUnsure: true }), filename: "Captured message", fileHash: d.sha256(`${who.uid}|${text}`), format: "text", readBy: byAi ? "ai" : "parser",
     rows: [{ line: 1, date: parsed.date, description: parsed.description, amountPaise: parsed.amountPaise, direction: parsed.direction, ...(parsed.referenceId ? { referenceId: parsed.referenceId } : {}), raw: [text.slice(0, 500)] }],
   };
+  // A message is captured with nobody watching, so an exact repeat of something already saved is the one thing left out here.
+  const p = await previewImport(repo, input, d);
+  const row = p.rows[0];
+  const repeat = row.status === "duplicate";
   if (opts.dryRun) {
-    const p = await previewImport(repo, input, d);
-    const row = p.rows[0];
-    return { result: row.action === "skip" ? "duplicate" : "added", message: row.action === "skip" ? "Already in your records." : `${rupees(row.amountPaise)} would be added to review.`, preview: { merchant: row.merchant, amountPaise: row.amountPaise, direction: row.direction, account: accounts.find((a) => a.id === row.accountId)?.name ?? "", kind: row.kind, category: row.categoryId, status: row.status } };
+    return { result: repeat ? "duplicate" : "added", message: repeat ? "Already in your records." : `${rupees(row.amountPaise)} would be added to review.`, preview: { merchant: row.merchant, amountPaise: row.amountPaise, direction: row.direction, account: accounts.find((a) => a.id === row.accountId)?.name ?? "", kind: row.kind, category: row.categoryId, status: row.status } };
   }
   try {
-    const res = await commitImport(repo, { uid: who.uid, participantId: who.participantId }, input, d);
+    const res = await commitImport(repo, { uid: who.uid, participantId: who.participantId }, repeat ? { ...input, decisions: { "1": "skip" } } : input, d);
     if (res.counts.staged === 0) return { result: "duplicate", message: "Already in your records." };
     return { result: "added", message: `${rupees(parsed.amountPaise)} ${parsed.direction === "credit" ? "received" : "spent"} added to review.` };
   } catch (e) {
