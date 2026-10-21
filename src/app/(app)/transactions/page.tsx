@@ -4,7 +4,7 @@ import { ArrowDownLeft, ArrowLeftRight, ChevronDown, CreditCard, Landmark, QrCod
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Amount, MerchantAvatar, TxnBadges } from "@/components/txn-row";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
-import { ChipFilter } from "@/components/chip-filter";
+import { ChipFilter, filterAccounts } from "@/components/chip-filter";
 import { NotesAi } from "./notes-ai";
 import { UnverifiedQueue } from "./unverified-queue";
 import { VoucherSection, type VoucherGroup } from "./voucher-section";
@@ -257,7 +257,7 @@ function TransactionsView() {
           <ChipFilter label="Type" value={get("kind")} onPick={(v) => set("kind", v)} options={TYPES.map(([id, label, I]) => ({ id, label, icon: <I size={15} aria-hidden /> }))} />
           <ChipFilter label="UPI" value={get("mode")} onPick={(v) => set("mode", v)} options={[{ id: "upi", label: "UPI", icon: <QrCode size={15} aria-hidden /> }, { id: "other", label: "Not UPI", icon: <Receipt size={15} aria-hidden /> }]} />
           <ChipFilter label="From" value={get("source")} onPick={(v) => set("source", v)} options={[{ id: "bank", label: "Bank account", icon: <Landmark size={15} aria-hidden /> }, { id: "card", label: "Credit card", icon: <CreditCard size={15} aria-hidden /> }]} />
-          <ChipFilter label="Paid with" value={get("account")} onPick={(v) => set("account", v)} options={accounts.filter((a) => !a.parentId && !a.archived).map((a) => ({ id: a.id, label: shortName(a.name), icon: <MerchantAvatar name={a.name} size={26} /> }))} />
+          <ChipFilter label="Paid with" value={get("account")} onPick={(v) => set("account", v)} options={filterAccounts(accounts).map((a) => ({ id: a.id, label: a.parentId ? a.name : shortName(a.name), icon: <MerchantAvatar name={a.name} size={26} /> }))} />
           <ChipFilter label="Category" value={get("category")} onPick={(v) => set("category", v)} options={categories.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} icon={c.icon} size={26} /> }))} />
           <ChipFilter label="Group by" value={view === "all" ? "" : view} onPick={(v) => set("view", v)} options={VIEWS.filter((x) => x.id !== "all").map((x) => { const I = VIEW_ICON[x.id] ?? Tags; return { id: x.id, label: x.label, icon: <I size={15} aria-hidden /> }; })} />
         </div>

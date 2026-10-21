@@ -1,7 +1,12 @@
 "use client";
 import type { ReactNode } from "react";
 import { HScroll } from "@/components/hscroll";
+import type { Account } from "@/domain/types";
 import { cn } from "@/lib/cn";
+
+const ORDER: Account["type"][] = ["bank", "credit_card", "upi", "wallet", "cash"];
+/** Every payment method (UPI apps and wallets too), bank accounts first, then cards, UPI apps and wallets. Only archived ones are left out. */
+export const filterAccounts = (accounts: Account[]) => accounts.filter((a) => !a.archived).sort((x, y) => ORDER.indexOf(x.type) - ORDER.indexOf(y.type));
 
 /** A filter as one sideways-scrolling row of chips with a small picture each: one tap picks it, tap again to clear. */
 export function ChipFilter({ label, value, onPick, options }: { label: string; value: string; onPick: (v: string) => void; options: { id: string; label: string; icon: ReactNode }[] }) {

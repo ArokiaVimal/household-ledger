@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { CompactRow } from "@/components/txn-compact";
 import { HScroll } from "@/components/hscroll";
-import { ChipFilter } from "@/components/chip-filter";
+import { ChipFilter, filterAccounts } from "@/components/chip-filter";
 import { CategoryGlyph } from "@/components/glyphs";
 import { MerchantAvatar } from "@/components/txn-row";
 import { NotesAi } from "./notes-ai";
@@ -71,8 +71,6 @@ export function UnverifiedQueue({ month }: { month?: string }) {
   const filtered = !!(needle || acct || cat || mon || mode || source || quick !== "all");
   const filterCount = [acct, cat, mon, mode, source, quick !== "all" ? quick : ""].filter(Boolean).length;
   const charged = shown.reduce((sum, r) => sum + signedSpend(r), 0);
-  const accountsIn = [...new Set(staged.map((r) => r.accountId))];
-  const categoriesIn = [...new Set(staged.map((r) => r.categoryId))];
   const monthsIn = [...new Set(staged.map((r) => r.date.slice(0, 7)))].sort().reverse();
   const clearFilters = () => { setQ(""); setAcct(""); setCat(""); setMon(""); setMode(""); setSource(""); setQuick("all"); setPicked(new Set()); };
   const narrow = (set: () => void) => { set(); setPicked(new Set()); };
@@ -180,8 +178,8 @@ export function UnverifiedQueue({ month }: { month?: string }) {
               <ChipFilter label="Needs you" value={quick === "all" ? "" : quick} onPick={(v) => narrow(() => setQuick((v || "all") as Quick))} options={QUICK.filter((x) => x.id !== "all" && staged.some(x.test)).map((x) => ({ id: x.id, label: `${x.label} · ${staged.filter(x.test).length}`, icon: <Sparkles size={15} aria-hidden /> }))} />
               <ChipFilter label="UPI" value={mode} onPick={(v) => narrow(() => setMode(v))} options={[{ id: "upi", label: "UPI", icon: <QrCode size={15} aria-hidden /> }, { id: "other", label: "Not UPI", icon: <Receipt size={15} aria-hidden /> }]} />
               <ChipFilter label="From" value={source} onPick={(v) => narrow(() => setSource(v))} options={[{ id: "bank", label: "Bank account", icon: <Landmark size={15} aria-hidden /> }, { id: "card", label: "Credit card", icon: <CreditCard size={15} aria-hidden /> }]} />
-              <ChipFilter label="Paid with" value={acct} onPick={(v) => narrow(() => setAcct(v))} options={accountsIn.map((id) => ({ id, label: accountName(id), icon: <MerchantAvatar name={accountName(id)} size={26} /> }))} />
-              <ChipFilter label="Category" value={cat} onPick={(v) => narrow(() => setCat(v))} options={categoriesIn.map((id) => { const c = categories.find((x) => x.id === id); return { id, label: categoryName(id), icon: <CategoryGlyph name={c?.name ?? categoryName(id)} icon={c?.icon} size={26} /> }; })} />
+              <ChipFilter label="Paid with" value={acct} onPick={(v) => narrow(() => setAcct(v))} options={filterAccounts(accounts).map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={26} /> }))} />
+              <ChipFilter label="Category" value={cat} onPick={(v) => narrow(() => setCat(v))} options={categories.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} icon={c.icon} size={26} /> }))} />
               {!month && <ChipFilter label="Month" value={mon} onPick={(v) => narrow(() => setMon(v))} options={monthsIn.map((m) => ({ id: m, label: monthName(m), icon: <Receipt size={15} aria-hidden /> }))} />}
             </div>
             <div className="sticky bottom-0 -mx-4 flex justify-between gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={clearFilters}>Reset</Button><Button variant="primary" onClick={() => setFiltersOpen(false)}>Show {shown.length}</Button></div>
