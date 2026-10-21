@@ -45,7 +45,7 @@ export default function Activity() {
     await load();
   };
 
-  if (!live) return <><PageHeader title="Activity" /><Card><EmptyState title="Activity is recorded for signed-in accounts" hint="Every change is logged and can be undone here." /></Card></>;
+  if (!live) return <><PageHeader title="Activity" /><Card><EmptyState art="history" title="Activity is recorded for signed-in accounts" hint="Every change is logged and can be undone here." /></Card></>;
 
   return (
     <>
@@ -53,7 +53,7 @@ export default function Activity() {
       <div className="mb-3 max-w-xs"><ChipGroup tabs label="Activity view" options={[{ id: "changes", label: "Changes" }, { id: "imports", label: "Imports" }]} value={tab} onChange={setTab} /></div>
       {error && <p role="alert" className="mb-3 text-sm text-danger">{error}</p>}
 
-      {tab === "changes" && (changes === null ? <Card><p className="text-sm text-muted">Loading…</p></Card> : changes.length === 0 ? <Card><EmptyState title="Nothing yet" hint="Changes will appear here as you approve, edit and settle." /></Card> : (
+      {tab === "changes" && (changes === null ? <Card><p className="text-sm text-muted">Loading…</p></Card> : changes.length === 0 ? <Card><EmptyState art="history" title="Nothing yet" hint="Changes will appear here as you approve, edit and settle." /></Card> : (
         <Card className="p-0">
           <ul className="divide-y divide-border">
             {changes.map((c) => (
@@ -70,7 +70,7 @@ export default function Activity() {
         </Card>
       ))}
 
-      {tab === "imports" && (imports.length === 0 ? <Card><EmptyState title="No imports yet" hint="Statement imports will be listed here, and can be rolled back." /></Card> : (
+      {tab === "imports" && (imports.length === 0 ? <Card><EmptyState art="history" title="No imports yet" hint="Statement imports will be listed here, and can be rolled back." /></Card> : (
         <Card className="p-0">
           <ul className="divide-y divide-border">
             {imports.map((b) => (

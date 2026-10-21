@@ -128,7 +128,7 @@ export default function PersonSettle() {
       </div>
 
       <Card className="p-1.5 sm:p-2">
-        {rows.length === 0 ? <EmptyState title={tab === "open" ? "Nothing to settle" : "Nothing settled yet"} hint={tab === "open" ? `Payments you split with ${name} appear here.` : "Payments you settle move here."} /> : (
+        {rows.length === 0 ? <EmptyState art="done" title={tab === "open" ? "Nothing to settle" : "Nothing settled yet"} hint={tab === "open" ? `Payments you split with ${name} appear here.` : "Payments you settle move here."} /> : (
           <div className="space-y-3">
             {months.map((mo) => (
               <div key={mo.month}>

@@ -10,7 +10,7 @@ export default function Receipts() {
     <>
       <PageHeader title="Receipts" sub="We match receipts to card transactions. You confirm each link." actions={<Badge tone="warn">Mock receipts</Badge>} />
       <p className="mb-3 text-xs text-muted">Email receipt ingestion is not implemented; it needs an authorized integration.</p>
-      {receipts.length === 0 ? <EmptyState title="No receipts" /> : (
+      {receipts.length === 0 ? <EmptyState art="receipt" title="No receipts yet" hint="Receipts you attach to transactions show up here." /> : (
         <div className="space-y-3">
           {receipts.map((rc) => {
             const linked = records.find((r) => r.receiptId === rc.id);

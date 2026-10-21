@@ -123,7 +123,7 @@ export function UnverifiedQueue({ month }: { month?: string }) {
       {arriving ? (
         <p role="status" className="rounded-[var(--radius-card)] bg-surface p-6 text-sm text-muted">Loading your {imported} imported transaction{imported === 1 ? "" : "s"}…</p>
       ) : staged.length === 0 ? (
-        <EmptyState title={month && allStaged.length > 0 ? "Nothing unverified this month" : "Everything is verified"} hint={month && allStaged.length > 0 ? `${allStaged.length} in other months. Tap the review icon at the top to see them.` : "New imports will show up here."} />
+        <EmptyState art="done" title={month && allStaged.length > 0 ? "Nothing unverified this month" : "Everything is verified"} hint={month && allStaged.length > 0 ? `${allStaged.length} in other months. Tap the review icon at the top to see them.` : "New imports will show up here."} />
       ) : (
         <>
           {live && (

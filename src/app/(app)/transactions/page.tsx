@@ -290,7 +290,7 @@ function TransactionsView() {
             className={cn("shrink-0 rounded-full px-3 py-1.5 text-[13px] md:px-3.5 md:text-sm", view === v.id ? "bg-foreground text-white" : "text-muted hover:bg-background")}>{v.label}</button>
         ))}
       </HScroll>
-      {rows.length === 0 ? <EmptyState title="No transactions match" hint="Try clearing a filter." /> : view !== "all" ? (
+      {rows.length === 0 ? <EmptyState art="search" title="No transactions match" hint="Try clearing a filter." /> : view !== "all" ? (
         <GroupedView rows={rows} view={view} onEdit={setEditing} />
       ) : (
         <>

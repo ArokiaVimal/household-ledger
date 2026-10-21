@@ -3,6 +3,7 @@
 import { Children, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
 import { Check, ChevronDown, Info, Plus, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Illustration, type ArtName } from "./illustrations";
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
   return <section className={cn("rounded-[var(--radius-card)] bg-surface p-4 shadow-[0_1px_0_rgba(20,18,31,0.03)]", className)}>{children}</section>;
@@ -175,11 +176,13 @@ export function PageHeader({ title, sub, actions, tip }: { title: string; sub?: 
   );
 }
 
-export function EmptyState({ title, hint }: { title: string; hint?: string }) {
+export function EmptyState({ title, hint, art = "generic", children }: { title: string; hint?: string; art?: ArtName; children?: ReactNode }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-dashed border-border p-8 text-center">
-      <p className="font-medium">{title}</p>
-      {hint && <p className="mt-1 text-sm text-muted">{hint}</p>}
+    <div className="px-4 py-6 text-center">
+      <Illustration name={art} />
+      <p className="mt-2 font-semibold">{title}</p>
+      {hint && <p className="mx-auto mt-1 max-w-sm text-sm text-muted">{hint}</p>}
+      {children && <div className="mt-4">{children}</div>}
     </div>
   );
 }

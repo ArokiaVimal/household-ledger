@@ -160,7 +160,7 @@ export default function Dashboard() {
         {live && !householdReady && (
           <Card className="space-y-2 text-sm"><CardTitle>Setting up your space</CardTitle><p>Your data space is not ready yet. Reload in a moment; if this stays, open <Link href="/settings" className="text-accent underline-offset-2 hover:underline">Settings</Link>.</p></Card>
         )}
-        <EmptyState title="No transactions this month" hint={live ? "Add a transaction, or pick another month." : "Pick September 2026 or import a statement."} />
+        <EmptyState art="transactions" title="No transactions this month" hint={live ? "Add a transaction, or pick another month." : "Pick September 2026 or import a statement."} />
       </div>
     );
   }

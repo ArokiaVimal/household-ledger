@@ -137,7 +137,7 @@ export default function GroupPage() {
         <div className="space-y-3">
           <Card>
             <CardTitle>{`Expenses (${expenses.length})`}</CardTitle>
-            {expenses.length === 0 ? <EmptyState title="No expenses yet" hint="Add what someone paid and choose how to split it. Everyone in the group is picked for you." /> : (
+            {expenses.length === 0 ? <EmptyState art="receipt" title="No expenses yet" hint="Add what someone paid and choose how to split it. Everyone in the group is picked for you." /> : (
               <ul className="divide-y divide-border">
                 {expenses.map((e) => (
                   <li key={e.record.id}>

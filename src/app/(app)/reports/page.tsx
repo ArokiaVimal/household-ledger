@@ -64,7 +64,7 @@ export default function Reports() {
     <>
       <PageHeader title="Reports" sub={`${month} · ${activeGroup.name} · same calculations as the dashboard`} actions={
         <Select aria-label="Account" value={acct} onChange={(e) => setAcct(e.target.value)}><option value="">All accounts</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</Select>} />
-      {rows.length === 0 ? <EmptyState title="Nothing to report" /> : (
+      {rows.length === 0 ? <EmptyState art="chart" title="Nothing to report" hint="Add or import transactions, or pick another month." /> : (
         <>
           <div role="tablist" aria-label="Report" className="mb-3 flex overflow-x-auto rounded-full bg-border/60 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:max-w-xl">
             {TABS.map(([id, label]) => (

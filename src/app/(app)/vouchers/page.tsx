@@ -39,7 +39,7 @@ export default function Vouchers() {
       <PageHeader tip="A voucher tops up a wallet. The top-up is the cost; wallet spending isn't counted again." title="Voucher wallets" sub="Vouchers top up wallets like Amazon or Swiggy. Wallet spending can be split and is never counted twice." actions={<Button onClick={() => { setNewName(""); setAddError(null); setAdding(true); }}><Plus size={16} aria-hidden />Add voucher</Button>} />
 
       {!any ? (
-        <Card><EmptyState title="No voucher purchases yet" hint="Voucher purchases from imports show up here after review." /></Card>
+        <Card><EmptyState art="receipt" title="No voucher purchases yet" hint="Voucher purchases from imports show up here after review." /></Card>
       ) : (
         <div className="space-y-5">
           {cardsWithVouchers.length > 1 && <CompactChips label="Payment method" options={[{ id: "", label: "All cards" }, ...cardsWithVouchers.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[accountId]} onPick={setAccountId} />}

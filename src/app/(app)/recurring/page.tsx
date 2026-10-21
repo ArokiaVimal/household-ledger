@@ -36,7 +36,7 @@ export default function Recurring() {
         <Card className="px-3 py-2.5 sm:p-4"><div className="text-xs text-muted">Left to pay</div><div className="num text-base font-semibold sm:text-xl">{formatINR(left)}</div><div className="hidden text-xs text-muted sm:block">based on expected amounts</div></Card>
       </div>
       <Suggestions />
-      {recurringItems.length === 0 ? <Card className="space-y-3 text-center"><EmptyState title="No recurring payments yet" hint="Add rent, EMIs and bills once. See what's paid, due or late each month." /><div><Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add your first</Button></div></Card> : (
+      {recurringItems.length === 0 ? <Card className="space-y-3 text-center"><EmptyState art="bills" title="No recurring payments yet" hint="Add rent, EMIs and bills once. See what's paid, due or late each month." /><div><Button variant="primary" onClick={() => setEditing("new")}><Plus size={16} aria-hidden />Add your first</Button></div></Card> : (
         <div className="space-y-4">
           {groups.map((place) => (
             <section key={place} aria-label={place}>

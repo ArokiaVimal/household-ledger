@@ -69,7 +69,7 @@ export default function Timeline() {
         <Chip label="Still expected in" value={money(t.totals.expectedIn)} dashed /><Chip label="Still expected out" value={money(-t.totals.expectedOut)} dashed />
       </div>
 
-      {groups.length === 0 ? <Card><EmptyState title="Nothing on the timeline" hint="Verify transactions or add a bill to fill this in." /></Card> : (
+      {groups.length === 0 ? <Card><EmptyState art="history" title="Nothing on the timeline" hint="Verify transactions or add a bill to fill this in." /></Card> : (
         <Card className="p-0">
           <CardTitle>{" "}</CardTitle>
           <ol className="relative divide-y divide-border">

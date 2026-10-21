@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { balanceWords, GroupDialog, KindGlyph, PersonStack, SettleForm } from "@/components/split-groups";
 import { SplitTabs } from "@/components/split-tabs";
-import { Badge, Button, Card, CardTitle, Dialog, FormRow, Select } from "@/components/ui";
+import { Badge, Button, Card, CardTitle, Dialog, EmptyState, FormRow, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import { groupBalances, waitingForReview } from "@/domain/split-groups";
@@ -59,9 +59,9 @@ export default function Groups() {
       <p className="mb-3 text-sm text-muted">Trips, dinners and outings you share with friends, family or colleagues.</p>
       {splitGroups.length === 0 ? (
         <Card>
-          <p className="font-medium">No groups yet</p>
-          <p className="mt-1 text-sm text-muted">Make one for your next trip or dinner. Choose who is in it, add what each person paid, and the app works out who pays whom.</p>
-          <Button variant="primary" className="mt-3 min-h-11 w-full sm:w-auto" onClick={() => setCreating(true)}>Create your first group</Button>
+          <EmptyState art="groups" title="No groups yet" hint="Make one for your next trip or dinner. Choose who is in it, add what each person paid, and the app works out who pays whom.">
+            <Button variant="primary" className="min-h-11 w-full sm:w-auto" onClick={() => setCreating(true)}>Create your first group</Button>
+          </EmptyState>
         </Card>
       ) : (
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-2">

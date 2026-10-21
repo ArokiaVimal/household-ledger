@@ -30,7 +30,7 @@ export default function Cards() {
     return (
       <>
         <PageHeader title="Card bills" />
-        <Card><EmptyState title="Add a credit card first" hint="Add cards in Settings to track bills here." /></Card>
+        <Card><EmptyState art="bills" title="Add a credit card first" hint="Add cards in Settings to track bills here." /></Card>
       </>
     );
   }

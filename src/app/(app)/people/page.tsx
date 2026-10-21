@@ -1,5 +1,5 @@
 "use client";
-import { ArrowUpDown, Bell, Check, ChevronRight, UserPlus } from "lucide-react";
+import { ArrowUpDown, Bell, Check, ChevronRight, Plus, User, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PersonGlyph } from "@/components/glyphs";
@@ -70,7 +70,7 @@ export default function People() {
       <>
         <SplitTabs active="people" />
         <LinkedWithYou />
-        <Card><EmptyState title="No one here yet" hint="Add someone you split with, then split an expense with them." /><Button variant="primary" className="mt-3" onClick={() => setAdding(true)}><UserPlus size={16} aria-hidden />Add person</Button></Card>
+        <Card><EmptyState art="people" title="No one here yet" hint="Add someone you split with, then split an expense with them."><Button variant="primary" onClick={() => setAdding(true)}><UserPlus size={16} aria-hidden />Add person</Button></EmptyState></Card>
       <Dialog open={adding} onClose={() => setAdding(false)} title="Add person">
         <form onSubmit={addPerson} className="space-y-3 pb-1 text-sm">
           <Field label="Name"><Input autoFocus value={newName} onChange={(e) => { setNewName(e.target.value); setAddError(null); }} maxLength={60} placeholder="e.g. Karthik" /></Field>
@@ -88,7 +88,7 @@ export default function People() {
   return (
     <>
       <SplitTabs active="people" actions={<>
-          <Button aria-label="Add person" title="Add person" onClick={() => { setAddError(null); setAdding(true); }}><UserPlus size={16} aria-hidden /><span className="hidden sm:inline">Add person</span></Button>
+          <Button aria-label="Add person" title="Add person" className="relative" onClick={() => { setAddError(null); setAdding(true); }}><User size={16} aria-hidden /><span aria-hidden className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-accent text-white ring-2 ring-background"><Plus size={10} strokeWidth={3} /></span><span className="hidden sm:inline">Add person</span></Button>
           {canRecord && <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record payment</Button>}
       </>} />
 
@@ -107,7 +107,7 @@ export default function People() {
               <button type="button" aria-label="Sort people" title="Sort" onClick={() => setSorting(true)} className="grid size-8 place-items-center rounded-full text-muted hover:bg-background"><ArrowUpDown size={16} aria-hidden /></button>
             </div>
           )}
-          {ledgers.length === 0 ? <EmptyState title="No one here yet" hint="Add a friend in Settings, then split an expense with them." /> : (
+          {ledgers.length === 0 ? <EmptyState art="people" title="No one here yet" hint="Add a friend in Settings, then split an expense with them." /> : (
             <ul className="divide-y divide-border">
               {ledgers.map((l) => {
                 const name = nameOf(l.personId);
