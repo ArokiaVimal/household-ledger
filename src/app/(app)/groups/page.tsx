@@ -1,5 +1,5 @@
 "use client";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Plus, Users } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { balanceWords, GroupDialog, KindGlyph, PersonStack, SettleForm } from "@/components/split-groups";
@@ -52,7 +52,7 @@ export default function Groups() {
   return (
     <>
       <SplitTabs active="groups" actions={<>
-        <Button aria-label="New group" title="New group" onClick={() => setCreating(true)}><Plus size={16} aria-hidden /><span className="hidden sm:inline">New group</span></Button>
+        <Button aria-label="New group" title="New group" className="relative" onClick={() => setCreating(true)}><Users size={16} aria-hidden /><span aria-hidden className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-accent text-white ring-2 ring-background"><Plus size={10} strokeWidth={3} /></span><span className="hidden sm:inline">New group</span></Button>
         <Button disabled={active.length === 0} title={active.length === 0 ? "Create a group first" : undefined} onClick={() => { setRecGroup(active[0].g.id); setRecording(true); }}>Record payment</Button>
       </>} />
       {note && <p role="status" className="mb-3 rounded-xl bg-good-soft px-3 py-2 text-sm text-good">{note}</p>}
