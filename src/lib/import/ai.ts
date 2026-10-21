@@ -83,8 +83,10 @@ export function createClaudeSuggest(cfg: ClaudeConfig): Suggest {
     const usage: AiUsage = { asked: 0, calls: 0, inputTokens: 0, outputTokens: 0 };
     const suggestions: AiSuggestion[] = [];
     const system = [{ type: "text", text: systemPrompt(ctx.categories, ctx.known), cache_control: { type: "ephemeral" } }];
-    for (let start = 0; start < Math.min(items.length, BATCH_SIZE * MAX_BATCHES); start += BATCH_SIZE) {
-      const batch = items.slice(start, start + BATCH_SIZE);
+    // The batches run side by side, so a slow answer costs one wait, not three in a row (the server has a 60 second limit).
+    const batches: AiItem[][] = [];
+    for (let start = 0; start < Math.min(items.length, BATCH_SIZE * MAX_BATCHES); start += BATCH_SIZE) batches.push(items.slice(start, start + BATCH_SIZE));
+    await Promise.all(batches.map(async (batch) => {
       const lines = batch.map((it, i) => `${i + 1}|${redact(it.description)}|${Math.round(it.amountPaise / 100)}|${it.direction === "debit" ? "dr" : "cr"}`).join("\n");
       try {
         const res = await f("https://api.anthropic.com/v1/messages", {
@@ -94,9 +96,9 @@ export function createClaudeSuggest(cfg: ClaudeConfig): Suggest {
             model: cfg.model || DEFAULT_MODEL, max_tokens: 60 * batch.length + 200, system,
             tools: [TOOL], tool_choice: { type: "tool", name: "label" }, messages: [{ role: "user", content: lines }],
           }),
-          signal: AbortSignal.timeout(cfg.timeoutMs ?? 25_000),
+          signal: AbortSignal.timeout(cfg.timeoutMs ?? 20_000),
         });
-        if (!res.ok) { usage.error = await describeFailure(res); break; }
+        if (!res.ok) { usage.error ??= await describeFailure(res); return; }
         const body = (await res.json()) as { content?: { type: string; input?: unknown }[]; usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } };
         usage.calls++;
         usage.asked += batch.length;
@@ -104,10 +106,9 @@ export function createClaudeSuggest(cfg: ClaudeConfig): Suggest {
         usage.outputTokens += body.usage?.output_tokens ?? 0;
         suggestions.push(...validateAnswer(body.content?.find((c) => c.type === "tool_use")?.input, batch, ctx.categories));
       } catch (e) {
-        usage.error = (e as Error).name === "TimeoutError" ? "Claude took too long" : "Could not reach Claude";
-        break;
+        usage.error ??= (e as Error).name === "TimeoutError" ? "Claude took too long" : "Could not reach Claude";
       }
-    }
+    }));
     return { suggestions, usage };
   };
 }

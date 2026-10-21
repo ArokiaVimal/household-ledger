@@ -64,6 +64,8 @@ export async function runImport(
     if (e instanceof FileError) return NextResponse.json({ error: e.message }, { status: 400 });
     if (e instanceof ImportError) return NextResponse.json({ error: e.message }, { status: status[e.code] });
     console.error("import failed", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 160));
-    return NextResponse.json({ error: "Could not read that. Try again." }, { status: 500 });
+    // The statement may have been read fine and failed while being saved: say which, and that nothing was kept.
+    const saving = mode === "commit";
+    return NextResponse.json({ error: saving ? "The statement was read, but saving it failed, so nothing was added. Try again; if it keeps happening, tell the app owner." : "Could not read that. Try again." }, { status: 500 });
   }
 }

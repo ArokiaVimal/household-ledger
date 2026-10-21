@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { createMemoryRepository } from "@/data/memory-repository";
+import { DEFAULT_CATEGORIES } from "@/domain/defaults";
+import { commitImport } from "@/lib/import/service";
 import { parseStatementPdf } from ".";
 import { detectIciciBank } from "./icici-bank";
 import { page, t } from "./test-fixtures";
@@ -64,5 +68,22 @@ describe("ICICI Bank statement reader", () => {
     const r = parseStatementPdf([page(1, [t(10, 700, "Some other bank statement")])]);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toContain("ICICI");
+  });
+});
+
+describe("ICICI statement all the way into the review queue", () => {
+  it("numbers its rows from 1 (the saved raw rows require it) and saves every row", async () => {
+    const r = parseStatementPdf(standard());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.rows.map((x) => x.index)).toEqual([1, 2, 3]);
+    const repo = createMemoryRepository("h");
+    for (const c of DEFAULT_CATEGORIES) await repo.categories.put(c);
+    await repo.accounts.put({ id: "bank_icici", name: "ICICI Bank", type: "bank" });
+    const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+    const res = await commitImport(repo, { uid: "u1", participantId: "u_u1" }, { accountId: "bank_icici", filename: "OpTransactionHistory.pdf", fileHash: sha("statement"), format: "pdf", pdf: r }, { sha256: sha, now: () => Date.parse("2026-10-21T00:00:00Z"), newId: () => crypto.randomUUID() });
+    expect(res.counts.staged).toBe(3);
+    expect(await repo.records.list()).toHaveLength(3);
+    expect(await repo.rawTransactions.list()).toHaveLength(3);
   });
 });

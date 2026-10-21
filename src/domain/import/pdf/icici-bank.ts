@@ -119,7 +119,7 @@ export function parseIciciBank(pages: PdfPage[]): PdfParseResult {
   const out: PdfRow[] = ordered.map((r, index) => {
     const description = r.remarks.join(" ").replace(/\s+/g, " ").trim();
     return {
-      page: r.page, index, date: r.date, description: description || "ICICI Bank transaction", amountPaise: r.withdrawal > 0 ? r.withdrawal : r.deposit,
+      page: r.page, index: index + 1, date: r.date, description: description || "ICICI Bank transaction", amountPaise: r.withdrawal > 0 ? r.withdrawal : r.deposit,
       direction: r.withdrawal > 0 ? "debit" : "credit",
       raw: [String(r.sno), r.date, description, r.withdrawal > 0 ? `Withdrawal ${(r.withdrawal / 100).toFixed(2)}` : `Deposit ${(r.deposit / 100).toFixed(2)}`, `Balance ${(r.balance / 100).toFixed(2)}`],
     };

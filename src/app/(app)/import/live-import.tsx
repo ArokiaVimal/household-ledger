@@ -10,6 +10,7 @@ import { formatINR } from "@/domain/money";
 import type { Preview, PreviewRow } from "@/lib/import/service";
 import { BusyOverlay, ErrorDialog } from "@/components/feedback";
 import { useDropZone } from "@/components/drop-zone";
+import { clearImportMarker, markImportStart } from "@/lib/import-marker";
 import { undoImport } from "./undo";
 import { ShotImport } from "./shot-import";
 
@@ -97,25 +98,34 @@ export function LiveImport() {
         if (mode === "commit" && reimportOk) form.set("reimport", "1");
         if (chosen) form.set("decisions", JSON.stringify(chosen));
         if (mode === "commit" && trackBill && billDue) form.set("cardDueDate", billDue);
-        res = await fetch("/api/import", { method: "POST", body: form });
+        res = await fetch("/api/import", { method: "POST", body: form, signal: AbortSignal.timeout(100_000) });
       } else {
         res = await fetch("/api/import/text", {
-          method: "POST", headers: { "content-type": "application/json" },
+          method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(100_000),
           body: JSON.stringify({ text: s.text, mode: s.mode, ai: s.mode === "ai", accountId: s.accountId, action: mode, reimport: mode === "commit" && reimportOk, positiveIsDebit: flip, decisions: chosen }),
         });
       }
-      const data = (await res.json().catch(() => ({}))) as Reply;
-      return res.ok ? { ...data, ok: true } : { ok: false, error: data.error ?? "Something went wrong." };
-    } catch {
-      return { ok: false, error: "Network problem. Try again." };
+      // Whatever comes back is checked, so a stalled, cut-off or odd answer is always reported instead of silently doing nothing.
+      if (res.redirected && /\/login/.test(res.url)) return { ok: false, error: "Your sign-in has ended. Sign in again, then try the import again. Nothing was saved." };
+      let data: Reply | null = null;
+      try { data = (await res.json()) as Reply; } catch { /* not JSON */ }
+      if (!data) return { ok: false, error: [502, 504, 408].includes(res.status) ? `The server took too long, so the ${mode === "commit" ? "save" : "read"} was stopped. ${mode === "commit" ? "Check Earlier imports before trying again, in case part of it went through." : "Nothing was saved. Try again; if it keeps happening, use a shorter date range."}` : `The server sent back something unexpected (${res.status}). ${mode === "commit" ? "Check Earlier imports before trying again." : "Nothing was saved. Try again."}` };
+      if (!res.ok) return { ok: false, error: data.error ?? "Something went wrong." };
+      if (mode === "preview" && !data.preview && !data.needAccount) return { ok: false, error: "The server answered but sent nothing to show. Nothing was saved. Try again." };
+      if (mode === "commit" && !data.result) return { ok: false, error: "The server did not confirm the import. Check Earlier imports before trying again." };
+      return { ...data, ok: true };
+    } catch (e) {
+      if ((e as Error).name === "TimeoutError") return { ok: false, error: mode === "commit" ? "This is taking too long, so I stopped waiting. The import may still have finished: check Earlier imports before trying again." : "This is taking too long, so I stopped waiting. Nothing was saved. Try again." };
+      return { ok: false, error: "Network problem. Nothing was saved. Try again." };
     }
   };
 
   const reset = () => { setPreview(null); setNeed(null); setError(null); setDone(null); setSign("auto"); setAccept(false); setReimportOk(false); setExtraction(null); setDecisions({}); setChanging(false); };
 
   const read = async (s: Src, signOverride = sign) => {
-    setSrc(s); setPhase("read"); setBusy(true); setError(null); setDone(null); setNeed(null); setDecisions({}); setChanging(false);
+    setSrc(s); setPhase("read"); setBusy(true); setError(null); markImportStart(s.kind === "file" ? s.file.name : "Pasted text", "read"); setDone(null); setNeed(null); setDecisions({}); setChanging(false);
     const r = await send(s, "preview", signOverride);
+    clearImportMarker();
     setBusy(false);
     setExtraction(r.extraction ?? null);
     if (!r.ok) { setPreview(null); return setError(r.error ?? "Could not read that."); }
@@ -157,9 +167,10 @@ export function LiveImport() {
 
   const commit = async () => {
     if (!src) return;
-    setPhase("save"); setBusy(true); setError(null);
+    setPhase("save"); setBusy(true); setError(null); markImportStart(src.kind === "file" ? src.file.name : "Pasted text", "save");
     const monthsParam = months.map(([m]) => m).join(",");
     const r = await send(src, "commit");
+    clearImportMarker();
     setBusy(false);
     if (!r.ok) return setError(r.error ?? "Could not save the import.");
     const c = r.result!.counts;
