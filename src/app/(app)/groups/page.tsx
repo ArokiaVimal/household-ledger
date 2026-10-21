@@ -53,7 +53,7 @@ export default function Groups() {
     <>
       <SplitTabs active="groups" actions={<>
         <Button aria-label="New group" title="New group" onClick={() => setCreating(true)}><Plus size={16} aria-hidden /><span className="hidden sm:inline">New group</span></Button>
-        {active.length > 0 && <Button onClick={() => { setRecGroup(active[0].g.id); setRecording(true); }}>Record payment</Button>}
+        <Button disabled={active.length === 0} title={active.length === 0 ? "Create a group first" : undefined} onClick={() => { setRecGroup(active[0].g.id); setRecording(true); }}>Record payment</Button>
       </>} />
       {note && <p role="status" className="mb-3 rounded-xl bg-good-soft px-3 py-2 text-sm text-good">{note}</p>}
       <p className="mb-3 text-sm text-muted">Trips, dinners and outings you share with friends, family or colleagues.</p>
