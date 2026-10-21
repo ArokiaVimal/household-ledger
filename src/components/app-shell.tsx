@@ -139,7 +139,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
     return () => window.removeEventListener(OPEN_ADD_EVENT, open);
   }, []);
   const [toast, setToast] = useState("");
-  const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+  const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href) || (href === "/people" && path.startsWith("/groups"))); // Groups live on the Split tab
   const signOut = async () => {
     await fetch("/api/session", { method: "DELETE" });
     router.replace("/login");

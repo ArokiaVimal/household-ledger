@@ -3,9 +3,9 @@ import { Bell, ChevronRight, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PersonGlyph } from "@/components/glyphs";
-import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, Field, InfoTip, Input, PageHeader, Select } from "@/components/ui";
+import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, Field, Input, Select } from "@/components/ui";
 import { LinkedWithYou } from "@/components/links";
-import { KindGlyph } from "@/components/split-groups";
+import { SplitTabs } from "@/components/split-tabs";
 import { useStore } from "@/data/store";
 import { personLedger, settlementFor } from "@/domain/ledger";
 import { formatINR, parseRupees } from "@/domain/money";
@@ -35,7 +35,8 @@ export default function People() {
   const others = participants.filter((p) => p.id !== meId);
   // You can settle with anyone except a partner you have since unlinked from.
   const canSettleWith = (id: string) => !(live && partner && !partner.active && id === partner.participantId);
-  const ledgers = useMemo(() => others.map((p) => personLedger(p.id, meId, ledgerRecords, settlements)), [others, meId, ledgerRecords, settlements]);
+  // A linked partner stays pinned at the top; everyone else keeps their order.
+  const ledgers = useMemo(() => others.map((p) => personLedger(p.id, meId, ledgerRecords, settlements)).sort((a, b) => Number(b.personId === partner?.participantId) - Number(a.personId === partner?.participantId)), [others, meId, ledgerRecords, settlements, partner]);
   const owedToMe = ledgers.filter((l) => l.outstandingPaise > 0 && canSettleWith(l.personId)).reduce((s, l) => s + l.outstandingPaise, 0);
   const iOwe = ledgers.filter((l) => l.outstandingPaise < 0 && canSettleWith(l.personId)).reduce((s, l) => s - l.outstandingPaise, 0);
   const toSettle = ledgers.filter((l) => l.outstandingPaise !== 0 && canSettleWith(l.personId));
@@ -58,7 +59,7 @@ export default function People() {
   if (live && others.length === 0) {
     return (
       <>
-        <PageHeader title="People" />
+        <SplitTabs active="people" />
         <LinkedWithYou />
         <Card><EmptyState title="No one here yet" hint="Add someone you split with, then split an expense with them." /><Button variant="primary" className="mt-3" onClick={() => setAdding(true)}><UserPlus size={16} aria-hidden />Add person</Button></Card>
       <Dialog open={adding} onClose={() => setAdding(false)} title="Add person">
@@ -77,13 +78,10 @@ export default function People() {
   }
   return (
     <>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h1 className="flex items-center gap-1 text-xl font-semibold tracking-tight">People<InfoTip text="Who owes whom. Settling up records a payment, never an expense." /></h1>
-        <div className="flex shrink-0 items-center gap-2">
+      <SplitTabs active="people" actions={<>
           <Button aria-label="Add person" title="Add person" onClick={() => { setAddError(null); setAdding(true); }}><UserPlus size={16} aria-hidden /><span className="hidden sm:inline">Add person</span></Button>
           {canRecord && <Button onClick={() => { setAmount(""); setFrom(others[0]?.id ?? meId); setTo(meId); setOpen(true); }}>Record payment</Button>}
-        </div>
-      </div>
+      </>} />
 
       <LinkedWithYou />
       <div className="mb-3 grid grid-cols-2 gap-2">

@@ -3,7 +3,8 @@ import { ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { balanceWords, GroupDialog, KindGlyph, PersonStack } from "@/components/split-groups";
-import { Badge, Button, Card, CardTitle, EmptyState, PageHeader } from "@/components/ui";
+import { SplitTabs } from "@/components/split-tabs";
+import { Badge, Button, Card, CardTitle, EmptyState } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import { groupBalances, waitingForReview } from "@/domain/split-groups";
@@ -45,8 +46,8 @@ export default function Groups() {
 
   return (
     <>
-      <PageHeader title="Split groups" tip="Split groups are for an occasion: a trip, a dinner, a party. Pick the people, add expenses, and see who owes whom. They are separate from Payment Groups (views of your own spending) and Categories. An expense is still one transaction, so your spending is never counted twice."
-        sub="Trips, dinners and outings you share with friends and family." actions={<Button variant="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden />New group</Button>} />
+      <SplitTabs active="groups" actions={<Button onClick={() => setCreating(true)}><Plus size={15} aria-hidden /><span className="hidden sm:inline">New group</span><span className="sm:hidden">New</span></Button>} />
+      <p className="mb-3 text-sm text-muted">Trips, dinners and outings you share with friends, family or colleagues.</p>
       {splitGroups.length === 0 ? (
         <Card>
           <EmptyState title="No groups yet" hint="Make one for your next trip or dinner. Choose who is in it, add what each person paid, and the app works out who pays whom." />

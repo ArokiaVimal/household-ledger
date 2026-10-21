@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { PersonGlyph } from "@/components/glyphs";
+import { SplitTabs } from "@/components/split-tabs";
 import { balanceWords, GroupDialog, KindGlyph, PersonStack, ReopenButton, KIND_META, SimplifySwitch } from "@/components/split-groups";
 import { TxnAddDialog, TxnEditDialog } from "@/components/txn-edit-dialog";
-import { Badge, Button, Card, CardTitle, CompactChips, ConfirmDialog, Dialog, EmptyState, FormRow, Input, PageHeader } from "@/components/ui";
+import { Badge, Button, Card, CardTitle, CompactChips, ConfirmDialog, Dialog, EmptyState, FormRow, Input } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 import { groupBalances, groupExpenses, suggestedPayments, waitingForReview, type Transfer } from "@/domain/split-groups";
@@ -34,8 +35,8 @@ export default function GroupPage() {
   if (!group || !balances) {
     return (
       <>
-        <PageHeader title="Split groups" />
-        <Card><EmptyState title="We could not find that group" /><Link href="/groups" className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white">Back to Split groups</Link></Card>
+        <SplitTabs active="groups" />
+        <Card><EmptyState title="We could not find that group" /><Link href="/groups" className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white">Back to Groups</Link></Card>
       </>
     );
   }
@@ -47,7 +48,7 @@ export default function GroupPage() {
 
   return (
     <>
-      <Link href="/groups" className="mb-2 inline-flex min-h-9 items-center gap-1 text-sm text-muted hover:text-foreground"><ArrowLeft size={15} aria-hidden />Split groups</Link>
+      <Link href="/groups" className="mb-2 inline-flex min-h-9 items-center gap-1 text-sm text-muted hover:text-foreground"><ArrowLeft size={15} aria-hidden />Groups</Link>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <KindGlyph kind={group.kind} size={44} />
