@@ -3,6 +3,7 @@ import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { parseServerEnv } from "@/lib/env";
+import { installReadCounter } from "@/lib/diagnostics/firestore-reads";
 
 function init() {
   if (!getApps().length) {
@@ -20,5 +21,6 @@ export function getAdminAuth() {
 /** Admin Firestore bypasses security rules, so only call it from server code that has checked the session. */
 export function getAdminDb() {
   init();
+  installReadCounter(); // no-op unless LOG_FIRESTORE_READS=1
   return getFirestore();
 }

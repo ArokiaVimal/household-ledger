@@ -16,6 +16,9 @@ Set for **Production** (and Preview if you want previews to sign in). Names are 
 - `FIREBASE_ADMIN_PRIVATE_KEY`: paste with the literal `\n` sequences, wrapped in double quotes, exactly as the helper script writes it (`scripts/set-admin-env.mjs`). Mark it **Sensitive**.
 - With `APP_ENV=production` the app refuses to run unless Firebase is fully configured (fails closed).
 
+## Counting Firestore reads (diagnostics, off by default)
+Set `LOG_FIRESTORE_READS=1` on Vercel (Production), redeploy, then open the app and use it normally. Vercel → Project → Logs, search for `fs-reads`. Each page load and each save prints one line such as `{"t":"fs-reads","name":"page load","total":1042,"top":{"records":820,"settlements":60,...}}` (`name` is `api/data <action>` for a save). Only collection names and counts are logged, never document contents. Compare the totals with the Firebase console's daily read chart (free quota: 50,000 reads a day). **Delete the variable and redeploy when done.** Code: `src/lib/diagnostics/`. Not tested against a real Firestore (no emulator here): check the first lines look sensible against the console's chart.
+
 ## Firebase console, after you know the Vercel URL
 1. Authentication → Settings → **Authorized domains** → add `your-app.vercel.app` (and any custom domain). Without this Google sign-in fails with "unauthorized domain".
 2. Add the production Google account emails to `ALLOWED_EMAILS` (comma-separated, exact).

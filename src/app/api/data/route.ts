@@ -9,11 +9,16 @@ import { getMembership } from "@/lib/households/service";
 import { coupleContextFor } from "@/lib/data/couple";
 import { activeLinksFor, refreshForContact } from "@/lib/links/service";
 import { createLinkDeps } from "@/lib/links/server";
+import { measureReads, nameReads } from "@/lib/diagnostics/read-tally";
 
 const status = { invalid: 400, not_found: 404, conflict: 409 } as const;
 
 /** The single write path for household data. Household and identity come from the verified session, never from the body. */
-export async function POST(req: Request) {
+export function POST(req: Request) {
+  return measureReads("api/data", () => handle(req));
+}
+
+async function handle(req: Request) {
   if (getAuthMode(process.env) === "off") return NextResponse.json({ error: "Not configured" }, { status: 404 });
   const h = await headers();
   if (!isSameOrigin(h.get("origin"), h.get("host"))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -25,6 +30,7 @@ export async function POST(req: Request) {
   try { json = JSON.parse(raw); } catch { /* validation error below */ }
 
   try {
+    nameReads(`api/data ${(json as { type?: string } | null)?.type ?? "?"}`);
     const membership = await getMembership(createFirestoreHouseholdStore(), session.uid);
     if (!membership) return NextResponse.json({ error: "Finish setting up your account first." }, { status: 403 });
     const hStore = createFirestoreHouseholdStore();

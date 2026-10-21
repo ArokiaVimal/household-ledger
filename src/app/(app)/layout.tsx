@@ -21,9 +21,15 @@ import type { CoupleMembership, InviteOffer, Membership } from "@/lib/households
 import { getProfile } from "@/lib/profile/store";
 import { loadLinkData, upgradeLinks, type LinkData } from "@/lib/links/service";
 import { createLinkDeps } from "@/lib/links/server";
+import { measureReads } from "@/lib/diagnostics/read-tally";
+
+/** Counts the Firestore reads of one page load when LOG_FIRESTORE_READS=1 (see src/lib/diagnostics). */
+function AuthedShell({ children }: { children: ReactNode }) {
+  return measureReads("page load", () => AuthedShellInner({ children }));
+}
 
 /** Reads the session on every request, so it must stream inside <Suspense> (Cache Components). */
-async function AuthedShell({ children }: { children: ReactNode }) {
+async function AuthedShellInner({ children }: { children: ReactNode }) {
   const session = await requireSession();
   await connection(); // the date below changes per request, so opt into request-time rendering (also in demo mode)
   let profile: Awaited<ReturnType<typeof getProfile>> | null = null;

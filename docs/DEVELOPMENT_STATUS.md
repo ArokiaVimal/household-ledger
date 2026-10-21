@@ -541,3 +541,9 @@ Cleanup after removing the household view: deleted the unused `View` state (`vie
 - **Not done:** merging contact editing from Settings > Friends & Family into Split > People; removing Timeline altogether.
 - **Verified:** `pnpm lint`, `pnpm typecheck`, `pnpm test`. In the browser at 375px (demo data): Recurring with the Bills tabs and More highlighted, the More menu, Settings (menu, Spending views, Categories with Icons & logos), and Card bills at about 1100px.
 - **Not verified:** the Wallets and Activity link rows after tapping, the Timeline tab, the AI assistant section, and a real iPhone.
+
+## Firestore read counter (diagnostics only)
+- `src/lib/diagnostics/read-tally.ts` (pure, tested) and `firestore-reads.ts` (wraps the Admin SDK's `Query.get`, `DocumentReference.get`, `Firestore.getAll` and `Transaction.get` once). Off unless `LOG_FIRESTORE_READS=1`; then each page load (`(app)/layout.tsx`) and each save (`/api/data`) logs one `fs-reads` JSON line with the total and the biggest collections. No document contents are logged. How to use it: `docs/DEPLOYMENT.md`.
+- **Verified:** lint, typecheck, `pnpm test` (675 passed, 18 skipped), including unit tests of the tally and a wiring test that swaps the SDK's `get` methods for fakes. **Not verified:** against a real Firestore (no Java here for the emulator), so check the first real log lines against the Firebase console's usage chart. The collection label comes from an internal SDK field and falls back to "query" if that changes.
+- No behaviour changes with the flag off. Remove the module and its three call sites when the read-reduction work (ROADMAP) is done.
+- The reduction steps themselves are on the ROADMAP ("Reduce Firestore reads"); none are built.
