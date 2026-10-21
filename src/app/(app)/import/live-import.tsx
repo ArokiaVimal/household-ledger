@@ -3,7 +3,7 @@ import { CheckCircle2, ChevronDown, ClipboardPaste, FileUp, Image as ImageIcon, 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { AiBadge, Badge, Button, Card, CardTitle, ChipGroup, CompactChips, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
+import { AiBadge, Badge, Button, ChipGroup, CompactChips, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
 import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -238,19 +238,21 @@ export function LiveImport() {
             </div>
           )}
 
-          {need && src && (
-            <Card className="space-y-3">
-              <CardTitle>Which payment method is this?</CardTitle>
+          <Dialog open={!!need && !!src} onClose={() => { setNeed(null); setSrc(null); }} title="Which payment method is this?">
+            {need && src && (
+            <div className="space-y-3 pb-1">
               <p className="text-sm text-muted">{need.reason}. Pick one and it will be read straight away.</p>
               <CompactChips label="Payment method" options={[...usable].sort((x, y) => (need.candidates.find((c) => c.id === y.id)?.score ?? 0) - (need.candidates.find((c) => c.id === x.id)?.score ?? 0)).map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[]} onPick={(id) => void read({ ...src, accountId: id })} />
-            </Card>
-          )}
+            </div>
+            )}
+          </Dialog>
 
-          {preview && !askReimport && (
-            <Card className="space-y-5 p-5">
+          {/* The result of reading comes to the front as a pop-up, so it is never hidden below the options. */}
+          <Dialog open={!!preview && !askReimport} onClose={cancelReimport} title={preview?.format === "text" ? "Here is what we read" : "Here is what we found"}>
+            {preview && (
+            <div className="space-y-5 pb-1">
               <div className="min-w-0">
-                <h2 className="text-lg font-semibold">{preview.format === "text" ? "Here is what we read" : "Here is what we found"}</h2>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
                   <MerchantAvatar name={accountName(preview.accountId)} size={22} /><span className="font-medium text-foreground">{accountName(preview.accountId)}</span>
                   <span>{preview.detected?.chosen ? "you chose this" : preview.detected ? "picked automatically" : ""}</span>
                   {preview.readBy === "ai" && <AiBadge tone="unsure" title="Claude read these rows. Check each amount.">Read by AI</AiBadge>}
@@ -339,12 +341,6 @@ export function LiveImport() {
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center gap-3">
-                <Button variant="primary" className="min-h-11 px-5" disabled={busy || toStage === 0 || blocked} onClick={commit}>{busy ? "Saving…" : `Send ${toStage} to review`}</Button>
-                <Button onClick={cancelReimport}>Cancel</Button>
-                {blocked && <span className="text-xs text-muted">Tick the box above to import despite the failed check.</span>}
-              </div>
-
               <details className="group rounded-xl text-sm">
                 <summary className="flex cursor-pointer items-center gap-1.5 text-muted hover:text-foreground"><ChevronDown size={14} aria-hidden className="-rotate-90 group-open:rotate-0" />See all {preview.rows.length} rows and how they were read</summary>
                 <div className="mt-3 space-y-3">
@@ -384,8 +380,15 @@ export function LiveImport() {
                   )}
                 </div>
               </details>
-            </Card>
-          )}
+
+              <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-3 border-t border-border bg-surface px-4 py-3">
+                <Button variant="primary" className="min-h-11 px-5" disabled={busy || toStage === 0 || blocked} onClick={commit}>{busy ? "Saving…" : `Send ${toStage} to review`}</Button>
+                <Button onClick={cancelReimport}>Cancel</Button>
+                {blocked && <span className="text-xs text-muted">Tick the box above to import despite the failed check.</span>}
+              </div>
+            </div>
+            )}
+          </Dialog>
 
           <section aria-label="Import history" className="space-y-2">
             <h2 className="px-1 text-sm font-medium text-muted">Earlier imports</h2>
