@@ -1,14 +1,20 @@
 "use client";
-import { ClipboardCheck, Search, Sparkles, Trash2, X } from "lucide-react";
+import { ClipboardCheck, CreditCard, Landmark, QrCode, Receipt, Search, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { CompactRow } from "@/components/txn-compact";
 import { HScroll } from "@/components/hscroll";
+import { ChipFilter } from "@/components/chip-filter";
+import { CategoryGlyph } from "@/components/glyphs";
+import { MerchantAvatar } from "@/components/txn-row";
+import { NotesAi } from "./notes-ai";
 import { undoImport } from "../import/undo";
-import { AiBadge, AiFeatureCard, Badge, Button, ConfirmDialog, Dialog, EmptyState, Input, Select } from "@/components/ui";
+import { AiBadge, AiFeatureCard, Badge, Button, ConfirmDialog, Dialog, EmptyState, Input } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
+import { isUpiPayment, sourceOf } from "@/domain/payment-mode";
+import { signedSpend } from "@/domain/reports";
 import type { ExpenseRecord } from "@/domain/types";
 import { needsVoucherBrand } from "@/domain/vouchers";
 
@@ -38,7 +44,7 @@ export function UnverifiedQueue({ month }: { month?: string }) {
   const months = (params.get("months") ?? "").split(",").filter((m) => /^\d{4}-\d{2}$/.test(m)).map((m) => new Date(`${m}-01T00:00:00Z`).toLocaleString("en", { month: "short", year: "numeric", timeZone: "UTC" }));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const { live, aiEnabled, staged: allStaged, categoryName, accountName, approveStaged, deleteRecords } = useStore();
+  const { live, aiEnabled, staged: allStaged, categoryName, accountName, approveStaged, deleteRecords, accounts, categories } = useStore();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState(false);
   const [deleting, setDeleting] = useState<ExpenseRecord[] | null>(null);
@@ -49,20 +55,26 @@ export function UnverifiedQueue({ month }: { month?: string }) {
   const [cat, setCat] = useState("");
   const [mon, setMon] = useState("");
   const [quick, setQuick] = useState<Quick>("all");
+  const [mode, setMode] = useState("");
+  const [source, setSource] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const needle = q.trim().toLowerCase();
   // The ones that need you come first (duplicates, no category, AI unsure), then the AI guesses, then what the app remembered.
   const urgency = (r: ExpenseRecord) => (r.duplicateOf ? 0 : r.suggested === "ai_unsure" ? 1 : !r.suggested && r.categoryId === "uncategorized" && !r.voucherBrandId ? 2 : r.suggested === "ai" ? 3 : r.suggested === "memory" ? 4 : 3);
   // With a month, only that month's unverified rows; without one, all of them.
   const staged = useMemo(() => (month ? allStaged.filter((r) => r.date.startsWith(month)) : allStaged), [allStaged, month]);
   const shown = useMemo(() => staged.filter((r) =>
-    (!acct || r.accountId === acct) && (!cat || r.categoryId === cat) && (!mon || r.date.startsWith(mon)) && QUICK.find((x) => x.id === quick)!.test(r) &&
+    (!acct || r.accountId === acct) && (!mode || isUpiPayment(r, accounts) === (mode === "upi")) && (!source || sourceOf(r, accounts) === source) && (!cat || r.categoryId === cat) && (!mon || r.date.startsWith(mon)) && QUICK.find((x) => x.id === quick)!.test(r) &&
     (!needle || `${r.merchant} ${r.originalDescription} ${r.notes ?? ""} ${formatINR(r.amountPaise)} ${(r.amountPaise / 100).toFixed(2)}`.toLowerCase().includes(needle)),
-  ).sort((a, b) => urgency(a) - urgency(b) || b.date.localeCompare(a.date)), [staged, acct, cat, mon, quick, needle]);
-  const filtered = !!(needle || acct || cat || mon || quick !== "all");
+  ).sort((a, b) => urgency(a) - urgency(b) || b.date.localeCompare(a.date)), [staged, acct, cat, mon, quick, needle, mode, source, accounts]);
+  const filtered = !!(needle || acct || cat || mon || mode || source || quick !== "all");
+  const filterCount = [acct, cat, mon, mode, source, quick !== "all" ? quick : ""].filter(Boolean).length;
+  const charged = shown.reduce((sum, r) => sum + signedSpend(r), 0);
   const accountsIn = [...new Set(staged.map((r) => r.accountId))];
   const categoriesIn = [...new Set(staged.map((r) => r.categoryId))];
   const monthsIn = [...new Set(staged.map((r) => r.date.slice(0, 7)))].sort().reverse();
-  const clearFilters = () => { setQ(""); setAcct(""); setCat(""); setMon(""); setQuick("all"); setPicked(new Set()); };
+  const clearFilters = () => { setQ(""); setAcct(""); setCat(""); setMon(""); setMode(""); setSource(""); setQuick("all"); setPicked(new Set()); };
   const narrow = (set: () => void) => { set(); setPicked(new Set()); };
 
   const view = useRecordNav(shown);
@@ -130,25 +142,50 @@ export function UnverifiedQueue({ month }: { month?: string }) {
             {picked.size > 0 && <Button onClick={() => setConfirm(true)}>Verify {picked.size} as they are…</Button>}
             {picked.size > 0 && <Button variant="danger" onClick={() => setDeleting(chosen)}><Trash2 size={15} aria-hidden />Delete {picked.size}…</Button>}
           </HScroll>
-          <div className="mb-2 space-y-2 sm:mb-3" role="search" aria-label="Search and filter unverified transactions">
-            <div className="relative">
-              <Search size={16} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-              <Input aria-label="Search unverified transactions" placeholder="Search merchant, text or amount" value={q} onChange={(e) => narrow(() => setQ(e.target.value))} className="pl-10 pr-10" />
-              {q && <button type="button" aria-label="Clear search" onClick={() => narrow(() => setQ(""))} className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-muted hover:bg-background"><X size={14} aria-hidden /></button>}
-            </div>
-            <div className={`grid gap-1.5 sm:gap-2 ${month ? "grid-cols-2" : "grid-cols-3"}`}>
-              <Select aria-label="Payment method" value={acct} onChange={(e) => narrow(() => setAcct(e.target.value))}><option value="">All methods</option>{accountsIn.map((id) => <option key={id} value={id}>{accountName(id)}</option>)}</Select>
-              <Select aria-label="Category" value={cat} onChange={(e) => narrow(() => setCat(e.target.value))}><option value="">All categories</option>{categoriesIn.map((id) => <option key={id} value={id}>{categoryName(id)}</option>)}</Select>
-              {!month && <Select aria-label="Month" value={mon} onChange={(e) => narrow(() => setMon(e.target.value))}><option value="">All months</option>{monthsIn.map((m) => <option key={m} value={m}>{monthName(m)}</option>)}</Select>}
-            </div>
-            <HScroll className="flex items-center gap-1.5 pb-0.5 sm:flex-wrap [&>*]:shrink-0" role="group" aria-label="Quick filters">
-              {QUICK.filter((x) => x.id === "all" || staged.some(x.test)).map((x) => {
-                const n = staged.filter(x.test).length;
-                return <button key={x.id} type="button" aria-pressed={quick === x.id} onClick={() => narrow(() => setQuick(x.id))} className={`min-h-8 rounded-full border px-3 text-sm ${quick === x.id ? "border-accent bg-accent text-white" : "border-border bg-surface text-muted hover:text-foreground"}`}>{x.label}{x.id !== "all" && <span className="ml-1.5 text-xs opacity-80">{n}</span>}</button>;
-              })}
-              {filtered && <button type="button" onClick={clearFilters} className="ml-1 text-sm text-accent underline-offset-2 hover:underline">Clear filters</button>}
-            </HScroll>
+          {/* The same bar as the All tab: the total, then search (opens when tapped), AI notes and filters. */}
+          <div className="mb-3" role="search" aria-label="Search and filter unverified transactions">
+            {searching || q ? (
+              <div className="flex items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search size={16} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+                  <Input autoFocus aria-label="Search unverified transactions" placeholder="Search merchant, text or amount" value={q} onChange={(e) => narrow(() => setQ(e.target.value))} className="pl-10" />
+                </div>
+                <button type="button" aria-label="Close search" onClick={() => { narrow(() => setQ("")); setSearching(false); }} className="grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-muted hover:bg-background"><X size={17} aria-hidden /></button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1 px-1" aria-label="Total for this view">
+                  <div className="num text-[22px] font-semibold leading-tight tracking-tight">{formatINR(charged)}</div>
+                  <div className="text-xs leading-snug text-muted">{shown.length} unverified{filtered ? ` of ${staged.length}` : ""}</div>
+                </div>
+                <button type="button" aria-label="Search" onClick={() => setSearching(true)} className="grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background"><Search size={17} aria-hidden /></button>
+                <NotesAi />
+                <button type="button" onClick={() => setFiltersOpen(true)} aria-label={`Filters${filterCount ? `, ${filterCount} on` : ""}`} className="relative grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background">
+                  <SlidersHorizontal size={17} aria-hidden />
+                  {filterCount > 0 && <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-accent text-[10px] font-semibold text-white">{filterCount}</span>}
+                </button>
+              </div>
+            )}
+            {filterCount > 0 && (
+              <HScroll className="mt-2 flex gap-1.5 text-xs [&>*]:shrink-0">
+                {([[acct, accountName(acct), () => setAcct("")], [mode, mode === "upi" ? "UPI" : "Not UPI", () => setMode("")], [source, source === "card" ? "Credit card" : "Bank account", () => setSource("")], [cat, categoryName(cat), () => setCat("")], [mon, monthName(mon), () => setMon("")], [quick !== "all" ? quick : "", QUICK.find((x) => x.id === quick)?.label ?? "", () => setQuick("all")]] as [string, string, () => void][]).filter(([on]) => on).map(([, label, clear]) => (
+                  <button key={label} type="button" onClick={() => narrow(clear)} aria-label={`Remove filter ${label}`} className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-1.5 font-medium text-accent hover:bg-accent/15">{label}<X size={12} aria-hidden /></button>
+                ))}
+                <button type="button" className="px-2 py-1.5 text-muted underline" onClick={clearFilters}>Clear all</button>
+              </HScroll>
+            )}
           </div>
+          <Dialog open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
+            <div className="-mx-4 space-y-4 overflow-x-clip pb-3">
+              <ChipFilter label="Needs you" value={quick === "all" ? "" : quick} onPick={(v) => narrow(() => setQuick((v || "all") as Quick))} options={QUICK.filter((x) => x.id !== "all" && staged.some(x.test)).map((x) => ({ id: x.id, label: `${x.label} · ${staged.filter(x.test).length}`, icon: <Sparkles size={15} aria-hidden /> }))} />
+              <ChipFilter label="UPI" value={mode} onPick={(v) => narrow(() => setMode(v))} options={[{ id: "upi", label: "UPI", icon: <QrCode size={15} aria-hidden /> }, { id: "other", label: "Not UPI", icon: <Receipt size={15} aria-hidden /> }]} />
+              <ChipFilter label="From" value={source} onPick={(v) => narrow(() => setSource(v))} options={[{ id: "bank", label: "Bank account", icon: <Landmark size={15} aria-hidden /> }, { id: "card", label: "Credit card", icon: <CreditCard size={15} aria-hidden /> }]} />
+              <ChipFilter label="Paid with" value={acct} onPick={(v) => narrow(() => setAcct(v))} options={accountsIn.map((id) => ({ id, label: accountName(id), icon: <MerchantAvatar name={accountName(id)} size={26} /> }))} />
+              <ChipFilter label="Category" value={cat} onPick={(v) => narrow(() => setCat(v))} options={categoriesIn.map((id) => { const c = categories.find((x) => x.id === id); return { id, label: categoryName(id), icon: <CategoryGlyph name={c?.name ?? categoryName(id)} icon={c?.icon} size={26} /> }; })} />
+              {!month && <ChipFilter label="Month" value={mon} onPick={(v) => narrow(() => setMon(v))} options={monthsIn.map((m) => ({ id: m, label: monthName(m), icon: <Receipt size={15} aria-hidden /> }))} />}
+            </div>
+            <div className="sticky bottom-0 -mx-4 flex justify-between gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={clearFilters}>Reset</Button><Button variant="primary" onClick={() => setFiltersOpen(false)}>Show {shown.length}</Button></div>
+          </Dialog>
           {note && <p role="status" className="mb-3 rounded-xl bg-accent/5 p-3 text-sm">{note}</p>}
           {shown.length === 0 && <p role="status" className="rounded-[var(--radius-card)] bg-surface p-6 text-center text-sm text-muted">Nothing in the queue matches. <button type="button" onClick={clearFilters} className="text-accent underline underline-offset-2">Clear filters</button></p>}
           <ul className="space-y-1.5">
