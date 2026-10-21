@@ -13,7 +13,8 @@ For anyone (a person, a new developer, or any AI coding tool on any account or d
 | 4 | [ROADMAP.md](../ROADMAP.md) | What is built, what is in progress, what is later |
 | 5 | [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md) | Exact state, newest entries at the bottom, with limits and what was verified |
 | 6 | [DECISIONS.md](DECISIONS.md) | Why choices were made |
-| 7 | detail docs as needed | ARCHITECTURE, DATA_MODEL, SECURITY, IMPORT_PIPELINE, FRIENDS_FAMILY_LINKING, TESTING, DEPLOYMENT |
+| 7 | [SETUP_AND_ACCESS.md](SETUP_AND_ACCESS.md) | Set up a new device, share the app, add collaborators |
+| 8 | detail docs as needed | ARCHITECTURE, DATA_MODEL, SECURITY, IMPORT_PIPELINE, FRIENDS_FAMILY_LINKING, TESTING, DEPLOYMENT |
 
 Conflict order when documents disagree: **code and tests > decisions > this file > product spec > notes.** Then fix the document that was wrong.
 
@@ -85,6 +86,8 @@ Recorded in full as items 12 onward in [DECISIONS.md](DECISIONS.md). In short:
 | AI | `src/lib/import/ai*.ts`, `src/lib/insights`, usage tracking in `src/lib/ai-usage` and `src/domain/ai-usage.ts` |
 
 ## 7. Running it and working with others
+**Step-by-step access guide (new device or Claude account, sharing the app, adding collaborators): [SETUP_AND_ACCESS.md](SETUP_AND_ACCESS.md).**
+
 **Setup:** Node 22 (`nvm use`), `corepack enable`, `pnpm install`, `cp .env.example .env.local` and fill what you need. Without Firebase variables the app runs in demo mode (fictional data, no sign-in). Variable names are in `.env.example`; **values are never in Git.** The owner holds them in Vercel (Project > Settings > Environment Variables) and in their own `.env.local`.
 
 **Signing in to the live app or a local app on real Firebase** needs the email on the `ALLOWED_EMAILS` list. A new collaborator must ask the owner to add their email. Prefer the Firebase emulator or demo mode for development so real data is never at risk.
