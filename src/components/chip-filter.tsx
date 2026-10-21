@@ -14,9 +14,12 @@ export const filterAccounts = (accounts: Account[], source?: string) =>
 /** A filter as one sideways-scrolling row of chips with a small picture each: one tap picks it, tap again to clear. */
 export function ChipFilter({ label, value, onPick, options }: { label: string; value: string; onPick: (v: string) => void; options: { id: string; label: string; icon: ReactNode }[] }) {
   // Two rows, each pill as wide as its own text. Each pill goes on the shorter row so the rows end about together.
-  const rows: { id: string; label: string; icon: ReactNode }[][] = [[], []];
+  // When they all fit side by side on a phone (UPI and Not UPI, Bank account and Credit card), they stay on one row.
+  const px = (o: { label: string }) => o.label.length * 8 + 62;
+  const oneRow = options.reduce((sum, o) => sum + px(o), 0) <= 340;
+  const rows: { id: string; label: string; icon: ReactNode }[][] = oneRow ? [[...options]] : [[], []];
   const widths = [0, 0];
-  for (const o of options) { const w = o.label.length + 6; const k = widths[0] <= widths[1] ? 0 : 1; rows[k].push(o); widths[k] += w; }
+  if (!oneRow) for (const o of options) { const w = o.label.length + 6; const k = widths[0] <= widths[1] ? 0 : 1; rows[k].push(o); widths[k] += w; }
   return (
     <fieldset className="min-w-0">
       <legend className="mb-1.5 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{label}</legend>
