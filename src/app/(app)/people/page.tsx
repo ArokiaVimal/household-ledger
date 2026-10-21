@@ -1,7 +1,7 @@
 "use client";
-import { Bell, ChevronRight, UserPlus } from "lucide-react";
+import { ArrowUpDown, Bell, Check, ChevronRight, UserPlus } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PersonGlyph } from "@/components/glyphs";
 import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, Field, Input, Select } from "@/components/ui";
 import { LinkedWithYou } from "@/components/links";
@@ -23,6 +23,12 @@ export default function People() {
     setAdding(false); setNewName(""); setNewEmail(""); setAddError(null);
   };
   const [open, setOpen] = useState(false);
+  // How the list is ordered: the biggest balance first, or the person added most recently first. Remembered on this device.
+  type Sort = "amount" | "recent";
+  const [sort, setSort] = useState<Sort>("amount");
+  const [sorting, setSorting] = useState(false);
+  useEffect(() => { void Promise.resolve().then(() => { try { const v = localStorage.getItem("people-sort"); if (v === "amount" || v === "recent") setSort(v); } catch { /* private window */ } }); }, []);
+  const pickSort = (v: Sort) => { setSort(v); setSorting(false); try { localStorage.setItem("people-sort", v); } catch { /* private window */ } };
   const [all, setAll] = useState(false);
   const [voiding, setVoiding] = useState<string | null>(null);
   const [from, setFrom] = useState(meId);
@@ -36,7 +42,10 @@ export default function People() {
   // You can settle with anyone except a partner you have since unlinked from.
   const canSettleWith = (id: string) => !(live && partner && !partner.active && id === partner.participantId);
   // A linked partner stays pinned at the top; everyone else keeps their order.
-  const ledgers = useMemo(() => others.map((p) => personLedger(p.id, meId, ledgerRecords, settlements)).sort((a, b) => Number(b.personId === partner?.participantId) - Number(a.personId === partner?.participantId)), [others, meId, ledgerRecords, settlements, partner]);
+  const ledgers = useMemo(() => others.map((p) => personLedger(p.id, meId, ledgerRecords, settlements)).map((l, i) => ({ l, i }))
+    // A linked partner always stays on top; then by the chosen order. People are listed oldest first, so "recent" is the reverse.
+    .sort((a, b) => Number(b.l.personId === partner?.participantId) - Number(a.l.personId === partner?.participantId) || (sort === "amount" ? Math.abs(b.l.outstandingPaise) - Math.abs(a.l.outstandingPaise) || a.i - b.i : b.i - a.i))
+    .map((x) => x.l), [others, meId, ledgerRecords, settlements, partner, sort]);
   const owedToMe = ledgers.filter((l) => l.outstandingPaise > 0 && canSettleWith(l.personId)).reduce((s, l) => s + l.outstandingPaise, 0);
   const iOwe = ledgers.filter((l) => l.outstandingPaise < 0 && canSettleWith(l.personId)).reduce((s, l) => s - l.outstandingPaise, 0);
   const toSettle = ledgers.filter((l) => l.outstandingPaise !== 0 && canSettleWith(l.personId));
@@ -92,6 +101,12 @@ export default function People() {
 
       <div className="space-y-3">
         <Card className="px-3 py-1">
+          {ledgers.length > 1 && (
+            <div className="flex items-center justify-between gap-2 px-1 pt-1.5 text-xs text-muted">
+              <span>{sort === "amount" ? "Biggest balance first" : "Newest first"}</span>
+              <button type="button" aria-label="Sort people" title="Sort" onClick={() => setSorting(true)} className="grid size-8 place-items-center rounded-full text-muted hover:bg-background"><ArrowUpDown size={16} aria-hidden /></button>
+            </div>
+          )}
           {ledgers.length === 0 ? <EmptyState title="No one here yet" hint="Add a friend in Settings, then split an expense with them." /> : (
             <ul className="divide-y divide-border">
               {ledgers.map((l) => {
@@ -148,6 +163,19 @@ export default function People() {
             <Button type="submit" variant="primary" disabled={!newName.trim()}>Add</Button>
           </div>
         </form>
+      </Dialog>
+      <Dialog open={sorting} onClose={() => setSorting(false)} title="Sort people">
+        <ul className="space-y-1 pb-2 text-sm">
+          {([["amount", "Biggest balance first", "Who owes or is owed the most, to the least"], ["recent", "Recently added", "The person you added last comes first"]] as const).map(([id, label, hint]) => (
+            <li key={id}>
+              <button type="button" aria-pressed={sort === id} onClick={() => pickSort(id)} className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left hover:bg-background">
+                <span className="min-w-0 flex-1"><span className="block font-medium">{label}</span><span className="block text-xs text-muted">{hint}</span></span>
+                {sort === id && <Check size={18} aria-hidden className="shrink-0 text-accent" />}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p className="pb-1 text-xs text-muted">A linked partner always stays on top.</p>
       </Dialog>
       <Dialog open={all} onClose={() => setAll(false)} title="Settle everything?">
         <div className="space-y-3 pb-1 text-sm">
