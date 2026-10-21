@@ -8,7 +8,6 @@ import { ChipFilter, filterAccounts } from "@/components/chip-filter";
 import { NotesAi } from "./notes-ai";
 import { UnverifiedQueue } from "./unverified-queue";
 import { VoucherSection, type VoucherGroup } from "./voucher-section";
-import { ProgressRing } from "@/components/progress";
 import { verifyProgress } from "@/domain/progress";
 import { Button, ConfirmDialog, Dialog, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { CompactRow, StatusMark } from "@/components/txn-compact";
@@ -220,44 +219,44 @@ function TransactionsView() {
         <PageHeader tip="Every transaction, including imported ones you have not verified yet. Verifying one confirms it and teaches the app." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
       </div>
       {/* Verified or not, with how far along you are. */}
-      <div className="mb-3 flex items-center gap-3">
+      <div className="mb-3 flex items-center gap-1.5 md:gap-3">
         <div role="tablist" aria-label="Verified or not" className="flex min-w-0 flex-1 rounded-full bg-border/60 p-1 md:max-w-md">
           {([["", "All", 0], ["verified", "Verified", 0], ["unverified", "Unverified", allScope ? staged.length : progress.left]] as const).map(([id, label, n]) => (
-            <button key={id} role="tab" aria-selected={v === id} onClick={() => set("v", id)} className={cn("flex min-h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2 text-sm transition-all", v === id ? "bg-surface font-semibold text-foreground shadow-sm" : "text-muted hover:text-foreground")}>
+            <button key={id} role="tab" aria-selected={v === id} onClick={() => set("v", id)} className={cn("flex min-h-9 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-full px-1.5 text-[13px] transition-all md:gap-1.5 md:px-2 md:text-sm", v === id ? "bg-surface font-semibold text-foreground shadow-sm" : "text-muted hover:text-foreground")}>
               {label}{n > 0 && <span className={cn("num rounded-full px-1.5 text-[11px] font-semibold leading-5", v === id ? "bg-warn-soft text-warn" : "bg-warn/15 text-warn")}>{n}</span>}
             </button>
           ))}
         </div>
-        {progress.total > 0 && <ProgressRing pct={progress.pct} size={44} label={`${progress.verified} of ${progress.total} verified in ${get("month") || month} (${progress.pct}%)`} />}
-      </div>
-      {v === "unverified" && allScope && (
-        <p className="mb-2 flex items-center justify-between rounded-xl bg-background px-3 py-2 text-xs text-muted"><span>All months · {staged.length} unverified</span><button type="button" onClick={() => set("scope", "")} className="font-medium text-accent">Show {new Date(`${get("month") || month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" })} only</button></p>
-      )}
-      {v === "unverified" ? <UnverifiedQueue month={allScope ? undefined : get("month") || month} /> : <>
-      {/* Phone: the total with three icons (search, AI notes, filters). Search opens only when tapped. */}
-      <div className="mb-3 md:hidden">
-        {searching || get("q") ? (
-          <div className="flex items-center gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search size={16} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-              <Input autoFocus className="pl-10" placeholder="Search merchant, note or amount" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
-            </div>
-            <button type="button" aria-label="Close search" onClick={() => { set("q", ""); setSearching(false); }} className="grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-muted hover:bg-background"><X size={17} aria-hidden /></button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1 px-1" aria-label="Total for this view">
-              <div className="num text-[22px] font-semibold leading-tight tracking-tight">{formatINR(charged)}</div>
-              <div className="text-xs leading-snug text-muted">{rows.length} transaction{rows.length === 1 ? "" : "s"}{othersShare > 0 ? ` · mine ${formatINR(total.my)} · others' share ${formatINR(othersShare)}` : ""}</div>
-            </div>
-            <button type="button" aria-label="Search" onClick={() => setSearching(true)} className="grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background"><Search size={17} aria-hidden /></button>
+        {v !== "unverified" && (
+          <div className="flex shrink-0 items-center gap-1.5 md:hidden">
+            <button type="button" aria-label="Search" aria-pressed={searching || !!get("q")} onClick={() => setSearching((x) => !x)} className={cn("relative grid size-10 place-items-center rounded-full text-foreground", searching || get("q") ? "bg-accent/15 text-accent" : "bg-border/60 hover:bg-border")}>
+              <Search size={17} aria-hidden />
+            </button>
             <NotesAi />
-            <button type="button" onClick={() => setFiltersOpen(true)} aria-label={`Filters${filterCount ? `, ${filterCount} on` : ""}`} className="relative grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background">
+            <button type="button" onClick={() => setFiltersOpen(true)} aria-label={`Filters${filterCount ? `, ${filterCount} on` : ""}`} className="relative grid size-10 place-items-center rounded-full bg-border/60 text-foreground hover:bg-border">
               <SlidersHorizontal size={17} aria-hidden />
               {filterCount > 0 && <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-accent text-[10px] font-semibold text-white">{filterCount}</span>}
             </button>
           </div>
         )}
+      </div>
+      {v !== "unverified" && (searching || get("q")) && (
+        <div className="relative mb-3 md:hidden">
+          <Search size={16} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+          <Input autoFocus={searching && !get("q")} className="pl-10 pr-11" placeholder="Search merchant, note or amount" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
+          <button type="button" aria-label="Close search" onClick={() => { set("q", ""); setSearching(false); }} className="absolute right-1 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full text-muted hover:bg-background"><X size={16} aria-hidden /></button>
+        </div>
+      )}
+      {v === "unverified" && allScope && (
+        <p className="mb-2 flex items-center justify-between rounded-xl bg-background px-3 py-2 text-xs text-muted"><span>All months · {staged.length} unverified</span><button type="button" onClick={() => set("scope", "")} className="font-medium text-accent">Show {new Date(`${get("month") || month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" })} only</button></p>
+      )}
+      {v === "unverified" ? <UnverifiedQueue month={allScope ? undefined : get("month") || month} /> : <>
+      {/* Phone: the total. Search, AI notes and filters sit in the row with the tabs. */}
+      <div className="mb-3 px-1 md:hidden">
+        <div aria-label="Total for this view">
+          <div className="num text-[22px] font-semibold leading-tight tracking-tight">{formatINR(charged)}</div>
+          <div className="text-xs leading-snug text-muted">{rows.length} transaction{rows.length === 1 ? "" : "s"}{othersShare > 0 ? ` · mine ${formatINR(total.my)} · others' share ${formatINR(othersShare)}` : ""}</div>
+        </div>
       </div>
       <Dialog open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
         <div className="-mx-4 space-y-4 overflow-x-clip pb-3">

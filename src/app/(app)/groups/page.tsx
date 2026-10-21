@@ -2,9 +2,9 @@
 import { ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { balanceWords, GroupDialog, KindGlyph, PersonStack } from "@/components/split-groups";
+import { balanceWords, GroupDialog, KindGlyph, PersonStack, SettleForm } from "@/components/split-groups";
 import { SplitTabs } from "@/components/split-tabs";
-import { Badge, Button, Card, CardTitle, EmptyState } from "@/components/ui";
+import { Badge, Button, Card, CardTitle, Dialog, FormRow, Select } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 import { groupBalances, waitingForReview } from "@/domain/split-groups";
@@ -15,6 +15,9 @@ export default function Groups() {
   const { splitGroups, splitSettlements, records, staged, meId } = useStore();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recGroup, setRecGroup] = useState("");
+  const [note, setNote] = useState("");
   // Onboarding sends people here with ?new=1 to start a group straight away.
   useEffect(() => { void Promise.resolve().then(() => { if (new URLSearchParams(window.location.search).get("new") === "1") setCreating(true); }); }, []);
   const [showArchived, setShowArchived] = useState(false);
@@ -48,11 +51,16 @@ export default function Groups() {
 
   return (
     <>
-      <SplitTabs active="groups" actions={<Button onClick={() => setCreating(true)}><Plus size={15} aria-hidden /><span className="hidden sm:inline">New group</span><span className="sm:hidden">New</span></Button>} />
+      <SplitTabs active="groups" actions={<>
+        <Button aria-label="New group" title="New group" onClick={() => setCreating(true)}><Plus size={16} aria-hidden /><span className="hidden sm:inline">New group</span></Button>
+        {active.length > 0 && <Button onClick={() => { setRecGroup(active[0].g.id); setRecording(true); }}>Record payment</Button>}
+      </>} />
+      {note && <p role="status" className="mb-3 rounded-xl bg-good-soft px-3 py-2 text-sm text-good">{note}</p>}
       <p className="mb-3 text-sm text-muted">Trips, dinners and outings you share with friends, family or colleagues.</p>
       {splitGroups.length === 0 ? (
         <Card>
-          <EmptyState title="No groups yet" hint="Make one for your next trip or dinner. Choose who is in it, add what each person paid, and the app works out who pays whom." />
+          <p className="font-medium">No groups yet</p>
+          <p className="mt-1 text-sm text-muted">Make one for your next trip or dinner. Choose who is in it, add what each person paid, and the app works out who pays whom.</p>
           <Button variant="primary" className="mt-3 min-h-11 w-full sm:w-auto" onClick={() => setCreating(true)}>Create your first group</Button>
         </Card>
       ) : (
@@ -71,6 +79,17 @@ export default function Groups() {
       )}
       <p className="mt-3 text-xs text-muted">Contacts come from Friends &amp; Family in Settings; they do not need an account.</p>
       <GroupDialog open={creating} onClose={() => setCreating(false)} onSaved={(id) => router.push(`/groups/${encodeURIComponent(id)}`)} />
+      <Dialog open={recording} onClose={() => setRecording(false)} title="Record a payment">
+        {(() => {
+          const g = active.find((r) => r.g.id === recGroup)?.g ?? active[0]?.g;
+          return g ? (
+            <div className="space-y-3">
+              {active.length > 1 && <FormRow label="Group"><Select aria-label="Group" value={g.id} onChange={(e) => setRecGroup(e.target.value)}>{active.map((r) => <option key={r.g.id} value={r.g.id}>{r.g.name}</option>)}</Select></FormRow>}
+              <SettleForm key={g.id} group={g} preset={null} onClose={() => setRecording(false)} onDone={(m) => { setNote(`${m} in ${g.name}`); setTimeout(() => setNote(""), 4000); }} />
+            </div>
+          ) : null;
+        })()}
+      </Dialog>
     </>
   );
 }

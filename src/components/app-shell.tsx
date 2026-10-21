@@ -14,7 +14,8 @@ import { OPEN_ADD_EVENT } from "./onboarding";
 import { TxnAddDialog } from "./txn-edit-dialog";
 import { BAR_ORDER, NAV } from "./nav-items";
 import { NotificationsBell } from "./notifications";
-import { Dialog } from "./ui";
+import { Dialog, InfoTip } from "./ui";
+import { SPLIT_TIP } from "./split-tabs";
 
 
 /** Previous / next month. The next month is disabled once you reach the current month. */
@@ -117,6 +118,8 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const allMonths = unverifiedList && sp.get("scope") === "all";
   const showGroup = !unverifiedList && lensScreens.some((h) => (h === "/" ? path === "/" : path.startsWith(h)));
   const showMonth = !allMonths && (showGroup || unverifiedList || monthScreens.some((h) => path.startsWith(h)));
+  // On a phone these screens have no month or group switch, so their title shares the row with the icons instead of sitting under an empty one.
+  const phoneTitle = path === "/people" || path === "/groups" ? "Split" : path === "/settings" && !sp.get("s") ? "Settings" : null;
   const visibleNav = NAV;
   const phoneBar = BAR_ORDER.flatMap((h) => visibleNav.filter((n) => n.href === h));
   const phoneMore = NAV.filter((n) => !n.bar);
@@ -172,7 +175,8 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                   <p className={cn("truncate text-xl font-semibold tracking-tight", path !== "/" && "hidden")}>{path === "/" ? <>Hi {profile ? greetingName(profile) : (() => { const n = nameOf(meId); return n && n !== meId ? n.split(/\s+/)[0] : "there"; })()} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
                   <p className="hidden text-sm text-muted xl:block">{path === "/" ? "Here's where your money went this month" : "Where your money went, and who owes what"}</p>
                 </div>
-                <form onSubmit={go} role="search" className="hidden w-64 items-center gap-2 rounded-full bg-surface px-4 lg:flex">
+                {phoneTitle && <h1 className="mr-auto flex items-center gap-1 text-xl font-semibold tracking-tight md:hidden">{phoneTitle}{phoneTitle === "Split" && <InfoTip text={SPLIT_TIP} />}</h1>}
+                <form onSubmit={go} role="search" className="hidden w-64 items-center gap-2 rounded-full bg-surface px-4 xl:flex">
                   <Search size={16} className="text-muted" aria-hidden />
                   <input aria-label="Search transactions" placeholder="Search transactions…" value={q} onChange={(e) => setQ(e.target.value)} className="min-h-10 w-full bg-transparent text-sm outline-none" />
                 </form>

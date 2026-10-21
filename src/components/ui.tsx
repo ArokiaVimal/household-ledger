@@ -11,7 +11,7 @@ export function Card({ className, children }: { className?: string; children: Re
 /** A small (i) that explains a feature. Tap, hover or focus shows the text; Escape or tapping elsewhere hides it. */
 export function InfoTip({ text, label = "More information" }: { text: string; label?: string }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
   const id = useId();
   useEffect(() => {
@@ -23,14 +23,20 @@ export function InfoTip({ text, label = "More information" }: { text: string; la
   }, [open]);
   const show = () => {
     const r = btn.current?.getBoundingClientRect();
-    if (r) { const w = Math.min(256, window.innerWidth - 24); setPos({ left: Math.max(12, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 12)), top: r.bottom + 6 }); }
+    if (r) {
+      const w = Math.min(256, window.innerWidth - 24);
+      const left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 12));
+      const guess = Math.ceil(text.length / ((w - 24) / 6.5)) * 18 + 20; // about how tall the bubble will be
+      // Open below the icon, or above it when the bottom of the screen is too close.
+      setPos(r.bottom + 6 + guess > window.innerHeight - 8 ? { left, bottom: window.innerHeight - r.top + 6 } : { left, top: r.bottom + 6 });
+    }
     setOpen(true);
   };
   return (
     <span className="inline-flex align-middle">
       <button ref={btn} type="button" aria-label={label} aria-describedby={open ? id : undefined} aria-expanded={open} onClick={() => (open ? setOpen(false) : show())} onMouseEnter={show} onMouseLeave={() => setOpen(false)}
         className="grid size-6 place-items-center rounded-full text-muted hover:bg-background hover:text-foreground focus-visible:outline-2 focus-visible:outline-accent"><Info size={14} aria-hidden /></button>
-      {open && pos && <span id={id} role="tooltip" style={{ left: pos.left, top: pos.top, width: Math.min(256, typeof window === "undefined" ? 256 : window.innerWidth - 24) }} className="fixed z-[60] rounded-xl bg-foreground px-3 py-2 text-xs font-normal leading-relaxed text-background shadow-lg">{text}</span>}
+      {open && pos && <span id={id} role="tooltip" style={{ left: pos.left, top: pos.top, bottom: pos.bottom, width: Math.min(256, typeof window === "undefined" ? 256 : window.innerWidth - 24) }} className="fixed z-[60] rounded-xl bg-foreground px-3 py-2 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-background shadow-lg">{text}</span>}
     </span>
   );
 }

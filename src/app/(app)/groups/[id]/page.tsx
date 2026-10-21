@@ -5,16 +5,16 @@ import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { PersonGlyph } from "@/components/glyphs";
 import { SplitTabs } from "@/components/split-tabs";
-import { balanceWords, GroupDialog, KindGlyph, PersonStack, ReopenButton, KIND_META, SimplifySwitch } from "@/components/split-groups";
+import { balanceWords, GroupDialog, KindGlyph, PersonStack, ReopenButton, KIND_META, SettleDialog, SimplifySwitch } from "@/components/split-groups";
 import { TxnAddDialog, TxnEditDialog } from "@/components/txn-edit-dialog";
 import { UpiPay } from "@/components/upi-pay";
-import { Badge, Button, Card, CardTitle, CompactChips, ConfirmDialog, Dialog, EmptyState, FormRow, Input } from "@/components/ui";
+import { Badge, Button, Card, CardTitle, ConfirmDialog, EmptyState } from "@/components/ui";
 import { useStore } from "@/data/store";
-import { formatINR, parseRupees } from "@/domain/money";
+import { formatINR } from "@/domain/money";
 import { groupBalances, groupExpenses, suggestedPayments, waitingForReview, type Transfer } from "@/domain/split-groups";
 import { groupCsv, groupSummary } from "@/domain/group-report";
 import { downloadText, fileSafe } from "@/lib/download";
-import type { ExpenseRecord, SplitGroup } from "@/domain/types";
+import type { ExpenseRecord } from "@/domain/types";
 
 /** One split group: what was spent, each person's balance, the fewest payments that settle it, and the payments made so far. */
 export default function GroupPage() {
@@ -182,45 +182,5 @@ export default function GroupPage() {
         <p>It stops counting, so the balances go back to what they were before it. It stays in the list as voided. If it involved you, the matching payment in People is voided too.</p>
       </ConfirmDialog>
     </>
-  );
-}
-
-function SettleDialog({ group, preset, onClose, onDone }: { group: SplitGroup; preset: Transfer | "new" | null; onClose: () => void; onDone: (msg: string) => void }) {
-  return (
-    <Dialog open={!!preset} onClose={onClose} title="Record a payment">
-      {preset && <SettleForm key={preset === "new" ? "new" : `${preset.fromId}-${preset.toId}`} group={group} preset={preset === "new" ? null : preset} onClose={onClose} onDone={onDone} />}
-    </Dialog>
-  );
-}
-
-function SettleForm({ group, preset, onClose, onDone }: { group: SplitGroup; preset: Transfer | null; onClose: () => void; onDone: (msg: string) => void }) {
-  const { nameOf, meId, today, addSplitSettlement } = useStore();
-  const [from, setFrom] = useState(preset?.fromId ?? group.participantIds.find((p) => p !== meId) ?? meId);
-  const [to, setTo] = useState(preset?.toId ?? meId);
-  const [amount, setAmount] = useState(preset ? (preset.amountPaise / 100).toFixed(2) : "");
-  const [note, setNote] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const paise = parseRupees(amount);
-  const bad = from === to ? "Pick two different people." : paise === null || paise <= 0 ? "Enter an amount." : null;
-  const people = group.participantIds.map((id) => ({ id, label: id === meId ? "You" : nameOf(id), icon: <PersonGlyph name={nameOf(id)} id={id} /> }));
-  const save = () => {
-    const err = addSplitSettlement({ groupId: group.id, fromId: from, toId: to, amountPaise: paise!, date: today, note: note.trim() || undefined });
-    if (err) { setError(err); return; }
-    onDone(`${nameOf(from)} paid ${nameOf(to)} ${formatINR(paise!)}`);
-    onClose();
-  };
-  return (
-    <div className="space-y-3 pb-1">
-      <FormRow label="Paid by"><CompactChips label="Paid by" options={people} selected={[from]} onPick={setFrom} /></FormRow>
-      <FormRow label="Paid to"><CompactChips label="Paid to" options={people} selected={[to]} onPick={setTo} /></FormRow>
-      <FormRow label="Amount"><span className="flex items-center gap-1.5"><span className="text-lg font-semibold text-accent">₹</span><Input aria-label="Amount" inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => { setAmount(e.target.value); setError(null); }} /></span></FormRow>
-      <FormRow label="Note"><Input aria-label="Note" value={note} maxLength={200} placeholder="Optional, e.g. UPI" onChange={(e) => setNote(e.target.value)} /></FormRow>
-      <p className="text-xs text-muted">This records a payment between two people in {group.name}. It does not create an expense.{from === meId || to === meId ? " Because it involves you, it also appears under People." : ""}</p>
-      {(error || (amount && bad)) && <p role="alert" className="text-xs text-danger">{error ?? bad}</p>}
-      <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" disabled={!!bad} onClick={save}>Save payment</Button>
-      </div>
-    </div>
   );
 }

@@ -1,11 +1,10 @@
 "use client";
-import { ArrowDownLeft, ArrowUpRight, Handshake, BarChart3, CalendarClock, Check, ChevronRight, CreditCard, Landmark, Repeat, Smartphone, Sparkles, TrendingDown, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Handshake, BarChart3, CalendarClock, Check, ChevronRight, CreditCard, Landmark, Repeat, Smartphone, TrendingDown, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { DonutChart, TrendChart } from "@/components/charts";
-import { ProgressRing } from "@/components/progress";
 import { verifyProgress } from "@/domain/progress";
-import { Onboarding, SetupCard, setDeviceFlag, useDeviceFlag } from "@/components/onboarding";
+import { Onboarding, TodoCard, setDeviceFlag, useDeviceFlag } from "@/components/onboarding";
 import { MerchantAvatar, TxnBadges, Amount } from "@/components/txn-row";
 import { CategoryGlyph, PersonGlyph } from "@/components/glyphs";
 import { Badge, Card, CardTitle, ConfirmDialog, EmptyState } from "@/components/ui";
@@ -114,7 +113,7 @@ const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cas
 
 export default function Dashboard() {
   const skipSetup = useDeviceFlag("pf-setup-open") === "1";
-  const { live, demo, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, settlements, ledgerRecords, month, categoryName, nameOf, accountName, partner, groups, splitGroups, participants, activeGroup, groupSummary, monthRecords, recurring, recurringSuggestions, attributionOf, allocatedByKey, categories, saveCardBill, markRecurringPaid } = useStore();
+  const { live, demo, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, settlements, ledgerRecords, month, categoryName, accountName, partner, groups, splitGroups, participants, activeGroup, groupSummary, monthRecords, recurring, recurringSuggestions, attributionOf, allocatedByKey, categories, saveCardBill, markRecurringPaid } = useStore();
   const [paying, setPaying] = useState<{ kind: "bill"; bill: BillStatus } | { kind: "recurring"; id: string; name: string } | null>(null);
   // Split cards show for anyone who splits with someone (a friend, family, a partner or a group), not only a linked partner.
   const others = participants.filter((p) => p.id !== meId);
@@ -124,6 +123,8 @@ export default function Dashboard() {
   const prevAllocated = useMemo(() => summarizeGroup(shown.filter((r) => r.date.startsWith(prevMonth)), activeGroup, groups, meId).allocated, [shown, prevMonth, activeGroup, groups, meId]);
   const cats = useMemo(() => Object.entries(allocatedByKey((r) => r.categoryId)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [allocatedByKey, categoryName]);
   const perAccount = useMemo(() => allocatedByKey((r) => r.accountId), [allocatedByKey]);
+  const [allAccts, setAllAccts] = useState(false);
+  const accountRootCount = accounts.filter((a) => !a.parentId || !accounts.some((x) => x.id === a.parentId)).filter((a) => scoped.some((r) => rootOf(accounts, r.accountId) === a.id)).length;
   const trend = useMemo(() => {
     const all = { ...byMonth(shown), ...trendHistory }; // in the sample, its stored monthly totals win over the few extra history rows
     return Object.keys(all).sort().map((m) => ({ key: m, label: new Date(m + "-01").toLocaleString("en", { month: "short" }), value: all[m] }));
@@ -155,7 +156,7 @@ export default function Dashboard() {
   if (scoped.length === 0) {
     return (
       <div className="space-y-4">
-        {live && householdReady && <SetupCard />}
+        {live && householdReady && <TodoCard />}
         {live && !householdReady && (
           <Card className="space-y-2 text-sm"><CardTitle>Setting up your space</CardTitle><p>Your data space is not ready yet. Reload in a moment; if this stays, open <Link href="/settings" className="text-accent underline-offset-2 hover:underline">Settings</Link>.</p></Card>
         )}
@@ -166,14 +167,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-3 md:space-y-4">
-      {live && householdReady && <SetupCard />}
-      {progress.total > 0 && (
-        <Link href={progress.left > 0 ? "/transactions?v=unverified" : "/transactions?v=verified"} className="flex min-h-14 items-center gap-3 rounded-[var(--radius-card)] bg-surface px-4 py-2 transition-shadow hover:shadow-md">
-          <ProgressRing pct={progress.pct} />
-          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{progress.left === 0 ? "All verified" : `${progress.left} left to verify`}</span><span className="block truncate text-xs text-muted">{progress.verified} of {progress.total} in {new Date(`${month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" })}{staged.length > progress.left ? ` · ${staged.length} unverified in all months` : ""}</span></span>
-          <ChevronRight size={18} aria-hidden className="shrink-0 text-muted" />
-        </Link>
-      )}
+      <TodoCard setup={live && householdReady} verify={progress.total > 0 ? { left: progress.left, total: progress.total, verified: progress.verified, pct: progress.pct, monthName: new Date(`${month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" }), elsewhere: staged.length > progress.left ? staged.length : 0, href: progress.left > 0 ? "/transactions?v=unverified" : "/transactions?v=verified" } : undefined} />
 
       {/* 2 and 3. Credit-card bills and recurring expenses, side by side. Paid ones move under "View all". */}
       <section aria-label="Bills, recurring expenses and who owes whom" className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-3">
@@ -252,7 +246,11 @@ export default function Dashboard() {
         <Card className="bg-accent-soft lg:col-span-1">
           <CardTitle>Accounts this month</CardTitle>
           <ul className="space-y-2">
-            {accounts.filter((a) => !a.parentId || !accounts.some((x) => x.id === a.parentId)).filter((a) => scoped.some((r) => rootOf(accounts, r.accountId) === a.id)).map((a) => {
+            {(() => {
+              const totalOf = (a: (typeof accounts)[number]) => (perAccount[a.id] ?? 0) + accounts.filter((c) => c.parentId === a.id && scoped.some((r) => r.accountId === c.id)).reduce((t, c) => t + (perAccount[c.id] ?? 0), 0);
+              const roots = accounts.filter((a) => !a.parentId || !accounts.some((x) => x.id === a.parentId)).filter((a) => scoped.some((r) => rootOf(accounts, r.accountId) === a.id)).sort((x, y) => totalOf(y) - totalOf(x));
+              return (allAccts ? roots : roots.slice(0, 3));
+            })().map((a) => {
               const I = acctIcon[a.type];
               const kids = accounts.filter((c) => c.parentId === a.id && scoped.some((r) => r.accountId === c.id));
               const total = (perAccount[a.id] ?? 0) + kids.reduce((s, c) => s + (perAccount[c.id] ?? 0), 0);
@@ -274,23 +272,10 @@ export default function Dashboard() {
               );
             })}
           </ul>
+          {accountRootCount > 3 && <button type="button" onClick={() => setAllAccts((v) => !v)} className="mt-2 flex min-h-9 w-full items-center justify-center rounded-xl bg-surface/70 text-sm font-medium text-accent">{allAccts ? "Show less" : `View all (+${accountRootCount - 3})`}</button>}
           <p className="mt-3 text-xs text-muted">Spending only. Card bill payments, transfers and income are excluded. {topMerchant && <>Top merchant: <b>{topMerchant[0]}</b>.</>}</p>
         </Card>
-        {withPeople && <Card>
-          <CardTitle action={<Link href="/people" className="text-xs text-accent">Details</Link>}>Who owes whom</CardTitle>
-          <ul className="space-y-3">
-            {iOwe.map((b) => <li key={b.to} className="flex items-center gap-3 text-sm"><MerchantAvatar name={nameOf(b.to)} /><span className="flex-1">I owe {nameOf(b.to)}</span><span className="num font-semibold text-danger">{formatINR(b.outstanding)}</span></li>)}
-            {owedToMe.map((b) => <li key={b.from} className="flex items-center gap-3 text-sm"><MerchantAvatar name={nameOf(b.from)} /><span className="flex-1">{nameOf(b.from)} owes me</span><span className="num font-semibold text-good">{formatINR(b.outstanding)}</span></li>)}
-          </ul>
-          {iOwe.length + owedToMe.length === 0 && <p className="text-sm text-muted">All settled up.</p>}
-        </Card>}
       </div>
-      <Link href="/insights" className="flex items-center gap-3 rounded-[var(--radius-card)] bg-gradient-to-br from-accent/10 via-surface to-surface p-4 ring-1 ring-accent/20 transition-shadow hover:shadow-md">
-        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-white"><Sparkles size={18} /></span>
-        <span className="min-w-0 flex-1"><span className="block font-medium">AI insights for {new Date(`${month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" })}</span><span className="block text-sm text-muted">Tips and a plain-English look at your month. Only runs when you ask.</span></span>
-        <span className="text-sm font-medium text-accent">Open</span>
-      </Link>
-
       <ConfirmDialog open={!!paying} onClose={() => setPaying(null)} title="Mark as paid?" confirmLabel="Mark paid" onConfirm={() => { if (paying?.kind === "bill") saveCardBill({ ...paying.bill.bill, paid: true }); else if (paying?.kind === "recurring") markRecurringPaid(paying.id, month, true); }}>
         <p>{paying?.kind === "bill" ? `This marks the ${accountName(paying.bill.bill.accountId)} bill as paid in full.` : `This marks ${paying?.name} as paid for this month by hand. If you later link or import the real payment, that takes over.`}</p>
       </ConfirmDialog>

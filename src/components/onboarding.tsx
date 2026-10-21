@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { useProfile } from "@/components/profile-context";
 import { LogoMark } from "@/components/logo";
+import { ProgressRing } from "@/components/progress";
 import { Button, Input } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { greetingName } from "@/lib/profile/profile";
@@ -192,28 +193,38 @@ export function Onboarding({ onSkipAll }: { onSkipAll?: () => void }) {
 }
 
 /** Compact reminder on the dashboard until the basics are done or the person hides it. */
-export function SetupCard() {
+/** What still needs you on Home: the setup steps (until finished or hidden) and the unverified count, as two thin lines in one card. */
+export function TodoCard({ setup = true, verify }: { setup?: boolean; verify?: { left: number; total: number; verified: number; pct: number; monthName: string; elsewhere: number; href: string } }) {
   const { skipped, hidden, hide } = useSetupPrefs();
   const all = useSetupSteps();
   const steps = all.filter((s) => !skipped.includes(s.id));
   const left = steps.filter((s) => !s.done);
-  if (hidden || left.length === 0) return null;
+  const showSetup = setup && !hidden && left.length > 0;
+  const showVerify = !!verify && verify.total > 0;
+  if (!showSetup && !showVerify) return null;
   const done = steps.length - left.length;
+  const next = left[0];
   return (
-    <section aria-label="Finish setup" className="rounded-[var(--radius-card)] bg-surface p-4">
-      <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-2"><h2 className="text-sm font-semibold">Finish setup</h2><span className="num text-xs text-muted">{done} of {steps.length}</span></div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-accent" style={{ width: `${(done / steps.length) * 100}%` }} /></div>
+    <section aria-label="To do" className="divide-y divide-border overflow-hidden rounded-[var(--radius-card)] bg-surface">
+      {showSetup && next && (
+        <div className="flex min-h-12 items-center gap-1 pl-4 pr-1">
+          <Link href={next.href ?? "/settings"} className="flex min-h-12 min-w-0 flex-1 items-center gap-3">
+            <span className="text-sm font-semibold">Setup</span>
+            <span className="num text-xs text-muted">{done} of {steps.length}</span>
+            <span aria-hidden className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-background"><span className="block h-full rounded-full bg-accent" style={{ width: `${(done / steps.length) * 100}%` }} /></span>
+            <span className="min-w-0 flex-1 truncate text-xs text-muted">Next: {next.title}</span>
+            <ChevronRight size={16} aria-hidden className="shrink-0 text-muted" />
+          </Link>
+          <button type="button" onClick={hide} className="min-h-11 shrink-0 rounded-full px-2.5 text-xs text-muted hover:text-foreground">Hide</button>
         </div>
-        <button type="button" onClick={hide} className="min-h-9 shrink-0 rounded-full px-2.5 text-xs text-muted hover:text-foreground">Hide</button>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {left.slice(0, 4).map((s) => {
-          const I = s.icon;
-          return <Link key={s.id} href={s.href ?? "/settings"} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border px-3 text-sm hover:bg-background"><I size={15} aria-hidden className="text-accent" />{s.title}<ChevronRight size={14} aria-hidden className="text-muted" /></Link>;
-        })}
-      </div>
+      )}
+      {showVerify && verify && (
+        <Link href={verify.href} className="flex min-h-12 items-center gap-3 px-4 py-1.5 hover:bg-background">
+          <ProgressRing pct={verify.pct} size={34} />
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold leading-tight">{verify.left === 0 ? "All verified" : `${verify.left} left to verify`}</span><span className="block truncate text-xs text-muted">{verify.verified} of {verify.total} in {verify.monthName}{verify.elsewhere > 0 ? ` · ${verify.elsewhere} in all months` : ""}</span></span>
+          <ChevronRight size={16} aria-hidden className="shrink-0 text-muted" />
+        </Link>
+      )}
     </section>
   );
 }

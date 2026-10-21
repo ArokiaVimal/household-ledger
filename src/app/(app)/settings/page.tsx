@@ -28,16 +28,16 @@ import { RemindersCard } from "./reminders-card";
 const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet" };
 
 const MENU: { id: string; group: string; label: string; hint: string; icon: LucideIcon; liveOnly?: boolean }[] = [
-  { id: "methods", group: "Set up", label: "Payment methods", hint: "Cards, UPI apps, bank accounts", icon: Wallet },
-  { id: "groups", group: "Set up", label: "Payment groups", hint: "View spending by person", icon: LayoutGrid },
-  { id: "categories", group: "Set up", label: "Categories and rules", hint: "Rename, add, auto-sort", icon: Tags },
+  { id: "methods", group: "Set up", label: "Payment methods", hint: "Cards, UPI, banks", icon: Wallet },
+  { id: "groups", group: "Set up", label: "Payment groups", hint: "Spending by person", icon: LayoutGrid },
+  { id: "categories", group: "Set up", label: "Categories and rules", hint: "Names and rules", icon: Tags },
   { id: "sharing", group: "Set up", label: "Friends & Family", hint: "People you split with", icon: Users },
-  { id: "icons", group: "Set up", label: "Icons & logos", hint: "Pictures for categories and merchants", icon: Sparkles },
-  { id: "ai", group: "Smart tools", label: "Smart import", hint: "AI and import help", icon: Sparkles, liveOnly: true },
-  { id: "integrations", group: "Smart tools", label: "Integrations", hint: "SMS and Gmail capture", icon: Plug, liveOnly: true },
+  { id: "icons", group: "Set up", label: "Icons & logos", hint: "Pictures", icon: Sparkles },
+  { id: "ai", group: "Smart tools", label: "Smart import", hint: "AI import help", icon: Sparkles, liveOnly: true },
+  { id: "integrations", group: "Smart tools", label: "Integrations", hint: "SMS and Gmail", icon: Plug, liveOnly: true },
   { id: "reminders", group: "Smart tools", label: "Reminders", hint: "Card bill alerts", icon: Bell, liveOnly: true },
-  { id: "profile", group: "Account", label: "Profile", hint: "Name, photo, greeting", icon: UserRound },
-  { id: "data", group: "Account", label: "Your data", hint: "Back up, restore, delete", icon: ShieldCheck },
+  { id: "profile", group: "Account", label: "Profile", hint: "Name and photo", icon: UserRound },
+  { id: "data", group: "Account", label: "Your data", hint: "Back up and delete", icon: ShieldCheck },
 ];
 const GROUPS = ["Set up", "Smart tools", "Account"];
 const OpenSection = createContext<string | null>(null);
@@ -118,18 +118,18 @@ export default function Settings() {
         <button type="button" onClick={() => go(null)} className="mb-3 inline-flex min-h-9 items-center gap-1 rounded-full pr-3 text-sm font-medium text-accent hover:underline"><ChevronLeft size={16} aria-hidden />Settings</button>
       ) : (
         <>
-          <PageHeader title="Settings" actions={!live ? <Badge tone="warn">Prototype</Badge> : undefined} />
-          <nav aria-label="Settings menu" className="space-y-5">
+          <div className="hidden md:block"><PageHeader title="Settings" actions={!live ? <Badge tone="warn">Prototype</Badge> : undefined} /></div>
+          <nav aria-label="Settings menu" className="space-y-4">
             {GROUPS.map((g) => {
               const items = MENU.filter((m) => m.group === g && (live || !m.liveOnly));
               return items.length === 0 ? null : (
                 <section key={g} aria-label={g}>
                   <h2 className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{g}</h2>
-                  <div className="grid grid-cols-[minmax(0,1fr)] gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5 md:grid-cols-2 md:gap-2 xl:grid-cols-3">
                     {items.map(({ id, label, hint, icon: I }) => (
-                      <button key={id} type="button" onClick={() => go(id)} className="group flex min-h-14 items-center gap-3 rounded-[var(--radius-card)] bg-surface p-3 text-left transition-shadow hover:shadow-md">
-                        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/10 text-accent"><I size={18} /></span>
-                        <span className="min-w-0 flex-1"><span className="block font-medium">{label}</span><span className="block truncate text-sm text-muted">{hint}</span></span>
+                      <button key={id} type="button" onClick={() => go(id)} className="group flex min-h-16 items-center gap-3 rounded-[var(--radius-card)] bg-surface px-3 py-2 text-left transition-shadow hover:shadow-md">
+                        <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-accent/10 text-accent"><I size={17} /></span>
+                        <span className="min-w-0 flex-1"><span className="block text-[15px] font-medium leading-tight">{label}</span><span className="block truncate text-[13px] leading-tight text-muted">{hint}</span></span>
                         <ChevronRight size={18} aria-hidden className="shrink-0 text-muted" />
                       </button>
                     ))}
