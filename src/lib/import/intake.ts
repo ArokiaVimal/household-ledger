@@ -31,9 +31,9 @@ export type Intake =
 
 const SAMPLE = 8000;
 
-function decide(opts: IntakeOpts, sample: string, aiAccountId?: string | null): { accountId: string | null; detected: NonNullable<Preview["detected"]>; sensed: Sensed } {
+function decide(opts: IntakeOpts, sample: string, aiAccountId?: string | null, typeHint?: "bank" | "credit_card"): { accountId: string | null; detected: NonNullable<Preview["detected"]>; sensed: Sensed } {
   const chosen = opts.accountId && opts.accounts.find((a) => a.id === opts.accountId);
-  const sensed = senseAccount(sample, opts.accounts);
+  const sensed = senseAccount(sample, opts.accounts, typeHint);
   if (chosen) return { accountId: chosen.id, detected: { chosen: true, confidence: "sure", reason: "You chose it" }, sensed };
   if (sensed.accountId && sensed.confidence !== "none") return { accountId: sensed.accountId, detected: { chosen: false, confidence: sensed.confidence, reason: sensed.reason }, sensed };
   if (aiAccountId) return { accountId: aiAccountId, detected: { chosen: false, confidence: "likely", reason: "Claude matched it to this payment method" }, sensed };
@@ -54,7 +54,7 @@ export async function intakeFile(bytes: Uint8Array, filename: string, opts: Inta
   const readable = pdf ? pdf.ok : parsed?.ok === true;
 
   if (readable) {
-    const d = decide(opts, sample.slice(0, SAMPLE));
+    const d = decide(opts, sample.slice(0, SAMPLE), undefined, pdf?.ok ? pdf.summary.accountType : undefined);
     if (!d.accountId) return { kind: "need_account", reason: d.detected.reason, candidates: d.sensed.candidates };
     const base = { ...opts.base, accountId: d.accountId, detected: d.detected };
     return { kind: "ready", input: pdf ? { ...base, format: "pdf", pdf } : { ...base, format: kind as "csv" | "xlsx", table: table! } };

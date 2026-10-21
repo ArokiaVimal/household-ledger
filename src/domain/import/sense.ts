@@ -56,8 +56,9 @@ export interface Sensed {
 
 const GENERIC = new Set(["credit", "card", "bank", "account", "savings", "current", "upi", "debit"]);
 
-export function senseAccount(text: string, accounts: AccountLite[]): Sensed {
-  const usable = accounts.filter((a) => a.type !== "cash");
+/** `typeHint`: when the reader already knows the kind of account (a bank statement, a card statement), only that kind is considered. */
+export function senseAccount(text: string, accounts: AccountLite[], typeHint?: "bank" | "credit_card"): Sensed {
+  const usable = accounts.filter((a) => a.type !== "cash" && (!typeHint || a.type === typeHint));
   const hits = issuerHits(text);
   const type = statementType(text);
   const head = issuerHits(text.slice(0, 500));

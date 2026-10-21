@@ -6,6 +6,8 @@ export interface StatementCheck { name: string; ok: boolean; detail: string }
 
 export interface StatementSummary {
   issuer: string;
+  /** What kind of account the reader recognised, so a UPI app is never picked for a bank or card statement. */
+  accountType?: "bank" | "credit_card";
   periodStart?: string;
   periodEnd?: string;
   openingPaise?: number;

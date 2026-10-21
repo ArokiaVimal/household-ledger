@@ -1,9 +1,10 @@
 "use client";
-import { CheckCircle2, ChevronDown, ClipboardPaste, FileUp, Image as ImageIcon, Sparkles, UploadCloud, XCircle, type LucideIcon } from "lucide-react";
+import { CheckCircle2, ChevronDown, ClipboardPaste, FileUp, Image as ImageIcon, Repeat, ShieldCheck, Sparkles, TriangleAlert, UploadCloud, XCircle, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { AiBadge, Badge, Button, ChipGroup, CompactChips, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
+import { CategoryGlyph } from "@/components/glyphs";
 import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -47,9 +48,7 @@ function Entry({ icon: I, title, text, badge, primary, onDropFile, children }: {
   );
 }
 
-function Stat({ label, value, tone = "" }: { label: string; value: number | string; tone?: string }) {
-  return <div className="rounded-xl bg-background p-3"><div className="text-xs text-muted">{label}</div><div className={`num text-2xl font-semibold ${tone}`}>{value}</div></div>;
-}
+const shortDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
 
 export function LiveImport() {
   const { accounts, accountName, categoryName, importBatches, aiEnabled } = useStore();
@@ -66,6 +65,7 @@ export function LiveImport() {
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<"read" | "save" | "undo">("read");
+  const [rowFilter, setRowFilter] = useState<"all" | "out" | "in">("all");
   const [undoing, setUndoing] = useState<{ id: string; filename: string; rows: number } | null>(null);
   const [accept, setAccept] = useState(false);
   const [reimportOk, setReimportOk] = useState(false); // the owner said yes to reading a file that was imported before
@@ -251,47 +251,65 @@ export function LiveImport() {
           <Dialog open={!!preview && !askReimport} onClose={cancelReimport} title={preview?.format === "text" ? "Here is what we read" : "Here is what we found"}>
             {preview && (
             <div className="space-y-5 pb-1">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
-                  <MerchantAvatar name={accountName(preview.accountId)} size={22} /><span className="font-medium text-foreground">{accountName(preview.accountId)}</span>
-                  <span>{preview.detected?.chosen ? "you chose this" : preview.detected ? "picked automatically" : ""}</span>
-                  {preview.readBy === "ai" && <AiBadge tone="unsure" title="Claude read these rows. Check each amount.">Read by AI</AiBadge>}
-                  {src && <button type="button" onClick={() => setChanging(!changing)} className="text-accent underline-offset-2 hover:underline">{changing ? "Done" : "Change"}</button>}
+              <section aria-label="Summary" className="space-y-3 rounded-3xl bg-gradient-to-br from-accent/10 via-surface to-surface p-4 ring-1 ring-accent/15">
+                <div className="flex items-center gap-3">
+                  <MerchantAvatar name={accountName(preview.accountId)} size={40} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-semibold leading-tight">{accountName(preview.accountId)}</div>
+                    <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                      <span>{preview.detected?.chosen ? "You chose this" : preview.detected ? "Picked automatically" : ""}</span>
+                      {preview.readBy === "ai" && <AiBadge tone="unsure" title="Claude read these rows. Check each amount.">Read by AI</AiBadge>}
+                    </div>
+                  </div>
+                  {src && <button type="button" onClick={() => setChanging(!changing)} className="min-h-9 shrink-0 rounded-full bg-surface px-3 text-xs font-medium text-accent ring-1 ring-border hover:bg-background">{changing ? "Done" : "Change"}</button>}
                 </div>
-              </div>
-              {changing && src && <CompactChips label="Change payment method" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[preview.accountId]} onPick={(id) => { if (id !== preview.accountId) void read({ ...src, accountId: id }); }} />}
+                {changing && src && <CompactChips label="Change payment method" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[preview.accountId]} onPick={(id) => { if (id !== preview.accountId) void read({ ...src, accountId: id }); }} />}
+                <div>
+                  <div className="num text-4xl font-semibold leading-none tracking-tight">{toStage}<span className="ml-2 text-base font-normal text-muted">to add</span></div>
+                  <div className="num mt-1 text-sm text-muted">{formatINR(preview.totals.debitPaise)} out · {formatINR(preview.totals.creditPaise)} in</div>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs font-medium">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-good-soft px-2.5 py-1 text-good"><CheckCircle2 size={13} aria-hidden />{toStage} ready</span>
+                  {lookalikes.length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2.5 py-1 text-warn"><TriangleAlert size={13} aria-hidden />{lookalikes.length} to check</span>}
+                  {preview.counts.unreadable > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2.5 py-1 text-danger"><XCircle size={13} aria-hidden />{preview.counts.unreadable} unreadable</span>}
+                </div>
+              </section>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <Stat label="Will be added" value={toStage} tone="text-good" />
-                <Stat label="Already have" value={lookalikes.length} tone={lookalikes.length ? "text-warn" : ""} />
-                <Stat label="Could not read" value={preview.counts.unreadable} tone={preview.counts.unreadable ? "text-danger" : ""} />
-              </div>
+              {preview.checks.length > 0 && failed.length === 0 && (
+                <p className="flex items-center gap-2 rounded-2xl bg-good-soft px-3 py-2.5 text-sm text-good"><ShieldCheck size={17} aria-hidden className="shrink-0" />Adds up to the statement&apos;s own totals.</p>
+              )}
 
               {months.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">Goes into</h3>
-                  <ul className="flex flex-wrap gap-2">
+                <section aria-label="Where it goes" className="space-y-2.5">
+                  <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Goes into</h3>
+                  <ul className="space-y-2.5 rounded-2xl bg-background p-3">
                     {months.map(([m, v]) => (
-                      <li key={m} className="rounded-xl bg-accent/5 px-3 py-2 text-sm"><b>{monthLabel(m)}</b> <span className="text-muted">· {v.count} transaction{v.count === 1 ? "" : "s"} · {formatINR(v.out)} out</span></li>
+                      <li key={m}>
+                        <div className="flex items-baseline justify-between gap-2 text-sm"><span className="font-medium">{monthLabel(m)}</span><span className="num text-xs text-muted">{v.count} transaction{v.count === 1 ? "" : "s"} · {formatINR(v.out)} out</span></div>
+                        <div aria-hidden className="mt-1 h-1.5 overflow-hidden rounded-full bg-border/60"><div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(4, Math.round((v.out / Math.max(1, ...months.map(([, x]) => x.out))) * 100))}%` }} /></div>
+                      </li>
                     ))}
                   </ul>
-                  <p className="text-xs text-muted">Each transaction counts in the month it was paid, not the month you import it.</p>
-                </div>
+                  <p className="px-1 text-xs text-muted">Each transaction counts in the month it was paid, not the month you import it.</p>
+                </section>
               )}
 
               {adding.some((r) => r.recurring) && (
-                <p className="rounded-xl bg-good-soft p-3 text-sm text-good"><b>{adding.filter((r) => r.recurring).length}</b> look like monthly payments (EMI, rent, premium or similar). While you review them, each one can be added to Recurring with a tap.</p>
+                <p className="flex items-start gap-2 rounded-2xl bg-accent/5 px-3 py-2.5 text-sm"><Repeat size={16} aria-hidden className="mt-0.5 shrink-0 text-accent" /><span><b>{adding.filter((r) => r.recurring).length}</b> look like monthly payments (EMI, rent, premium). While you review them, each can be added to Recurring with a tap.</span></p>
               )}
               {lookalikes.length > 0 && (
-                <div className="space-y-3 rounded-xl border border-warn/30 bg-warn-soft/50 p-4" role="group" aria-label="Entries you may already have">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h3 className="font-semibold">{lookalikes.length} look{lookalikes.length === 1 ? "s" : ""} like entries you already have</h3>
-                      <p className="text-sm text-muted">Exact repeats are skipped. Close matches are added but flagged. You decide each one.</p>
+                <section className="space-y-3 rounded-3xl bg-warn-soft/60 p-3.5 ring-1 ring-warn/20" role="group" aria-label="Entries you may already have">
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2">
+                      <TriangleAlert size={17} aria-hidden className="mt-0.5 shrink-0 text-warn" />
+                      <div>
+                        <h3 className="text-sm font-semibold leading-tight">{lookalikes.length} look{lookalikes.length === 1 ? "s" : ""} like entries you already have</h3>
+                        <p className="text-xs text-muted">Exact repeats are skipped. Close matches are added but flagged. You decide each one.</p>
+                      </div>
                     </div>
-                    <div className="flex gap-2"><Button onClick={() => setAll("skip")}>Skip all</Button><Button onClick={() => setAll("import")}>Add all anyway</Button></div>
+                    <div className="flex gap-2"><Button className="min-h-9" onClick={() => setAll("skip")}>Skip all</Button><Button className="min-h-9" onClick={() => setAll("import")}>Add all anyway</Button></div>
                   </div>
-                  <ul className="divide-y divide-border rounded-xl bg-surface">
+                  <ul className="divide-y divide-border overflow-hidden rounded-2xl bg-surface">
                     {lookalikes.slice(0, 50).map((r) => (
                       <li key={r.line} className="space-y-2 p-3 text-sm">
                         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -299,13 +317,17 @@ export function LiveImport() {
                             <div className="truncate font-medium">{r.merchant} <span className="num font-normal text-muted">· {r.date} · {formatINR(r.amountPaise)}</span></div>
                             <div className="text-xs text-muted">{r.status === "duplicate" ? "Exact repeat of" : "Looks like"} {r.match ? `${r.match.merchant} on ${r.match.date} (${r.match.reviewed ? "approved" : "waiting in review"})` : "another line in this file"}</div>
                           </div>
-                          <ChipGroup tabs label={`What to do with ${r.merchant}`} value={action(r)} options={[{ id: "skip", label: "Skip" }, { id: "import", label: "Add anyway" }]} onChange={(v) => setDecisions({ ...decisions, [String(r.line)]: v })} />
+                          <div role="radiogroup" aria-label={`What to do with ${r.merchant}`} className="flex shrink-0 rounded-full bg-border/60 p-0.5 text-xs">
+                            {([["skip", "Skip"], ["import", "Add"]] as const).map(([id, label]) => (
+                              <button key={id} type="button" role="radio" aria-checked={action(r) === id} onClick={() => setDecisions({ ...decisions, [String(r.line)]: id })} className={`min-h-8 whitespace-nowrap rounded-full px-3.5 font-medium transition-colors ${action(r) === id ? (id === "import" ? "bg-accent text-white shadow-sm" : "bg-surface text-foreground shadow-sm") : "text-muted"}`}>{label}</button>
+                            ))}
+                          </div>
                         </div>
                       </li>
                     ))}
                   </ul>
                   {lookalikes.length > 50 && <p className="text-xs text-muted">Showing the first 50. “Skip all” and “Add all anyway” apply to all {lookalikes.length}.</p>}
-                </div>
+                </section>
               )}
 
               {!!preview.statementBill && accounts.find((a) => a.id === preview.accountId)?.type === "credit_card" && (
@@ -325,7 +347,7 @@ export function LiveImport() {
                     ))}</ul>
                     <label className="mt-3 flex items-start gap-2 border-t border-danger/20 pt-3"><input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" /><span>I have checked the differences and want to import anyway. This will be recorded in the audit trail.</span></label>
                   </div>
-                ) : <p className="flex items-center gap-2 text-sm text-good"><CheckCircle2 size={16} aria-hidden />Everything adds up to the statement&apos;s own totals.</p>
+                ) : null
               )}
               {preview.warnings.length > 0 && <ul className="space-y-1 rounded-xl bg-warn-soft p-3 text-sm text-warn">{preview.warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
               {preview.unverified.length > 0 && (
@@ -344,18 +366,30 @@ export function LiveImport() {
               <details className="group rounded-xl text-sm">
                 <summary className="flex cursor-pointer items-center gap-1.5 text-muted hover:text-foreground"><ChevronDown size={14} aria-hidden className="-rotate-90 group-open:rotate-0" />See all {preview.rows.length} rows and how they were read</summary>
                 <div className="mt-3 space-y-3">
-                  <p className="num text-sm">Money out <b>{formatINR(preview.totals.debitPaise)}</b> ({preview.totals.debitCount} rows) · Money in <b>{formatINR(preview.totals.creditPaise)}</b> ({preview.totals.creditCount} rows). <span className="text-muted">Compare with your statement.</span></p>
-                  <ul className="divide-y divide-border rounded-xl border border-border">
-                    {preview.rows.slice(0, 100).map((r) => (
-                      <li key={r.line} className={`flex flex-wrap items-center gap-2 p-2.5 text-sm ${action(r) === "skip" ? "opacity-50" : ""}`}>
-                        <span className="num w-20 shrink-0 text-xs text-muted">{r.date.slice(2)}</span>
-                        <div className="min-w-0 flex-1"><div className="truncate font-medium">{r.merchant}</div><div className="truncate text-xs text-muted">{r.description}</div></div>
-                        {r.accountId !== preview.accountId && <span title={r.fundedBy ? `Paid from ${accountName(r.fundedBy)}` : undefined}><Badge>via {accountName(r.accountId)}</Badge></span>}
-                        <Badge>{kindLabel[r.kind]}</Badge><span className="hidden text-xs text-muted sm:inline">{categoryName(r.categoryId)}</span>
-                        {r.recurring && action(r) === "import" && <Badge tone="good">Looks monthly</Badge>}
-                        {action(r) === "skip" && <Badge tone="bad">Skipped</Badge>}
-                        {r.status === "possible" && action(r) === "import" && <Badge tone="warn">Possible duplicate</Badge>}
-                        <span className={`num w-28 text-right font-medium ${r.direction === "credit" ? "text-good" : ""}`}>{r.direction === "credit" ? "+" : ""}{formatINR(r.amountPaise)}</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="num text-xs text-muted">Out <b className="text-foreground">{formatINR(preview.totals.debitPaise)}</b> ({preview.totals.debitCount}) · In <b className="text-foreground">{formatINR(preview.totals.creditPaise)}</b> ({preview.totals.creditCount})</p>
+                    <div role="radiogroup" aria-label="Show rows" className="flex rounded-full bg-border/60 p-0.5 text-xs">
+                      {([["all", "All"], ["out", "Out"], ["in", "In"]] as const).map(([id, label]) => (
+                        <button key={id} type="button" role="radio" aria-checked={rowFilter === id} onClick={() => setRowFilter(id)} className={`min-h-8 rounded-full px-3 font-medium ${rowFilter === id ? "bg-surface text-foreground shadow-sm" : "text-muted"}`}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <ul className="divide-y divide-border overflow-hidden rounded-2xl bg-background">
+                    {preview.rows.filter((r) => rowFilter === "all" || (rowFilter === "out" ? r.direction === "debit" : r.direction === "credit")).slice(0, 100).map((r) => (
+                      <li key={r.line} className={`flex items-center gap-3 px-3 py-2.5 text-sm ${action(r) === "skip" ? "opacity-50" : ""}`}>
+                        <MerchantAvatar name={r.merchant} size={34} fallback={<CategoryGlyph name={categoryName(r.categoryId)} size={34} />} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium leading-tight">{r.merchant}</div>
+                          <div className="truncate text-[11px] text-muted">{shortDate(r.date)} · {kindLabel[r.kind]}{r.categoryId !== "uncategorized" ? ` · ${categoryName(r.categoryId)}` : ""}{r.accountId !== preview.accountId ? ` · via ${accountName(r.accountId)}` : ""}</div>
+                          {(r.recurring && action(r) === "import") || action(r) === "skip" || (r.status === "possible" && action(r) === "import") ? (
+                            <div className="mt-0.5 flex flex-wrap gap-1">
+                              {r.recurring && action(r) === "import" && <Badge tone="good">Looks monthly</Badge>}
+                              {action(r) === "skip" && <Badge tone="bad">Skipped</Badge>}
+                              {r.status === "possible" && action(r) === "import" && <Badge tone="warn">Possible duplicate</Badge>}
+                            </div>
+                          ) : null}
+                        </div>
+                        <span className={`num shrink-0 text-sm font-semibold ${r.direction === "credit" ? "text-good" : ""}`}>{r.direction === "credit" ? "+" : ""}{formatINR(r.amountPaise)}</span>
                       </li>
                     ))}
                   </ul>
@@ -381,8 +415,8 @@ export function LiveImport() {
                 </div>
               </details>
 
-              <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-3 border-t border-border bg-surface px-4 py-3">
-                <Button variant="primary" className="min-h-11 px-5" disabled={busy || toStage === 0 || blocked} onClick={commit}>{busy ? "Saving…" : `Send ${toStage} to review`}</Button>
+              <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-2 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur">
+                <Button variant="primary" className="min-h-11 flex-1 px-5" disabled={busy || toStage === 0 || blocked} onClick={commit}>{busy ? "Saving…" : `Send ${toStage} to review`}</Button>
                 <Button onClick={cancelReimport}>Cancel</Button>
                 {blocked && <span className="text-xs text-muted">Tick the box above to import despite the failed check.</span>}
               </div>

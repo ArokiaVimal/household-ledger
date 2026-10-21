@@ -91,4 +91,10 @@ describe("one payment seen in the app and in the bank is a possible duplicate, n
     const text = "American Express Platinum Travel Credit Card Statement of Account Opening Balance Minimum Payment Due Credit Limit Card Number XXXX\n" + "x ".repeat(3000) + "Make a crossed cheque payable. IFSC code. Account number. Branch.";
     expect(statementType(text)).toBe("credit_card");
   });
+  it("never picks a UPI app for a statement the reader knows is a bank account, however often the app is named", () => {
+    const accounts = [{ id: "bank_icici", name: "ICICI Bank", type: "bank" as const }, { id: "upi_paytm_icici", name: "Paytm ICICI UPI", type: "upi" as const }, { id: "cc_amex", name: "Amex Platinum Travel", type: "credit_card" as const }];
+    const text = "Statement of Transactions in Saving Account ICICI BANK LIMITED " + "UPI/Merchant/paytm-123@paytm/Payment from Paytm ".repeat(8);
+    expect(senseAccount(text, accounts, "bank").accountId).toBe("bank_icici");
+    expect(senseAccount(text, accounts, "credit_card").accountId).not.toBe("upi_paytm_icici");
+  });
 });

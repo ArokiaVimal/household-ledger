@@ -111,7 +111,7 @@ export function parseIciciBank(pages: PdfPage[]): PdfParseResult {
   ];
 
   const summary: StatementSummary = {
-    issuer: "ICICI Bank",
+    issuer: "ICICI Bank", accountType: "bank",
     ...(period.start ? { periodStart: period.start } : {}),
     ...(period.end ? { periodEnd: period.end } : {}),
     openingPaise: opening, newDebitsPaise: debits, newCreditsPaise: credits, closingPaise: last.balance,

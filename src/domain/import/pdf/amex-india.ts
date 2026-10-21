@@ -100,7 +100,7 @@ export function parseAmexIndia(pages: PdfPage[]): PdfParseResult {
   const lines = toLines(pages);
   const period = readPeriod(lines);
   if (!period.end || !period.endYear || !period.endMonth) return { ok: false, error: "Could not find the statement period (\"From … to …\"). This does not look like an Amex India statement." };
-  const summary: StatementSummary = { issuer: "American Express (India)", periodStart: period.start, periodEnd: period.end, ...readSummary(lines), ...(readDueDate(lines) ? { dueDate: readDueDate(lines) } : {}) };
+  const summary: StatementSummary = { issuer: "American Express (India)", accountType: "credit_card", periodStart: period.start, periodEnd: period.end, ...readSummary(lines), ...(readDueDate(lines) ? { dueDate: readDueDate(lines) } : {}) };
   const warnings: string[] = [];
 
   // 1) transaction rows: a date at the far left plus an amount at the right
