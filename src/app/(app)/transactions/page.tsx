@@ -97,6 +97,13 @@ function TransactionsView() {
   const [searching, setSearching] = useState(false);
 
   const get = (k: string) => params.get(k) ?? "";
+  /** Picking bank or card also drops a chosen payment method that no longer fits it. */
+  const pickSource = (v: string) => {
+    const p = new URLSearchParams(params.toString());
+    if (v) p.set("source", v); else p.delete("source");
+    if (p.get("account") && !filterAccounts(accounts, v).some((a) => a.id === p.get("account") || a.id === rootOf(accounts, p.get("account")!))) p.delete("account");
+    router.replace(`/transactions?${p.toString()}`);
+  };
   const set = (k: string, v: string) => {
     const p = new URLSearchParams(params.toString());
     if (v) p.set(k, v); else p.delete(k);
@@ -197,11 +204,11 @@ function TransactionsView() {
       <Select aria-label="UPI or not" value={get("mode")} onChange={(e) => set("mode", e.target.value)}>
         <option value="">UPI and other</option><option value="upi">UPI only</option><option value="other">Not UPI</option>
       </Select>
-      <Select aria-label="Bank or card" value={get("source")} onChange={(e) => set("source", e.target.value)}>
+      <Select aria-label="Bank or card" value={get("source")} onChange={(e) => pickSource(e.target.value)}>
         <option value="">Bank and card</option><option value="bank">Bank account</option><option value="card">Credit card</option>
       </Select>
       <Select aria-label="Account" value={get("account")} onChange={(e) => set("account", e.target.value)}>
-        <option value="">All accounts</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        <option value="">All accounts</option>{filterAccounts(accounts, get("source")).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
       </Select>
     </>
   );
@@ -256,8 +263,8 @@ function TransactionsView() {
         <div className="-mx-4 space-y-4 overflow-x-clip pb-3">
           <ChipFilter label="Type" value={get("kind")} onPick={(v) => set("kind", v)} options={TYPES.map(([id, label, I]) => ({ id, label, icon: <I size={15} aria-hidden /> }))} />
           <ChipFilter label="UPI" value={get("mode")} onPick={(v) => set("mode", v)} options={[{ id: "upi", label: "UPI", icon: <QrCode size={15} aria-hidden /> }, { id: "other", label: "Not UPI", icon: <Receipt size={15} aria-hidden /> }]} />
-          <ChipFilter label="From" value={get("source")} onPick={(v) => set("source", v)} options={[{ id: "bank", label: "Bank account", icon: <Landmark size={15} aria-hidden /> }, { id: "card", label: "Credit card", icon: <CreditCard size={15} aria-hidden /> }]} />
-          <ChipFilter label="Paid with" value={get("account")} onPick={(v) => set("account", v)} options={filterAccounts(accounts).map((a) => ({ id: a.id, label: a.parentId ? a.name : shortName(a.name), icon: <MerchantAvatar name={a.name} size={26} /> }))} />
+          <ChipFilter label="From" value={get("source")} onPick={pickSource} options={[{ id: "bank", label: "Bank account", icon: <Landmark size={15} aria-hidden /> }, { id: "card", label: "Credit card", icon: <CreditCard size={15} aria-hidden /> }]} />
+          <ChipFilter label="Paid with" value={get("account")} onPick={(v) => set("account", v)} options={filterAccounts(accounts, get("source")).map((a) => ({ id: a.id, label: a.parentId ? a.name : shortName(a.name), icon: <MerchantAvatar name={a.name} size={26} /> }))} />
           <ChipFilter label="Category" value={get("category")} onPick={(v) => set("category", v)} options={categories.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} icon={c.icon} size={26} /> }))} />
           <ChipFilter label="Group by" value={view === "all" ? "" : view} onPick={(v) => set("view", v)} options={VIEWS.filter((x) => x.id !== "all").map((x) => { const I = VIEW_ICON[x.id] ?? Tags; return { id: x.id, label: x.label, icon: <I size={15} aria-hidden /> }; })} />
         </div>
