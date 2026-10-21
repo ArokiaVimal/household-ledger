@@ -10,7 +10,7 @@ const id = z.string().min(1).max(128);
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const splitGroupActionSchemas = [
-  z.object({ type: z.literal("splitGroup.put"), group: z.object({ id, name: z.string().min(1).max(60), kind: z.enum(SPLIT_GROUP_KINDS), participantIds: z.array(id).max(30), note: z.string().max(200).optional() }) }),
+  z.object({ type: z.literal("splitGroup.put"), group: z.object({ id, name: z.string().min(1).max(60), kind: z.enum(SPLIT_GROUP_KINDS), participantIds: z.array(id).max(30), note: z.string().max(200).optional(), simplifyDebts: z.boolean().optional() }) }),
   z.object({ type: z.literal("splitGroup.archive"), id, archived: z.boolean() }),
   z.object({ type: z.literal("splitGroup.delete"), id }),
   z.object({ type: z.literal("splitGroup.settle"), settlement: z.object({ id, groupId: id, date: day, fromId: id, toId: id, amountPaise: z.number().int().safe().positive(), note: z.string().max(200).optional() }) }),
@@ -34,7 +34,7 @@ export interface SplitGroupContext {
 
 const money = (p: number) => `₹${(p / 100).toFixed(2)}`;
 const today = () => new Date().toISOString().slice(0, 10);
-const FIELDS = ["name", "kind", "participantIds", "note", "archived"] as const;
+const FIELDS = ["name", "kind", "participantIds", "note", "archived", "simplifyDebts"] as const;
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 /** What changed between two versions of a group (absent values are null), or null when nothing did. */
@@ -85,10 +85,10 @@ export async function runSplitGroupAction(ctx: SplitGroupContext, a: SplitGroupA
         if (gone.length) fail("conflict", `${await nameOf(repo, gone[0])} has expenses or payments in this group, so they cannot be removed.`);
       }
       const note = a.group.note?.trim();
-      const next: SplitGroup = { id: a.group.id, name, kind: a.group.kind, participantIds, createdAt: before?.createdAt ?? today(), ...(note ? { note } : {}) };
+      const next: SplitGroup = { id: a.group.id, name, kind: a.group.kind, participantIds, createdAt: before?.createdAt ?? today(), ...(note ? { note } : {}), ...(before?.archived ? { archived: true } : {}), ...(a.group.simplifyDebts === false ? { simplifyDebts: false } : {}) };
       await repo.splitGroups.put(next);
       const change = before ? changeOf(before, next) : null;
-      await ctx.log(before ? "edit" : "create", "split_group", next.id, `${before ? "Changed" : "Created"} split group ${name} with ${participantIds.length} people`, change ? { change } : {});
+      await ctx.log(before ? "edit" : "create", "split_group", next.id, `${before ? "Changed" : "Created"} split group ${name} with ${participantIds.length} people${before && before.simplifyDebts !== next.simplifyDebts ? `; simplify payments ${next.simplifyDebts === false ? "off" : "on"}` : ""}`, change ? { change } : {});
       return;
     }
     case "splitGroup.archive": {

@@ -185,6 +185,29 @@ describe("split groups: settlements", () => {
   });
 });
 
+describe("split groups: simplify payments setting", () => {
+  it("is on by default, can be switched off and on, audited and undoable", async () => {
+    const repo = await make();
+    expect((await repo.splitGroups.get("g1"))!.simplifyDebts).toBeUndefined();
+    await applyAction(repo, actor, { type: "splitGroup.put", group: { ...group, simplifyDebts: false } });
+    expect((await repo.splitGroups.get("g1"))!.simplifyDebts).toBe(false);
+    const ev = (await repo.audit.list()).at(-1)!;
+    expect(ev.summary).toMatch(/simplify payments off/);
+    expect(ev.change).toEqual({ before: { simplifyDebts: null }, after: { simplifyDebts: false } });
+    await applyAction(repo, actor, { type: "audit.undo", eventId: ev.id });
+    expect((await repo.splitGroups.get("g1"))!.simplifyDebts).toBeUndefined();
+    await applyAction(repo, actor, { type: "splitGroup.put", group: { ...group, simplifyDebts: false } });
+    await applyAction(repo, actor, { type: "splitGroup.put", group: { ...group, simplifyDebts: true } });
+    expect((await repo.splitGroups.get("g1"))!.simplifyDebts).toBeUndefined();
+  });
+  it("an archived group keeps its setting", async () => {
+    const repo = await make();
+    await applyAction(repo, actor, { type: "splitGroup.put", group: { ...group, simplifyDebts: false } });
+    await applyAction(repo, actor, { type: "splitGroup.archive", id: "g1", archived: true });
+    expect(await repo.splitGroups.get("g1")).toMatchObject({ archived: true, simplifyDebts: false });
+  });
+});
+
 describe("split groups: archive and delete", () => {
   it("archives and reopens, audited and undoable", async () => {
     const repo = await make();

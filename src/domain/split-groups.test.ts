@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkGroupExpense, checkSplitGroup, groupBalances, groupExpenses, peopleInUse, settleUp, suggestSettlements, waitingForReview } from "./split-groups";
+import { directSettlements, suggestedPayments, checkGroupExpense, checkSplitGroup, groupBalances, groupExpenses, peopleInUse, settleUp, suggestSettlements, waitingForReview } from "./split-groups";
 import type { ExpenseRecord, SplitConfig, SplitGroup, SplitSettlement } from "./types";
 
 const group: SplitGroup = { id: "g1", name: "Goa trip", kind: "trip", participantIds: ["me", "a", "b", "c"], createdAt: "2026-10-01" };
@@ -138,5 +138,41 @@ describe("group rules", () => {
     expect(checkGroupExpense(group, { payerId: "me", kind: "purchase", split: eq("me", "zed") }, (id) => id.toUpperCase())).toMatch(/ZED is not in Goa trip/);
     expect(checkGroupExpense(group, { payerId: "zed", kind: "purchase", split: eq("me") })).toMatch(/not in/);
     expect(checkGroupExpense(group, { payerId: "me", kind: "income", split: eq("me") })).toMatch(/Only purchases/);
+  });
+});
+
+describe("simplify payments off: pay back exactly who paid for you", () => {
+  const chain = () => [rec({ payerId: "a", amountPaise: 20000, split: eq("a", "b") }), rec({ payerId: "b", amountPaise: 20000, split: eq("b", "c") })]; // b owes a 100, c owes b 100
+  const g = (o: Partial<SplitGroup> = {}): SplitGroup => ({ ...group, participantIds: ["a", "b", "c"], ...o });
+  it("keeps debts where they arose; simplified collapses the chain", () => {
+    expect(directSettlements(group, chain(), [])).toEqual([{ fromId: "b", toId: "a", amountPaise: 10000 }, { fromId: "c", toId: "b", amountPaise: 10000 }].sort((x, y) => x.fromId.localeCompare(y.fromId)).sort((x, y) => y.amountPaise - x.amountPaise || x.fromId.localeCompare(y.fromId)));
+    expect(suggestedPayments(g(), chain(), [])).toEqual([{ fromId: "c", toId: "a", amountPaise: 10000 }]);
+    expect(suggestedPayments(g({ simplifyDebts: true }), chain(), [])).toHaveLength(1);
+    expect(suggestedPayments(g({ simplifyDebts: false }), chain(), [])).toHaveLength(2);
+  });
+  it("nets what two people owe each other in both directions", () => {
+    const rs = [rec({ payerId: "a", amountPaise: 30000, split: eq("a", "b") }), rec({ payerId: "b", amountPaise: 10000, split: eq("a", "b") })]; // b owes a 150, a owes b 50
+    expect(directSettlements(group, rs, [])).toEqual([{ fromId: "b", toId: "a", amountPaise: 10000 }]);
+  });
+  it("payments made in the group count, and voided or other groups' do not", () => {
+    const rs = chain();
+    expect(directSettlements(group, rs, [settle({ fromId: "b", toId: "a", amountPaise: 10000 })])).toEqual([{ fromId: "c", toId: "b", amountPaise: 10000 }]);
+    expect(directSettlements(group, rs, [settle({ fromId: "b", toId: "a", amountPaise: 10000, voided: true }), settle({ fromId: "b", toId: "a", amountPaise: 10000, groupId: "other" })])).toHaveLength(2);
+  });
+  it("only counts reviewed, counted expenses and always clears everyone (random)", () => {
+    let seed = 11;
+    const rnd = (m: number) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % m; };
+    const ids = ["me", "a", "b", "c", "d"];
+    for (let t = 0; t < 100; t++) {
+      const rs: ExpenseRecord[] = [];
+      for (let i = 0; i < 1 + rnd(6); i++) { const who = ids.filter(() => rnd(2) === 0); if (who.length === 0) who.push("me"); rs.push(rec({ payerId: ids[rnd(5)], amountPaise: 100 + rnd(100000), status: rnd(5) === 0 ? "unreviewed" : "reviewed", split: eq(...who) })); }
+      const ss = rnd(2) ? [settle({ fromId: ids[rnd(5)], toId: ids[(rnd(4) + 1 + ids.indexOf("me")) % 5], amountPaise: 1 + rnd(5000) })] : [];
+      const g2 = { ...group, participantIds: ids };
+      const before = Object.fromEntries(groupBalances(g2, rs, ss).people.map((p) => [p.id, p.balancePaise]));
+      const after = { ...before };
+      for (const x of directSettlements(g2, rs, ss)) { expect(x.amountPaise).toBeGreaterThan(0); after[x.fromId] += x.amountPaise; after[x.toId] -= x.amountPaise; }
+      if (ss[0] && ss[0].fromId === ss[0].toId) continue;
+      expect(Object.values(after).every((v) => v === 0)).toBe(true);
+    }
   });
 });

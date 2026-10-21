@@ -135,7 +135,7 @@ interface Store {
   splitGroups: SplitGroup[];
   splitSettlements: SplitSettlement[];
   /** Creates (no `id`) or changes a split group. Returns the group's id, or an error message. */
-  saveSplitGroup: (draft: { id?: string; name: string; kind: SplitGroupKind; participantIds: string[]; note?: string }) => { id?: string; error?: string };
+  saveSplitGroup: (draft: { id?: string; name: string; kind: SplitGroupKind; participantIds: string[]; note?: string; /** Fewest payments (default) or pay back exactly who paid for you. */ simplifyDebts?: boolean }) => { id?: string; error?: string };
   archiveSplitGroup: (id: string, archived: boolean) => void;
   /** Only an empty group (no expenses, no payments) can be deleted; otherwise returns why not. */
   deleteSplitGroup: (id: string) => string | null;
@@ -600,7 +600,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     if (!paymentGroups.some((g) => g.name.toLowerCase() === "parents")) { if (!saveGroup({ name: "Parents", kind: "people", memberIds: [], coverMembers: true, includeMe: false })) added++; }
     return added;
   }, [participants, meId, partnerId, paymentGroups, saveGroup]);
-  const saveSplitGroup = useCallback((draft: { id?: string; name: string; kind: SplitGroupKind; participantIds: string[]; note?: string }): { id?: string; error?: string } => {
+  const saveSplitGroup = useCallback((draft: { id?: string; name: string; kind: SplitGroupKind; participantIds: string[]; note?: string; simplifyDebts?: boolean }): { id?: string; error?: string } => {
     const name = draft.name.replace(/\s+/g, " ").trim();
     const participantIds = [...new Set(draft.participantIds)];
     const err = checkSplitGroup({ name, participantIds }, splitGroups.filter((g) => g.id !== draft.id));
@@ -614,9 +614,9 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     }
     const id = draft.id ?? `sg_${slug(name)}-${uuid().slice(0, 6)}`;
     const note = draft.note?.trim();
-    const g: SplitGroup = { id, name, kind: draft.kind, participantIds, createdAt: prior?.createdAt ?? today, ...(note ? { note } : {}) };
+    const g: SplitGroup = { id, name, kind: draft.kind, participantIds, createdAt: prior?.createdAt ?? today, ...(note ? { note } : {}), ...((draft.simplifyDebts ?? prior?.simplifyDebts) === false ? { simplifyDebts: false } : {}) };
     setSplitGroups((gs) => (gs.some((x) => x.id === id) ? gs.map((x) => (x.id === id ? g : x)) : [g, ...gs]));
-    void send({ type: "splitGroup.put", group: { id, name, kind: g.kind, participantIds, ...(note ? { note } : {}) } });
+    void send({ type: "splitGroup.put", group: { id, name, kind: g.kind, participantIds, ...(note ? { note } : {}), ...(g.simplifyDebts === false ? { simplifyDebts: false } : {}) } });
     return { id };
   }, [splitGroups, splitSettlements, records, staged, participants, today, send]);
   const archiveSplitGroup = useCallback((id: string, archived: boolean) => {

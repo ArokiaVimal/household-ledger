@@ -136,6 +136,29 @@ export function suggestSettlements(balances: Record<string, Paise>): Transfer[] 
 /** The payments that would clear a group, from its own balances. */
 export const settleUp = (b: GroupBalances): Transfer[] => suggestSettlements(Object.fromEntries(b.people.map((p) => [p.id, p.balancePaise])));
 
+/**
+ * Who pays whom without rerouting: every person pays back the people who actually paid for them. What two people owe each other in
+ * both directions is netted, and payments already made in the group count. Clears everyone, like `settleUp`, but may need more payments.
+ */
+export function directSettlements(group: Pick<SplitGroup, "id">, records: ExpenseRecord[], settlements: SplitSettlement[]): Transfer[] {
+  const owed = new Map<string, Paise>(); // "a|b" with a < b: what a owes b (negative: b owes a)
+  const add = (debtor: string, creditor: string, v: Paise) => { if (debtor === creditor || v === 0) return; const flip = debtor > creditor; const k = flip ? `${creditor}|${debtor}` : `${debtor}|${creditor}`; owed.set(k, (owed.get(k) ?? 0) + (flip ? -v : v)); };
+  for (const e of groupExpenses(records, group.id)) for (const [id, v] of Object.entries(e.shares)) add(id, e.payerId, v);
+  for (const s of settlements) if (s.groupId === group.id && !s.voided) add(s.toId, s.fromId, s.amountPaise); // paying someone back lowers what you owe them
+  const out: Transfer[] = [];
+  for (const [k, v] of [...owed].sort(([a], [b]) => a.localeCompare(b))) {
+    if (v === 0) continue;
+    const [a, b] = k.split("|");
+    out.push(v > 0 ? { fromId: a, toId: b, amountPaise: v } : { fromId: b, toId: a, amountPaise: -v });
+  }
+  return out.sort((x, y) => y.amountPaise - x.amountPaise || x.fromId.localeCompare(y.fromId) || x.toId.localeCompare(y.toId));
+}
+
+/** The payments to suggest for a group, following its "simplify payments" setting (on unless switched off). */
+export function suggestedPayments(group: SplitGroup, records: ExpenseRecord[], settlements: SplitSettlement[]): Transfer[] {
+  return group.simplifyDebts === false ? directSettlements(group, records, settlements) : settleUp(groupBalances(group, records, settlements));
+}
+
 /** Why a group cannot be saved as typed, or null when it is fine. `others` are the other groups (names stay unique). */
 export function checkSplitGroup(draft: { name: string; participantIds: string[] }, others: SplitGroup[]): string | null {
   const name = draft.name.replace(/\s+/g, " ").trim();

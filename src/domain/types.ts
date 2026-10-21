@@ -378,6 +378,8 @@ export interface SplitGroup {
   note?: string;
   /** Closed: still readable, but nothing new can be added to it. */
   archived?: boolean;
+  /** Left out (or true): suggested payments are the fewest that settle everyone, even if that means paying someone who did not pay for you. False: each person pays back exactly the people who paid for them. */
+  simplifyDebts?: boolean;
 }
 
 /**

@@ -57,6 +57,7 @@ function GroupForm({ group, onClose, onSaved }: { group?: SplitGroup; onClose: (
   const [kind, setKind] = useState<SplitGroupKind>(group?.kind ?? "trip");
   const [others, setOthers] = useState<string[]>(group?.participantIds.filter((id) => id !== meId) ?? []);
   const [note, setNote] = useState(group?.note ?? "");
+  const [simplify, setSimplify] = useState(group?.simplifyDebts !== false);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const ids = [meId, ...others];
@@ -71,7 +72,7 @@ function GroupForm({ group, onClose, onSaved }: { group?: SplitGroup; onClose: (
     setOthers(others.includes(id) ? others.filter((x) => x !== id) : [...others, id]);
   };
   const save = () => {
-    const r = saveSplitGroup({ id: group?.id, name, kind, participantIds: ids, note });
+    const r = saveSplitGroup({ id: group?.id, name, kind, participantIds: ids, note, simplifyDebts: simplify });
     if (r.error) { setError(r.error); return; }
     onSaved?.(r.id!);
     onClose();
@@ -86,6 +87,7 @@ function GroupForm({ group, onClose, onSaved }: { group?: SplitGroup; onClose: (
         <p className="mt-1.5 text-xs text-muted">You and {others.length} {others.length === 1 ? "other" : "others"}.</p>
       </FormRow>
       <FormRow label="Note"><Input aria-label="Note" value={note} maxLength={200} placeholder="Optional, e.g. 12-15 Nov" onChange={(e) => setNote(e.target.value)} /></FormRow>
+      <FormRow label="Payments" tip={SIMPLIFY_TIP}><SimplifySwitch on={simplify} onChange={setSimplify} /></FormRow>
       {(error || (problem && name)) && <p role="alert" className="text-xs text-danger">{error ?? problem}</p>}
       <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <Button variant="primary" className="w-full sm:order-last sm:ml-auto sm:w-auto" disabled={!!problem} onClick={save}>{group ? "Save" : "Create group"}</Button>
@@ -107,4 +109,16 @@ function GroupForm({ group, onClose, onSaved }: { group?: SplitGroup; onClose: (
 export function ReopenButton({ id }: { id: string }) {
   const { archiveSplitGroup } = useStore();
   return <Button onClick={() => archiveSplitGroup(id, false)}><ArchiveRestore size={15} aria-hidden />Reopen</Button>;
+}
+
+export const SIMPLIFY_TIP = "On: the fewest payments settle the group, even if that means paying someone who did not pay for you (A owes B, B owes C, so A pays C). Off: everyone pays back exactly the people who paid for them. Balances are the same either way.";
+
+/** The "Simplify payments" switch, as a labelled row. */
+export function SimplifySwitch({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} disabled={disabled} onClick={() => onChange(!on)} className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-border bg-surface px-3 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50">
+      <span className="min-w-0 flex-1"><span className="block text-sm font-medium">Simplify payments</span><span className="block text-xs text-muted">{on ? "Fewest payments to settle everyone" : "Pay back exactly who paid for you"}</span></span>
+      <span aria-hidden className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${on ? "bg-accent" : "bg-border"}`}><span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${on ? "left-[1.15rem]" : "left-0.5"}`} /></span>
+    </button>
+  );
 }

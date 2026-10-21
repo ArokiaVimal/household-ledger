@@ -4,19 +4,19 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { PersonGlyph } from "@/components/glyphs";
-import { balanceWords, GroupDialog, KindGlyph, PersonStack, ReopenButton, KIND_META } from "@/components/split-groups";
+import { balanceWords, GroupDialog, KindGlyph, PersonStack, ReopenButton, KIND_META, SimplifySwitch } from "@/components/split-groups";
 import { TxnAddDialog, TxnEditDialog } from "@/components/txn-edit-dialog";
 import { Badge, Button, Card, CardTitle, CompactChips, ConfirmDialog, Dialog, EmptyState, FormRow, Input, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
-import { groupBalances, groupExpenses, settleUp, waitingForReview, type Transfer } from "@/domain/split-groups";
+import { groupBalances, groupExpenses, suggestedPayments, waitingForReview, type Transfer } from "@/domain/split-groups";
 import type { ExpenseRecord, SplitGroup } from "@/domain/types";
 
 /** One split group: what was spent, each person's balance, the fewest payments that settle it, and the payments made so far. */
 export default function GroupPage() {
   const { id: raw } = useParams<{ id: string }>();
   const gid = decodeURIComponent(raw);
-  const { splitGroups, splitSettlements, records, staged, meId, nameOf, voidSplitSettlement } = useStore();
+  const { splitGroups, splitSettlements, records, staged, meId, nameOf, voidSplitSettlement, saveSplitGroup } = useStore();
   const group = splitGroups.find((g) => g.id === gid);
   const [adding, setAdding] = useState(0); // 0 closed; each "add another" bumps it so the form resets
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
@@ -26,7 +26,7 @@ export default function GroupPage() {
   const [note, setNote] = useState<string | null>(null);
 
   const balances = useMemo(() => (group ? groupBalances(group, records, splitSettlements) : null), [group, records, splitSettlements]);
-  const transfers = useMemo(() => (balances ? settleUp(balances) : []), [balances]);
+  const transfers = useMemo(() => (group ? suggestedPayments(group, records, splitSettlements) : []), [group, records, splitSettlements]);
   const expenses = useMemo(() => (group ? [...groupExpenses(records, group.id)].reverse() : []), [group, records]);
   const waiting = group ? waitingForReview(staged, group.id) : 0;
   const payments = useMemo(() => splitSettlements.filter((s) => s.groupId === gid).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)), [splitSettlements, gid]);
@@ -42,6 +42,7 @@ export default function GroupPage() {
   const mine = balances.people.find((p) => p.id === meId);
   const mineWords = balanceWords(mine?.balancePaise ?? 0);
   const open = !group.archived;
+  const simplify = group.simplifyDebts !== false;
   const youPay = transfers.filter((t) => t.fromId === meId), youGet = transfers.filter((t) => t.toId === meId);
 
   return (
@@ -87,9 +88,10 @@ export default function GroupPage() {
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-2 text-xs text-muted">{transfers.length} payment{transfers.length === 1 ? "" : "s"} settle{transfers.length === 1 ? "s" : ""} the whole group.{youPay.length > 0 ? ` You pay ${formatINR(youPay.reduce((s, t) => s + t.amountPaise, 0))}.` : ""}{youGet.length > 0 ? ` You receive ${formatINR(youGet.reduce((s, t) => s + t.amountPaise, 0))}.` : ""}</p>
+                  <p className="mt-2 text-xs text-muted">{transfers.length} payment{transfers.length === 1 ? "" : "s"} settle{transfers.length === 1 ? "s" : ""} the whole group{simplify ? "" : ", each to the person who paid for you"}.{youPay.length > 0 ? ` You pay ${formatINR(youPay.reduce((s, t) => s + t.amountPaise, 0))}.` : ""}{youGet.length > 0 ? ` You receive ${formatINR(youGet.reduce((s, t) => s + t.amountPaise, 0))}.` : ""}</p>
                 </>
               )}
+            {open && <div className="mt-3"><SimplifySwitch on={simplify} onChange={(v) => saveSplitGroup({ id: group.id, name: group.name, kind: group.kind, participantIds: group.participantIds, note: group.note, simplifyDebts: v })} /></div>}
             {open && <Button className="mt-3 w-full sm:w-auto" onClick={() => setSettling("new")}><Handshake size={15} aria-hidden />Record a payment</Button>}
           </Card>
           <Card>

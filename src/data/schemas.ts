@@ -141,7 +141,7 @@ export const VoucherBrandSchema = z.object({
 
 
 export const SplitGroupSchema = z.object({
-  id, name: z.string().min(1).max(40), kind: z.enum(["trip", "outing", "party", "dinner", "other"]), participantIds: z.array(id).min(2).max(30), createdAt: date, note: z.string().max(200).optional(), archived: z.boolean().optional(),
+  id, name: z.string().min(1).max(40), kind: z.enum(["trip", "outing", "party", "dinner", "other"]), participantIds: z.array(id).min(2).max(30), createdAt: date, note: z.string().max(200).optional(), archived: z.boolean().optional(), simplifyDebts: z.boolean().optional(),
 }) satisfies z.ZodType<SplitGroup>;
 
 export const SplitSettlementSchema = z
