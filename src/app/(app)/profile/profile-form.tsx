@@ -36,7 +36,7 @@ function Editor({ profile, onSaved, embedded }: { profile: Profile; onSaved: (p:
   const fileRef = useRef<HTMLInputElement>(null);
   const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting, isDirty } } = useForm<ProfileInput>({
     resolver: zodResolver(ProfileInputSchema),
-    defaultValues: { displayName: profile.displayName, nickname: profile.nickname, phone: profile.phone, defaultView: profile.defaultView },
+    defaultValues: { displayName: profile.displayName, nickname: profile.nickname, phone: profile.phone },
   });
   const nameNow = useWatch({ control, name: "displayName" });
   const shown: Profile = { ...profile, displayName: nameNow || profile.displayName, avatarDataUrl: avatar === undefined ? profile.avatarDataUrl : avatar };

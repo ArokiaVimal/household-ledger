@@ -9,7 +9,6 @@ export const ProfileInputSchema = z.object({
   /** Short name used in the greeting. Falls back to the first word of the display name. */
   nickname: z.string().trim().max(30, "Keep it under 30 characters"),
   phone: z.string().trim().max(20).regex(/^(\+?[0-9][0-9 -]{5,18})?$/, "Enter a valid phone number or leave it empty"),
-  defaultView: z.enum(["household", "personal"]),
 });
 export type ProfileInput = z.infer<typeof ProfileInputSchema>;
 

@@ -8,7 +8,7 @@ Status: written before the code (2026-10-19). **Revision 2 (2026-10-19, owner's 
 - **Link**: a confirmed, revocable connection between a contact owner and one account. It lets that account see *only the expenses you split with that contact*. It is not Split With, Split Groups, Payment Groups or Categories.
 
 ## 2. Decision: generalise the shared space, not the couple
-The partner flow (couple space + `sharedExpenses` + redacted copy + Mine/Together views + per-couple ratio) is built around exactly one partner and a "Together" scope. Friends and family are many per person, with no ratio and no merged view. So:
+The partner flow (couple space + `sharedExpenses` + redacted copy + the old Mine/Together views (removed, see note below) + per-couple ratio) is built around exactly one partner and a "Together" scope. Friends and family are many per person, with no ratio and no merged view. So:
 
 - The **couple space stays as it is** (one per person, partner only). Nothing about it changes.
 - The *mechanism* is reused for friends and family: a **link space** is a `households/{id}` doc with `kind: "link"`, two members, and only `sharedExpenses` + `settlements` (+ audit) under it. Same `SharedExpense` type, same "server writes, members read" rules, same redaction idea. A person can have many link spaces (one per linked pair) next to at most one couple space.
@@ -93,3 +93,6 @@ Either person can unlink. Sync and editing stop (every side ends). The shared te
 
 ### 8.8 Privacy model changes since revision 1
 The linked person now sees the **total amount and the other participants' names and shares** of each shared expense (before: only the two shares). They can now **write** (edit, undo, payments) through the server; clients still cannot write to any space. Link-space copies written before this revision are upgraded in place the next time the owner signs in (`schema` 2), logged as "now shows the full expense".
+
+
+> **Note (Oct 2026):** the Mine/Together (household) view switch and the Profile "default view" setting were removed. Payment groups are the only lens on spending and the app always opens on Mine. A linked partner's shared expenses still appear in your lists. "Shared" means only expenses split with other people.

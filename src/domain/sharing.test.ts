@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildShared, planShare, scopeRecords, SharingError, sharedToRecord } from "./sharing";
+import { buildShared, planShare, SharingError, sharedToRecord } from "./sharing";
 import { pairBalances } from "./balances";
 import type { ExpenseRecord } from "./types";
 
@@ -52,23 +52,10 @@ describe("buildShared", () => {
   });
 });
 
-describe("scopeRecords and balances", () => {
+describe("shared balances", () => {
   const mineShared = rec({ id: "a", sharedWithPartner: true });
-  const mineOnly = rec({ id: "b", shared: false, split: { mode: "personal", participantIds: ["u_me"] }, merchant: "Private" });
   const theirs = rec({ id: "c", payerId: "u_wife", merchant: "Theirs" });
   const shared = [mineShared, theirs].map((r) => ({ ...r, accountId: "shared", originalDescription: "", importSource: "Shared" }));
-  const base = { own: [mineShared, mineOnly], shared, meId: "u_me", month: "2026-10" };
-  it("Mine shows my records once plus my share of what my partner paid", () => {
-    const rows = scopeRecords({ ...base, coupled: true, view: "personal" });
-    expect(rows.map((r) => r.id).sort()).toEqual(["a", "b", "c"]);
-  });
-  it("Together shows only shared expenses, never my private ones", () => {
-    const rows = scopeRecords({ ...base, coupled: true, view: "household" });
-    expect(rows.map((r) => r.id).sort()).toEqual(["a", "c"]);
-  });
-  it("solo: Mine and Everything are just my own records", () => {
-    expect(scopeRecords({ ...base, shared: [], coupled: false, view: "personal" }).map((r) => r.id).sort()).toEqual(["a", "b"]);
-  });
   it("balances come from shared expenses only: equal split of 642 means my partner owes 321", () => {
     const b = pairBalances(shared.filter((r) => r.id === "a"), []);
     expect(b).toEqual([{ from: "u_wife", to: "u_me", owed: 32100, settled: 0, outstanding: 32100 }]);

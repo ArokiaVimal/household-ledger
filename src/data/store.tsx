@@ -31,7 +31,6 @@ import { checkSplitGroup, peopleInUse } from "@/domain/split-groups";
 import { installDemoApi } from "@/lib/demo/api";
 import { MOCK_TODAY, ME, accounts as mockAccounts, categories as mockCategories, initialReceipts, historyRecords, initialRecords, initialSettlements, merchantRules, paymentGroups as mockPaymentGroups, participants as mockParticipants, recurringItems as mockRecurring, cardBills as mockCardBills, voucherBrands as mockVoucherBrands, voucherRecords as mockVoucherRecords, trendHistory as mockTrend } from "./mock";
 
-export type View = "household" | "personal";
 
 export interface LiveInit {
   data: HouseholdData;
@@ -92,9 +91,7 @@ interface Store {
   monthLocked: boolean;
   toggleMonthLock: () => void;
   setMonth: (m: string) => void;
-  view: View;
-  setView: (v: View) => void;
-  /** Records in the selected month and view. Personal = ones where I paid or hold a share. */
+  /** Records in the selected month and Payment group. Mine = ones where I paid or hold a share. */
   scoped: ExpenseRecord[];
   summary: ReturnType<typeof summarize>;
   balances: ReturnType<typeof pairBalances>;
@@ -252,7 +249,7 @@ function seed(live?: LiveInit) {
   };
 }
 
-export function StoreProvider({ children, initialView = "personal", live }: { children: ReactNode; initialView?: View; live?: LiveInit }) {
+export function StoreProvider({ children, live }: { children: ReactNode; live?: LiveInit }) {
   const { profile } = useProfile();
   const router = useRouter();
   useState(() => { if (live?.demo) installDemoApi(); }); // before any screen asks the server for anything
@@ -288,7 +285,6 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
     setLockedMonth(next);
     try { if (next) localStorage.setItem("pf-month-lock", next); else localStorage.removeItem("pf-month-lock"); } catch { /* storage unavailable */ }
   }, [lockedMonth, month]);
-  const [view, setView] = useState<View>(initialView);
   const [paymentGroups, setPaymentGroups] = useState<PaymentGroup[]>(init.paymentGroups);
   const [splitGroups, setSplitGroups] = useState<SplitGroup[]>(init.splitGroups);
   const [splitSettlements, setSplitSettlements] = useState<SplitSettlement[]>(init.splitSettlements);
@@ -804,7 +800,7 @@ export function StoreProvider({ children, initialView = "personal", live }: { ch
   const value: Store = {
     aiEnabled: !!live?.aiEnabled, demo: !!live?.demo, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
-    previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, view, setView, scoped, summary, balances, ledgerRecords, recurring,
+    previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, scoped, summary, balances, ledgerRecords, recurring,
     categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, recordsFor: baseFor, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, splitGroups, splitSettlements, saveSplitGroup, archiveSplitGroup, deleteSplitGroup, addSplitSettlement, voidSplitSettlement, setParticipantPhoto, setPartnerNickname, iconsByName, logosByName: merchantLogos, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, recurringSuggestions, recurringAlerts, confirmRecurringSuggestion, dismissRecurringSuggestion, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },

@@ -123,7 +123,7 @@ async function AuthedShell({ children }: { children: ReactNode }) {
   return (
     <ProfileProvider initial={profile} status={status}>
       <HouseholdProvider membership={membership} status={hStatus} uid={session.mode === "on" ? session.uid : null} partner={partnerInfo} offers={offers} myName={profile?.displayName ?? ""} linkData={linkData}>
-        <StoreProvider initialView="personal" live={live}>
+        <StoreProvider live={live}>
           <AppShell user={session.mode === "on" ? { email: session.email ?? "" } : null}>
             {dataError ? (
               <div role="alert" className="rounded-[var(--radius-card)] bg-surface p-6">

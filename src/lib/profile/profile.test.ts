@@ -19,13 +19,12 @@ describe("avatar validation", () => {
 });
 
 describe("profile input", () => {
-  const ok = { displayName: "  Vimal Arokia ", nickname: "Vimal", phone: "+91 98765 43210", defaultView: "household" as const };
+  const ok = { displayName: "  Vimal Arokia ", nickname: "Vimal", phone: "+91 98765 43210" };
   it("trims and accepts valid input", () => expect(ProfileInputSchema.parse(ok).displayName).toBe("Vimal Arokia"));
   it("allows empty phone, rejects bad phone and empty name", () => {
     expect(ProfileInputSchema.safeParse({ ...ok, phone: "" }).success).toBe(true);
     expect(ProfileInputSchema.safeParse({ ...ok, phone: "abc" }).success).toBe(false);
     expect(ProfileInputSchema.safeParse({ ...ok, displayName: "   " }).success).toBe(false);
-    expect(ProfileInputSchema.safeParse({ ...ok, defaultView: "everyone" }).success).toBe(false);
   });
 });
 

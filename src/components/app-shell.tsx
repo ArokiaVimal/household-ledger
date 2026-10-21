@@ -107,7 +107,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const path = usePathname();
   const router = useRouter();
   const { live, demo, staged, syncError, dismissSyncError, nameOf, meId } = useStore();
-  // Solo use is complete on its own: settle-up and the Mine/Together switch appear once a partner is linked.
+  // Solo use is complete on its own: settle-up appears once a partner is linked.
   // The month and group switches only appear on screens they change. Everywhere else they just push the content down.
   const monthScreens = ["/timeline", "/recurring", "/vouchers", "/insights"];
   const lensScreens = ["/", "/transactions", "/reports"];

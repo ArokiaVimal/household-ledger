@@ -17,7 +17,6 @@ export async function getProfile(session: Session): Promise<Profile> {
     displayName: typeof d.displayName === "string" && d.displayName ? d.displayName : defaultDisplayName(session.name, email),
     nickname: typeof d.nickname === "string" ? d.nickname : "",
     phone: typeof d.phone === "string" ? d.phone : "",
-    defaultView: d.defaultView === "household" ? "household" : "personal", // personal first
     avatarDataUrl: typeof d.avatarDataUrl === "string" ? d.avatarDataUrl : null,
     providerPhotoUrl: session.picture,
     partnerNickname: typeof d.partnerNickname === "string" ? d.partnerNickname : "",
