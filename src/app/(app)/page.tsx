@@ -15,6 +15,7 @@ import { cardViews, upcomingBills } from "@/domain/cardbills";
 import { NAV } from "@/components/nav-items";
 import { cardLabel, rootOf, shortName } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
+import { personLedger } from "@/domain/ledger";
 import { byMonth } from "@/domain/reports";
 import { summarizeGroup } from "@/domain/groups";
 import { attentionTotal, needsAttention } from "@/domain/attention";
@@ -113,9 +114,12 @@ const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cas
 
 export default function Dashboard() {
   const skipSetup = useDeviceFlag("pf-setup-open") === "1";
-  const { live, demo, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, balances, month, categoryName, nameOf, accountName, partner, groups, activeGroup, groupSummary, monthRecords, recurring, recurringSuggestions, attributionOf, allocatedByKey, categories, saveCardBill, markRecurringPaid } = useStore();
+  const { live, demo, householdReady, meId, accounts, cardBills, today, trendHistory, records, shown, staged, scoped, settlements, ledgerRecords, month, categoryName, nameOf, accountName, partner, groups, splitGroups, participants, activeGroup, groupSummary, monthRecords, recurring, recurringSuggestions, attributionOf, allocatedByKey, categories, saveCardBill, markRecurringPaid } = useStore();
   const [paying, setPaying] = useState<{ kind: "bill"; bill: BillStatus } | { kind: "recurring"; id: string; name: string } | null>(null);
-  const withPartner = !live || !!partner;
+  // Split cards show for anyone who splits with someone (a friend, family, a partner or a group), not only a linked partner.
+  const others = participants.filter((p) => p.id !== meId);
+  const withPeople = !live || others.length > 0 || splitGroups.length > 0;
+  const nobodyYet = live && !withPeople;
   const prevMonth = (() => { const [y, m] = month.split("-").map(Number); return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7); })();
   const prevAllocated = useMemo(() => summarizeGroup(shown.filter((r) => r.date.startsWith(prevMonth)), activeGroup, groups, meId).allocated, [shown, prevMonth, activeGroup, groups, meId]);
   const cats = useMemo(() => Object.entries(allocatedByKey((r) => r.categoryId)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, label: categoryName(key), value })), [allocatedByKey, categoryName]);
@@ -125,8 +129,10 @@ export default function Dashboard() {
     return Object.keys(all).sort().map((m) => ({ key: m, label: new Date(m + "-01").toLocaleString("en", { month: "short" }), value: all[m] }));
   }, [shown, trendHistory]);
   const topMerchant = Object.entries(allocatedByKey((r) => r.merchant)).sort((a, b) => b[1] - a[1])[0];
-  const iOwe = balances.filter((b) => b.from === meId && b.outstanding > 0);
-  const owedToMe = balances.filter((b) => b.to === meId && b.outstanding > 0);
+  // Who owes whom, from the same ledger as the Split tab: friends and family count, not only a linked partner.
+  const ledgers = useMemo(() => participants.filter((p) => p.id !== meId && !(live && partner && !partner.active && p.id === partner.participantId)).map((p) => personLedger(p.id, meId, ledgerRecords, settlements)), [participants, meId, ledgerRecords, settlements, live, partner]);
+  const iOwe = ledgers.filter((l) => l.outstandingPaise < 0).map((l) => ({ from: meId, to: l.personId, outstanding: -l.outstandingPaise }));
+  const owedToMe = ledgers.filter((l) => l.outstandingPaise > 0).map((l) => ({ from: l.personId, to: meId, outstanding: l.outstandingPaise }));
   const q = `month=${month}`;
   const prevKey = (() => { const [y, m] = month.split("-").map(Number); return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7); })();
   const delta = live && !demo && prevAllocated > 0 ? Math.round(((groupSummary.allocated - prevAllocated) / prevAllocated) * 1000) / 10 : null;
@@ -175,16 +181,24 @@ export default function Dashboard() {
           rows={billRows.map((b) => { const amt = formatINR(b.state === "paid" ? b.bill.totalDuePaise : b.remainingPaise).replace(".00", ""); const card = accounts.filter((x) => x.type === "credit_card" && !x.archived); return { key: b.bill.id, logo: <MerchantAvatar name={accountName(b.bill.accountId)} size={28} />, name: cardLabel(accountName(b.bill.accountId), card), nameLong: shortName(accountName(b.bill.accountId)), sub: amt, subLong: `${b.state === "overdue" ? "Overdue" : "Due " + prettyDay(b.bill.dueDate)} · ${amt}`, tone: b.state === "paid" ? "good" as const : b.state === "overdue" ? "bad" as const : b.daysLeft <= 3 ? "warn" as const : "info" as const, done: b.state === "paid", tickLabel: `Mark ${accountName(b.bill.accountId)} bill paid`, onTick: () => setPaying({ kind: "bill", bill: b }) }; })} />
         <ChecklistCard icon={Repeat} title="Recurring" href="/recurring" empty="Nothing due this month" addLabel="Add one"
           rows={recurringRows.map((r) => { const dueToday = r.item.dueDay === Number(today.slice(8, 10)) && month === today.slice(0, 7); const amt = `${r.estimated ? "~" : ""}${formatINR(r.state === "paid" && !r.marked ? r.actualPaise : r.expectedPaise).replace(".00", "")}`; const day = `${r.item.dueDay} ${new Date(`${month}-01T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" })}`; return { key: r.item.id, logo: <CategoryGlyph name={categoryName(r.item.categoryId)} size={28} icon={categories.find((c) => c.id === r.item.categoryId)?.icon} />, name: r.item.name.split(/\s+/)[0], nameLong: r.item.name, sub: amt, subLong: `${r.state === "overdue" ? "Overdue" : dueToday ? "Today" : "Due " + day} · ${amt}`, tone: r.state === "paid" ? "good" as const : r.state === "overdue" ? "bad" as const : dueToday ? "warn" as const : "info" as const, done: r.state === "paid", tickLabel: `Mark ${r.item.name} paid`, onTick: () => setPaying({ kind: "recurring", id: r.item.id, name: r.item.name }) }; })} />
-        {withPartner && (
+        {nobodyYet && (
+          <Card className="col-span-2 p-3 md:p-4 lg:col-span-1">
+            <div className="mb-2 flex items-center gap-1.5"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent/10 text-accent" aria-hidden><Handshake size={14} /></span><h2 className="text-sm font-semibold md:text-base">Split with others</h2></div>
+            <p className="text-sm text-muted">Split a bill with a friend, family or a partner, or start a group for a trip or an outing.</p>
+            <div className="mt-3 flex flex-wrap gap-2"><Link href="/people" className="inline-flex min-h-9 items-center rounded-full border border-border px-3.5 text-sm hover:bg-background">Add a person</Link><Link href="/groups?new=1" className="inline-flex min-h-9 items-center rounded-full border border-border px-3.5 text-sm hover:bg-background">Create a group</Link></div>
+          </Card>
+        )}
+        {withPeople && (
           <Card className="col-span-2 p-3 md:p-4 lg:col-span-1">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <h2 className="flex items-center gap-1.5 text-sm font-semibold md:text-base"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent/10 text-accent" aria-hidden><Handshake size={14} /></span>Who owes whom</h2>
-              <Link href="/people" className="text-xs font-medium text-accent md:text-sm">People</Link>
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold md:text-base"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent/10 text-accent" aria-hidden><Handshake size={14} /></span>Split</h2>
+              <Link href="/people" className="text-xs font-medium text-accent md:text-sm">Open</Link>
             </div>
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
               <OweTile tone="out" label="I owe" total={iOweTotal} people={iOwe.map((b) => b.to)} none="Nobody" />
               <OweTile tone="in" label="I'm owed" total={owedTotal} people={owedToMe.map((b) => b.from)} none="Nobody" />
             </div>
+            {splitGroups.some((g) => !g.archived) && <Link href="/groups" className="mt-2 flex min-h-9 items-center justify-between rounded-xl px-1 text-xs text-muted hover:text-foreground md:text-sm"><span>{splitGroups.filter((g) => !g.archived).length} group{splitGroups.filter((g) => !g.archived).length === 1 ? "" : "s"}</span><ChevronRight size={14} aria-hidden /></Link>}
           </Card>
         )}
       </section>
@@ -262,8 +276,8 @@ export default function Dashboard() {
           </ul>
           <p className="mt-3 text-xs text-muted">Spending only. Card bill payments, transfers and income are excluded. {topMerchant && <>Top merchant: <b>{topMerchant[0]}</b>.</>}</p>
         </Card>
-        {withPartner && <Card>
-          <CardTitle action={<Link href="/people" className="text-xs text-accent">Details</Link>}>Settlements</CardTitle>
+        {withPeople && <Card>
+          <CardTitle action={<Link href="/people" className="text-xs text-accent">Details</Link>}>Who owes whom</CardTitle>
           <ul className="space-y-3">
             {iOwe.map((b) => <li key={b.to} className="flex items-center gap-3 text-sm"><MerchantAvatar name={nameOf(b.to)} /><span className="flex-1">I owe {nameOf(b.to)}</span><span className="num font-semibold text-danger">{formatINR(b.outstanding)}</span></li>)}
             {owedToMe.map((b) => <li key={b.from} className="flex items-center gap-3 text-sm"><MerchantAvatar name={nameOf(b.from)} /><span className="flex-1">{nameOf(b.from)} owes me</span><span className="num font-semibold text-good">{formatINR(b.outstanding)}</span></li>)}

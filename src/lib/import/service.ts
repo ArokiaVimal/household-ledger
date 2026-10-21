@@ -3,6 +3,7 @@
 // imported rows are written as "unreviewed" and need a person's approval.
 import type { Repository } from "@/data/repository";
 import { classifyRow } from "@/domain/import/classify";
+import type { SelfIdentity } from "@/domain/import/self";
 import { extractRows, type ParsedRow } from "@/domain/import/rows";
 import type { PdfParseResult, StatementCheck, StatementSummary } from "@/domain/import/pdf";
 import { planImport } from "@/domain/dedupe";
@@ -28,6 +29,8 @@ export interface ImportDeps {
   newId: () => string;
   /** Asks Claude about merchants missing from memory. Absent when no API key is set: memory and rules still work. */
   suggest?: Suggest | null;
+  /** Who the signed-in person is, so UPI payments to their own accounts are filed as transfers, not spending. */
+  self?: SelfIdentity;
 }
 
 /** A credit-card bill found on a statement: the FULL amount due (never the minimum) and the dates when they were found. */
@@ -167,7 +170,7 @@ export async function resolveRows(
     for (const m of memory) await repo.merchantMemory.put(m);
   }
 
-  const prepared = rows.map((r) => ({ r, ...classifyRow(r.description, r.direction, accountType), key: memoryKey(r.description), categoryId: "uncategorized", suggested: undefined as Suggestion | undefined }));
+  const prepared = rows.map((r) => ({ r, ...classifyRow(r.description, r.direction, accountType, d.self), key: memoryKey(r.description), categoryId: "uncategorized", suggested: undefined as Suggestion | undefined }));
   // Pass 1: your rules, then memory. Pass 2: Claude, only for merchants neither knows.
   const unknown = new Map<string, AiItem>();
   for (const p of prepared) {

@@ -13,6 +13,7 @@ import { claudeFromEnv } from "@/lib/import/ai-extract";
 import { FileError } from "@/lib/import/files";
 import type { Intake, IntakeOpts } from "@/lib/import/intake";
 import { commitImport, ImportError, previewImport, type ImportDeps } from "@/lib/import/service";
+import { selfIdentityOf, type SelfIdentity } from "@/domain/import/self";
 
 /** Your choices for lines that look like entries you already have: { "12": "skip", "13": "import" }. Anything else is ignored. */
 export function parseDecisions(raw: unknown): Record<string, "import" | "skip"> | undefined {
@@ -25,7 +26,7 @@ export function parseDecisions(raw: unknown): Record<string, "import" | "skip"> 
 }
 
 export const sha256 = (s: string | Uint8Array) => createHash("sha256").update(s).digest("hex");
-const deps = (uid: string): ImportDeps => ({ sha256: (s) => sha256(s), now: () => Date.now(), newId: () => randomUUID(), suggest: trackedSuggest(process.env, uid, "categories") });
+const deps = (uid: string, self?: SelfIdentity): ImportDeps => ({ sha256: (s) => sha256(s), now: () => Date.now(), newId: () => randomUUID(), suggest: trackedSuggest(process.env, uid, "categories"), self });
 const status = { invalid: 400, not_found: 404, already_imported: 409, too_large: 413, check_failed: 422 } as const;
 
 /** Same-origin, signed-in, member of a household. Returns a response to send back when any check fails. */
@@ -45,20 +46,22 @@ export async function authorize() {
  * request carried the person's consent (`ai=1`) and the server has a key.
  */
 export async function runImport(
-  who: { session: { uid: string }; membership: NonNullable<Awaited<ReturnType<typeof getMembership>>> },
+  who: { session: { uid: string; name?: string | null; email?: string | null }; membership: NonNullable<Awaited<ReturnType<typeof getMembership>>> },
   mode: "preview" | "commit", ai: boolean, build: (o: Pick<IntakeOpts, "accounts" | "ai" | "claude" | "today">) => Promise<Intake>,
   feature: AiFeature = "import",
 ) {
   try {
     const repo = createFirestoreRepository(who.membership.household.id);
+    const me = who.membership.members.find((m) => m.uid === who.session.uid);
+    const self = selfIdentityOf([{ name: who.session.name, email: who.session.email }, { name: me?.displayName, email: me?.email }]);
     const intake = await build({ accounts: await repo.accounts.list(), ai, claude: ai ? trackedClaude(claudeFromEnv(process.env), who.session.uid, feature) : null, today: new Date().toISOString().slice(0, 10) });
     if (intake.kind === "need_account") {
       if (mode === "commit") return NextResponse.json({ error: "Choose which payment method this is for." }, { status: 400 });
       return NextResponse.json({ ok: true, needAccount: { reason: intake.reason, candidates: intake.candidates }, extraction: intake.ai });
     }
-    if (mode === "preview") return NextResponse.json({ ok: true, preview: await previewImport(repo, intake.input, deps(who.session.uid)), extraction: intake.ai });
+    if (mode === "preview") return NextResponse.json({ ok: true, preview: await previewImport(repo, intake.input, deps(who.session.uid, self)), extraction: intake.ai });
     await ensureHouseholdReady(repo, who.membership.members);
-    const result = await commitImport(repo, { uid: who.session.uid, participantId: participantIdFor(who.session.uid) }, intake.input, deps(who.session.uid));
+    const result = await commitImport(repo, { uid: who.session.uid, participantId: participantIdFor(who.session.uid) }, intake.input, deps(who.session.uid, self));
     return NextResponse.json({ ok: true, result });
   } catch (e) {
     if (e instanceof FileError) return NextResponse.json({ error: e.message }, { status: 400 });

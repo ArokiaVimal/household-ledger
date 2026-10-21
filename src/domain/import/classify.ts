@@ -1,4 +1,5 @@
 import type { Account, TxnKind } from "../types";
+import { isSelfTransfer, type SelfIdentity } from "./self";
 
 const UPI_NOISE = /^(upi|dr|cr|ib|imps|neft|rtgs|payment|payments|from|to|via|pay|paid|ref|refno|txn|xx|na)$/i;
 const BANK_CODE = /^[A-Z]{3,5}$/; // YESB, HDFC, SBIN, ICIC...
@@ -24,7 +25,8 @@ function tidy(s: string): string {
   return allCaps ? cleaned.toLowerCase().replace(/(^|[\s&(-])([a-z])/g, (_m, a: string, b: string) => a + b.toUpperCase()) : cleaned;
 }
 
-const CC_PAYMENT = /(credit\s*card|cc\s*pay|card\s*pay|cardpayment|bill\s*pay.*card|cred\s*club|cred\.club|autopay|billdesk.*card)/i;
+// Card bills, however the bank words them: netbanking bill pay ("IB BILLPAY DR", "CC BillPay"), fund transfers to a card, and UPI to a card issuer.
+const CC_PAYMENT = /(credit\s*card|cc\s*pay|cc\s*bill\s*pay|card\s*bill|ib\s*bill\s*pay|bill\s*pay\s*dr|fund\s*trf\s*cc|card\s*pay|cardpayment|bill\s*pay.*card|cred\s*club|cred\.club|autopay|billdesk.*card|american\s*e(xpress)?\b|\bamex\b)/i;
 const CASH = /(\batm\b|cash\s*(wdl|withdrawal)|\bnfs\b)/i;
 const FEE = /(charges?|\bfee\b|\bgst\b|\bigst\b|\bcgst\b|\bsgst\b|annual fee|late (payment|fee)|finance charge|\binterest\b|\bsms\b.*charge|penalty)/i;
 const REFUND = /(refund|reversal|\brev\b|cashback|credit voucher|chargeback)/i;
@@ -37,12 +39,14 @@ export interface Classified { kind: TxnKind; merchant: string }
  * First guess at what a row is. It only needs to be good enough to pre-fill the review queue: every row is
  * checked by a person before it counts. Credit-card bill payments and transfers are never spending.
  */
-export function classifyRow(description: string, direction: "debit" | "credit", accountType: Account["type"]): Classified {
+export function classifyRow(description: string, direction: "debit" | "credit", accountType: Account["type"], self?: SelfIdentity): Classified {
   const merchant = extractMerchant(description);
   if (accountType === "credit_card") {
     if (direction === "credit") return { kind: PAYMENT_RECEIVED.test(description) ? "cc_payment" : REFUND.test(description) ? "refund" : "refund", merchant };
     return { kind: FEE.test(description) && !/\b(swiggy|zomato|amazon|uber)\b/i.test(description) ? "fee" : "purchase", merchant };
   }
+  // Money moved between your own accounts: not spending and not income, in either direction.
+  if (isSelfTransfer(description, self)) return { kind: "transfer", merchant: "Own account transfer" };
   if (direction === "credit") return { kind: REFUND.test(description) ? "refund" : SALARY.test(description) ? "income" : "income", merchant };
   if (CC_PAYMENT.test(description)) return { kind: "cc_payment", merchant };
   if (CASH.test(description)) return { kind: "transfer", merchant };
