@@ -3,7 +3,7 @@ import { CheckCircle2, ChevronDown, ClipboardPaste, FileUp, Image as ImageIcon, 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { AiBadge, Badge, Button, ChipGroup, CompactChips, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
+import { AiBadge, Badge, Button, ChipGroup, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/components/ui";
 import { CategoryGlyph } from "@/components/glyphs";
 import { MerchantAvatar } from "@/components/txn-row";
 import { useStore } from "@/data/store";
@@ -12,6 +12,7 @@ import type { Preview, PreviewRow } from "@/lib/import/service";
 import { BusyOverlay, ErrorDialog } from "@/components/feedback";
 import { useDropZone } from "@/components/drop-zone";
 import { clearImportMarker, markImportStart } from "@/lib/import-marker";
+import { AccountPicker } from "./account-picker";
 import { undoImport } from "./undo";
 import { ShotImport } from "./shot-import";
 
@@ -242,7 +243,7 @@ export function LiveImport() {
             {need && src && (
             <div className="space-y-3 pb-1">
               <p className="text-sm text-muted">{need.reason}. Pick one and it will be read straight away.</p>
-              <CompactChips label="Payment method" options={[...usable].sort((x, y) => (need.candidates.find((c) => c.id === y.id)?.score ?? 0) - (need.candidates.find((c) => c.id === x.id)?.score ?? 0)).map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[]} onPick={(id) => void read({ ...src, accountId: id })} />
+              <AccountPicker accounts={usable} selected={[]} rank={(a) => need.candidates.find((c) => c.id === a.id)?.score ?? 0} onPick={(id) => void read({ ...src, accountId: id })} />
             </div>
             )}
           </Dialog>
@@ -263,7 +264,7 @@ export function LiveImport() {
                   </div>
                   {src && <button type="button" onClick={() => setChanging(!changing)} className="min-h-9 shrink-0 rounded-full bg-surface px-3 text-xs font-medium text-accent ring-1 ring-border hover:bg-background">{changing ? "Done" : "Change"}</button>}
                 </div>
-                {changing && src && <CompactChips label="Change payment method" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[preview.accountId]} onPick={(id) => { if (id !== preview.accountId) void read({ ...src, accountId: id }); }} />}
+                {changing && src && <AccountPicker accounts={usable} selected={[preview.accountId]} onPick={(id) => { if (id !== preview.accountId) void read({ ...src, accountId: id }); }} />}
                 <div>
                   <div className="num text-4xl font-semibold leading-none tracking-tight">{toStage}<span className="ml-2 text-base font-normal text-muted">to add</span></div>
                   <div className="num mt-1 text-sm text-muted">{formatINR(preview.totals.debitPaise)} out · {formatINR(preview.totals.creditPaise)} in</div>
@@ -446,7 +447,7 @@ export function LiveImport() {
         <div className="space-y-4 pb-1 text-sm">
           <div className="space-y-1.5">
             <div className="text-xs font-medium text-muted">Which bank or payment method is this statement from?</div>
-            <CompactChips label="Payment method" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[manualAccount]} onPick={setManualAccount} />
+            <AccountPicker accounts={usable} selected={[manualAccount]} onPick={setManualAccount} />
           </div>
           <div className="space-y-1.5">
             <div className="text-xs font-medium text-muted">Statement file</div>
