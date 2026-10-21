@@ -1,6 +1,6 @@
 # Personal Finance App: a brief for brainstorming
 
-*Written 2026-10-19 so it can be pasted into ChatGPT (or any assistant) to get ideas. It describes what the app is, what exists, how it behaves, where it is weak, and what I would like help thinking about. It contains no personal data, keys or real transactions.*
+*Historical snapshot (the product direction has since moved to people-and-groups first; see docs/HANDOFF.md). Written 2026-10-19 so it can be pasted into ChatGPT (or any assistant) to get ideas. It describes what the app is, what exists, how it behaves, where it is weak, and what I would like help thinking about. It contains no personal data, keys or real transactions.*
 
 ## 1. The idea in one paragraph
 A private, mobile-first web app (installable on an iPhone Home Screen) for an Indian household to understand its money. It starts with **one person's own spending** (cards, UPI, bank accounts), then lets them **split expenses with a partner**, and then **with friends who never need an account**. The product's character is **trust**: nothing counts until a person has reviewed it, imported data is never altered, and the numbers always reconcile. It is a personal tool, not a public product: no ads, no selling data, no strangers signing up.

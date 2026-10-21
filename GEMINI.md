@@ -1,0 +1,1 @@
+Follow `AGENTS.md` (canonical). Start with `docs/HANDOFF.md` (direction, decisions, owner rules). Product: `PROJECT.md`, plan: `ROADMAP.md`. Project state: `docs/DEVELOPMENT_STATUS.md`. Context map: `docs/PROJECT_CONTEXT.md`.

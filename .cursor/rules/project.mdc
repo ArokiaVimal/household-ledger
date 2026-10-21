@@ -1,0 +1,5 @@
+---
+description: Project rules
+alwaysApply: true
+---
+Follow `AGENTS.md` at the repository root (canonical rules for every AI tool and contributor). Start with `docs/HANDOFF.md`. Never put secrets or real data in code, commits or prompts. Run `pnpm lint`, `pnpm typecheck` and `pnpm test` before proposing a change.

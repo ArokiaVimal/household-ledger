@@ -60,6 +60,27 @@ The app is people-and-groups first; a linked partner is one optional layer. Done
 | Screenshot reading (GPay and others) | Vision model extracts rows shown beside the image, always reviewed; opt-in because the image goes to an external service | `later` |
 | Receipts and saved original statements (private file storage) | Needs Firebase's pay-as-you-go plan and a budget alert; receipt-to-transaction matching on real data | `blocked` (billing) |
 
+## Discussed but not built yet
+Everything below came up in conversations with the owner and has no code yet (beyond what is noted). Pick from the top; update the status here when you start or finish.
+
+| Item | Notes | Status |
+|---|---|---|
+| **Choose the app name** | A global, non-regional name. Front-runners: Tally, Evenly, Hearth. Then change the name in the header, sign-in page, PWA manifest and home-screen title. Check the App Store, web, domain and handles first. | `open question` (owner) |
+| **Re-tag existing transactions** after import rules improve | Rows imported before the card-bill and own-transfer rules keep their old type. A one-time, reviewable "re-check my transactions" that proposes changes (never silent) | `later` |
+| **Match card-bill payments sent through aggregators** | A bank UPI line to an aggregator (for example a bill-pay service) and the card's "payment received" credit on the same day and amount should pair up and show as one card payment | `later` |
+| **UPI view extras** | Break UPI down by app (GPay, PhonePe, Paytm, CRED) and by merchant; the UPI / Not UPI and bank / card filters exist | `later` |
+| **Bulk "Keep both"** for old possible-duplicate flags | Today each flag is cleared one by one in Compare | `later` |
+| **Rename "household" internally to "space"** | Data migration plus rewritten security rules; only with a rehearsed backup and restore (see DECISIONS 13) | `later` |
+| **Real-data verification of the new readers** | ICICI bank PDF, ICICI Coral card PDF, HDFC `.xls`: import the owner's real files and fix what shows | `next` (owner) |
+| **More issuers** | HDFC, SBI, Axis and Kotak bank and card PDFs and Excel layouts, one adapter each, each self-checking | `later` |
+| **Recurring shared expenses**, **per-expense history**, **multiple currencies**, **add by email and push to friends**, **other payment apps** | See the split features table above | `later` |
+| **Comments on shared expenses** and **group invites by link** | In progress on branch `feat/comments-and-invites` (see HANDOFF section 9) | `next` (in progress) |
+| **Budgets, goals and nudges** | Weekly money coach, "you usually overspend on X by the 20th", subscription creep. Idea list in `projects.md` | `later` |
+| **Full export and restore, delete my data, tested backups** | Listed under safety above; still open | `next` |
+| **Mobile QA of every screen on a real iPhone** | Only some screens have been viewed on a phone | `next` (owner) |
+| **Push reminders for card bills** | Built; needs the four variables in Vercel and a test on the iPhone (HANDOFF section 9) | `blocked` (owner) |
+| **Re-enable CI on GitHub** | Workflow saved as `docs/ci.yml.example`; needs a token with workflow permission | `blocked` (token) |
+
 ## Next: safety, data ownership and polish
 | Item | Notes | Status |
 |---|---|---|

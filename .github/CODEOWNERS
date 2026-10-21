@@ -1,0 +1,8 @@
+# The owner reviews everything; these paths always need a second look.
+*                      @ArokiaVimal
+/src/domain/           @ArokiaVimal
+/firestore.rules       @ArokiaVimal
+/storage.rules         @ArokiaVimal
+/tests/rules/          @ArokiaVimal
+/src/lib/links/        @ArokiaVimal
+/src/lib/data/         @ArokiaVimal

@@ -1,10 +1,10 @@
 # Personal Finance App
 
-Private, mobile-first personal finance app (PWA). First: track your own spending and categories. Then: split with your partner. Then: split with friends, who never need an account.
+A general expense tracker plus a Splitwise-style splitting app: private, mobile-first (installable PWA). Track your own spending, split with a partner, friends, family or colleagues, settle up, and import statements with AI help only when you ask.
 
-**Status: live app with real saved data (Stage 3, slice 5).** Sign in with Google (Firebase), and your household's transactions, splits, settlements, categories and people are saved in Firestore and shared by its members. Without Firebase configured it runs as a prototype on fictional September 2026 data (nothing saved). See [docs/DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md) for exactly what works and what does not (statement import, receipts and file storage are not built yet).
+**Status: live app with real saved data.** Sign in with Google (Firebase); transactions, splits, groups, settlements, categories and people are saved in Firestore. Without Firebase configuration the app runs in demo mode with fictional data.
 
-**New here?** Read [PROJECT.md](PROJECT.md) (what this is and how it works) and [ROADMAP.md](ROADMAP.md) (what is next).
+**New here, human or AI?** Start with [docs/HANDOFF.md](docs/HANDOFF.md), then [PROJECT.md](PROJECT.md) (what this is) and [ROADMAP.md](ROADMAP.md) (what is next). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Quick start
 ```bash
@@ -29,4 +29,4 @@ pnpm dev                     # http://localhost:3000
 Prototype deploys to Vercel as a normal Next.js app (contains only mock data). Real deployment, Firebase setup and backup guidance: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (plan, not yet implemented).
 
 ## Known limitations
-No authentication, persistence, file parsing, security rules, or export/restore yet. PWA manifest exists but there is no offline support or PNG icons for iOS (add 180px apple-touch-icon in Stage 3). Light theme only. UI follows a lavender, rounded-card reference design supplied by the owner.
+See [ROADMAP.md](ROADMAP.md) ("Discussed but not built yet") and [docs/DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md). GitHub CI is off until a token with workflow permission is added; run lint, typecheck and tests locally.

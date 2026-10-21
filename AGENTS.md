@@ -1,6 +1,6 @@
 # AGENTS.md — rules for any AI agent or contributor
 
-Platform-neutral. Start here, then read `PROJECT.md` (what the app is), `ROADMAP.md` (what is next), `docs/DEVELOPMENT_STATUS.md` (exact state) and `docs/PROJECT_CONTEXT.md`. Read other docs only when relevant to the task (see index in PROJECT_CONTEXT).
+Platform-neutral. **Start with `docs/HANDOFF.md`** (direction, decisions, owner rules, where things are, in-flight work), then `PROJECT.md` (what the app is), `ROADMAP.md` (what is next), `docs/DEVELOPMENT_STATUS.md` (exact state) and `docs/PROJECT_CONTEXT.md`. Read other docs only when relevant to the task (see index in PROJECT_CONTEXT).
 
 ## Session start
 1. `git status`, `git log -5`; compare DEVELOPMENT_STATUS against the real code.
@@ -21,6 +21,9 @@ Platform-neutral. Start here, then read `PROJECT.md` (what the app is), `ROADMAP
 - At the end of a session update `docs/DEVELOPMENT_STATUS.md` (done, files, tests run, limits, next tasks).
 - Never claim tests passed unless you ran them.
 - Build for other people too: no owner-specific names, banks or merchants in code; per-household data and settings instead; new issuers/sources go behind adapters; optional features (AI key, capture) must have a safe "off" state.
+- Product direction: a general expense tracker plus Splitwise-style splitting (people and groups first). A linked partner is one optional layer. Never write copy that assumes a couple or a household.
+- Delivery rules from the owner: test in the browser (390px and wide) before saying done; run lint, typecheck and tests; commit locally and **ask before every push to `main`** (it deploys); never paste secrets; use a separate `git worktree` per parallel agent; say what was verified for real and what was not. Full list: `docs/HANDOFF.md` section 3.
+- Use short US English, sentence case; say Verified/Unverified; confirm deletes; real vendor logos only. Call the owner Vimal; use they/them when pronouns are not stated.
 - Anything produced by AI is labelled with `AiBadge`. Every delete or void asks first with `ConfirmDialog`. Check new UI on a phone (390px) and a very wide screen.
 
 <!-- BEGIN:nextjs-agent-rules -->

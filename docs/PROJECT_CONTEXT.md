@@ -1,6 +1,6 @@
 # Project context (short)
 
-**Purpose (in this order):** 1) one person tracks their own spending and categories, 2) splits expenses with their partner, 3) splits with friends (non-account participants): import statements, categorize, split, settle, report. Mobile-first PWA (iPhone Safari).
+**Purpose:** a general expense tracker plus a Splitwise-style splitting app (people and groups first; a linked partner is one optional layer): import statements, categorize, verify, split, settle, report. Mobile-first PWA. Start with `HANDOFF.md`.
 
 **Stack:** Next.js (App Router, TS), Tailwind, Recharts, Zod, React Hook Form (login/profile), Firebase Auth + Firestore (Admin SDK from server routes), unpdf + read-excel-file for statements, Vercel, Vitest. Cloud Storage for files is not used yet.
 

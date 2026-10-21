@@ -2,21 +2,21 @@
 
 Plain-language overview for anyone (a person, a new developer, or any AI coding tool) opening this project from any device. For what is planned, see [ROADMAP.md](ROADMAP.md). For exact current status, see [docs/DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md).
 
-*Last reviewed: 2026-10-19.*
+*Last reviewed: 2026-10-21. Read [docs/HANDOFF.md](docs/HANDOFF.md) first for direction, decisions and owner rules.*
 
 ## What it is
-A private, mobile-first web app (installable on an iPhone Home Screen) for tracking money. It is built for one person first, and grows outward:
+A private, mobile-first web app (installable on an iPhone Home Screen): a **general expense tracker plus a Splitwise-style splitting app**. It works for one person, a couple, friends, family or colleagues.
 
-1. **Me:** record, categorise and understand my own spending (cards, UPI, bank accounts).
-2. **My partner:** split shared expenses with my partner and keep track of who owes whom.
-3. **Friends:** split with friends who never need an account.
+1. **Track my own money:** record, categorise and understand spending (cards, UPI, bank accounts); import statements; verify before anything counts.
+2. **Split with anyone:** people and groups (trips, dinners, flatmates), balances, settle up with the fewest payments, pay by UPI link, export a group.
+3. **Couples get an optional layer:** linking a partner adds a partner pin, nickname and usual split ratio. It is one feature in Settings, not the core.
 
-It is a personal tool, not a public product. There is no advertising, no data selling, and no sign-up for strangers.
+It is a private tool, not a public product: no advertising, no data selling, and no sign-up for strangers.
 
 ## Who uses it and where
 - **Owner:** the person who set it up. Signs in with Google.
-- **Partner:** signs in with their own Google account when invited by email.
-- **Friends:** appear only as names in splits. They never log in.
+- **Partner (optional):** signs in with their own Google account when invited by email.
+- **Friends, family, colleagues:** appear as people and in groups; they may link their own account later.
 - **Devices:** iPhone Safari (installable as an app icon) and desktop browsers. Everything is a normal website, so nothing needs an app store.
 - **Live site:** https://personal-finance-tracker-283.vercel.app (sign-in required).
 - **Source code:** https://github.com/ArokiaVimal/household-ledger (private).
@@ -67,7 +67,9 @@ Firebase: Authentication (who) + Firestore (data) + security rules (backstop)
 | Participant | A name that can take part in a split. Members have accounts; friends don't. |
 | Review queue | Imported rows waiting for your approval. They don't count in reports until approved. |
 | Raw row | A statement row exactly as the bank wrote it. Write-once. |
-| Mine / Everything | The scope switch: your own share, or all records in the space. |
+| Payment group | A lens on your own spending (Mine, Parents…). The only view switch; the app opens on Mine. |
+| Split group | A trip, dinner or flatmates group with balances and settle-up. |
+| Shared | Only expenses split with other people. |
 
 ## Privacy and security in one paragraph
 Sign-in uses Google; access is limited to emails on an allowlist and to members of a space. Data lives in a private Firebase project. Every change goes through a server route that verifies the session and validates the input; Firestore security rules are a second line of defence and are tested. Uploaded statement files are read in memory and **not stored**; only a fingerprint is kept to refuse a second upload of the same file. The app never asks for net-banking credentials, UPI PINs, card numbers or statement passwords, and it never will. Details: [docs/SECURITY.md](docs/SECURITY.md).
