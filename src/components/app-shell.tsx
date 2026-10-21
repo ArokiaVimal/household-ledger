@@ -169,7 +169,8 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 Demo mode · fictional data · nothing is saved
               </div>
             )}
-            <header className="px-4 pb-2 pt-3 md:px-0 md:pb-4">
+            {/* On a phone the header stays put while the page scrolls under it, like an app. */}
+            <header className="px-4 pb-2 pt-3 max-md:sticky max-md:top-0 max-md:z-30 max-md:bg-background/95 max-md:backdrop-blur md:px-0 md:pb-4">
               <div className="flex items-center gap-3 max-md:justify-end">
                 <div className={cn("min-w-0", path === "/" ? "mr-auto" : "hidden md:mr-auto md:block")}>
                   <p className={cn("truncate text-xl font-semibold tracking-tight", path !== "/" && "hidden")}>{path === "/" ? <>Hi {profile ? greetingName(profile) : (() => { const n = nameOf(meId); return n && n !== meId ? n.split(/\s+/)[0] : "there"; })()} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
