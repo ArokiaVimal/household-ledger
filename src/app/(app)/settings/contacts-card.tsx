@@ -6,6 +6,7 @@ import { Badge, Button, Card, CardTitle, ChipGroup, Dialog, Field, Input } from 
 import { CheckLinksButton, LinkProposals, UnlinkButton } from "@/components/links";
 import { useStore } from "@/data/store";
 import { RELATIONSHIP_LABEL, relationshipText } from "@/domain/contacts";
+import { isValidUpiId, normalizeUpiId } from "@/domain/upi";
 import { RELATIONSHIPS, type Participant, type Relationship } from "@/domain/types";
 
 /**
@@ -13,13 +14,14 @@ import { RELATIONSHIPS, type Participant, type Relationship } from "@/domain/typ
  * for linking a future sign-up; nothing here gives anyone access to your money.
  */
 export function ContactsCard({ onRemove }: { onRemove: (id: string) => void }) {
-  const { participants, meId, partnerId, addParticipant, updateParticipant, setPartnerNickname } = useStore();
+  const { participants, meId, partnerId, addParticipant, updateParticipant, setPartnerNickname, setParticipantUpi } = useStore();
   const [dlg, setDlg] = useState<{ person?: Participant } | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [nick, setNick] = useState("");
   const [rel, setRel] = useState<Relationship>("friend");
   const [label, setLabel] = useState("");
+  const [upi, setUpi] = useState("");
   const [error, setError] = useState<string | null>(null);
   const others = participants.filter((p) => p.id !== meId);
   const linked = !!dlg?.person?.userId;
@@ -28,13 +30,20 @@ export function ContactsCard({ onRemove }: { onRemove: (id: string) => void }) {
 
   const open = (person?: Participant) => {
     setDlg({ person }); setError(null);
-    setName(person?.name ?? ""); setNick(person?.nickname ?? ""); setEmail(person?.email ?? ""); setRel(person?.relationship ?? "friend"); setLabel(person?.relationshipLabel ?? "");
+    setName(person?.name ?? ""); setNick(person?.nickname ?? ""); setEmail(person?.email ?? ""); setRel(person?.relationship ?? "friend"); setLabel(person?.relationshipLabel ?? ""); setUpi(person?.upiId ?? "");
   };
   const save = () => {
-    const err = editingPartner ? setPartnerNickname(nick) : dlg?.person
-      ? updateParticipant(dlg.person.id, { name, nickname: nick.trim() || null, email: email.trim() || null, relationship: rel, relationshipLabel: rel === "custom" ? label : null })
-      : addParticipant(name, { email, nickname: nick, relationship: rel, relationshipLabel: label }).error ?? null;
-    if (err) setError(err); else setDlg(null);
+    if (upi.trim() && !isValidUpiId(upi)) return setError("Enter a UPI id like name@bank, or leave it empty.");
+    let id = dlg?.person?.id;
+    let err: string | null;
+    if (editingPartner) err = setPartnerNickname(nick);
+    else if (dlg?.person) err = updateParticipant(dlg.person.id, { name, nickname: nick.trim() || null, email: email.trim() || null, relationship: rel, relationshipLabel: rel === "custom" ? label : null });
+    else { const r = addParticipant(name, { email, nickname: nick, relationship: rel, relationshipLabel: label }); err = r.error ?? null; id = r.id; }
+    if (err) return setError(err);
+    // The UPI id is saved on its own: it is only used to open your UPI app when you pay this person.
+    const changed = normalizeUpiId(upi) !== (dlg?.person?.upiId ?? "");
+    const upiErr = id && changed ? setParticipantUpi(id, upi.trim() || null) : null;
+    if (upiErr) setError(upiErr); else setDlg(null);
   };
   const isPartner = (p: Participant) => p.relationship === "partner" || p.id === partnerId;
   const status = (p: Participant) => (p.userId ? <Badge tone="good">Has an account</Badge> : p.linkId ? <Badge tone="good">Linked</Badge> : p.pendingEmail ? <Badge tone="warn">Invited</Badge> : null);
@@ -68,8 +77,9 @@ export function ContactsCard({ onRemove }: { onRemove: (id: string) => void }) {
       <Dialog open={!!dlg} onClose={() => setDlg(null)} title={dlg?.person ? `Edit ${dlg.person.name}` : "Add a contact"}>
         {dlg && (
           <div className="space-y-3 pb-1 text-sm">
-            <Field label="Name" error={error && !error.toLowerCase().includes("email") && !error.toLowerCase().includes("relationship") ? error : null}><Input autoFocus value={name} disabled={linked} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="e.g. Karthik" maxLength={60} /></Field>
+            <Field label="Name" error={error && !error.toLowerCase().includes("email") && !error.toLowerCase().includes("relationship") && !error.toLowerCase().includes("upi") ? error : null}><Input autoFocus value={name} disabled={linked} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="e.g. Karthik" maxLength={60} /></Field>
             <Field label="Nickname (optional)"><Input value={nick} onChange={(e) => { setNick(e.target.value); setError(null); }} placeholder="What you call them, e.g. Varu" maxLength={30} /></Field>
+            <Field label="UPI id (optional)" error={error && error.toLowerCase().includes("upi") ? error : null}><Input value={upi} inputMode="email" autoCapitalize="none" autoCorrect="off" onChange={(e) => { setUpi(e.target.value); setError(null); }} placeholder="name@bank" maxLength={80} /></Field>
             {!editingPartner && <Field label="Email (optional)" error={error && error.toLowerCase().includes("email") ? error : null}><Input type="email" inputMode="email" value={email} disabled={linked} onChange={(e) => { setEmail(e.target.value); setError(null); }} placeholder="name@example.com" maxLength={200} /></Field>}
             {linked && <p className="text-xs text-muted">{dlg.person?.name} has an account, so their name and email come from them. {editingPartner ? "The nickname is only for you." : "You can still change how you know them."}</p>}
             {!editingPartner && <div className="space-y-1.5">

@@ -10,6 +10,7 @@ import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { cn } from "@/lib/cn";
 import { toSquareJpeg } from "@/lib/profile/image";
 import { useStore } from "@/data/store";
+import { UpiPay } from "@/components/upi-pay";
 import { relationshipText } from "@/domain/contacts";
 import { personLedger, settlementFor, type LedgerEntry } from "@/domain/ledger";
 import { formatINR } from "@/domain/money";
@@ -107,7 +108,7 @@ export default function PersonSettle() {
           <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">{out === 0 ? "All settled" : out > 0 ? `${name} owes you` : `You owe ${name}`}</div>
           <div className={`num text-[34px] font-semibold leading-tight tracking-tight ${out > 0 ? "text-good" : out < 0 ? "text-warn" : ""}`}>{out === 0 ? "₹0" : formatINR(Math.abs(out))}</div>
         </div>
-        {out !== 0 && canSettle && <Button variant="primary" className="mt-3 min-h-10 px-5" onClick={() => setConfirm("everything")}>Settle everything</Button>}
+        {out !== 0 && canSettle && <div className="mt-3 flex flex-wrap items-center gap-2"><Button variant="primary" className="min-h-10 px-5" onClick={() => setConfirm("everything")}>Settle everything</Button>{out < 0 && <UpiPay personId={personId} amountPaise={-out} note="Shared expenses" />}</div>}
         {person.photo && canEditPhoto && <button type="button" onClick={() => setPhotoError(setParticipantPhoto(personId, null))} className="mt-2 block text-xs font-medium text-muted hover:text-danger">Remove photo</button>}
         {photoError && <p role="alert" className="mt-2 text-xs text-danger">{photoError}</p>}
         {ledger.unlinkedPaise !== 0 && <p className="mt-3 text-xs text-muted">{formatINR(Math.abs(ledger.unlinkedPaise))} of this comes from earlier payments recorded as a plain amount, not tied to specific purchases.</p>}

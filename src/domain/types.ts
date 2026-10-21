@@ -62,6 +62,8 @@ export interface Participant {
   nickname?: string;
   /** Contact email, lower-cased. A hint for matching a future sign-up; it never gives anyone access to anything by itself. */
   email?: string;
+  /** Their UPI id (for example asha@okhdfcbank), so "Pay with UPI" can open your UPI app with their name and the amount filled in. */
+  upiId?: string;
   /** Set once this contact is linked to a real account (the pair key of the link). Separate from `userId` (household member) and from the contact's email: it never changes who the contact is. */
   linkId?: string;
 }

@@ -13,6 +13,7 @@ import { detectRecurring, trackedAlerts, type Suggestion, type TrackedAlert } fr
 import { greetingName } from "@/lib/profile/profile";
 import { useProfile } from "@/components/profile-context";
 import { checkContact, normalizeEmail } from "@/domain/contacts";
+import { isValidUpiId, normalizeUpiId } from "@/domain/upi";
 import { allocatedBy, attribute, inGroup, summarizeGroup, withMine, type Attribution, type GroupSummary } from "@/domain/groups";
 import { impliedVoucherId, planUpiSetup, sortAccounts, suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
@@ -148,6 +149,8 @@ interface Store {
   voidSplitSettlement: (id: string) => void;
   /** Sets (or with null removes) the photo of a person other than yourself. Returns an error message when it is refused. */
   setParticipantPhoto: (id: string, photo: string | null) => string | null;
+  /** Saves (or clears) the UPI id used by "Pay with UPI". Returns a problem to show, or null. */
+  setParticipantUpi: (id: string, upiId: string | null) => string | null;
   /** What you call your linked partner (saved on your own account). Empty clears it. */
   setPartnerNickname: (nickname: string) => string | null;
   /** Icons by lowercase name for payment methods and merchants that have no brand logo. */
@@ -678,6 +681,15 @@ export function StoreProvider({ children, live }: { children: ReactNode; live?: 
     void send({ type: "participant.photo", id, photo });
     return null;
   }, [participants, send]);
+  const setParticipantUpi = useCallback((id: string, upiId: string | null) => {
+    const cur = participants.find((p) => p.id === id);
+    if (!cur) return "That person was not found.";
+    const v = upiId?.trim() ? normalizeUpiId(upiId) : null;
+    if (v && !isValidUpiId(v)) return "Enter a UPI id like name@bank, or leave it empty.";
+    setParticipants((ps) => ps.map((p) => { if (p.id !== id) return p; const { upiId: _u, ...rest } = p; void _u; return { ...rest, ...(v ? { upiId: v } : {}) }; }));
+    void send({ type: "participant.upi", id, upiId: v });
+    return null;
+  }, [participants, send]);
   const setPartnerNickname = useCallback((nickname: string) => {
     const n = nickname.trim();
     if (n.length > 30) return "Keep it under 30 characters.";
@@ -801,7 +813,7 @@ export function StoreProvider({ children, live }: { children: ReactNode; live?: 
     aiEnabled: !!live?.aiEnabled, demo: !!live?.demo, live: !!live, householdReady: live ? live.ready : true, meId, splitRatio, partnerId, pendingPartner, sharedRecords: live ? sharedRecords : [],
     partner: couple ? { name: couple.partner.name, participantId: couple.partner.participantId, active: couple.active, endedAt: couple.endedAt } : null, today, participants, accounts, recurringItems, trendHistory,
     previewing, shown, records, staged, settlements, receipts, importBatches: init.importBatches, month, monthLocked: lockedMonth === month, toggleMonthLock, setMonth, scoped, summary, balances, ledgerRecords, recurring,
-    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, recordsFor: baseFor, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, splitGroups, splitSettlements, saveSplitGroup, archiveSplitGroup, deleteSplitGroup, addSplitSettlement, voidSplitSettlement, setParticipantPhoto, setPartnerNickname, iconsByName, logosByName: merchantLogos, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, recurringSuggestions, recurringAlerts, confirmRecurringSuggestion, dismissRecurringSuggestion, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
+    categories, rules, addCategory, renameCategory, deleteCategory, addRule, removeRule, addAccount, updateAccount, deleteAccount, groups, activeGroup, setGroupId, groupSummary, monthRecords: groupBase, attributionOf, groupRecords, recordsFor: baseFor, allocatedByKey, saveGroup, deleteGroup, reorderGroups, addStarterGroups, splitGroups, splitSettlements, saveSplitGroup, archiveSplitGroup, deleteSplitGroup, addSplitSettlement, voidSplitSettlement, setParticipantPhoto, setParticipantUpi, setPartnerNickname, iconsByName, logosByName: merchantLogos, applyIcons, reorderAccounts, setupUpiApps, addSuggestedAccounts, addParticipant, updateParticipant, deleteParticipant, saveRecurring, markRecurringPaid, recurringSuggestions, recurringAlerts, confirmRecurringSuggestion, dismissRecurringSuggestion, deleteRecurring, cardBills, saveCardBill, deleteCardBill, voucherBrands, addVoucherBrand, updateVoucherBrand, deleteVoucherBrand,
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     // Nicknames everywhere: what you call each person, and your own profile nickname for yourself.

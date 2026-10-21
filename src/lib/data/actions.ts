@@ -9,6 +9,7 @@ import { ExpenseRecordSchema, SplitConfigSchema, ruleId } from "@/data/schemas";
 import { checkFriendDelete, friendUsage } from "@/domain/friends";
 import { validateSplit } from "@/domain/splits";
 import { checkContact, normalizeEmail } from "@/domain/contacts";
+import { isValidUpiId, normalizeUpiId } from "@/domain/upi";
 import { RELATIONSHIPS } from "@/domain/types";
 import { validateAvatarDataUrl } from "@/lib/profile/profile";
 import { ICON_KEYS } from "@/domain/icons";
@@ -66,6 +67,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("participant.update"), id, name: z.string().min(1).max(60).optional(), email: z.string().max(200).nullable().optional(), nickname: z.string().max(30).nullable().optional(), relationship: z.enum(RELATIONSHIPS).optional(), relationshipLabel: z.string().max(30).nullable().optional() }),
   z.object({ type: z.literal("participant.delete"), id }),
   z.object({ type: z.literal("participant.photo"), id, photo: z.string().max(140_000).nullable() }),
+  z.object({ type: z.literal("participant.upi"), id, upiId: z.string().max(80).nullable() }),
   z.object({ type: z.literal("recurring.put"), item: z.object({ id, name: z.string().min(1).max(80), categoryId: id, dueDay: z.number().int().min(1).max(28), expectedPaise: z.number().int().safe().positive(), payerId: id, split: SplitConfigSchema, place: z.string().max(120).optional(), direction: z.literal("in").optional(), accountId: id.optional(), until: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/).optional(), everyMonths: z.number().int().min(1).max(12).optional(), startMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(), amountVaries: z.boolean().optional(), changes: z.array(z.object({ from: z.string().regex(/^\d{4}-\d{2}$/), paise: z.number().int().safe().positive() })).max(60).optional() }) }),
   z.object({ type: z.literal("recurring.markPaid"), id, month: z.string().regex(/^\d{4}-\d{2}$/), paid: z.boolean() }),
   z.object({ type: z.literal("recurring.delete"), id }),
@@ -632,6 +634,17 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       const { photo: _old, ...rest } = p; void _old;
       await repo.participants.put({ ...rest, ...(a.photo ? { photo: a.photo } : {}) });
       await log("edit", "household", a.id, `${a.photo ? "Set" : "Removed"} the photo of ${p.name}`);
+      return;
+    }
+    case "participant.upi": {
+      const cur = await repo.participants.get(a.id);
+      if (!cur) throw new ActionError("not_found", "That person was not found.");
+      if (cur.id === `u_${actor.uid}`) throw new ActionError("invalid", "This is for the people you pay, not yourself.");
+      const id = a.upiId?.trim() ? normalizeUpiId(a.upiId) : null;
+      if (id && !isValidUpiId(id)) throw new ActionError("invalid", "Enter a UPI id like name@bank, or leave it empty.");
+      const { upiId: _u, ...rest } = cur; void _u;
+      await repo.participants.put({ ...rest, ...(id ? { upiId: id } : {}) });
+      await log("edit", "household", a.id, `${id ? "Set" : "Removed"} the UPI id of ${cur.name}`);
       return;
     }
     case "participant.add": {

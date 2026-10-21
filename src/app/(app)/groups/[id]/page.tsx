@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeft, ArrowRight, Handshake, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Download, Handshake, Pencil, Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -7,17 +7,20 @@ import { PersonGlyph } from "@/components/glyphs";
 import { SplitTabs } from "@/components/split-tabs";
 import { balanceWords, GroupDialog, KindGlyph, PersonStack, ReopenButton, KIND_META, SimplifySwitch } from "@/components/split-groups";
 import { TxnAddDialog, TxnEditDialog } from "@/components/txn-edit-dialog";
+import { UpiPay } from "@/components/upi-pay";
 import { Badge, Button, Card, CardTitle, CompactChips, ConfirmDialog, Dialog, EmptyState, FormRow, Input } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 import { groupBalances, groupExpenses, suggestedPayments, waitingForReview, type Transfer } from "@/domain/split-groups";
+import { groupCsv, groupSummary } from "@/domain/group-report";
+import { downloadText, fileSafe } from "@/lib/download";
 import type { ExpenseRecord, SplitGroup } from "@/domain/types";
 
 /** One split group: what was spent, each person's balance, the fewest payments that settle it, and the payments made so far. */
 export default function GroupPage() {
   const { id: raw } = useParams<{ id: string }>();
   const gid = decodeURIComponent(raw);
-  const { splitGroups, splitSettlements, records, staged, meId, nameOf, voidSplitSettlement, saveSplitGroup } = useStore();
+  const { splitGroups, splitSettlements, records, staged, meId, nameOf, categoryName, voidSplitSettlement, saveSplitGroup } = useStore();
   const group = splitGroups.find((g) => g.id === gid);
   const [adding, setAdding] = useState(0); // 0 closed; each "add another" bumps it so the form resets
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
@@ -40,6 +43,7 @@ export default function GroupPage() {
       </>
     );
   }
+  const summary = groupSummary(group, records);
   const mine = balances.people.find((p) => p.id === meId);
   const mineWords = balanceWords(mine?.balancePaise ?? 0);
   const open = !group.archived;
@@ -60,6 +64,7 @@ export default function GroupPage() {
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           {open ? <Button variant="primary" className="min-h-11 flex-1 sm:flex-none" onClick={() => setAdding(1)}><Plus size={15} aria-hidden />Add expense</Button> : <ReopenButton id={group.id} />}
+          <Button aria-label="Export to a spreadsheet" title="Export to a spreadsheet (CSV)" className="min-h-11" onClick={() => downloadText(`${fileSafe(group.name)}.csv`, groupCsv(group, records, splitSettlements, nameOf, categoryName))}><Download size={15} aria-hidden /><span className="hidden sm:inline">Export</span></Button>
           <Button aria-label="Edit group" className="min-h-11" onClick={() => setEditGroup(true)}><Pencil size={15} aria-hidden /><span className="sm:inline">Edit</span></Button>
         </div>
       </div>
@@ -85,6 +90,7 @@ export default function GroupPage() {
                         <PersonGlyph name={nameOf(t.fromId)} id={t.fromId} size={32} />
                         <span className="min-w-0 flex-1 text-sm"><b>{t.fromId === meId ? "You" : nameOf(t.fromId)}</b> pay{t.fromId === meId ? "" : "s"} <b>{t.toId === meId ? "you" : nameOf(t.toId)}</b></span>
                         <span className="num font-semibold">{formatINR(t.amountPaise)}</span>
+                        {open && t.fromId === meId && <UpiPay personId={t.toId} amountPaise={t.amountPaise} note={group.name} compact />}
                         {open && <Button className="min-h-9" onClick={() => setSettling(t)}>Settle</Button>}
                       </li>
                     ))}
@@ -113,6 +119,20 @@ export default function GroupPage() {
               })}
             </ul>
           </Card>
+          {summary.expenseCount > 0 && (
+            <Card>
+              <CardTitle tip="Counted expenses only. Refunds take their category down. Per day spreads the total over the days between the first and the last expense.">Spending summary</CardTitle>
+              <div className="mb-3 flex items-baseline justify-between gap-2 text-sm"><span className="text-muted">{summary.from === summary.to ? summary.from : `${summary.from} to ${summary.to}`}</span><span className="num font-semibold">{formatINR(summary.perDayPaise)} <span className="font-normal text-muted">per day</span></span></div>
+              <ul className="space-y-2.5">
+                {summary.byCategory.map((c) => (
+                  <li key={c.categoryId} className="text-sm">
+                    <div className="flex items-center justify-between gap-2"><span className="min-w-0 truncate">{categoryName(c.categoryId)} <span className="text-xs text-muted">· {c.count}</span></span><span className="num font-medium">{formatINR(c.totalPaise)}</span></div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-background" aria-hidden><div className="h-full rounded-full bg-accent" style={{ width: `${summary.totalPaise > 0 ? Math.max(2, Math.min(100, Math.round((c.totalPaise / summary.totalPaise) * 100))) : 0}%` }} /></div>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
         </div>
         <div className="space-y-3">
           <Card>
