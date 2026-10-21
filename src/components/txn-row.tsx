@@ -10,6 +10,9 @@ import type { ExpenseRecord } from "@/domain/types";
 import { Badge } from "./ui";
 import { cn } from "@/lib/cn";
 
+/** "13 Aug" */
+export const shortDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
 /** Amount display with direction. Spending is signed by the domain rule; non-spending kinds show a label. */
 export function Amount({ r }: { r: ExpenseRecord }) {
   const v = signedSpend(r);
@@ -23,12 +26,13 @@ export function Amount({ r }: { r: ExpenseRecord }) {
 
 /** `quiet` leaves out the everyday states (Reviewed, Receipt linked) so a list only flags what needs a look. */
 export function TxnBadges({ r, quiet, hideStatus }: { r: ExpenseRecord; quiet?: boolean; hideStatus?: boolean }) {
-  const { voucherBrands } = useStore();
+  const { voucherBrands, records, staged } = useStore();
+  const dup = r.duplicateOf ? [...records, ...staged].find((x) => x.id === r.duplicateOf) : undefined;
   const brand = (id?: string) => voucherBrands.find((b) => b.id === id)?.name ?? "voucher";
   return (
     <>
       {hideStatus ? null : r.status === "unreviewed" ? <Badge tone="warn">Unverified</Badge> : quiet ? null : <Badge tone="good">Verified</Badge>}
-      {r.duplicateOf && <Badge tone="bad">Possible duplicate</Badge>}
+      {r.duplicateOf && <Badge tone="bad">{dup ? `Possible duplicate of ${dup.merchant} · ${shortDay(dup.date)}` : "Possible duplicate"}</Badge>}
       {r.receiptId && !quiet && <Badge tone="good">Receipt linked</Badge>}
       {r.excluded && <Badge>Excluded</Badge>}
       {r.voucherBrandId && <Badge tone="good">Voucher: {brand(r.voucherBrandId)}</Badge>}

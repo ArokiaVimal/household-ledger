@@ -1,7 +1,7 @@
 "use client";
 import { CircleCheck, CircleDashed, Users } from "lucide-react";
 import type { ReactNode } from "react";
-import { Amount, MerchantAvatar } from "@/components/txn-row";
+import { Amount, MerchantAvatar, shortDay } from "@/components/txn-row";
 import { SwipeRow } from "@/components/swipe-row";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -33,9 +33,11 @@ export function StatusMark({ r }: { r: ExpenseRecord }) {
  * category, any flag and your share. Swipe right to verify an unverified row, left to delete it.
  */
 export function CompactRow({ r, onOpen, onVerify, onDelete, showDate, leading }: { r: ExpenseRecord; onOpen: () => void; onVerify?: () => void; onDelete?: () => void; showDate?: boolean; leading?: ReactNode }) {
-  const { categoryName, meId } = useStore();
+  const { categoryName, meId, records, staged } = useStore();
   const mine = signedShare(r, meId);
-  const flag = attentionOf(r);
+  const found = attentionOf(r);
+  const dup = r.duplicateOf ? [...records, ...staged].find((x) => x.id === r.duplicateOf) : undefined;
+  const flag = found && dup ? { ...found, text: `Possible duplicate of ${dup.merchant} · ${shortDay(dup.date)}` } : found;
   const unverified = r.status === "unreviewed";
   return (
     <SwipeRow onRight={unverified && !r.needsCard ? onVerify : undefined} onLeft={onDelete}>

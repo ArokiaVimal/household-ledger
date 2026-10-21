@@ -50,7 +50,8 @@ export function detectDuplicate(t: IncomingTxn, existing: Existing[]): DupResult
     if (hit) return { status: "exact", matchId: hit.id };
   }
   const poss = existing.find(
-    (e) => sameMoneyTrail(e, t) && (e.inFile ? e.date === t.date : daysApart(e.date, t.date) <= DUPLICATE_WINDOW_DAYS) && e.amountPaise === t.amountPaise && merchantsAlike(e.merchant, t.merchant) && sameDirection(t.direction, e.direction ?? dirOfKind(e.kind)),
+    // Two lines of one file with different bank references are two payments, even for the same amount at the same shop on the same day.
+    (e) => !(e.inFile && e.referenceId && t.referenceId && e.referenceId !== t.referenceId) && sameMoneyTrail(e, t) && (e.inFile ? e.date === t.date : daysApart(e.date, t.date) <= DUPLICATE_WINDOW_DAYS) && e.amountPaise === t.amountPaise && merchantsAlike(e.merchant, t.merchant) && sameDirection(t.direction, e.direction ?? dirOfKind(e.kind)),
   );
   return poss ? { status: "possible", matchId: poss.id } : { status: "none" };
 }

@@ -221,3 +221,13 @@ describe("pickMonth (which month the dashboard opens on)", () => {
     expect(pickMonth("2027-01-02", ["2026-12-30", "2026-03-01"])).toBe("2026-12");
   });
 });
+
+describe("two payments in one file with different bank references", () => {
+  it("are not flagged as possible duplicates of each other", () => {
+    const base = { accountId: "a", date: "2026-08-13", amountPaise: 6000, merchant: "Date Palm", direction: "debit" as const };
+    const [x, y, z] = planImport([{ ...base, referenceId: "659127388259" }, { ...base, referenceId: "659111392333" }, { ...base }], []);
+    expect(x.dup.status).toBe("none");
+    expect(y.dup.status).toBe("none");
+    expect(z.dup.status).toBe("possible"); // no reference to tell it apart: still worth a look
+  });
+});
