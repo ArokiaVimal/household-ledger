@@ -9,12 +9,12 @@ import { Button, Card, CardTitle, ChipGroup, Field, Input, PageHeader } from "@/
 import { toSquareJpeg } from "@/lib/profile/image";
 import { ProfileInputSchema, validateAvatarDataUrl, type Profile, type ProfileInput } from "@/lib/profile/profile";
 
-export function ProfileForm() {
+export function ProfileForm({ embedded = false }: { embedded?: boolean }) {
   const { profile, status, setProfile } = useProfile();
   if (!profile && status === "error") {
     return (
       <>
-        <PageHeader title="Profile" />
+        {!embedded && <PageHeader title="Profile" />}
         <Card><p role="alert" className="text-sm text-danger">Couldn&apos;t load your profile. Reload to try again.</p></Card>
       </>
     );
@@ -22,15 +22,15 @@ export function ProfileForm() {
   if (!profile) {
     return (
       <>
-        <PageHeader title="Profile" />
+        {!embedded && <PageHeader title="Profile" />}
         <Card><p className="text-sm text-muted">Sign in to edit your profile.</p></Card>
       </>
     );
   }
-  return <Editor profile={profile} onSaved={setProfile} />;
+  return <Editor profile={profile} onSaved={setProfile} embedded={embedded} />;
 }
 
-function Editor({ profile, onSaved }: { profile: Profile; onSaved: (p: Profile) => void }) {
+function Editor({ profile, onSaved, embedded }: { profile: Profile; onSaved: (p: Profile) => void; embedded: boolean }) {
   const [avatar, setAvatar] = useState<string | null | undefined>(undefined); // undefined = unchanged
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -74,7 +74,7 @@ function Editor({ profile, onSaved }: { profile: Profile; onSaved: (p: Profile) 
 
   return (
     <>
-      <PageHeader title="Profile" sub="Your name, photo and preferences" />
+      {!embedded && <PageHeader title="Profile" sub="Your name, photo and preferences" />}
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-4 md:grid-cols-[18rem_1fr]">
         <Card className="flex flex-col items-center gap-3 text-center">
           <Avatar profile={shown} size={112} />

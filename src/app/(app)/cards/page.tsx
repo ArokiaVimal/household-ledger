@@ -2,10 +2,11 @@
 import { CalendarClock, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { MerchantAvatar } from "@/components/txn-row";
+import Link from "next/link";
 import { CardMockup } from "@/components/card-mockup";
 import { Badge, Button, Card, CompactChips, ConfirmDialog, Dialog, EmptyState, Field, FormRow, Input, PageHeader } from "@/components/ui";
 import { useStore } from "@/data/store";
-import { cardViews, dueLabel, upcomingBills, type BillState, type BillStatus } from "@/domain/cardbills";
+import { cardPayments, cardViews, dueLabel, upcomingBills, type BillState, type BillStatus, type CardPayment } from "@/domain/cardbills";
 import { formatINR, parseRupees } from "@/domain/money";
 import type { CardBill } from "@/domain/types";
 
@@ -15,10 +16,12 @@ const pretty = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-
 
 /** Credit-card bills: the full amount due and the due date, per card. The minimum due is deliberately never shown. */
 export default function Cards() {
-  const { accounts, cardBills, records, today, saveCardBill, deleteCardBill } = useStore();
+  const { accounts, accountName, cardBills, records, staged, today, saveCardBill, deleteCardBill } = useStore();
   const [editing, setEditing] = useState<CardBill | "new" | { forCard: string } | null>(null);
   const [removing, setRemoving] = useState<CardBill | null>(null);
-  const views = cardViews(accounts, cardBills, records, today);
+  // Unverified payments count too: they show as "Unverified" and as a hint on the bill until you verify them.
+  const everything = [...records, ...staged];
+  const views = cardViews(accounts, cardBills, everything, today);
   const upcoming = upcomingBills(views);
   const totalToPay = upcoming.reduce((s, b) => s + b.remainingPaise, 0);
   const cards = accounts.filter((a) => a.type === "credit_card" && !a.archived);
@@ -50,11 +53,12 @@ export default function Cards() {
         {views.map(({ card, current, earlier }) => (
           <li key={card.id}>
             <Card className="space-y-3 p-4">
-              <CardMockup large name={card.name} theme={card.theme} className="mx-auto" />
+              <div className="hidden sm:block"><CardMockup large name={card.name} theme={card.theme} className="mx-auto" /></div>
               <div className="flex items-center gap-3"><h2 className="min-w-0 flex-1 truncate font-semibold">{card.name}</h2>{current && <Badge tone={tone[current.state]}>{stateText[current.state]}</Badge>}</div>
               {current ? <BillBlock s={current} onEdit={() => setEditing(current.bill)} onRemove={() => setRemoving(current.bill)} onPaid={() => saveCardBill({ ...current.bill, paid: true })} /> : (
                 <div className="rounded-xl bg-background p-3 text-sm"><p className="text-muted">No bill added for this card yet.</p><Button className="mt-2" onClick={() => setEditing({ forCard: card.id })}><Plus size={14} aria-hidden />Add its bill</Button></div>
               )}
+              <PaymentHistory cardId={card.id} payments={cardPayments(card.id, everything)} accountName={accountName} />
               {earlier.length > 0 && (
                 <details className="group text-sm"><summary className="cursor-pointer text-muted hover:text-foreground">Earlier bills ({earlier.length})</summary>
                   <ul className="mt-2 divide-y divide-border">{earlier.map((e) => (
@@ -75,6 +79,31 @@ export default function Cards() {
   );
 }
 
+/** Every payment made towards a card: the card's own record and your bank's record of it shown once. */
+function PaymentHistory({ cardId, payments, accountName }: { cardId: string; payments: CardPayment[]; accountName: (id: string) => string }) {
+  const row = (p: CardPayment) => (
+    <li key={p.id} className="flex items-center justify-between gap-3 py-2">
+      <span className="min-w-0">
+        <span className="block text-sm font-medium">{pretty(p.date)}</span>
+        <span className="block truncate text-xs text-muted">{p.fromId ? `From ${accountName(p.fromId)}` : "Recorded on the card"}{!p.verified && <span className="text-warn"> · Unverified</span>}</span>
+      </span>
+      <span className="num shrink-0 font-medium">{formatINR(p.amountPaise)}</span>
+    </li>
+  );
+  return (
+    <section aria-label="Payment history" className="text-sm">
+      <div className="flex items-center justify-between"><h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Payment history{payments.length > 0 ? ` · ${payments.length}` : ""}</h3>
+        <Link href={`/transactions?kind=cc_payment&account=${cardId}`} className="text-xs font-medium text-accent">See in Transactions</Link></div>
+      {payments.length === 0 ? <p className="mt-1 text-xs text-muted">No payments recorded yet.</p> : (
+        <>
+          <ul className="divide-y divide-border">{payments.slice(0, 3).map(row)}</ul>
+          {payments.length > 3 && <details className="group"><summary className="cursor-pointer py-1 text-xs text-muted hover:text-foreground">Show {payments.length - 3} more</summary><ul className="divide-y divide-border">{payments.slice(3).map(row)}</ul></details>}
+        </>
+      )}
+    </section>
+  );
+}
+
 function BillBlock({ s, onEdit, onRemove, onPaid }: { s: BillStatus; onEdit: () => void; onRemove: () => void; onPaid: () => void }) {
   const pct = Math.min(100, Math.round((s.paidPaise / s.bill.totalDuePaise) * 100));
   return (
@@ -84,6 +113,9 @@ function BillBlock({ s, onEdit, onRemove, onPaid }: { s: BillStatus; onEdit: () 
         <div className="num text-2xl font-semibold">{formatINR(s.state === "paid" ? s.bill.totalDuePaise : s.remainingPaise)}</div>
         {s.state === "partial" && <div className="text-xs text-muted">{formatINR(s.paidPaise)} paid of {formatINR(s.bill.totalDuePaise)}</div>}
       </div>
+      {s.state !== "paid" && s.unverifiedPaise > 0 && (
+        <p className="rounded-xl bg-warn-soft px-3 py-2 text-xs text-warn">A payment of {formatINR(s.unverifiedPaise)} is waiting to be verified. <Link href="/transactions?v=unverified&scope=all" className="font-medium underline">Verify it</Link> to update this bill.</p>
+      )}
       {s.state === "partial" && <div className="h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-good" style={{ width: `${pct}%` }} /></div>}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <span className="inline-flex items-center gap-1.5"><CalendarClock size={14} aria-hidden className="text-muted" />Due {pretty(s.bill.dueDate)}</span>

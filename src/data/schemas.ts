@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { validateSplit } from "@/domain/splits";
 import { ICON_KEYS } from "@/domain/icons";
+import { LOGO_KEYS } from "@/lib/logos";
 import type { SplitGroup, SplitSettlement, PaymentGroup, Account, AuditEvent, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense, SplitConfig } from "@/domain/types";
 
 export const SCHEMA_VERSION = 1;
@@ -18,6 +19,7 @@ export const SplitConfigSchema = z.object({
   participantIds: z.array(id),
   values: z.record(z.string(), z.number().int().safe()).optional(),
   items: z.array(SplitItemSchema).max(100).optional(),
+  gift: z.boolean().optional(),
 }) satisfies z.ZodType<SplitConfig>;
 
 export const ParticipantSchema = z.object({ id, name: z.string().min(1).max(80), userId: z.string().min(1).nullable(), pendingEmail: z.string().max(200).optional(), inviterShareBps: z.number().int().min(500).max(9500).optional(), photo: z.string().max(140_000).optional(), relationship: z.enum(["partner", "friend", "family", "parent", "custom"]).optional(), relationshipLabel: z.string().max(30).optional(), nickname: z.string().max(30).optional(), email: z.string().max(200).optional(), linkId: z.string().max(300).optional() }) satisfies z.ZodType<Participant>;
@@ -50,10 +52,12 @@ export const ExpenseRecordSchema = z
     fundedBy: id.optional(),
     paidCardId: id.optional(),
     recurringHint: z.boolean().optional(),
+    needsCard: z.boolean().optional(),
     voucherBrandId: id.optional(),
     paidWithVoucherId: id.optional(),
     voucherPending: z.boolean().optional(),
     recurringId: id.optional(),
+    countsInGroupId: id.optional(),
     suggested: z.enum(["memory", "ai", "ai_unsure"]).optional(),
     sharedWithPartner: z.boolean().optional(),
     sharedRev: z.number().int().min(0).optional(),
@@ -122,7 +126,7 @@ export const RawTransactionSchema = z.object({
 const kindEnum = z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]);
 export const MerchantMemorySchema = z.object({
   id, key: z.string().min(1).max(80), name: z.string().min(1).max(60), categoryId: id, kind: kindEnum,
-  source: z.enum(["user", "ai"]), confident: z.boolean(), confirmed: z.number().int().min(0).max(1_000_000), lastSeen: date, voucherSeller: z.boolean().optional(), icon: z.enum(ICON_KEYS).optional(),
+  source: z.enum(["user", "ai"]), confident: z.boolean(), confirmed: z.number().int().min(0).max(1_000_000), lastSeen: date, voucherSeller: z.boolean().optional(), icon: z.enum(ICON_KEYS).optional(), logo: z.enum(LOGO_KEYS).optional(),
 }) satisfies z.ZodType<MerchantMemory>;
 
 export const CardBillSchema = z.object({

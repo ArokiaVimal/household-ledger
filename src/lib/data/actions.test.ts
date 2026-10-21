@@ -555,3 +555,100 @@ describe("undo, audit trail and import rollback", () => {
     await fails(applyAction(repo, actor, { type: "batch.rollback", id: "nope" }), "not_found");
   });
 });
+
+describe("voucher wallets", () => {
+  const wallet = async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "wl_amazonpay", name: "Amazon Pay", type: "wallet", parentId: "cc_hdfc" });
+    await repo.voucherBrands.put({ id: "vb_amazon", name: "Amazon" });
+    return repo;
+  };
+  it("verifying a purchase from the Amazon Pay wallet marks it paid with the Amazon voucher", async () => {
+    const repo = await wallet();
+    await repo.records.put(imported({ id: "w1", accountId: "wl_amazonpay" }));
+    await applyAction(repo, actor, { type: "record.approve", id: "w1" });
+    expect(await repo.records.get("w1")).toMatchObject({ status: "reviewed", paidWithVoucherId: "vb_amazon" });
+  });
+  it("a top-up (transfer) and a card purchase are left alone", async () => {
+    const repo = await wallet();
+    await repo.records.put(imported({ id: "t1", accountId: "wl_amazonpay", kind: "transfer" }));
+    await applyAction(repo, actor, { type: "record.approve", id: "t1" });
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1" });
+    expect((await repo.records.get("t1"))?.paidWithVoucherId).toBeUndefined();
+    expect((await repo.records.get("imp1"))?.paidWithVoucherId).toBeUndefined();
+  });
+  it("the repair marks existing wallet purchases once and changes nothing else", async () => {
+    const repo = await wallet();
+    await repo.records.put(imported({ id: "w1", accountId: "wl_amazonpay" }));
+    await repo.records.put(imported({ id: "w2", accountId: "wl_amazonpay", kind: "transfer" }));
+    await applyAction(repo, actor, { type: "records.fixWallets" });
+    await applyAction(repo, actor, { type: "records.fixWallets" });
+    expect((await repo.records.get("w1"))?.paidWithVoucherId).toBe("vb_amazon");
+    expect((await repo.records.get("w2"))?.paidWithVoucherId).toBeUndefined();
+    expect((await repo.records.get("imp1"))?.paidWithVoucherId).toBeUndefined();
+    expect((await audit(repo)).filter((a) => a === "edit")).toHaveLength(1);
+  });
+});
+
+describe("merchant look", () => {
+  const mem = { id: "m1", key: "instamart", name: "Swiggy Instamart", categoryId: "groceries", kind: "purchase" as const, source: "user" as const, confident: true, confirmed: 1, lastSeen: "2026-09-01" };
+  it("a logo replaces the icon and an icon replaces the logo", async () => {
+    const repo = await setup();
+    await repo.merchantMemory.put({ ...mem, icon: "basket" });
+    await applyAction(repo, actor, { type: "icons.apply", categories: [], accounts: [], merchants: [{ name: "swiggy instamart", logo: "swiggy" }] });
+    expect(await repo.merchantMemory.list()).toMatchObject([{ logo: "swiggy" }]);
+    expect((await repo.merchantMemory.list())[0].icon).toBeUndefined();
+    await applyAction(repo, actor, { type: "icons.apply", categories: [], accounts: [], merchants: [{ name: "Swiggy Instamart", icon: "store" }] });
+    const [m] = await repo.merchantMemory.list();
+    expect(m.icon).toBe("store");
+    expect(m.logo).toBeUndefined();
+  });
+  it("refuses a logo that is not one of ours, and an entry with neither", async () => {
+    const repo = await setup();
+    await repo.merchantMemory.put(mem);
+    await fails(applyAction(repo, actor, { type: "icons.apply", categories: [], accounts: [], merchants: [{ name: "Swiggy Instamart", logo: "evil" as never }] }), "invalid");
+    await fails(applyAction(repo, actor, { type: "icons.apply", categories: [], accounts: [], merchants: [{ name: "Swiggy Instamart" }] }), "invalid");
+  });
+});
+
+describe("changing the payment method", () => {
+  const wallet = async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "cc_amex", name: "Amex", type: "credit_card" });
+    await repo.accounts.put({ id: "wl_amazonpay", name: "Amazon Pay", type: "wallet", parentId: "cc_amex" });
+    await repo.voucherBrands.put({ id: "vb_amazon", name: "Amazon" });
+    return repo;
+  };
+  it("can be fixed on a verified transaction, to one of your own methods only", async () => {
+    const repo = await wallet();
+    await repo.records.put(imported({ id: "v1", status: "reviewed", importSource: "Pasted text (import 1)" }));
+    await applyAction(repo, actor, { type: "record.update", id: "v1", patch: { accountId: "cc_amex" } });
+    expect((await repo.records.get("v1"))?.accountId).toBe("cc_amex");
+    await fails(applyAction(repo, actor, { type: "record.update", id: "v1", patch: { accountId: "nope" } }), "invalid");
+  });
+  it("moving out of Amazon Pay takes the paid-with-voucher mark along, and moving in adds it", async () => {
+    const repo = await wallet();
+    await repo.records.put(imported({ id: "w1", accountId: "wl_amazonpay", paidWithVoucherId: "vb_amazon", status: "reviewed", importSource: "Pasted text (import 1)" }));
+    await applyAction(repo, actor, { type: "record.update", id: "w1", patch: { accountId: "cc_amex" } });
+    expect((await repo.records.get("w1"))?.paidWithVoucherId).toBeUndefined();
+    await applyAction(repo, actor, { type: "record.update", id: "w1", patch: { accountId: "wl_amazonpay" } });
+    expect((await repo.records.get("w1"))?.paidWithVoucherId).toBe("vb_amazon");
+  });
+});
+
+describe("which payment methods can be corrected", () => {
+  it("not on a row that came from a statement file", async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "cc_amex", name: "Amex", type: "credit_card" });
+    await repo.records.put(imported({ id: "s1", importSource: "2026-10-02.pdf (import 9)" }));
+    await fails(applyAction(repo, actor, { type: "record.update", id: "s1", patch: { accountId: "cc_amex" } }), "conflict");
+  });
+  it("on an email or text row that still needs a card", async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "cc_amex", name: "Amex", type: "credit_card" });
+    await repo.records.put(imported({ id: "c1", importSource: "Captured message (import 9)", needsCard: true }));
+    await applyAction(repo, actor, { type: "record.approve", id: "c1", patch: { accountId: "cc_amex", needsCard: null } });
+    expect(await repo.records.get("c1")).toMatchObject({ accountId: "cc_amex", status: "reviewed" });
+    expect((await repo.records.get("c1"))?.needsCard).toBeUndefined();
+  });
+});

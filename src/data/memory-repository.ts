@@ -1,5 +1,6 @@
 import type { ZodType } from "zod";
 import { AccountSchema, AuditEventSchema, CardBillSchema, PaymentGroupSchema, SplitGroupSchema, SplitSettlementSchema, VoucherBrandSchema, CategorySchema, ExpenseRecordSchema, ImportBatchSchema, MerchantMemorySchema, ParticipantSchema, RawTransactionSchema, ReceiptSchema, RecurringItemSchema, RuleDocSchema, SettlementSchema, SharedExpenseSchema, type RuleDoc } from "./schemas";
+import { accountIsEditable } from "@/domain/accounts";
 import { ConflictError, type AppendOnly, type Collection, type Repository } from "./repository";
 import type { SplitGroup, SplitSettlement, PaymentGroup, Account, AuditEvent, CardBill, VoucherBrand, Category, ExpenseRecord, ImportBatch, MerchantMemory, Participant, RawTransaction, Receipt, RecurringItem, Settlement, SharedExpense } from "@/domain/types";
 
@@ -54,7 +55,10 @@ const guardShared = (prev: SharedExpense, next: SharedExpense) => {
 const RAW_FIELDS = ["date", "postedDate", "originalDescription", "amountPaise", "currency", "accountId", "importSource", "referenceId"] as const;
 function guardRecord(prev: ExpenseRecord, next: ExpenseRecord) {
   if (prev.importSource === "Manual entry") return; // the user owns manual entries
-  for (const f of RAW_FIELDS) if (prev[f] !== next[f]) throw new ConflictError(`Imported field "${f}" cannot be changed`);
+  for (const f of RAW_FIELDS) {
+    if (f === "accountId" && accountIsEditable(prev)) continue; // the card of an email, text or pasted row was a guess: it can be corrected
+    if (prev[f] !== next[f]) throw new ConflictError(`Imported field "${f}" cannot be changed`);
+  }
 }
 
 /** In-memory repository for the prototype and for tests. Mirrors the rules a real backend must enforce. */

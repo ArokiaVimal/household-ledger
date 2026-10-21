@@ -108,7 +108,9 @@ describe("PDF statement import", () => {
       ...row(478, "September 20", "DEMO TRAVEL", "1,500.00"), // already imported
       ...row(460, "October 2", "NEW OCTOBER SHOP", "800.00"),
     ])];
-    const res = await commitImport(repo, actor, pdfInput(next), deps);
+    const first = await previewImport(repo, pdfInput(next), deps);
+    const decisions = Object.fromEntries(first.rows.filter((r) => r.status === "duplicate").map((r) => [String(r.line), "skip" as const]));
+    const res = await commitImport(repo, actor, { ...pdfInput(next), decisions }, deps);
     expect(res.counts).toMatchObject({ rows: 2, duplicate: 1, staged: 1 });
     expect(await repo.records.list()).toHaveLength(6);
   });

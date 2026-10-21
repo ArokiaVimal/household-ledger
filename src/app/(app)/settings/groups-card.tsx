@@ -62,7 +62,7 @@ export function GroupsCard() {
             {isMine ? <p className="rounded-xl bg-background p-3 text-xs text-muted">Mine counts your share plus what you pay for people in your other groups. You can rename it, not delete it.</p> : (
               <>
                 <div className="space-y-1.5"><div className="text-xs font-medium text-muted">Contacts in this group</div>
-                  <CompactChips multi label="Contacts in this group" options={others.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={members} onPick={(id) => setMembers(members.includes(id) ? members.filter((x) => x !== id) : [...members, id])} adder={{ label: "Add a contact", placeholder: "e.g. Amma, Appa", add: (n) => { const r = addParticipant(n); if (r.id) setMembers((m) => [...m, r.id!]); return r; } }} />
+                  <CompactChips multi label="Contacts in this group" options={others.map((p) => ({ id: p.id, label: nameOf(p.id), icon: <PersonGlyph name={nameOf(p.id)} id={p.id} /> }))} selected={members} onPick={(id) => setMembers(members.includes(id) ? members.filter((x) => x !== id) : [...members, id])} adder={{ label: "Add a contact", placeholder: "e.g. Amma, Appa", add: (n) => { const r = addParticipant(n); if (r.id) setMembers((m) => [...m, r.id!]); return r; } }} />
                 </div>
                 <ToggleRow checked={includeMe} onChange={setIncludeMe} title="Count my own share too" hint="Count your own share too. Turn off for groups like Parents." />
                 <ToggleRow checked={cover} onChange={setCover} title="I pay their share" hint="Also count what I pay for them in Mine." />

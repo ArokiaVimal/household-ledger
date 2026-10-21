@@ -87,7 +87,7 @@ export default function ImportCentre() {
               {done ? (
                 <div className="space-y-2 text-sm">
                   <p><b>{done.sent} row{done.sent === 1 ? "" : "s"} sent to the review queue</b>; {done.skipped} exact duplicate{done.skipped === 1 ? "" : "s"} skipped. Nothing is in your ledger or reports until you approve it.</p>
-                  <Link href="/review" className="inline-block rounded-full bg-accent px-4 py-2 font-medium text-white">Review now</Link>
+                  <Link href="/transactions?v=unverified" className="inline-block rounded-full bg-accent px-4 py-2 font-medium text-white">See them now</Link>
                 </div>
               ) : (
                 <>

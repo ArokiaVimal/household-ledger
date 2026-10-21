@@ -3,6 +3,9 @@ import { Suspense, type ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { StoreProvider, type LiveInit } from "@/data/store";
 import { createFirestoreRepository } from "@/data/firestore-repository";
+import { profilePhotos } from "@/lib/profile/photos-server";
+import { uidOf, withProfilePhotos } from "@/lib/profile/photos";
+import { DEMO_PROFILE, demoLiveInit } from "@/lib/demo/data";
 import { loadReadyHouseholdData, participantIdFor, type HouseholdData } from "@/lib/data/load";
 import { loadCoupleData } from "@/lib/data/couple";
 import { getCouple } from "@/lib/households/couple";
@@ -66,7 +69,7 @@ async function AuthedShell({ children }: { children: ReactNode }) {
 
   // Real data for signed-in users. A signed-in user must never see the demo data, even when loading fails.
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-  const empty: HouseholdData = { records: [], settlements: [], receipts: [], recurring: [], participants: [], accounts: [], categories: [], rules: [], importBatches: [], cardBills: [], voucherBrands: [], paymentGroups: [], splitGroups: [], splitSettlements: [], merchantIcons: {} };
+  const empty: HouseholdData = { records: [], settlements: [], receipts: [], recurring: [], participants: [], accounts: [], categories: [], rules: [], importBatches: [], cardBills: [], voucherBrands: [], paymentGroups: [], splitGroups: [], splitSettlements: [], merchantIcons: {}, merchantLogos: {} };
   let live: LiveInit | undefined;
   let dataError = false;
   if (session.mode === "on") {
@@ -82,6 +85,20 @@ async function AuthedShell({ children }: { children: ReactNode }) {
             .then((c) => (c ? loadCoupleData(createFirestoreRepository(c.household.id), c) : null))
             .catch((e) => { console.error("couple load failed:", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 200)); return null; }),
         ]);
+        // People with their own account show their current profile photo (partner and linked friends too).
+        const linkUid = Object.fromEntries(linkData.links.map((l) => [l.key, l.other.uid]));
+        const everyone = [...data.participants, ...(couple?.participants ?? [])];
+        const photos = await profilePhotos(everyone.flatMap((p) => { const u = uidOf(p, session.uid, linkUid); return u ? [u] : []; })).catch(() => ({}));
+        data.participants = withProfilePhotos(data.participants, session.uid, linkUid, photos);
+        if (couple) couple.participants = withProfilePhotos(couple.participants, session.uid, linkUid, photos);
+        // What you call your partner (set under Settings > Friends & Family) shows instead of their account name everywhere.
+        const partnerNick = profile?.partnerNickname?.trim();
+        if (partnerNick && couple) {
+          const pid = couple.partner.participantId;
+          const named = <T extends { id: string }>(ps: T[]): T[] => ps.map((p) => (p.id === pid ? { ...p, nickname: partnerNick } : p));
+          data.participants = named(data.participants);
+          couple.participants = named(couple.participants);
+        }
         live = {
           couple: couple ?? undefined,
           data, today, ready: true,
@@ -94,6 +111,11 @@ async function AuthedShell({ children }: { children: ReactNode }) {
       }
     }
     if (dataError) live = { data: empty, meId: "", today, ready: false };
+  } else {
+    // No sign-in configured: the demo, with fictional data on the real screens.
+    live = demoLiveInit();
+    profile = DEMO_PROFILE;
+    status = "ok";
   }
   const partnerInfo: PartnerInfo | null = coupleMembership
     ? { active: coupleMembership.active, endedAt: coupleMembership.household.endedAt, partner: coupleMembership.partner ? { uid: coupleMembership.partner.uid, name: coupleMembership.partner.displayName || "Partner", email: coupleMembership.partner.email } : null, ratio: coupleMembership.household.splitRatio ?? null }

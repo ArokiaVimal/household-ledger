@@ -1,24 +1,25 @@
 "use client";
-import { Check, Equal, IndianRupee, ListChecks, Minus, Percent, PieChart, Plus, SlidersHorizontal, Trash2, User, type LucideIcon } from "lucide-react";
+import { Check, Equal, Gift, HandCoins, IndianRupee, ListChecks, Minus, Percent, PieChart, Plus, SlidersHorizontal, Trash2, User, Wallet, Zap, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
 import { computeShares, equalSplit, itemsExtra, itemSubtotals, ratioSplit, sameSplit, validateSplit } from "@/domain/splits";
 import type { Paise, SplitConfig, SplitItem, SplitMode } from "@/domain/types";
 import { relationshipText } from "@/domain/contacts";
 import { Dot, PersonGlyph } from "./glyphs";
-import { TileGrid } from "./pickers";
 import { Button, Input } from "./ui";
 
-const ADD = "__add";
+
+/** The three one-tap splits: who pays it all, or that you covered it for them. */
+const quickLook = (label: string): { Icon: LucideIcon; tone: string } =>
+  /^I owe all$/.test(label) ? { Icon: Wallet, tone: "bg-violet-100 text-violet-700" } : /^I paid for them$/.test(label) ? { Icon: Gift, tone: "bg-emerald-100 text-emerald-700" } : { Icon: HandCoins, tone: "bg-amber-100 text-amber-700" };
 
 /** Every way to split, with one plain sentence each so nobody has to guess what a mode means. */
 const MODE_ICON: Record<SplitMode, [LucideIcon, string]> = {
   equal: [Equal, "bg-sky-100 text-sky-700"], custom: [IndianRupee, "bg-emerald-100 text-emerald-700"], percent: [Percent, "bg-violet-100 text-violet-700"], shares: [PieChart, "bg-amber-100 text-amber-700"],
   adjust: [SlidersHorizontal, "bg-pink-100 text-pink-700"], items: [ListChecks, "bg-orange-100 text-orange-700"], personal: [User, "bg-slate-100 text-slate-600"],
 };
-const modeDot = (m: SplitMode) => { const [I, tone] = MODE_ICON[m]; return <Dot icon={I} tone={tone} />; };
 const MODES: { id: SplitMode; label: string; hint: string }[] = [
   { id: "equal", label: "Equally", hint: "Everyone ticked pays the same." },
   { id: "custom", label: "Exact amounts", hint: "Type what each person owes. It must add up to the total." },
@@ -47,16 +48,27 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   const ME = "__me";
   const nobody: SplitConfig = { mode: "personal", participantIds: [meId] };
   const others = value.participantIds.filter((id) => id !== meId);
-  const people = participants.filter((p) => p.id !== meId && (!only || only.includes(p.id)));
-  // Everyone who can be picked in the detailed list. Inside a group that is the group, in the group's own order.
-  const pool = only ? participants.filter((p) => p.id === meId || only.includes(p.id)) : participants;
+  // You can be left out of the split: you paid, but the expense is for the others only.
+  const meIn = value.participantIds.includes(meId);
+  const excludeMe = others.length > 0 && !meIn;
+  const people = participants.filter((p) => p.id !== meId && (!only || only.includes(p.id))); // inside a group: only the group's people
+  // People you split with most come first.
+  const { records, staged } = useStore();
+  const rankedPeople = useMemo(() => {
+    const uses = new Map<string, number>();
+    for (const r of [...records, ...staged]) if (r.split.mode !== "personal") for (const id of r.split.participantIds) uses.set(id, (uses.get(id) ?? 0) + 1);
+    return people.map((p, i) => ({ p, i })).sort((a, b) => (uses.get(b.p.id) ?? 0) - (uses.get(a.p.id) ?? 0) || a.i - b.i).map((x) => x.p);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [records, staged, participants, meId]);
   // The usual way to split with one person: your couple ratio with your partner, otherwise down the middle.
   const usualWith = (o: string): SplitConfig => (o === partnerId && splitRatio.leaderBps !== 5000
     ? ratioSplit(ownerId, ownerId === meId ? o : meId, splitRatio.leaderBps)
     : { mode: "equal", participantIds: [meId, o] });
-  const withConfig = (who: string[]): SplitConfig => (who.length === 0 ? nobody : who.length === 1 ? usualWith(who[0]) : { mode: "equal", participantIds: [meId, ...who] });
+  const withConfig = (who: string[]): SplitConfig => (who.length === 0 ? nobody : excludeMe ? { mode: "equal", participantIds: who, ...(value.gift ? { gift: true } : {}) } : value.gift ? { mode: "equal", participantIds: who, gift: true } : who.length === 1 ? usualWith(who[0]) : { mode: "equal", participantIds: [meId, ...who] });
   // How to split with the chosen people. One person gets the quick ratios; a group is split equally unless "More ways".
-  const howOptions: { label: string; title?: string; config: SplitConfig }[] = others.length === 1 ? (() => {
+  // "I paid for them": the expense is for these people alone, you are not part of the split, and nobody owes you.
+  const gift: { label: string; config: SplitConfig } = { label: "I paid for them", config: { mode: "equal", participantIds: others, gift: true } };
+  const howOptions: { label: string; title?: string; config: SplitConfig }[] = excludeMe ? [{ label: "Equally", config: { mode: "equal" as const, participantIds: others } }, gift] : others.length === 1 ? (() => {
     const o = others[0];
     const usual = usualWith(o);
     return [
@@ -64,8 +76,9 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
       { label: "50 / 50", config: { mode: "equal" as const, participantIds: [meId, o] } },
       { label: `${firstName(nameOf(o))} owes all`, config: { mode: "shares" as const, participantIds: [meId, o], values: { [meId]: 0, [o]: 1 } } },
       { label: "I owe all", config: { mode: "shares" as const, participantIds: [meId, o], values: { [meId]: 1, [o]: 0 } } },
+      gift,
     ];
-  })() : others.length > 1 ? [{ label: "Equally", config: { mode: "equal" as const, participantIds: [meId, ...others] } }] : [];
+  })() : others.length > 1 ? [{ label: "Equally", config: { mode: "equal" as const, participantIds: [meId, ...others] } }, gift] : [];
   const error = validateSplit(total, value);
   const ids = value.participantIds;
   const shares = error ? {} : computeShares(total, value);
@@ -73,7 +86,7 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   const isPair = (who: string[]) => !!otherId && who.length === 2 && who.includes(ownerId) && who.includes(otherId);
   const order = (who: string[]) => participants.map((p) => p.id).filter((id) => who.includes(id));
 
-  const build = (mode: SplitMode, who: string[]): SplitConfig => {
+  const buildRaw = (mode: SplitMode, who: string[]): SplitConfig => {
     const keep = mode === "personal" ? who.slice(0, 1) : who;
     switch (mode) {
       case "percent": return isPair(keep) ? ratioSplit(ownerId, otherId!, splitRatio.leaderBps) : { mode, participantIds: keep, values: evenBps(keep) };
@@ -87,6 +100,8 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
       default: return { mode, participantIds: keep };
     }
   };
+  // A gift stays a gift while you change who or how, until you put yourself back in the split.
+  const build = (mode: SplitMode, who: string[]): SplitConfig => { const c = buildRaw(mode, who); return value.gift && mode !== "personal" && c.participantIds.length > 0 ? { ...c, gift: true } : c; };
 
   const toggle = (id: string) => {
     if (value.mode === "personal") return onChange(build("personal", [id]));
@@ -109,6 +124,7 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   /** One short line saying who pays what share, from the config alone (no amounts needed). */
   const describe = (c: SplitConfig) => {
     const who = c.participantIds.map((id) => firstName(nameOf(id)));
+    if (c.gift) return "They don't owe me";
     if (c.mode === "equal") return `${who.join(", ")} pay the same`;
     if (c.mode === "percent" && c.values) return c.participantIds.map((id) => `${firstName(nameOf(id))} ${pct(c.values?.[id] ?? 0)}%`).join(" · ");
     if (c.mode === "shares" && c.values) { const o = c.participantIds.filter((id) => (c.values?.[id] ?? 0) > 0); return o.length === 1 ? `${firstName(nameOf(o[0]))} pays it all` : who.join(", "); }
@@ -116,19 +132,43 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   };
   const presetId = howOptions.find((p) => sameSplit(p.config, value))?.label ?? "";
   const [adding, setAdding] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   // Two one-tap splits ("Varru owes all", "I owe all"); every other way is the row of method icons.
-  const quick = howOptions.filter((p) => /owes all$|^I owe all$/.test(p.label));
+  const quick = howOptions.filter((p) => /owes all$|^I owe all$|^I paid for them$/.test(p.label));
   const owesAll = quick.some((p) => p.label === presetId);
+  // Quick splits are the first option of the How row; their three cards show while it is chosen (or one of them is in use).
+  const quickOn = quick.length > 0 && (quickOpen || owesAll);
   const showPanel = others.length > 0 && !owesAll && value.mode !== "equal";
   const summary = ids.map((id) => `${nameOf(id)} ${formatINR(shares[id] ?? 0)}`).join(" · ");
   const pickPreset = (label: string) => {
     onChange(structuredClone(howOptions.find((p) => p.label === label)!.config));
   };
+  // An item-wise split keeps its items when people are added or removed: a new person joins every item (untick the ones they skipped).
+  const reshapeItems = (nextIds: string[], added?: string): SplitConfig => ({
+    mode: "items", participantIds: nextIds,
+    items: (value.items ?? []).map((it) => {
+      let p = it.participantIds.filter((x) => nextIds.includes(x));
+      if (added && !p.includes(added)) p = [...p, added];
+      return { ...it, participantIds: p.length ? p : nextIds };
+    }),
+  });
   const pickPerson = (id: string) => {
-    if (id === ME) return only ? undefined : onChange(nobody);
-    if (only && others.length === 1 && others[0] === id) return; // a group expense needs someone to share it with
+    if (value.mode === "items" && (value.items?.length ?? 0) > 0) {
+      const cur = value.participantIds;
+      const who = id === ME ? meId : id;
+      const has = cur.includes(who);
+      const next = has ? cur.filter((x) => x !== who) : [...cur, who];
+      if (next.length === 0) return;
+      return onChange(reshapeItems(next, has ? undefined : who));
+    }
+    if (id === ME) {
+      if (meIn && others.length === 0) return; // someone has to be in the split
+      if (meIn) return onChange(build(value.mode === "personal" ? "equal" : value.mode, others));
+      const { gift: _gift, ...rest } = build(value.mode, [meId, ...others]); void _gift;
+      return onChange(rest);
+    }
     onChange(withConfig(others.includes(id) ? others.filter((x) => x !== id) : [...others, id]));
   };
   const mode = MODES.find((m) => m.id === value.mode)!;
@@ -143,10 +183,27 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
     <div className="space-y-2">
       <section aria-label={peopleLabel}>
         <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{peopleLabel}</h3>
-        <TileGrid multi label="Split with" columns={2}
-          options={[...(only ? [] : [{ id: ME, label: "Just me", icon: <PersonGlyph name="Me" id={meId} size={32} /> }]), ...people.map((p) => ({ id: p.id, icon: <PersonGlyph name={nameOf(p.id)} id={p.id} size={32} />, label: p.pendingEmail ? `${nameOf(p.id)} (invited)` : nameOf(p.id), hint: p.id === partnerId ? "Partner" : p.relationship ? relationshipText(p) : undefined })), ...(only ? [] : [{ id: ADD, label: "Add someone", icon: <Dot icon={Plus} tone="bg-accent/10 text-accent" size={32} /> }])]}
-          selected={others.length ? others : [ME]} onPick={(id) => (id === ADD ? setAdding((v) => !v) : pickPerson(id))} />
-        {adding && (
+        <ul role="group" aria-label="Split with" className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+          {[{ id: ME, name: "Me", full: `${nameOf(meId)} (Me)`, glyph: <PersonGlyph name="Me" id={meId} size={36} />, on: meIn }, ...rankedPeople.map((p) => ({ id: p.id, name: firstName(nameOf(p.id)), full: p.pendingEmail ? `${nameOf(p.id)} (invited)` : nameOf(p.id), glyph: <PersonGlyph name={nameOf(p.id)} id={p.id} size={36} />, on: others.includes(p.id) }))].map((t) => (
+            <li key={t.id} className="w-[calc((100%-2rem)/5)] min-w-[3.75rem] shrink-0">
+              <button type="button" aria-pressed={t.on} aria-label={t.full} title={t.full} onClick={() => pickPerson(t.id)}
+                className={`relative flex min-h-[4.75rem] w-full flex-col items-center justify-center gap-1 rounded-2xl border px-1 py-2 transition-colors focus-visible:outline-2 focus-visible:outline-accent ${t.on ? "border-accent bg-accent/10" : "border-transparent bg-background hover:border-border"}`}>
+                {t.glyph}
+                <span className="w-full truncate text-center text-[12px] font-medium leading-tight">{t.name}</span>
+                {t.on && <span aria-hidden className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-accent text-white"><Check size={11} strokeWidth={3} /></span>}
+              </button>
+            </li>
+          ))}
+          {!only && (
+          <li className="w-[calc((100%-2rem)/5)] min-w-[3.75rem] shrink-0">
+            <button type="button" aria-label="Add someone" aria-expanded={adding} onClick={() => setAdding((v) => !v)} className="flex min-h-[4.75rem] w-full flex-col items-center justify-center gap-1 rounded-2xl border border-transparent bg-background px-1 py-2 hover:border-border focus-visible:outline-2 focus-visible:outline-accent">
+              <Dot icon={Plus} tone="bg-accent/10 text-accent" size={36} />
+              <span className="w-full truncate text-center text-[12px] font-medium leading-tight">Add</span>
+            </button>
+          </li>
+          )}
+        </ul>
+        {adding && !only && (
           <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); const r = addParticipant(newName); if (r.error || !r.id) { setAddError(r.error ?? "Could not add that."); return; } setNewName(""); setAddError(null); setAdding(false); pickPerson(r.id); }}>
             <Input aria-label="New person's name" autoFocus value={newName} onChange={(e) => { setNewName(e.target.value); setAddError(null); }} placeholder="Friend's name, e.g. Karthik" maxLength={60} />
             <Button type="submit" variant="primary" disabled={!newName.trim()}>Add</Button>
@@ -161,13 +218,32 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
         <section aria-label="How">
           <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">How</h3>
           <div role="radiogroup" aria-label="Split method" className="flex gap-1 rounded-2xl bg-background p-1">
-            {MODES.filter((m) => m.id !== "personal").map((m) => { const on = value.mode === m.id && !owesAll; const [I] = MODE_ICON[m.id]; return (
-              <button key={m.id} type="button" role="radio" aria-checked={on} aria-label={m.label} title={m.label} onClick={() => { onChange(build(m.id, ids.length ? ids : [meId])); }}
+            {quick.length > 0 && (
+              <button type="button" role="radio" aria-checked={quickOn} aria-label="Quick splits" title="Quick splits" onClick={() => setQuickOpen(true)}
+                className={`grid min-h-10 flex-1 place-items-center rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-accent ${quickOn ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-surface hover:text-foreground"}`}><Zap size={18} aria-hidden /></button>
+            )}
+            {MODES.filter((m) => m.id !== "personal").map((m) => { const on = value.mode === m.id && !quickOn; const [I] = MODE_ICON[m.id]; return (
+              <button key={m.id} type="button" role="radio" aria-checked={on} aria-label={m.label} title={m.label} onClick={() => { setQuickOpen(false); onChange(build(m.id, ids.length ? ids : [meId])); }}
                 className={`grid min-h-10 flex-1 place-items-center rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-accent ${on ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-surface hover:text-foreground"}`}><I size={18} aria-hidden /></button>
             ); })}
           </div>
-          <p className="mt-1.5 text-xs text-muted"><b className="font-medium text-foreground">{owesAll ? howOptions.find((p) => p.label === presetId)?.label : mode.label}</b>. {owesAll ? howOptions.find((p) => p.label === presetId) && describe(howOptions.find((p) => p.label === presetId)!.config) : mode.hint}</p>
-          {quick.length > 0 && <div className="mt-2"><TileGrid label="Quick splits" columns={2} options={quick.map((p) => ({ id: p.label, label: p.label, icon: modeDot(p.config.mode), hint: describe(p.config) }))} selected={owesAll ? [presetId] : []} onPick={pickPreset} /></div>}
+          <p className="mt-1.5 text-xs text-muted"><b className="font-medium text-foreground">{quickOn ? (owesAll ? howOptions.find((p) => p.label === presetId)?.label : "Quick splits") : mode.label}</b>. {quickOn ? (owesAll ? howOptions.find((p) => p.label === presetId) && describe(howOptions.find((p) => p.label === presetId)!.config) : "One tap for the usual cases.") : mode.hint}</p>
+          {quickOn && (
+            <div role="radiogroup" aria-label="Quick splits" className="mt-2 grid grid-cols-3 gap-2">
+              {quick.map((p) => {
+                const on = owesAll && presetId === p.label;
+                const { Icon, tone } = quickLook(p.label);
+                return (
+                  <button key={p.label} type="button" role="radio" aria-checked={on} onClick={() => pickPreset(p.label)}
+                    className={`flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1.5 py-3 text-center transition-colors focus-visible:outline-2 focus-visible:outline-accent ${on ? "border-accent bg-accent/[0.07]" : "border-transparent bg-background hover:bg-border/40"}`}>
+                    <span aria-hidden className={`grid size-9 place-items-center rounded-full ${tone}`}><Icon size={18} /></span>
+                    <span className="text-[13px] font-medium leading-tight">{p.label}</span>
+                    <span className="text-[11px] leading-tight text-muted">{describe(p.config)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {!showPanel && !error && ids.length > 1 && total > 0 && <p className="mt-1.5 text-xs text-muted">{summary}</p>}
         </section>
       )}
@@ -186,7 +262,7 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
                       {items.length > 1 && <button type="button" aria-label={`Remove ${it.name || "item"}`} onClick={() => setItems(items.filter((x) => x.id !== it.id))} className="grid size-8 shrink-0 place-items-center rounded-full text-muted hover:bg-danger/10 hover:text-danger"><Trash2 size={14} aria-hidden /></button>}
                     </div>
                     <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Who shared ${it.name || "this item"}`}>
-                      {pool.map((p) => {
+                      {participants.filter((p) => !only || p.id === meId || only.includes(p.id)).map((p) => {
                         const on = it.participantIds.includes(p.id);
                         return <button key={p.id} type="button" aria-pressed={on} onClick={() => toggleItemPerson(it, p.id)} className={`min-h-8 rounded-full border px-3 text-sm ${on ? "border-accent bg-accent text-white" : "border-border bg-surface text-muted"}`}>{firstName(nameOf(p.id))}</button>;
                       })}
@@ -205,7 +281,8 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
           ) : (
             <>
               <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface" aria-label="Who is in this expense">
-                {pool.map((p) => {
+                {/* Only the people in the split; add or remove people in the picker above. */}
+                {participants.filter((p) => ids.includes(p.id)).map((p) => {
                   const on = ids.includes(p.id);
                   const tag = p.pendingEmail ? "invited" : p.id === partnerId || p.relationship === "partner" ? "" : p.userId === null ? relationshipText(p).toLowerCase() : "";
                   const values = value.values ?? {};

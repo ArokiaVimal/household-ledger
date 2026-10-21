@@ -1,8 +1,7 @@
 "use client";
 import { Check, Copy, MessageSquare } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { MerchantAvatar } from "@/components/txn-row";
-import { Badge, Button, Card, CardTitle, CompactChips, ConfirmDialog } from "@/components/ui";
+import { Badge, Button, Card, CardTitle, ConfirmDialog } from "@/components/ui";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
 
@@ -19,7 +18,7 @@ async function call<T>(payload: Record<string, unknown>): Promise<{ ok: boolean;
   }
 }
 
-/** Auto-capture of bank messages: a private link that a phone automation posts each SMS to. Messages wait in the review queue. */
+/** Auto-capture of bank messages: a private link that a phone automation posts each SMS to. Messages arrive as unverified transactions. */
 export function CaptureCard() {
   const { accounts, categoryName } = useStore();
   const usable = accounts.filter((a) => a.type !== "cash" && !a.archived);
@@ -54,19 +53,14 @@ export function CaptureCard() {
     if (!r.ok) return setError(r.error ?? "Could not check that.");
     setTried(r);
   };
-  const changeDefault = async (id: string) => { setAccountId(id); if (status?.active) { const r = await call<object>({ action: "setDefault", defaultAccountId: id }); if (!r.ok) setError(r.error ?? "Could not change that."); } };
   const revoke = async () => { await call<object>({ action: "revoke" }); setLink(null); setStatus((s) => (s ? { ...s, active: false } : s)); void load(); };
 
   if (usable.length === 0) return <Card><CardTitle>Messages</CardTitle><p className="text-sm text-muted">Add a payment method first, so captured messages know where to go.</p></Card>;
   return (
     <Card className="space-y-4">
       <CardTitle action={<Badge tone={status?.active ? "good" : "neutral"}>{status === null ? "…" : status.active ? "On" : "Off"}</Badge>}><span className="inline-flex items-center gap-2"><MessageSquare size={16} aria-hidden className="text-accent" />Bank messages (SMS)</span></CardTitle>
-      <p className="text-sm text-muted">Bank, card and UPI texts land in your review queue. OTPs and offers are skipped.</p>
+      <p className="text-sm text-muted">Bank, card and UPI texts land in Transactions as unverified. OTPs and offers are skipped. Texts that do not name a card wait for you to pick one when you verify.</p>
 
-      <div className="space-y-1.5">
-        <div className="text-xs font-medium text-muted">If a message does not say which card or bank, file it under</div>
-        <CompactChips label="Default payment method" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={[accountId]} onPick={(id) => void changeDefault(id)} />
-      </div>
 
       {status?.active && !link && (
         <p className="rounded-xl bg-good-soft p-3 text-sm text-good">Capture is on.{status.lastUsedAt ? ` Last message ${new Date(status.lastUsedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}.` : " Waiting for the first message."}{status.today > 0 ? ` ${status.today} today.` : ""}</p>
@@ -76,7 +70,7 @@ export function CaptureCard() {
         <div className="space-y-3 rounded-xl bg-accent/5 p-4 text-sm">
           <p className="font-medium">Your private link. It is shown only now; copy it.</p>
           <div className="flex items-center gap-2"><code className="min-w-0 flex-1 truncate rounded-lg bg-surface px-3 py-2 text-xs" aria-label="Capture link">{link}</code><Button onClick={() => void copy()}>{copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}{copied ? "Copied" : "Copy"}</Button></div>
-          <p className="text-xs text-muted">Anyone with this link can add entries to your review queue, not read them. If it leaks, make a new one.</p>
+          <p className="text-xs text-muted">Anyone with this link can add unverified entries, not read them. If it leaks, make a new one.</p>
           <ol className="list-decimal space-y-1.5 pl-5">
             <li><b>iPhone:</b> open <b>Shortcuts</b>, then <b>Automation</b>, tap <b>+</b>, choose <b>Message</b>.</li>
             <li>Under <b>Sender</b> pick your bank&apos;s sender (for example HDFCBK), or use <b>Message Contains</b> &ldquo;debited&rdquo;. Choose <b>Run Immediately</b>.</li>
@@ -106,7 +100,7 @@ export function CaptureCard() {
       </details>
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       <ConfirmDialog open={off} onClose={() => setOff(false)} title="Switch off SMS capture?" confirmLabel="Switch off" onConfirm={() => void revoke()}>
-        <p>The link stops working straight away. Entries already captured stay in your review queue.</p>
+        <p>The link stops working straight away. Entries already captured stay as unverified entries.</p>
       </ConfirmDialog>
     </Card>
   );

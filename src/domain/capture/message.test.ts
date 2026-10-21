@@ -52,6 +52,11 @@ describe("what to leave alone", () => {
     expect(parseMessage("Happy Diwali from your bank!", TODAY)).toMatchObject({ kind: "ignore" });
     expect(parseMessage("", TODAY)).toMatchObject({ kind: "ignore" });
   });
+  it("ignores a bank's balance update notice, even though it mentions credits, debits and an amount", () => {
+    const t = "Your balance update. Balance Update Dear CUSTOMER, This communication is being sent to inform you about the balance on your Card account (including credit balance), along with recent credits and debits. Total balance Rs 47,513.81 debit";
+    expect(parseMessage(t, TODAY)).toEqual({ kind: "ignore", reason: "balance notice" });
+    expect(parseMessage("Rs 450.00 debited from your card. Avl balance Rs 5,000", TODAY)).toMatchObject({ kind: "transaction" });
+  });
   it("looksFinancial is a cheap pre-check for asking Claude about unreadable ones", () => {
     expect(looksFinancial("Txn of Rs 450 at X was debited")).toBe(true);
     expect(looksFinancial("123456 is your OTP, Rs 450 debit")).toBe(false);

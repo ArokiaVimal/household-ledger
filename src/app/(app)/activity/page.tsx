@@ -19,7 +19,7 @@ async function post(url: string, body?: unknown): Promise<{ ok: boolean; error?:
 
 /** The audit trail: who changed what and when, with one-step undo, and the import history with rollback. */
 export default function Activity() {
-  const { live, meId, participants } = useStore();
+  const { live, meId, participants, nameOf } = useStore();
   const router = useRouter();
   const [tab, setTab] = useState<"changes" | "imports">("changes");
   const [changes, setChanges] = useState<Change[] | null>(null);
@@ -35,7 +35,7 @@ export default function Activity() {
   }, []);
   useEffect(() => { if (live) void Promise.resolve().then(load); }, [live, load]);
 
-  const who = (uid: string) => (`u_${uid}` === meId ? "You" : participants.find((p) => p.userId === uid || p.id === `u_${uid}`)?.name ?? "Someone");
+  const who = (uid: string) => (uid === "demo" || `u_` === meId ? "You" : (() => { const p = participants.find((x) => x.userId === uid || x.id === `u_${uid}`); return p ? nameOf(p.id) : "Someone"; })());
   const run = async (action: object) => {
     setBusy(true); setError(null);
     const r = await post("/api/data", action);
@@ -77,7 +77,7 @@ export default function Activity() {
               <li key={b.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1 basis-48">
                   <div className="truncate text-sm font-medium">{b.filename}</div>
-                  <div className="text-xs text-muted">{when(b.uploadedAt)} · {b.rows} rows · {b.approved} approved · {b.waiting} waiting</div>
+                  <div className="text-xs text-muted">{when(b.uploadedAt)} · {b.rows} rows · {b.approved} verified · {b.waiting} unverified</div>
                 </div>
                 {b.rolledBackAt ? <Badge>Rolled back {when(b.rolledBackAt)}</Badge> : <Button variant="danger" disabled={busy} onClick={() => setRolling(b)}>Roll back…</Button>}
               </li>

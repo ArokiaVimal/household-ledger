@@ -19,6 +19,10 @@ export interface Profile extends ProfileInput {
   avatarDataUrl: string | null;
   /** Photo from the sign-in provider (Google). Used only when there is no custom avatar. */
   providerPhotoUrl: string | null;
+  /** Recurring suggestions you answered "not recurring" to. Saved on the account, so every device agrees. */
+  dismissedRecurring: string[];
+  /** What you call your linked partner. Their own name stays theirs; this is only how it shows to you. */
+  partnerNickname?: string;
 }
 
 /**

@@ -67,3 +67,13 @@ describe("money timeline", () => {
     expect(next.forecastEndPaise).toBe(5_000_000 - 2_500_000 - 2_500_000); // October's rent is still unpaid and counted too
   });
 });
+
+describe("timeline with unverified rows", () => {
+  it("lists them as flagged events, and they move the estimated balance", () => {
+    const acc = { id: "bank", name: "Bank", type: "bank" as const, balance: { amountPaise: 100_000, asOf: "2026-09-01" } };
+    const spend = rec("2026-09-10", "Cafe", 100, { status: "unreviewed" });
+    const t = buildTimeline({ month: "2026-09", today: "2026-09-20", records: [spend], accounts: [acc], cardBills: [], recurringItems: [], accountName: (id: string) => id });
+    expect(t.events.find((e) => e.label === "Cafe")?.unverified).toBe(true);
+    expect(t.estimatedTodayPaise).toBe(90_000);
+  });
+});

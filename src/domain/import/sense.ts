@@ -32,6 +32,11 @@ export const issuerKeys = (text: string) => [...issuerHits(text).keys()];
 
 /** "credit_card" or "bank" when the wording makes it clear, otherwise null. */
 export function statementType(text: string): "credit_card" | "bank" | null {
+  // The top of a statement says what it is; the legal small print further down mentions cheques, IFSC codes and branches
+  // even on a credit-card statement. Decide on the top first, and only then on the whole text.
+  return typeOf(text.slice(0, 2500)) ?? typeOf(text);
+}
+function typeOf(text: string): "credit_card" | "bank" | null {
   const t = text.toLowerCase();
   const count = (res: RegExp[], weight = 1) => res.reduce((s, r) => s + (r.test(t) ? weight : 0), 0);
   const card = count([/credit limit/, /minimum (amount|payment) due/, /total (amount|payment) due/, /payment due date/, /credit card/, /card (number|no)/, /reward points/]);
@@ -51,8 +56,9 @@ export interface Sensed {
 
 const GENERIC = new Set(["credit", "card", "bank", "account", "savings", "current", "upi", "debit"]);
 
-export function senseAccount(text: string, accounts: AccountLite[]): Sensed {
-  const usable = accounts.filter((a) => a.type !== "cash");
+/** `typeHint`: when the reader already knows the kind of account (a bank statement, a card statement), only that kind is considered. */
+export function senseAccount(text: string, accounts: AccountLite[], typeHint?: "bank" | "credit_card"): Sensed {
+  const usable = accounts.filter((a) => a.type !== "cash" && (!typeHint || a.type === typeHint));
   const hits = issuerHits(text);
   const type = statementType(text);
   const head = issuerHits(text.slice(0, 500));

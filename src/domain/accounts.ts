@@ -38,6 +38,21 @@ export function walletBrandFor(account: Account | undefined, brands: VoucherBran
   return [...brands].sort((a, b) => b.name.length - a.name.length).find((b) => n.includes(b.name.toLowerCase())) ?? null;
 }
 
+/** What a payment made from this account is paid with: a purchase or fee from a voucher wallet (Amazon Pay) is paid with that voucher, so it never counts again. Undefined for anything else. */
+export function impliedVoucherId(account: Account | undefined, kind: string, brands: VoucherBrand[]): string | undefined {
+  if (kind !== "purchase" && kind !== "fee") return undefined;
+  return walletBrandFor(account, brands)?.id;
+}
+
+/**
+ * Can the payment method of this transaction be changed? A row read from a statement file belongs to that statement's card, so it
+ * is locked with the rest of what the bank wrote. A row from an email, a text message or pasted text had its card worked out (or
+ * guessed), and a manual entry is yours: those can be corrected.
+ */
+export function accountIsEditable(r: { importSource: string; needsCard?: boolean }): boolean {
+  return r.importSource === "Manual entry" || !!r.needsCard || /^(Captured message|Pasted text)/.test(r.importSource);
+}
+
 /** The wallet payment method for a voucher wallet, when there is one. */
 export function walletAccountFor(brand: VoucherBrand | undefined, accounts: Account[]): Account | null {
   if (!brand) return null;

@@ -13,7 +13,7 @@ import { RELATIONSHIPS, type Participant, type Relationship } from "@/domain/typ
  * for linking a future sign-up; nothing here gives anyone access to your money.
  */
 export function ContactsCard({ onRemove }: { onRemove: (id: string) => void }) {
-  const { participants, meId, partnerId, addParticipant, updateParticipant } = useStore();
+  const { participants, meId, partnerId, addParticipant, updateParticipant, setPartnerNickname } = useStore();
   const [dlg, setDlg] = useState<{ person?: Participant } | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -23,13 +23,15 @@ export function ContactsCard({ onRemove }: { onRemove: (id: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   const others = participants.filter((p) => p.id !== meId);
   const linked = !!dlg?.person?.userId;
+  // Your partner's name, email and relationship are theirs; only what you call them is yours to set.
+  const editingPartner = !!dlg?.person && dlg.person.id === partnerId;
 
   const open = (person?: Participant) => {
     setDlg({ person }); setError(null);
     setName(person?.name ?? ""); setNick(person?.nickname ?? ""); setEmail(person?.email ?? ""); setRel(person?.relationship ?? "friend"); setLabel(person?.relationshipLabel ?? "");
   };
   const save = () => {
-    const err = dlg?.person
+    const err = editingPartner ? setPartnerNickname(nick) : dlg?.person
       ? updateParticipant(dlg.person.id, { name, nickname: nick.trim() || null, email: email.trim() || null, relationship: rel, relationshipLabel: rel === "custom" ? label : null })
       : addParticipant(name, { email, nickname: nick, relationship: rel, relationshipLabel: label }).error ?? null;
     if (err) setError(err); else setDlg(null);
@@ -42,7 +44,7 @@ export function ContactsCard({ onRemove }: { onRemove: (id: string) => void }) {
       <CardTitle tip="Everyone you split with, with or without an account. Email is optional and never gives anyone access to your finances." action={<span className="text-xs text-muted">{others.length === 0 ? "None yet" : `${others.length} added`}</span>}>Friends &amp; Family</CardTitle>
       <ul className="divide-y divide-border text-sm">
         {others.map((p) => {
-          const canEdit = !p.pendingEmail && (p.id === partnerId ? false : true);
+          const canEdit = !p.pendingEmail;
           return (
             <li key={p.id} className="flex items-center gap-3 py-2.5">
               <PersonGlyph name={p.name} id={p.id} size={36} />
@@ -68,14 +70,14 @@ export function ContactsCard({ onRemove }: { onRemove: (id: string) => void }) {
           <div className="space-y-3 pb-1 text-sm">
             <Field label="Name" error={error && !error.toLowerCase().includes("email") && !error.toLowerCase().includes("relationship") ? error : null}><Input autoFocus value={name} disabled={linked} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="e.g. Karthik" maxLength={60} /></Field>
             <Field label="Nickname (optional)"><Input value={nick} onChange={(e) => { setNick(e.target.value); setError(null); }} placeholder="What you call them, e.g. Varu" maxLength={30} /></Field>
-            <Field label="Email (optional)" error={error && error.toLowerCase().includes("email") ? error : null}><Input type="email" inputMode="email" value={email} disabled={linked} onChange={(e) => { setEmail(e.target.value); setError(null); }} placeholder="name@example.com" maxLength={200} /></Field>
-            {linked && <p className="text-xs text-muted">{dlg.person?.name} has an account, so their name and email come from them. You can still change how you know them.</p>}
-            <div className="space-y-1.5">
+            {!editingPartner && <Field label="Email (optional)" error={error && error.toLowerCase().includes("email") ? error : null}><Input type="email" inputMode="email" value={email} disabled={linked} onChange={(e) => { setEmail(e.target.value); setError(null); }} placeholder="name@example.com" maxLength={200} /></Field>}
+            {linked && <p className="text-xs text-muted">{dlg.person?.name} has an account, so their name and email come from them. {editingPartner ? "The nickname is only for you." : "You can still change how you know them."}</p>}
+            {!editingPartner && <div className="space-y-1.5">
               <div className="text-xs font-medium text-muted">Relationship</div>
               <ChipGroup label="Relationship" options={RELATIONSHIPS.map((r) => ({ id: r, label: RELATIONSHIP_LABEL[r] }))} value={rel} onChange={(r) => { setRel(r); setError(null); }} />
               {rel === "custom" && <Field label="What is the relationship?" error={error && error.toLowerCase().includes("relationship") ? error : null}><Input value={label} onChange={(e) => { setLabel(e.target.value); setError(null); }} placeholder="e.g. Flatmate, Colleague" maxLength={30} /></Field>}
-            </div>
-            <p className="rounded-xl bg-background p-3 text-xs text-muted">Adding someone shares nothing. They only see expenses you split with them, once linked.</p>
+            </div>}
+            {!editingPartner && <p className="rounded-xl bg-background p-3 text-xs text-muted">Adding someone shares nothing. They only see expenses you split with them, once linked.</p>}
             <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => setDlg(null)}>Cancel</Button><Button variant="primary" disabled={!name.trim()} onClick={save}>{dlg.person ? "Save" : "Add"}</Button></div>
           </div>
         )}

@@ -7,7 +7,8 @@ import { getSession } from "@/lib/auth/session";
 import { ensureHouseholdReady, participantIdFor } from "@/lib/data/load";
 import { createFirestoreHouseholdStore } from "@/lib/households/firestore-store";
 import { getMembership } from "@/lib/households/service";
-import { suggesterFromEnv } from "@/lib/import/ai";
+import { trackedClaude, trackedSuggest } from "@/lib/ai-usage/server";
+import type { AiFeature } from "@/domain/ai-usage";
 import { claudeFromEnv } from "@/lib/import/ai-extract";
 import { FileError } from "@/lib/import/files";
 import type { Intake, IntakeOpts } from "@/lib/import/intake";
@@ -24,7 +25,7 @@ export function parseDecisions(raw: unknown): Record<string, "import" | "skip"> 
 }
 
 export const sha256 = (s: string | Uint8Array) => createHash("sha256").update(s).digest("hex");
-const deps = (): ImportDeps => ({ sha256: (s) => sha256(s), now: () => Date.now(), newId: () => randomUUID(), suggest: suggesterFromEnv(process.env) });
+const deps = (uid: string): ImportDeps => ({ sha256: (s) => sha256(s), now: () => Date.now(), newId: () => randomUUID(), suggest: trackedSuggest(process.env, uid, "categories") });
 const status = { invalid: 400, not_found: 404, already_imported: 409, too_large: 413, check_failed: 422 } as const;
 
 /** Same-origin, signed-in, member of a household. Returns a response to send back when any check fails. */
@@ -46,22 +47,25 @@ export async function authorize() {
 export async function runImport(
   who: { session: { uid: string }; membership: NonNullable<Awaited<ReturnType<typeof getMembership>>> },
   mode: "preview" | "commit", ai: boolean, build: (o: Pick<IntakeOpts, "accounts" | "ai" | "claude" | "today">) => Promise<Intake>,
+  feature: AiFeature = "import",
 ) {
   try {
     const repo = createFirestoreRepository(who.membership.household.id);
-    const intake = await build({ accounts: await repo.accounts.list(), ai, claude: ai ? claudeFromEnv(process.env) : null, today: new Date().toISOString().slice(0, 10) });
+    const intake = await build({ accounts: await repo.accounts.list(), ai, claude: ai ? trackedClaude(claudeFromEnv(process.env), who.session.uid, feature) : null, today: new Date().toISOString().slice(0, 10) });
     if (intake.kind === "need_account") {
       if (mode === "commit") return NextResponse.json({ error: "Choose which payment method this is for." }, { status: 400 });
       return NextResponse.json({ ok: true, needAccount: { reason: intake.reason, candidates: intake.candidates }, extraction: intake.ai });
     }
-    if (mode === "preview") return NextResponse.json({ ok: true, preview: await previewImport(repo, intake.input, deps()), extraction: intake.ai });
+    if (mode === "preview") return NextResponse.json({ ok: true, preview: await previewImport(repo, intake.input, deps(who.session.uid)), extraction: intake.ai });
     await ensureHouseholdReady(repo, who.membership.members);
-    const result = await commitImport(repo, { uid: who.session.uid, participantId: participantIdFor(who.session.uid) }, intake.input, deps());
+    const result = await commitImport(repo, { uid: who.session.uid, participantId: participantIdFor(who.session.uid) }, intake.input, deps(who.session.uid));
     return NextResponse.json({ ok: true, result });
   } catch (e) {
     if (e instanceof FileError) return NextResponse.json({ error: e.message }, { status: 400 });
     if (e instanceof ImportError) return NextResponse.json({ error: e.message }, { status: status[e.code] });
     console.error("import failed", (e as { code?: string }).code, String((e as Error).message).split("\n")[0].slice(0, 160));
-    return NextResponse.json({ error: "Could not read that. Try again." }, { status: 500 });
+    // The statement may have been read fine and failed while being saved: say which, and that nothing was kept.
+    const saving = mode === "commit";
+    return NextResponse.json({ error: saving ? "The statement was read, but saving it failed, so nothing was added. Try again; if it keeps happening, tell the app owner." : "Could not read that. Try again." }, { status: 500 });
   }
 }

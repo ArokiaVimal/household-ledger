@@ -58,4 +58,10 @@ describe("what you usually do with a merchant", () => {
     expect(usualFor("Zepto", [rec("1", "2026-10-01", "cc_hdfc", { mode: "custom", participantIds: ["me", "wife"], values: { me: 1, wife: 1 } }), rec("2", "2026-10-05", "cc_hdfc", { mode: "custom", participantIds: ["me", "wife"], values: { me: 1, wife: 1 } })]).split).toBeUndefined();
     expect(usualFor("Unknown", [])).toEqual({});
   });
+  it("reads a card-bill payment: the card it pays and the bank it comes from", () => {
+    const f = readNote("paid amex bill 48210 from hdfc bank yesterday", ctx);
+    expect(f).toMatchObject({ kind: "cc_payment", paidCardId: "cc_amex", amountPaise: 4821000 });
+    expect(f.accountId).toBe("bank_hdfc");
+    expect(readNote("electricity bill 1200", ctx).kind).toBeUndefined();
+  });
 });

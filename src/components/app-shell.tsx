@@ -1,7 +1,7 @@
 "use client";
-import { Bell, ChevronLeft, ChevronRight, Lock, LockOpen, LogOut, MoreHorizontal, Plus, Search, Settings, UserRound } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, FileUp, Lock, LockOpen, LogOut, MoreHorizontal, Plus, Search, Settings, UserRound } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useStore } from "@/data/store";
 import { cn } from "@/lib/cn";
@@ -12,12 +12,13 @@ import { LogoMark } from "./logo";
 import { useProfile } from "./profile-context";
 import { OPEN_ADD_EVENT } from "./onboarding";
 import { TxnAddDialog } from "./txn-edit-dialog";
-import { NAV } from "./nav-items";
+import { BAR_ORDER, NAV } from "./nav-items";
+import { NotificationsBell } from "./notifications";
 import { Dialog } from "./ui";
 
 
 /** Previous / next month. The next month is disabled once you reach the current month. */
-function MonthStepper({ className }: { className?: string }) {
+function MonthStepper({ className, compact }: { className?: string; compact?: boolean }) {
   const { month, setMonth, today, monthLocked, toggleMonthLock } = useStore();
   // The demo's pretend "today" can be behind the real calendar; never block months that have really arrived.
   const real = new Date().toISOString().slice(0, 10);
@@ -26,9 +27,9 @@ function MonthStepper({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center rounded-full bg-surface p-0.5 ring-1 md:ring-2", monthLocked ? "ring-accent" : "ring-accent/30", className)} role="group" aria-label="Month">
       <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className={btn}><ChevronLeft size={18} aria-hidden /></button>
-      <span className="num min-w-[5.75rem] flex-1 text-center text-[15px] font-bold md:text-base" aria-live="polite">{monthLabel(month)}</span>
+      <span className={cn("num flex-1 text-center text-[15px] font-bold md:min-w-[5.75rem] md:text-base", compact ? "min-w-[4.75rem]" : "min-w-[5.75rem]")} aria-live="polite">{monthLabel(month)}</span>
       <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} disabled={isAfterMonth(shiftMonth(month, 1), latest)} aria-label="Next month" className={btn}><ChevronRight size={18} aria-hidden /></button>
-      <button type="button" onClick={toggleMonthLock} aria-pressed={monthLocked} aria-label={monthLocked ? `Unlock ${monthLabel(month)}` : `Lock to ${monthLabel(month)}`} title={monthLocked ? "Locked to this month. Tap to unlock." : "Lock the app to this month"} className={cn("grid size-9 place-items-center rounded-full", monthLocked ? "bg-accent text-white" : "text-muted hover:bg-background")}>{monthLocked ? <Lock size={16} aria-hidden /> : <LockOpen size={16} aria-hidden />}</button>
+      <button type="button" onClick={toggleMonthLock} aria-pressed={monthLocked} aria-label={monthLocked ? `Unlock ${monthLabel(month)}` : `Lock to ${monthLabel(month)}`} title={monthLocked ? "Locked to this month. Tap to unlock." : "Lock the app to this month"} className={cn("size-9 place-items-center rounded-full", compact ? "hidden md:grid" : "grid", monthLocked ? "bg-accent text-white" : "text-muted hover:bg-background")}>{monthLocked ? <Lock size={16} aria-hidden /> : <LockOpen size={16} aria-hidden />}</button>
     </div>
   );
 }
@@ -48,6 +49,26 @@ function GroupSwitch({ className }: { className?: string }) {
         );
       })}
     </div>
+  );
+}
+
+/** The group on phones: its name as a small button that opens a list. Saves a whole row compared with tabs. */
+function GroupMenu({ className }: { className?: string }) {
+  const { groups, activeGroup, setGroupId } = useStore();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label={`Group: ${activeGroup.name}`} className={cn("flex min-h-10 max-w-[7.5rem] shrink-0 items-center gap-1 rounded-full bg-surface px-3 text-sm font-medium", className)}>
+        <span className="truncate">{activeGroup.name}</span><ChevronDown size={14} aria-hidden className="shrink-0 text-muted" />
+      </button>
+      <Dialog open={open} onClose={() => setOpen(false)} title="Group">
+        <ul className="space-y-1.5 pb-3" role="radiogroup" aria-label="Payment group">
+          {groups.map((g) => (
+            <li key={g.id}><button type="button" role="radio" aria-checked={g.id === activeGroup.id} onClick={() => { setGroupId(g.id); setOpen(false); }} className={cn("flex min-h-12 w-full items-center justify-between rounded-2xl border px-4 text-left", g.id === activeGroup.id ? "border-accent bg-accent/10 font-medium text-accent" : "border-border bg-background")}>{g.name}{g.id === activeGroup.id && <Check size={16} aria-hidden />}</button></li>
+          ))}
+        </ul>
+      </Dialog>
+    </>
   );
 }
 
@@ -73,7 +94,7 @@ function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
       {open && (
         <div role="menu" className="absolute right-0 top-12 z-40 w-56 rounded-2xl bg-surface p-1.5 shadow-xl ring-1 ring-border">
           {profile && <div className="px-3 py-2"><div className="truncate text-sm font-semibold">{profile.displayName}</div><div className="truncate text-xs text-muted">{profile.email}</div></div>}
-          <Link href="/profile" role="menuitem" onClick={() => setOpen(false)} className={item}><UserRound size={16} aria-hidden />Your profile</Link>
+          <Link href="/settings?s=profile" role="menuitem" onClick={() => setOpen(false)} className={item}><UserRound size={16} aria-hidden />Your profile</Link>
           <Link href="/settings" role="menuitem" onClick={() => setOpen(false)} className={item}><Settings size={16} aria-hidden />Settings</Link>
           <button type="button" role="menuitem" onClick={onSignOut} className={cn(item, "text-danger")}><LogOut size={16} aria-hidden />Sign out</button>
         </div>
@@ -85,15 +106,25 @@ function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
 export function AppShell({ children, user }: { children: ReactNode; user: { email: string } | null }) {
   const path = usePathname();
   const router = useRouter();
-  const { live, previewing, staged, syncError, dismissSyncError, nameOf, meId } = useStore();
+  const { live, demo, staged, syncError, dismissSyncError, nameOf, meId } = useStore();
   // Solo use is complete on its own: settle-up and the Mine/Together switch appear once a partner is linked.
-  const visibleNav = NAV.filter((n) => n.href !== "/profile");
-  const phoneBar = visibleNav.filter((n) => n.bar);
+  // The month and group switches only appear on screens they change. Everywhere else they just push the content down.
+  const monthScreens = ["/timeline", "/recurring", "/vouchers", "/insights"];
+  const lensScreens = ["/", "/transactions", "/reports"];
+  // The Unverified list shows every month and group at once, so the switches would mislead there.
+  const sp = useSearchParams();
+  const unverifiedList = sp.get("v") === "unverified" && path.startsWith("/transactions");
+  const allMonths = unverifiedList && sp.get("scope") === "all";
+  const showGroup = !unverifiedList && lensScreens.some((h) => (h === "/" ? path === "/" : path.startsWith(h)));
+  const showMonth = !allMonths && (showGroup || unverifiedList || monthScreens.some((h) => path.startsWith(h)));
+  const visibleNav = NAV;
+  const phoneBar = BAR_ORDER.flatMap((h) => visibleNav.filter((n) => n.href === h));
   const phoneMore = NAV.filter((n) => !n.bar);
   const [moreOpen, setMoreOpen] = useState(false);
   const [q, setQ] = useState("");
   const { profile } = useProfile();
   const [adding, setAdding] = useState(false);
+  const [addMenu, setAddMenu] = useState(false);
   const [round, setRound] = useState(0);
   // Quiet Gmail check once per tab session when the app opens (the server skips it when Gmail is not connected or was checked recently).
   useEffect(() => {
@@ -130,48 +161,53 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
             ))}
           </aside>
           <div className="min-w-0">
-            {!live && (
+            {(!live || demo) && (
               <div className="mx-4 mt-3 rounded-full bg-warn-soft px-4 py-1 text-center text-xs text-warn md:mx-0 md:mt-0" role="status">
                 Demo mode · fictional data · nothing is saved
               </div>
             )}
-            <header className="px-4 pb-3 pt-4 md:px-0 md:pb-4">
-              <div className="flex items-center gap-3">
-                <div className="mr-auto min-w-0">
-                  <p className="truncate text-xl font-semibold tracking-tight">{path === "/" ? <>Hi {profile ? greetingName(profile) : (() => { const n = nameOf(meId); return n && n !== meId ? n.split(/\s+/)[0] : "there"; })()} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
+            <header className="px-4 pb-2 pt-3 md:px-0 md:pb-4">
+              <div className="flex items-center gap-3 max-md:justify-end">
+                <div className={cn("min-w-0", path === "/" ? "mr-auto" : "hidden md:mr-auto md:block")}>
+                  <p className={cn("truncate text-xl font-semibold tracking-tight", path !== "/" && "hidden")}>{path === "/" ? <>Hi {profile ? greetingName(profile) : (() => { const n = nameOf(meId); return n && n !== meId ? n.split(/\s+/)[0] : "there"; })()} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
                   <p className="hidden text-sm text-muted xl:block">{path === "/" ? "Here's where your money went this month" : "Where your money went, and who owes what"}</p>
                 </div>
                 <form onSubmit={go} role="search" className="hidden w-64 items-center gap-2 rounded-full bg-surface px-4 lg:flex">
                   <Search size={16} className="text-muted" aria-hidden />
                   <input aria-label="Search transactions" placeholder="Search transactions…" value={q} onChange={(e) => setQ(e.target.value)} className="min-h-10 w-full bg-transparent text-sm outline-none" />
                 </form>
-                <MonthStepper className="hidden md:flex" />
-                <GroupSwitch className="hidden max-w-lg md:flex" />
-                <Link href="/review" aria-label={`${staged.length} transactions awaiting review`} className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
-                  <Bell size={18} aria-hidden />
-                  {staged.length > 0 && <span className="absolute right-1.5 top-1.5 size-2.5 rounded-full bg-danger" />}
+                {showMonth && path !== "/" && <MonthStepper compact className="min-w-0 flex-1 md:hidden" />}
+                {showGroup && path !== "/" && <GroupMenu className="md:hidden" />}
+                {showMonth && <MonthStepper className="hidden md:flex" />}
+                {showGroup && <GroupSwitch className="hidden max-w-lg md:flex" />}
+                <Link href="/transactions?v=unverified&scope=all" aria-label={staged.length ? `${staged.length} unverified transactions` : "Unverified transactions"} title="Unverified" className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
+                  <ClipboardCheck size={18} aria-hidden />
+                  {staged.length > 0 && <span aria-hidden className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-semibold leading-5 text-white">{staged.length > 99 ? "99+" : staged.length}</span>}
                 </Link>
+                <NotificationsBell />
                 {user && <AccountMenu onSignOut={signOut} />}
               </div>
-              <div className="mt-2 space-y-1.5 md:hidden">
-                <MonthStepper className="w-full" />
-                <GroupSwitch className="w-full" />
-              </div>
+              {path === "/" && showMonth && (
+                <div className="mt-2 flex items-center gap-2 md:hidden">
+                  <MonthStepper className="min-w-0 flex-1" />
+                  <GroupMenu />
+                </div>
+              )}
             </header>
-            {previewing && (
-              <div role="status" className="mx-4 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-warn-soft px-4 py-2.5 text-sm text-warn md:mx-0">
-                <span className="min-w-0 flex-1"><b>Preview.</b> {staged.length} imported transaction{staged.length === 1 ? " is" : "s are"} waiting for your review. These numbers are provisional, and nothing counts until you approve it.</span>
-                <Link href="/review" className="shrink-0 rounded-full bg-warn px-3.5 py-1.5 text-xs font-medium text-white">Review now</Link>
-              </div>
-            )}
             <main className="px-4 pb-[calc(var(--sab)+9rem)] md:px-0 md:pb-4">{children}</main>
           </div>
         </div>
       </div>
-      <button onClick={() => setAdding(true)} aria-label="Add transaction"
+      <button data-fab onClick={() => (path.startsWith("/transactions") ? setAddMenu(true) : setAdding(true))} aria-label="Add transaction"
         className="fixed bottom-[calc(var(--sab)+4.75rem)] right-4 z-30 flex items-center gap-1.5 rounded-full bg-accent px-4 py-3 text-sm font-medium text-white shadow-lg hover:bg-accent/90 md:bottom-8 md:right-8">
         <Plus size={18} aria-hidden /> Add
       </button>
+      <Dialog open={addMenu} onClose={() => setAddMenu(false)} title="Add">
+        <div className="grid grid-cols-2 gap-2 pb-3">
+          <button type="button" onClick={() => { setAddMenu(false); setAdding(true); }} className="flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-background p-3 text-center text-sm font-medium"><Plus size={22} aria-hidden className="text-accent" />Add transaction</button>
+          <button type="button" onClick={() => { setAddMenu(false); router.push("/import"); }} className="flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-background p-3 text-center text-sm font-medium"><FileUp size={22} aria-hidden className="text-accent" />Import</button>
+        </div>
+      </Dialog>
       <TxnAddDialog open={adding} round={round} onClose={() => setAdding(false)} onAnother={() => setRound((r) => r + 1)}
         onAdded={(m) => { setToast(m); setTimeout(() => setToast(""), 3000); }} />
       {syncError && (
@@ -186,7 +222,6 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
           <Link key={href} href={href} aria-current={active(href) ? "page" : undefined}
             className={cn("relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", active(href) ? "font-medium text-accent" : "text-muted")}>
             <I size={20} aria-hidden /> {label}
-            {href === "/review" && staged.length > 0 && <span aria-label={`${staged.length} waiting`} className="absolute right-[22%] top-1.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-semibold leading-4 text-white">{staged.length > 99 ? "99+" : staged.length}</span>}
           </Link>
         ))}
         <button type="button" onClick={() => setMoreOpen(true)} aria-haspopup="dialog" aria-expanded={moreOpen}

@@ -11,7 +11,7 @@ export const maxDuration = 60;
 const AUTO_EVERY_MS = 6 * 3_600_000;
 const body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("status") }),
-  z.object({ action: z.literal("sync"), auto: z.boolean().optional() }),
+  z.object({ action: z.literal("sync"), auto: z.boolean().optional(), days: z.number().int().min(1).max(90).optional() }),
   z.object({ action: z.literal("disconnect") }),
   z.object({ action: z.literal("setDefault"), defaultAccountId: z.string().min(1).max(128) }),
 ]);
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
         if (link.needsReconnect) return NextResponse.json({ ok: true, skipped: "needs reconnect", needsReconnect: true });
         // The quiet sync when the app opens runs at most every few hours; "Sync now" always runs.
         if (a.auto && link.lastSyncAt && Date.now() - Date.parse(link.lastSyncAt) < AUTO_EVERY_MS) return NextResponse.json({ ok: true, skipped: "recent" });
-        const out = await runSync(link, cfg);
+        const out = await runSync(link, cfg, a.days);
         return NextResponse.json({ ok: true, counts: out.counts, needsReconnect: !!out.link.needsReconnect });
       }
       case "setDefault": {

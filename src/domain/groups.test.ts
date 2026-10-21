@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { pairBalances } from "./balances";
 import { attribute, summarizeGroup, withMine } from "./groups";
 import type { ExpenseRecord, PaymentGroup, SplitConfig } from "./types";
 
@@ -49,5 +50,24 @@ describe("payment groups", () => {
     expect(withMine([]).map((g) => g.name)).toEqual(["Mine"]);
     expect(withMine([{ ...wife, order: 1 }, { ...parents, order: 0 }]).map((g) => g.name)).toEqual(["Mine", "Parents", "Wife & Me"]);
     expect(withMine([{ ...wife, order: 0 }, { ...mine, order: 1 }]).map((g) => g.name)).toEqual(["Wife & Me", "Mine"]);
+  });
+  it("a gift you paid for your parents counts for them and in Mine (you cover them), and nobody owes you", () => {
+    const gift = rec({ split: { mode: "equal", participantIds: ["mom", "dad"], gift: true } });
+    expect(attribute(gift, parents, groups, ME)).toMatchObject({ allocatedPaise: 300000, myPaise: 0, onBehalfPaise: 300000, paidPaise: 300000 });
+    expect(attribute(gift, mine, groups, ME)).toMatchObject({ allocatedPaise: 300000, onBehalfPaise: 300000 });
+    expect(pairBalances([gift], [])).toEqual([]);
+    // The same split without the flag is a debt.
+    expect(pairBalances([rec({ split: { mode: "equal", participantIds: ["mom", "dad"] } })], []).length).toBe(2);
+  });
+  it("paying for two friends without being in the split: each owes you half", () => {
+    const r = rec({ amountPaise: 100000, split: { mode: "equal", participantIds: ["a", "b"] } });
+    expect(pairBalances([r], []).map((x) => [x.from, x.to, x.outstanding]).sort()).toEqual([["a", ME, 50000], ["b", ME, 50000]]);
+  });
+  it("a transaction can be counted in a group on purpose, in full, whoever is in the split", () => {
+    const tv = rec({ amountPaise: 80000, split: { mode: "personal", participantIds: [ME] }, countsInGroupId: "g_parents" });
+    expect(attribute(tv, parents, groups, ME)).toMatchObject({ allocatedPaise: 80000, myPaise: 80000, onBehalfPaise: 0, paidPaise: 80000 });
+    expect(attribute(tv, wife, groups, ME)).toBeNull();
+    expect(attribute(tv, mine, groups, ME)).toMatchObject({ allocatedPaise: 80000 });
+    expect(attribute(rec({ amountPaise: 80000, split: { mode: "personal", participantIds: [ME] } }), parents, groups, ME)).toBeNull();
   });
 });

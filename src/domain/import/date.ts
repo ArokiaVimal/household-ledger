@@ -9,10 +9,26 @@ function valid(y: number, m: number, d: number): string | null {
 const year2 = (yy: number) => (yy < 70 ? 2000 + yy : 1900 + yy);
 
 /**
- * Statement dates to YYYY-MM-DD. Day-first for slashed/dashed numeric dates (Indian banks): 03/09/2026 is 3 September.
+ * Statement dates to YYYY-MM-DD. Day-first for slashed/dashed numeric dates by default (Indian banks): 03/09/2026 is 3 September. Pass "mdy" for US-style files.
  * Also: 2026-09-03, 3 Sep 2026, 03-Sep-26, "3 Sep, 2026", a trailing time is ignored, and Excel serial numbers.
  */
-export function parseStatementDate(input: string | number | Date | null | undefined): string | null {
+export type DateOrder = "dmy" | "mdy";
+
+/**
+ * Day-first or month-first for a column of slashed dates. A first part above 12 means day-first; a second part above 12 means
+ * month-first (US exports such as American Express activity files: 10/17/2026). All ambiguous: day-first, as Indian banks print.
+ */
+export function detectDateOrder(values: (string | number | null | undefined)[]): DateOrder {
+  let dmy = 0, mdy = 0;
+  for (const v of values) {
+    const m = String(v ?? "").trim().match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})/);
+    if (!m) continue;
+    if (+m[1] > 12 && +m[2] <= 12) dmy++; else if (+m[2] > 12 && +m[1] <= 12) mdy++;
+  }
+  return mdy > dmy ? "mdy" : "dmy";
+}
+
+export function parseStatementDate(input: string | number | Date | null | undefined, order: DateOrder = "dmy"): string | null {
   if (input === null || input === undefined || input === "") return null;
   if (input instanceof Date) return Number.isNaN(input.getTime()) ? null : valid(input.getUTCFullYear(), input.getUTCMonth() + 1, input.getUTCDate());
   if (typeof input === "number" || /^\d{5}(\.\d+)?$/.test(String(input).trim())) {
@@ -25,9 +41,9 @@ export function parseStatementDate(input: string | number | Date | null | undefi
   let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
   if (m) return valid(+m[1], +m[2], +m[3]);
   m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-  if (m) return valid(+m[3], +m[2], +m[1]);
+  if (m) return order === "mdy" ? valid(+m[3], +m[1], +m[2]) : valid(+m[3], +m[2], +m[1]);
   m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2})$/);
-  if (m) return valid(year2(+m[3]), +m[2], +m[1]);
+  if (m) return order === "mdy" ? valid(year2(+m[3]), +m[1], +m[2]) : valid(year2(+m[3]), +m[2], +m[1]);
   m = s.match(/^(\d{1,2})[ -/.]([A-Za-z]{3,9})[ -/.](\d{2}|\d{4})$/);
   if (m) {
     const mi = MONTHS.indexOf(m[2].slice(0, 3).toLowerCase());

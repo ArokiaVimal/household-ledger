@@ -44,10 +44,10 @@ export default function Vouchers() {
         <div className="space-y-5">
           {cardsWithVouchers.length > 1 && <CompactChips label="Payment method" options={[{ id: "", label: "All cards" }, ...cardsWithVouchers.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))]} selected={[accountId]} onPick={setAccountId} />}
 
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-3">
-            <Card className="p-4"><div className="text-xs text-muted">Topped up in {monthName(month)}</div><div className="num text-2xl font-semibold">{formatINR(outflow)}</div><div className="text-xs text-muted">the one cash outflow, not shared</div></Card>
-            <Card className="p-4"><div className="text-xs text-muted">Bought from wallets (recorded)</div><div className="num text-2xl font-semibold">{formatINR(usedMonth)}</div><div className="text-xs text-muted">not added to your spending again</div></Card>
-            <Card className="p-4"><div className="text-xs text-muted">Waiting for a wallet</div><div className="num text-2xl font-semibold">{formatINR(sum.unassigned.purchasedPaise)}</div>{sum.unassigned.purchases > 0 ? <Link href={`/transactions?month=${month}&voucher=none`} className="text-xs text-accent underline-offset-2 hover:underline">{sum.unassigned.purchases} purchase{sum.unassigned.purchases === 1 ? "" : "s"}, pick the brand</Link> : <div className="text-xs text-muted">nothing waiting</div>}</Card>
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <Card className="px-3 py-2.5 sm:p-4"><div className="text-xs text-muted">Topped up</div><div className="num text-base font-semibold sm:text-2xl">{formatINR(outflow)}</div><div className="hidden text-xs text-muted sm:block">the one cash outflow, not shared</div></Card>
+            <Card className="px-3 py-2.5 sm:p-4"><div className="text-xs text-muted">Used</div><div className="num text-base font-semibold sm:text-2xl">{formatINR(usedMonth)}</div><div className="hidden text-xs text-muted sm:block">not added to your spending again</div></Card>
+            <Card className="px-3 py-2.5 sm:p-4"><div className="text-xs text-muted">Waiting</div><div className="num text-base font-semibold sm:text-2xl">{formatINR(sum.unassigned.purchasedPaise)}</div>{sum.unassigned.purchases > 0 ? <Link href={`/transactions?month=${month}&voucher=none`} className="text-xs text-accent underline-offset-2 hover:underline">{sum.unassigned.purchases} purchase{sum.unassigned.purchases === 1 ? "" : "s"}, pick the brand</Link> : <div className="text-xs text-muted">nothing waiting</div>}</Card>
           </div>
 
           <section aria-label="By brand" className="space-y-2">

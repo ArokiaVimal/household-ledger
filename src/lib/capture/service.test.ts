@@ -36,6 +36,21 @@ describe("captureMessage", () => {
     const recs = (await repo.records.list()).sort((a, b) => a.amountPaise - b.amountPaise);
     expect(recs.map((r) => r.accountId)).toEqual(["bank_hdfc", "cc_icici"]);
   });
+  it("marks a message that names no card as needing one, and leaves a named one alone", async () => {
+    const repo = await setup();
+    await captureMessage(repo, who, "INR 2,350.50 spent on ICICI Bank Card XX4321 on 18-Oct-26 at AMAZON PAY INDIA. Avl Limit INR 1,00,000.00", deps());
+    await captureMessage(repo, who, "Rs 99.00 debited from a/c XX1234 to PAYTM", deps());
+    const recs = (await repo.records.list()).sort((a, b) => b.amountPaise - a.amountPaise);
+    expect(recs.map((r) => !!r.needsCard)).toEqual([false, true]);
+  });
+  it("a purchase filed under the Amazon Pay wallet is marked paid with the Amazon voucher, so it is not counted twice", async () => {
+    const repo = await setup();
+    await repo.accounts.put({ id: "wl_amazonpay", name: "Amazon Pay", type: "wallet", parentId: "cc_icici" });
+    await repo.voucherBrands.put({ id: "vb_amazon", name: "Amazon" });
+    await captureMessage(repo, { ...who, defaultAccountId: "wl_amazonpay" }, "Rs 99.00 debited from a/c XX1234 to PAYTM", deps());
+    const [rec] = await repo.records.list();
+    expect(rec).toMatchObject({ accountId: "wl_amazonpay", paidWithVoucherId: "vb_amazon" });
+  });
   it("the same message twice, or the same reference, is added once", async () => {
     const repo = await setup();
     expect((await captureMessage(repo, who, UPI, deps())).result).toBe("added");
@@ -57,6 +72,13 @@ describe("captureMessage", () => {
     expect(await repo.cardBills.list()).toMatchObject([{ accountId: "cc_icici", totalDuePaise: 4125000, dueDate: "2026-11-05", source: "message" }]);
     expect(await repo.records.list()).toEqual([]);
     expect((await captureMessage(repo, who, msg, deps())).result).toBe("duplicate");
+  });
+  it("a card-due message does not add a second bill when a statement already made one for the same due date and amount", async () => {
+    const repo = await setup();
+    await repo.cardBills.put({ id: "from-statement", accountId: "cc_icici", statementDate: "2026-10-20", dueDate: "2026-11-05", totalDuePaise: 4125000, source: "statement" });
+    const r = await captureMessage(repo, who, "ICICI Bank Credit Card XX4321: Total Amt Due Rs 41,250.00, Min Amt Due Rs 2,060.00, Due Date 05-Nov-26.", deps());
+    expect(r.result).toBe("duplicate");
+    expect(await repo.cardBills.list()).toHaveLength(1);
   });
   it("a dry run reports what would happen and saves nothing", async () => {
     const repo = await setup();

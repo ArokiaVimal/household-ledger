@@ -1,5 +1,5 @@
 "use client";
-import { AlertTriangle, CalendarClock, Info } from "lucide-react";
+import { AlertTriangle, CalendarClock, CircleDashed, Info } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 import { Badge, Card, CardTitle, EmptyState, PageHeader } from "@/components/ui";
@@ -15,7 +15,7 @@ const money = (p: number) => `${p < 0 ? "−" : ""}${formatINR(Math.abs(p))}`;
 
 /** What happened this month, what is coming, and a forecast balance. Recorded figures are solid; everything else says it is an estimate. */
 export default function Timeline() {
-  const { month, today, records, accounts, cardBills, recurringItems, accountName, live } = useStore();
+  const { month, today, shown: records, accounts, cardBills, recurringItems, accountName, live } = useStore();
   const t = useMemo(() => buildTimeline({ month, today, records, accounts, cardBills, recurringItems, accountName }), [month, today, records, accounts, cardBills, recurringItems, accountName]);
   const isPast = month < today.slice(0, 7);
   const groups = useMemo(() => {
@@ -27,10 +27,10 @@ export default function Timeline() {
 
   return (
     <>
-      <PageHeader title="Timeline" tip="Your month in order. Estimates use only approved transactions and items you added. Nothing is guessed." sub={`${monthLabel(month)} · ${live ? "your real entries" : "sample data"}`} />
+      <PageHeader title="Timeline" tip="Your month in order. Estimates use your transactions, verified or not, and items you added. Nothing is guessed." sub={`${monthLabel(month)} · ${live ? "your real entries" : "sample data"}`} />
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card className="p-4">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+        <Card className="col-span-2 px-3.5 py-3 sm:col-span-1 sm:p-4">
           <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium text-muted">Recorded balance</span>{t.recorded && <Badge tone="good">Recorded</Badge>}</div>
           {t.recorded ? (<>
             <div className="num mt-2 text-2xl font-semibold">{money(t.recorded.totalPaise)}</div>
@@ -40,15 +40,15 @@ export default function Timeline() {
             <Link href="/settings?s=methods" className="mt-1 inline-block text-xs font-medium text-accent underline">Add a balance in Payment methods</Link>
           </>)}
         </Card>
-        <Card className="border border-dashed border-border bg-background p-4">
+        <Card className="border border-dashed border-border bg-background px-3.5 py-3 sm:p-4">
           <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium text-muted">Estimated today</span><Badge>Estimate</Badge></div>
-          <div className="num mt-2 text-2xl font-semibold text-muted">{t.estimatedTodayPaise === null ? "—" : `≈ ${money(t.estimatedTodayPaise)}`}</div>
-          <p className="mt-1 text-xs text-muted">Recorded balance plus confirmed transactions since its date. Not a confirmed balance.</p>
+          <div className="num mt-1.5 text-xl font-semibold text-muted sm:mt-2 sm:text-2xl">{t.estimatedTodayPaise === null ? "—" : `≈ ${money(t.estimatedTodayPaise)}`}</div>
+          <p className="mt-1 hidden text-xs text-muted sm:block">Recorded balance plus confirmed transactions since its date. Not a confirmed balance.</p>
         </Card>
-        <Card className="border border-dashed border-border bg-background p-4">
+        <Card className="border border-dashed border-border bg-background px-3.5 py-3 sm:p-4">
           <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium text-muted">Forecast, end of {monthLabel(month).split(" ")[0]}</span><Badge>Forecast</Badge></div>
-          <div className={`num mt-2 text-2xl font-semibold ${t.forecastEndPaise !== null && t.forecastEndPaise < 0 ? "text-danger" : "text-muted"}`}>{t.forecastEndPaise === null ? "—" : `≈ ${money(t.forecastEndPaise)}`}</div>
-          <p className="mt-1 text-xs text-muted">{isPast ? "A past month has no forecast." : "After the bills, recurring payments and income you have entered."}</p>
+          <div className={`num mt-1.5 text-xl font-semibold sm:mt-2 sm:text-2xl ${t.forecastEndPaise !== null && t.forecastEndPaise < 0 ? "text-danger" : "text-muted"}`}>{t.forecastEndPaise === null ? "—" : `≈ ${money(t.forecastEndPaise)}`}</div>
+          <p className="mt-1 hidden text-xs text-muted sm:block">{isPast ? "A past month has no forecast." : "After the bills, recurring payments and income you have entered."}</p>
         </Card>
       </div>
 
@@ -69,7 +69,7 @@ export default function Timeline() {
         <Chip label="Still expected in" value={money(t.totals.expectedIn)} dashed /><Chip label="Still expected out" value={money(-t.totals.expectedOut)} dashed />
       </div>
 
-      {groups.length === 0 ? <Card><EmptyState title="Nothing on the timeline" hint="Approve transactions or add a bill to fill this in." /></Card> : (
+      {groups.length === 0 ? <Card><EmptyState title="Nothing on the timeline" hint="Verify transactions or add a bill to fill this in." /></Card> : (
         <Card className="p-0">
           <CardTitle>{" "}</CardTitle>
           <ol className="relative divide-y divide-border">
@@ -82,7 +82,7 @@ export default function Timeline() {
                       <div className="flex items-start gap-3">
                         <span aria-hidden className={`mt-1.5 size-3 shrink-0 rounded-full ${e.kind === "actual" ? "bg-accent" : "border-2 border-dashed border-accent bg-surface"}`} />
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5"><span className="truncate text-sm font-medium">{e.label}</span>{e.kind === "expected" && <Badge>Expected</Badge>}{e.estimated && <Badge tone="warn">Estimate</Badge>}{e.overdue && <Badge tone="bad">Overdue</Badge>}</div>
+                          <div className="flex flex-wrap items-center gap-1.5"><span className="truncate text-sm font-medium">{e.label}</span>{e.unverified && <CircleDashed size={14} role="img" aria-label="Unverified" className="shrink-0 text-warn" />}{e.kind === "expected" && <Badge>Expected</Badge>}{e.estimated && <Badge tone="warn">Estimate</Badge>}{e.overdue && <Badge tone="bad">Overdue</Badge>}</div>
                           <div className="text-xs text-muted">{TYPE_LABEL[e.type]}</div>
                         </div>
                         <div className="num text-right">

@@ -1,9 +1,8 @@
 "use client";
 import { Mail } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { MerchantAvatar } from "@/components/txn-row";
-import { Badge, Button, Card, CardTitle, CompactChips, ConfirmDialog } from "@/components/ui";
-import { useStore } from "@/data/store";
+import { BusyOverlay, ErrorDialog } from "@/components/feedback";
+import { Badge, Button, Card, CardTitle, ConfirmDialog } from "@/components/ui";
 
 interface Status { configured: boolean; connected: boolean; email: string | null; lastSyncAt: string | null; lastResult: { scanned: number; added: number; bills: number; duplicates: number } | null; needsReconnect: boolean; defaultAccountId: string | null }
 const NOTE: Record<string, { ok: boolean; text: string }> = {
@@ -25,8 +24,6 @@ async function call<T>(payload: Record<string, unknown>): Promise<{ ok: boolean;
 
 /** Reads your bank emails (only from bank, card and UPI senders) into the review queue. Read-only access, revocable any time. */
 export function GmailCard() {
-  const { accounts } = useStore();
-  const usable = accounts.filter((a) => a.type !== "cash" && !a.archived);
   const [s, setS] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -41,9 +38,9 @@ export function GmailCard() {
     });
   }, [load]);
 
-  const sync = async () => {
+  const sync = async (days?: number) => {
     setBusy(true); setMsg(null);
-    const r = await call<{ counts?: { scanned: number; added: number; bills: number; duplicates: number }; needsReconnect?: boolean; skipped?: string }>({ action: "sync" });
+    const r = await call<{ counts?: { scanned: number; added: number; bills: number; duplicates: number }; needsReconnect?: boolean; skipped?: string }>({ action: "sync", ...(days ? { days } : {}) });
     setBusy(false);
     if (!r.ok) return setMsg({ ok: false, text: r.error ?? "Could not sync." });
     if (r.needsReconnect) setMsg({ ok: false, text: "Google no longer allows this connection. Connect again." });
@@ -51,12 +48,11 @@ export function GmailCard() {
     void load();
   };
   const disconnect = async () => { await call<object>({ action: "disconnect" }); setMsg({ ok: true, text: "Gmail is disconnected." }); void load(); };
-  const changeDefault = async (id: string) => { setS((x) => (x ? { ...x, defaultAccountId: id } : x)); const r = await call<object>({ action: "setDefault", defaultAccountId: id }); if (!r.ok) setMsg({ ok: false, text: r.error ?? "Could not change that." }); };
 
   return (
     <Card className="space-y-4">
       <CardTitle action={<Badge tone={s?.connected && !s.needsReconnect ? "good" : "neutral"}>{s === null ? "…" : s.connected ? (s.needsReconnect ? "Reconnect" : "On") : "Off"}</Badge>}><span className="inline-flex items-center gap-2"><Mail size={16} aria-hidden className="text-accent" />Bank emails (Gmail)</span></CardTitle>
-      <p className="text-sm text-muted">Reads bank, card and UPI emails (read-only) into your review queue. You approve everything.</p>
+      <p className="text-sm text-muted">Reads bank, card and UPI emails (read-only) into Transactions as unverified. You verify them.</p>
 
       {s && !s.configured && (
         <p className="rounded-xl bg-warn-soft p-3 text-sm text-warn">Gmail isn&apos;t set up yet. The app owner needs to configure it once.<code>docs/GMAIL_SETUP.md</code>), and after that everyone can connect their own mailbox.</p>
@@ -65,20 +61,20 @@ export function GmailCard() {
       {s?.connected && (
         <div className="space-y-3">
           <p className="text-sm">Connected as <b>{s.email || "your Gmail"}</b>.{s.lastSyncAt ? ` Last checked ${new Date(s.lastSyncAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}${s.lastResult ? `: ${s.lastResult.added} new, ${s.lastResult.bills} card bill${s.lastResult.bills === 1 ? "" : "s"}` : ""}.` : " Not checked yet."}</p>
-          <div className="space-y-1.5">
-            <div className="text-xs font-medium text-muted">If an email does not say which card or bank, file it under</div>
-            <CompactChips label="Default payment method for emails" options={usable.map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={24} /> }))} selected={s.defaultAccountId ? [s.defaultAccountId] : []} onPick={(id) => void changeDefault(id)} />
-          </div>
+          <p className="text-xs text-muted">Emails that do not name a card wait for you to pick one when you verify.</p>
           <div className="flex flex-wrap gap-2">
             {s.needsReconnect ? <a href="/api/gmail/connect" className="inline-flex min-h-9 items-center justify-center rounded-full bg-accent px-4 text-sm font-medium text-white">Connect again</a> : <Button variant="primary" disabled={busy} onClick={() => void sync()}>{busy ? "Checking…" : "Sync now"}</Button>}
+            {!s.needsReconnect && <Button disabled={busy} onClick={() => void sync(30)}>Scan last 30 days</Button>}
             <Button variant="danger" onClick={() => setOff(true)}>Disconnect</Button>
           </div>
           <p className="text-xs text-muted">It also checks quietly when you open the app and once a day.</p>
         </div>
       )}
-      {msg && <p role={msg.ok ? "status" : "alert"} className={`text-sm ${msg.ok ? "text-good" : "text-danger"}`}>{msg.text}</p>}
+      {msg?.ok && <p role="status" className="text-sm text-good">{msg.text}</p>}
+      <BusyOverlay open={busy} title="Checking your bank emails…" detail="Reading new bank emails and adding them as unverified. This can take up to a minute." />
+      <ErrorDialog message={msg && !msg.ok ? msg.text : null} onClose={() => setMsg(null)} />
       <ConfirmDialog open={off} onClose={() => setOff(false)} title="Disconnect Gmail?" confirmLabel="Disconnect" onConfirm={() => void disconnect()}>
-        <p>Stops reading your email and disconnects Google. Captured entries stay in review.</p>
+        <p>Stops reading your email and disconnects Google. Captured entries stay unverified.</p>
       </ConfirmDialog>
     </Card>
   );

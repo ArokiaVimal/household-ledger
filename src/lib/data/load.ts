@@ -16,6 +16,8 @@ export interface HouseholdData {
   splitSettlements: SplitSettlement[];
   /** Icon chosen for a merchant (by lowercase display name). */
   merchantIcons: Record<string, string>;
+  /** Logo chosen for a merchant (by lowercase display name): a file name in public/logos. */
+  merchantLogos: Record<string, string>;
   participants: Participant[];
   accounts: Account[];
   categories: Category[];
@@ -47,7 +49,8 @@ export async function loadHouseholdData(repo: Repository): Promise<HouseholdData
     paymentGroups: paymentGroups.sort((a, b) => (a.order ?? 1e6) - (b.order ?? 1e6)),
     splitGroups: splitGroups.sort((a, b) => Number(!!a.archived) - Number(!!b.archived) || b.createdAt.localeCompare(a.createdAt) || a.name.localeCompare(b.name)),
     splitSettlements: splitSettlements.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)),
-    merchantIcons: Object.fromEntries(memories.filter((m) => m.icon).map((m) => [m.name.toLowerCase(), m.icon as string])),
+    merchantIcons: Object.fromEntries(memories.filter((m) => m.icon && !m.logo).map((m) => [m.name.toLowerCase(), m.icon as string])),
+    merchantLogos: Object.fromEntries(memories.filter((m) => m.logo).map((m) => [m.name.toLowerCase(), m.logo as string])),
     participants: participants.sort((a, b) => a.name.localeCompare(b.name)), accounts, categories: categories.sort(orderCategories),
     rules: rules.map((r) => ({ merchant: r.merchant, categoryId: r.categoryId })),
     importBatches: importBatches.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)),

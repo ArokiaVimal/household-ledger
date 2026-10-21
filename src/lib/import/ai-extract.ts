@@ -63,6 +63,7 @@ function system(mode: "statement" | "note", ctx: ExtractContext): string {
     mode === "statement"
       ? "You read text copied from an Indian bank, credit-card or UPI-app statement and list every transaction in it, for a budgeting app."
       : "You turn a person's own words about their spending into transactions for a budgeting app. One entry per payment they mention.",
+    mode === "statement" ? "If the text has Withdrawal and Deposit columns plus a running Balance but does not show which column an amount was in, decide by whether the balance went down (dr) or up (cr) from the previous row. A line may be a continuation of the one above it." : "",
     "dr = money spent or paid out, cr = money received or refunded. Amounts are in rupees exactly as written; never add, convert or total anything.",
     mode === "statement"
       ? "description must be copied from the text. Skip opening/closing balances, totals, headings and reward-point lines. If a date has no year, use the statement's own period."
@@ -125,14 +126,90 @@ export function validateExtraction(raw: unknown, source: string, mode: "statemen
   return { rows, unverified, accountId, ...(bill ? { bill } : {}) };
 }
 
-/** Calls Claude once with the text. Never throws: failures come back as `usage.error` with no rows. */
+/** One piece of a long statement is about this many characters (roughly 35 rows), so one answer always fits. */
+export const CHUNK_CHARS = 6_000;
+const OVERLAP_LINES = 3;
+const HEADER_LINES = 10;
+const PARALLEL = 5;
+
+/**
+ * Splits a long statement at line breaks. Each piece repeats the last few lines of the one before (so a row, or the balance a row is
+ * judged by, is never cut in half). A short statement stays whole.
+ */
+export function splitForAi(text: string, chunkChars = CHUNK_CHARS, overlap = OVERLAP_LINES): string[] {
+  if (text.length <= chunkChars * 1.3) return [text];
+  const out: string[] = [];
+  let cur: string[] = [];
+  let len = 0;
+  for (const line of text.split("\n")) {
+    if (len + line.length + 1 > chunkChars && cur.length > overlap) {
+      out.push(cur.join("\n"));
+      cur = cur.slice(-overlap);
+      len = cur.reduce((s, l) => s + l.length + 1, 0);
+    }
+    cur.push(line);
+    len += line.length + 1;
+  }
+  if (cur.length > 0) out.push(cur.join("\n"));
+  return out;
+}
+
+const rowKey = (r: ParsedRow) => `${r.date}|${r.amountPaise}|${r.direction}|${norm(r.description).replace(/[^a-z0-9 ]/g, "").slice(0, 14)}`;
+
+/** Reads a statement piece by piece and puts the answers back together. Rows repeated only because the pieces overlap are dropped; genuine repeats stay. */
+async function extractInPieces(cfg: ClaudeConfig, pieces: string[], mode: "statement" | "note", ctx: ExtractContext): Promise<Extraction> {
+  // Each later piece starts with the statement's heading (up to the first line that looks like a transaction) so it knows the columns.
+  const all = pieces[0].split("\n");
+  const firstTxn = all.findIndex((l) => /(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}-\d{2}-\d{2})/.test(l) && /\d[\d,]*\.\d{2}/.test(l));
+  const header = all.slice(0, Math.min(HEADER_LINES, firstTxn < 0 ? HEADER_LINES : firstTxn)).join("\n");
+  const jobs = pieces.map((p, i) => () => extractOne(cfg, i === 0 ? p : `${header}\n…\n${p}`, mode, ctx));
+  const results: Extraction[] = new Array(jobs.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(PARALLEL, jobs.length) }, async () => {
+    while (next < jobs.length) { const i = next++; results[i] = await jobs[i](); }
+  }));
+  const usage: AiUsage = { asked: 0, calls: 0, inputTokens: 0, outputTokens: 0 };
+  const warnings = [...new Set(results.flatMap((r) => r.warnings))];
+  const rows: ParsedRow[] = [];
+  const unverified: string[] = [];
+  let tail: ParsedRow[] = [];
+  let failed = 0;
+  for (const r of results) {
+    usage.calls += r.usage.calls; usage.inputTokens += r.usage.inputTokens; usage.outputTokens += r.usage.outputTokens; usage.asked += r.usage.asked;
+    if (r.usage.error) { failed++; usage.error ??= r.usage.error; continue; }
+    // The first few rows of this piece may be the last few rows of the previous one: drop each at most once.
+    const seen = [...tail];
+    const fresh = r.rows.filter((row, i) => {
+      if (i >= OVERLAP_LINES + 2) return true;
+      const at = seen.findIndex((t) => rowKey(t) === rowKey(row));
+      if (at < 0) return true;
+      seen.splice(at, 1);
+      return false;
+    });
+    rows.push(...fresh);
+    tail = r.rows.slice(-(OVERLAP_LINES + 2));
+    unverified.push(...r.unverified);
+  }
+  if (failed === results.length) return { rows: [], unverified: [], accountId: null, usage, warnings };
+  if (failed > 0) { warnings.push(`${failed} of ${results.length} parts of the statement could not be read, so some transactions may be missing. Check the totals.`); delete usage.error; }
+  const bill = results.find((r) => r.bill)?.bill;
+  return { rows: rows.map((r, i) => ({ ...r, line: i + 1 })), unverified: unverified.slice(0, 60), accountId: results.find((r) => r.accountId)?.accountId ?? null, ...(bill ? { bill } : {}), usage, warnings };
+}
+
+/** Reads text with Claude. A long statement is read in pieces so one answer never has to hold every row. Never throws: failures come back as `usage.error`. */
 export async function extractWithClaude(cfg: ClaudeConfig, text: string, mode: "statement" | "note", ctx: ExtractContext): Promise<Extraction> {
+  const limit = mode === "note" ? MAX_NOTE_CHARS : MAX_TEXT_CHARS;
+  const warnings: string[] = text.length > limit ? [`Only the first ${limit.toLocaleString("en-IN")} characters were read. Paste the rest separately.`] : [];
+  const pieces = mode === "statement" ? splitForAi(text.slice(0, limit)) : [text.slice(0, limit)];
+  const out = pieces.length > 1 ? await extractInPieces(cfg, pieces, mode, ctx) : await extractOne(cfg, pieces[0], mode, ctx);
+  return { ...out, warnings: [...warnings, ...out.warnings] };
+}
+
+/** One call to Claude with one piece of text. Never throws: failures come back as `usage.error` with no rows. */
+async function extractOne(cfg: ClaudeConfig, text: string, mode: "statement" | "note", ctx: ExtractContext): Promise<Extraction> {
   const usage: AiUsage = { asked: 0, calls: 0, inputTokens: 0, outputTokens: 0 };
   const warnings: string[] = [];
-  const limit = mode === "note" ? MAX_NOTE_CHARS : MAX_TEXT_CHARS;
-  const trimmed = text.length > limit;
-  if (trimmed) warnings.push(`Only the first ${limit.toLocaleString("en-IN")} characters were read. Paste the rest separately.`);
-  const sent = redactStatement(text.slice(0, limit));
+  const sent = redactStatement(text);
   const f = cfg.fetchImpl ?? fetch;
   try {
     const request = (extra: Record<string, unknown>) => f("https://api.anthropic.com/v1/messages", {
@@ -145,7 +222,7 @@ export async function extractWithClaude(cfg: ClaudeConfig, text: string, mode: "
       }),
       signal: AbortSignal.timeout(cfg.timeoutMs ?? 45_000),
     });
-    let res = await request({ max_tokens: 8000, temperature: 0 });
+    let res = await request({ max_tokens: 8000 });
     // A 400 can be a setting this model dislikes (for example a very large output limit). Retry once with plainer settings;
     // if it is the text itself that is the problem, the second answer says so.
     if (res.status === 400) res = await request({ max_tokens: 4096 });

@@ -23,7 +23,7 @@ export function RecurringDialog({ item, onClose }: { item: RecurringItem | "new"
 }
 
 function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => void }) {
-  const { categories, participants, recurringItems, meId, saveRecurring, addCategory, month: viewMonth } = useStore();
+  const { categories, participants, nameOf, recurringItems, meId, saveRecurring, addCategory, month: viewMonth } = useStore();
   const [name, setName] = useState(item?.name ?? "");
   const [amount, setAmount] = useState(item ? (plannedFor(item, viewMonth) / 100).toFixed(2) : "");
   const [dueDay, setDueDay] = useState(String(item?.dueDay ?? 1));
@@ -102,7 +102,7 @@ function Form({ item, onClose }: { item: RecurringItem | null; onClose: () => vo
         <datalist id="recurring-places">{places.map((p) => <option key={p} value={p} />)}</datalist>
       </Field>
       <div className="border-t border-border pt-3"><SplitEditor key={split.mode === "custom" ? expectedPaise : "s"} total={expectedPaise} value={split} onChange={(v) => { setSplit(v); setError(null); }} /></div>
-      {sharing && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
+      {sharing && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.map((p) => ({ id: p.id, label: nameOf(p.id), icon: <PersonGlyph name={nameOf(p.id)} id={p.id} /> }))} selected={[payerId]} onPick={setPayerId} /></FormRow>}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <Button onClick={onClose}>Cancel</Button>

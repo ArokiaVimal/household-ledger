@@ -30,6 +30,8 @@ export interface SplitConfig {
   participantIds: string[];
   values?: Record<string, number>;
   items?: SplitItem[];
+  /** You paid for these people and do not expect it back: it counts for them but nobody owes you. */
+  gift?: boolean;
 }
 
 export interface SplitItem {
@@ -135,12 +137,16 @@ export interface ExpenseRecord {
   paidWithVoucherId?: string;
   /** Import only: a voucher seller whose brand has not been chosen yet. Review asks which voucher was bought; cleared on approval. */
   voucherPending?: boolean;
+  /** Import only: the email or text did not name a card, so the payment method is a placeholder. Verifying asks which card; cleared when you pick one. */
+  needsCard?: boolean;
   /** Import only: looks like a monthly commitment (EMI, rent, premium). Pre-selects "Repeat every month" in review; cleared on approval. */
   recurringHint?: boolean;
   /** Recurring commitment this payment fulfils (rent, EMI, insurance...). */
   recurringId?: string;
   /** The Split Group (a trip, dinner or outing) this expense is tagged with. Only a tag: the group never copies or moves the record, so spending is counted once. */
   splitGroupId?: string;
+  /** Also counts, in full, in this Payment Group (a people group), whoever is in the split. For things you paid for them that the split does not show. */
+  countsInGroupId?: string;
   /** Set when a redacted copy of this expense was shared with the partner (see SharedExpense). */
   sharedWithPartner?: boolean;
   /** Goes up only when a linked person (not the owner) changes the shared terms of this record, so a stale screen of the owner is refused instead of overwriting it. */
@@ -166,6 +172,8 @@ export interface MerchantMemory {
   voucherSeller?: boolean;
   /** Chosen icon for a merchant with no brand logo (a key from the built-in set). */
   icon?: string;
+  /** Chosen brand logo (a file in public/logos). Picking a logo replaces the icon and the other way round. */
+  logo?: string;
   /** user = you approved or corrected it (always wins); ai = Claude's suggestion, not yet confirmed. */
   source: "user" | "ai";
   /** AI entries only: Claude said it was sure. */

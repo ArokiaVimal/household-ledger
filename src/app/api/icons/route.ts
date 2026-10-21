@@ -1,3 +1,4 @@
+import { trackedClaude } from "@/lib/ai-usage/server";
 import { NextResponse } from "next/server";
 import { createFirestoreRepository } from "@/data/firestore-repository";
 import { iconByName } from "@/domain/icons";
@@ -12,18 +13,20 @@ export const maxDuration = 60;
  * Proposes icons for categories, payment methods and merchants that have none yet and that the name matcher / brand logos do
  * not already cover. Only names go to Claude. Nothing is changed here: the page shows the proposals and the person applies them.
  */
-export async function POST() {
+export async function POST(req: Request) {
   const who = await authorize();
   if (!who.ok) return who.res;
-  const claude = claudeFromEnv(process.env);
+  const claude = trackedClaude(claudeFromEnv(process.env), who.session.uid, "icons");
   if (!claude) return NextResponse.json({ error: "AI is off on this server. Add an Anthropic API key to switch it on." }, { status: 400 });
   try {
+    // `all`: ask again about everything (a refresh), not only what has nothing yet.
+    const all = ((await req.json().catch(() => null)) as { all?: boolean } | null)?.all === true;
     const repo = createFirestoreRepository(who.membership.household.id);
     const [categories, accounts, memories] = await Promise.all([repo.categories.list(), repo.accounts.list(), repo.merchantMemory.list()]);
     const wants: IconWant[] = [
-      ...categories.filter((c) => !c.icon && !iconByName(c.name)).map((c) => ({ kind: "category" as const, ref: c.id, name: c.name })),
-      ...accounts.filter((a) => !a.icon && !logoFor(a.name)).map((a) => ({ kind: "account" as const, ref: a.id, name: a.name })),
-      ...[...new Map(memories.filter((m) => !m.icon && !logoFor(m.name)).map((m) => [m.name.toLowerCase(), m])).values()].map((m) => ({ kind: "merchant" as const, ref: m.name, name: m.name })),
+      ...categories.filter((c) => all || (!c.icon && !iconByName(c.name))).map((c) => ({ kind: "category" as const, ref: c.id, name: c.name })),
+      ...accounts.filter((a) => all ? !logoFor(a.name) : !a.icon && !logoFor(a.name)).map((a) => ({ kind: "account" as const, ref: a.id, name: a.name })),
+      ...[...new Map(memories.filter((m) => (all || (!m.icon && !m.logo)) && !logoFor(m.name)).map((m) => [m.name.toLowerCase(), m])).values()].map((m) => ({ kind: "merchant" as const, ref: m.name, name: m.name })),
     ];
     if (wants.length === 0) return NextResponse.json({ ok: true, picks: [], message: "Everything already has an icon." });
     const { picks, usage } = await pickIcons(claude, wants);

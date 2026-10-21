@@ -8,7 +8,8 @@ export function getClientAuth() {
     ? getApp()
     : initializeApp({
         apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-        authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+        // With NEXT_PUBLIC_AUTH_SAME_ORIGIN=1 the sign-in pages are served from this site (see next.config.ts), which Safari trusts.
+        authDomain: process.env.NEXT_PUBLIC_AUTH_SAME_ORIGIN === "1" && typeof window !== "undefined" ? window.location.host : process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
         storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
         appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,

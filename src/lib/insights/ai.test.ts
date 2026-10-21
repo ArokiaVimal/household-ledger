@@ -29,11 +29,11 @@ describe("analyzeMonth", () => {
     expect(sent.body.system[0].text).toMatch(/never the minimum due/);
     expect(r.usage).toMatchObject({ calls: 1, inputTokens: 700, outputTokens: 300 });
   });
-  it("retries once without temperature after a 400 and reports Claude's reason if it still fails", async () => {
+  it("never sends temperature and reports Claude's reason if it still fails", async () => {
     let calls = 0;
-    const retry = (async (_u: string, init: RequestInit) => { calls++; return "temperature" in JSON.parse(String(init.body)) ? new Response("{}", { status: 400 }) : ok(); }) as typeof fetch;
-    expect((await analyzeMonth({ apiKey: "k", fetchImpl: retry }, facts)).analysis).not.toBeNull();
-    expect(calls).toBe(2);
+    const plain = (async (_u: string, init: RequestInit) => { calls++; return "temperature" in JSON.parse(String(init.body)) ? new Response("{}", { status: 400 }) : ok(); }) as typeof fetch;
+    expect((await analyzeMonth({ apiKey: "k", fetchImpl: plain }, facts)).analysis).not.toBeNull();
+    expect(calls).toBe(1);
     const bad = (async () => new Response(JSON.stringify({ error: { message: "credit balance is too low" } }), { status: 400 })) as typeof fetch;
     expect((await analyzeMonth({ apiKey: "k", fetchImpl: bad }, facts)).usage.error).toBe("Claude answered 400 (credit balance is too low)");
   });

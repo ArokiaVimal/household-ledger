@@ -1,6 +1,6 @@
 import { parseAmount } from "./amount";
 import { detectLayout, type Layout } from "./columns";
-import { parseStatementDate } from "./date";
+import { detectDateOrder, parseStatementDate } from "./date";
 
 export interface ParsedRow {
   /** 1-based row number in the file (counting the header and any preamble), so users can find it. */
@@ -43,6 +43,7 @@ export function extractRows(table: string[][], opts: { positiveIsDebit?: boolean
   if (!layout) return { ok: false, error: "Could not find a transaction table. Expected columns like Date, Description and Amount (or Debit and Credit)." };
   const c = layout.columns;
   const positiveIsDebit = opts.positiveIsDebit ?? false;
+  const order = detectDateOrder(table.slice(layout.headerIndex + 1).map((r) => r[c.date]));
   const rows: ParsedRow[] = [];
   const skipped: SkippedRow[] = [];
   const totals = { debitPaise: 0, creditPaise: 0, debitCount: 0, creditCount: 0 };
@@ -51,7 +52,7 @@ export function extractRows(table: string[][], opts: { positiveIsDebit?: boolean
     const cells = table[i];
     const line = i + 1;
     const text = cells.filter(Boolean).join(" | ").slice(0, 160);
-    const date = parseStatementDate(cells[c.date]);
+    const date = parseStatementDate(cells[c.date], order);
     const description = (cells[c.description] ?? "").trim();
     if (!date) {
       if (!FOOTER.test(cells.find(Boolean) ?? "") && cells.filter(Boolean).length >= 3) skipped.push({ line, reason: "No valid date", text });
@@ -85,7 +86,7 @@ export function extractRows(table: string[][], opts: { positiveIsDebit?: boolean
     const bal = c.balance !== undefined ? parseAmount(cells[c.balance]) : null;
     rows.push({
       line, date, description, amountPaise: paise, direction,
-      postedDate: c.postedDate !== undefined ? parseStatementDate(cells[c.postedDate]) ?? undefined : undefined,
+      postedDate: c.postedDate !== undefined ? parseStatementDate(cells[c.postedDate], order) ?? undefined : undefined,
       referenceId: ref && !/^0+$/.test(ref) ? ref : undefined,
       balancePaise: bal ? bal.paise * (bal.negative || bal.marker === "dr" ? -1 : 1) : undefined,
       raw: cells,

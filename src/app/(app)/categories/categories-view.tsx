@@ -7,7 +7,8 @@ import { useStore } from "@/data/store";
 import { categoryUsage, checkDelete, MAX_CATEGORY_NAME } from "@/domain/categories";
 import { PROTECTED_CATEGORY_IDS } from "@/domain/categories";
 
-export default function Categories() {
+/** Categories and merchant rules. `embedded` drops the page heading when it sits inside Settings. */
+export function CategoriesView({ embedded = false }: { embedded?: boolean }) {
   const { live, recurringItems, categories, rules, records, staged, updateStaged, categoryName, addCategory, renameCategory, deleteCategory, addRule, removeRule } = useStore();
   const [name, setName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
@@ -53,12 +54,12 @@ export default function Categories() {
       const rule = rules.find((x) => x.merchant.toLowerCase() === r.merchant.toLowerCase());
       if (rule && r.categoryId !== rule.categoryId) { updateStaged(r.id, { categoryId: rule.categoryId }); n++; }
     }
-    setMsg(`${n} row${n === 1 ? "" : "s"} in the review queue recategorized. Nothing is approved; you still confirm each one.`);
+    setMsg(`${n} row${n === 1 ? "" : "s"} unverified rows recategorized. Nothing is verified; you still confirm each one.`);
   };
 
   return (
     <>
-      <PageHeader title="Categories & rules" sub="Your categories. Add your own, rename any, delete ones you don't use." actions={live ? undefined : <Badge tone="warn">Prototype</Badge>} />
+      {!embedded && <PageHeader title="Categories & rules" sub="Your categories. Add your own, rename any, delete ones you don't use." actions={live ? undefined : <Badge tone="warn">Prototype</Badge>} />}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-2">
         <Card className="space-y-3">
           <CardTitle>Categories</CardTitle>
@@ -97,7 +98,7 @@ export default function Categories() {
 
         <Card className="space-y-3">
           <CardTitle>Merchant rules</CardTitle>
-          <p className="text-xs text-muted">A rule pre-fills the category for a merchant in the review queue. You still approve each row.</p>
+          <p className="text-xs text-muted">A rule pre-fills the category for a merchant on unverified rows. You still verify each row.</p>
           <ul className="divide-y divide-border">
             {rules.map((r) => (
               <li key={r.merchant} className="flex min-h-12 items-center justify-between gap-2 py-1.5 text-sm">
@@ -112,7 +113,7 @@ export default function Categories() {
             <CompactChips label="Rule category" options={categories.map((x) => ({ id: x.id, label: x.name, icon: <CategoryGlyph name={x.name} icon={x.icon} /> }))} selected={[c]} onPick={setC} />
             <Button className="w-full sm:w-auto" disabled={!m.trim()} onClick={() => { addRule({ merchant: m.trim(), categoryId: c }); setM(""); }}>Add rule</Button>
           </div>
-          <div className="space-y-2"><Button variant="primary" className="w-full sm:w-auto" onClick={apply}>Apply to review queue</Button>{msg && <p role="status" className="text-xs text-muted">{msg}</p>}</div>
+          <div className="space-y-2"><Button variant="primary" className="w-full sm:w-auto" onClick={apply}>Apply to unverified rows</Button>{msg && <p role="status" className="text-xs text-muted">{msg}</p>}</div>
         </Card>
       </div>
 

@@ -12,7 +12,8 @@ import { checkContact, normalizeEmail } from "@/domain/contacts";
 import { RELATIONSHIPS } from "@/domain/types";
 import { validateAvatarDataUrl } from "@/lib/profile/profile";
 import { ICON_KEYS } from "@/domain/icons";
-import { planUpiSetup, suggestedWithParents } from "@/domain/accounts";
+import { LOGO_KEYS } from "@/lib/logos";
+import { impliedVoucherId, planUpiSetup, suggestedWithParents } from "@/domain/accounts";
 import { SUGGESTED_ACCOUNTS } from "@/domain/defaults";
 import { learnFromUser, memoryDocId, memoryKey } from "@/domain/memory";
 import { buildShared, planShare, SharingError } from "@/domain/sharing";
@@ -27,7 +28,7 @@ const money = z.number().int().safe();
 const editable = z.object({
   merchant: z.string().min(1).max(120), categoryId: id, kind: z.enum(["purchase", "refund", "income", "transfer", "cc_payment", "fee"]),
   payerId: id, shared: z.boolean(), split: SplitConfigSchema, excluded: z.boolean(), notes: z.string().max(1000).nullable(),
-  recurringId: id.nullable(), fundedBy: id.nullable(), paidCardId: id.nullable(), recurringHint: z.boolean().nullable(), voucherBrandId: id.nullable(), paidWithVoucherId: id.nullable(), voucherPending: z.boolean().nullable(), receiptId: id.nullable(), shareNote: z.boolean(), splitGroupId: id.nullable(),
+  recurringId: id.nullable(), fundedBy: id.nullable(), paidCardId: id.nullable(), recurringHint: z.boolean().nullable(), voucherBrandId: id.nullable(), paidWithVoucherId: id.nullable(), voucherPending: z.boolean().nullable(), receiptId: id.nullable(), splitGroupId: id.nullable(), countsInGroupId: id.nullable(), duplicateOf: id.nullable(), shareNote: z.boolean(), accountId: id, needsCard: z.boolean().nullable(),
 }).partial();
 
 const manualRecord = z.object({
@@ -42,6 +43,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("audit.undo"), eventId: id }),
   z.object({ type: z.literal("batch.rollback"), id }),
   z.object({ type: z.literal("record.reject"), id }),
+  z.object({ type: z.literal("records.fixWallets") }),
   z.object({ type: z.literal("record.delete"), id }),
   z.object({ type: z.literal("settlement.create"), settlement: z.object({ id, date: z.string(), fromId: id, toId: id, amountPaise: money, note: z.string().max(500).optional(), recordIds: z.array(id).max(500).optional() }) }),
   z.object({ type: z.literal("settlement.void"), id }),
@@ -57,7 +59,7 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("group.put"), group: z.object({ id, name: z.string().min(1).max(40), kind: z.enum(["mine", "people"]), memberIds: z.array(id).max(30), coverMembers: z.boolean(), includeMe: z.boolean() }) }),
   z.object({ type: z.literal("group.delete"), id }),
   z.object({ type: z.literal("groups.reorder"), ids: z.array(id).min(1).max(50) }),
-  z.object({ type: z.literal("icons.apply"), categories: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), accounts: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), merchants: z.array(z.object({ name: z.string().min(1).max(60), icon: z.enum(ICON_KEYS) })).max(300) }),
+  z.object({ type: z.literal("icons.apply"), categories: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), accounts: z.array(z.object({ id, icon: z.enum(ICON_KEYS) })).max(200), merchants: z.array(z.object({ name: z.string().min(1).max(60), icon: z.enum(ICON_KEYS).optional(), logo: z.enum(LOGO_KEYS).optional() }).refine((m) => !!m.icon || !!m.logo, "Pick an icon or a logo")).max(300) }),
   z.object({ type: z.literal("accounts.reorder"), ids: z.array(id).min(1).max(200) }),
   z.object({ type: z.literal("accounts.addSuggested") }),
   z.object({ type: z.literal("participant.add"), id, name: z.string().min(1).max(60), email: z.string().max(200).nullable().optional(), nickname: z.string().max(30).nullable().optional(), relationship: z.enum(RELATIONSHIPS).optional(), relationshipLabel: z.string().max(30).nullable().optional() }),
@@ -93,7 +95,7 @@ export interface CoupleContext {
 }
 
 /** The classification, split and status fields an undo can restore. Raw bank fields are never in this list. */
-const UNDO_FIELDS = ["categoryId", "merchant", "kind", "excluded", "status", "split", "shared", "payerId", "notes", "recurringId", "fundedBy", "paidCardId", "voucherBrandId", "paidWithVoucherId", "voucherPending", "recurringHint", "suggested", "receiptId", "splitGroupId"] as const;
+const UNDO_FIELDS = ["categoryId", "merchant", "kind", "excluded", "status", "split", "shared", "payerId", "notes", "recurringId", "fundedBy", "paidCardId", "voucherBrandId", "paidWithVoucherId", "voucherPending", "recurringHint", "suggested", "receiptId", "splitGroupId", "countsInGroupId", "duplicateOf"] as const;
 const sameValue = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 /** What changed between two versions of a record, in the undoable fields only. Absent values are stored as null. */
 function changeOf(before: ExpenseRecord, after: ExpenseRecord): { before: Record<string, unknown>; after: Record<string, unknown> } | null {
@@ -264,8 +266,24 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       if (a.type === "record.approve" && cur.status !== "unreviewed") throw new ActionError("conflict", "That record is already reviewed.");
       // A linked person changed the shared terms since this screen loaded: refuse rather than silently overwrite their edit.
       if (a.ifRev !== undefined && a.ifRev !== (cur.sharedRev ?? 0)) throw new ActionError("conflict", "Someone you share this expense with changed it while you were editing. Your screen has been refreshed; nothing was overwritten.");
+      if (a.patch?.accountId && a.patch.accountId !== cur.accountId) {
+        // Fixing a wrong payment method: it must be one of your own, still in use.
+        const acc = await repo.accounts.get(a.patch.accountId);
+        if (!acc || acc.archived) throw new ActionError("invalid", "Unknown payment method.");
+      }
       const next = applyPatch(cur, a.patch ?? {});
+      // Leaving a voucher wallet takes the wallet's "paid with voucher" mark along, unless the patch says otherwise.
+      if (a.patch?.accountId && a.patch.accountId !== cur.accountId && !("paidWithVoucherId" in a.patch)) {
+        const [oldAcc, brands] = await Promise.all([repo.accounts.get(cur.accountId), repo.voucherBrands.list()]);
+        const was = impliedVoucherId(oldAcc ?? undefined, cur.kind, brands);
+        if (was && cur.paidWithVoucherId === was) delete next.paidWithVoucherId;
+      }
       if (a.type === "record.approve") { next.status = "reviewed"; delete next.suggested; }
+      // Money spent from a voucher wallet (Amazon Pay) is paid with that voucher: the voucher purchase was the outflow.
+      if (!next.paidWithVoucherId) {
+        const w = impliedVoucherId((await repo.accounts.get(next.accountId)) ?? undefined, next.kind, await repo.voucherBrands.list());
+        if (w) next.paidWithVoucherId = w;
+      }
       await checkVoucherRefs(next);
       await checkSplitGroupTag(splitCtx, next, cur);
       const shared = await syncShare(next);
@@ -324,6 +342,20 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       await log("delete", "household", batch.id, `Rolled back import ${batch.filename}: removed ${rows.length} transaction${rows.length === 1 ? "" : "s"} (${rows.filter((r) => r.status === "reviewed").length} approved). The source rows are kept.`);
       return;
     }
+    case "records.fixWallets": {
+      // One-time repair: purchases already filed under a voucher wallet get the "paid with voucher" mark.
+      const [accounts, brands] = await Promise.all([repo.accounts.list(), repo.voucherBrands.list()]);
+      let fixed = 0;
+      for (const r of await repo.records.list()) {
+        if (r.paidWithVoucherId) continue;
+        const w = impliedVoucherId(accounts.find((x) => x.id === r.accountId), r.kind, brands);
+        if (!w) continue;
+        await repo.records.put({ ...r, paidWithVoucherId: w });
+        fixed++;
+      }
+      if (fixed > 0) await log("edit", "record", "wallets", `Marked ${fixed} wallet payment${fixed === 1 ? "" : "s"} as paid with the wallet's voucher`);
+      return;
+    }
     case "record.reject": {
       const cur = await repo.records.get(a.id);
       if (!cur) throw new ActionError("not_found", "Record not found.");
@@ -338,6 +370,8 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       if (cur.sharedWithPartner) await syncShare({ ...cur, excluded: true }); // deleting withdraws the partner's copy first
       await syncLinks({ ...cur, excluded: true }); // and any linked friend's or family member's copy
       await repo.records.remove(a.id);
+      // Anything that was flagged as a possible duplicate of this one is no longer one.
+      for (const o of (await repo.records.list()).filter((x) => x.duplicateOf === a.id)) { const { duplicateOf: _d, ...rest } = o; void _d; await repo.records.put(rest as ExpenseRecord); }
       await log("delete", "record", a.id, `Deleted ${cur.merchant} ${money(cur.amountPaise)} on ${cur.date} (${cur.status}) from ${cur.importSource}`);
       return;
     }
@@ -497,7 +531,11 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
       let n = 0;
       for (const x of a.categories) { const c = cats.find((y) => y.id === x.id); if (c) { await repo.categories.put({ ...c, icon: x.icon }); n++; } }
       for (const x of a.accounts) { const c = accts.find((y) => y.id === x.id); if (c) { await repo.accounts.put({ ...c, icon: x.icon }); n++; } }
-      for (const x of a.merchants) for (const m of memories.filter((y) => y.name.toLowerCase() === x.name.toLowerCase())) { await repo.merchantMemory.put({ ...m, icon: x.icon }); n++; }
+      // A merchant shows either a logo or an icon: choosing one replaces the other.
+      for (const x of a.merchants) for (const m of memories.filter((y) => y.name.toLowerCase() === x.name.toLowerCase())) {
+        const { icon: _i, logo: _l, ...rest } = m; void _i; void _l;
+        await repo.merchantMemory.put({ ...rest, ...(x.logo ? { logo: x.logo } : { icon: x.icon }) }); n++;
+      }
       await log("edit", "household", "icons", `Set ${n} icons`);
       return;
     }

@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { brandBadge, logoFor } from "@/lib/logos";
+import { useState, type ReactNode } from "react";
+import { brandBadge, logoFor, logoSrc } from "@/lib/logos";
 import { Glyph } from "./glyphs";
 import { useStore } from "@/data/store";
 import { formatINR } from "@/domain/money";
@@ -9,6 +9,9 @@ import { needsVoucherBrand } from "@/domain/vouchers";
 import type { ExpenseRecord } from "@/domain/types";
 import { Badge } from "./ui";
 import { cn } from "@/lib/cn";
+
+/** "13 Aug" */
+export const shortDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 
 /** Amount display with direction. Spending is signed by the domain rule; non-spending kinds show a label. */
 export function Amount({ r }: { r: ExpenseRecord }) {
@@ -22,29 +25,35 @@ export function Amount({ r }: { r: ExpenseRecord }) {
 }
 
 /** `quiet` leaves out the everyday states (Reviewed, Receipt linked) so a list only flags what needs a look. */
-export function TxnBadges({ r, quiet }: { r: ExpenseRecord; quiet?: boolean }) {
-  const { voucherBrands } = useStore();
+export function TxnBadges({ r, quiet, hideStatus }: { r: ExpenseRecord; quiet?: boolean; hideStatus?: boolean }) {
+  const { voucherBrands, records, staged } = useStore();
+  const dup = r.duplicateOf ? [...records, ...staged].find((x) => x.id === r.duplicateOf) : undefined;
   const brand = (id?: string) => voucherBrands.find((b) => b.id === id)?.name ?? "voucher";
   return (
     <>
-      {r.status === "unreviewed" ? <Badge tone="warn">Unreviewed</Badge> : quiet ? null : <Badge tone="good">Reviewed</Badge>}
-      {r.duplicateOf && <Badge tone="bad">Possible duplicate</Badge>}
+      {hideStatus ? null : r.status === "unreviewed" ? <Badge tone="warn">Unverified</Badge> : quiet ? null : <Badge tone="good">Verified</Badge>}
+      {r.duplicateOf && <Badge tone="bad">{dup ? `Possible duplicate of ${dup.merchant} · ${shortDay(dup.date)}` : "Possible duplicate"}</Badge>}
       {r.receiptId && !quiet && <Badge tone="good">Receipt linked</Badge>}
       {r.excluded && <Badge>Excluded</Badge>}
       {r.voucherBrandId && <Badge tone="good">Voucher: {brand(r.voucherBrandId)}</Badge>}
       {needsVoucherBrand(r) && <Badge tone="warn">Needs a voucher brand</Badge>}
       {r.paidWithVoucherId && <Badge>Paid with {brand(r.paidWithVoucherId)} voucher</Badge>}
       {r.kind !== "purchase" && <Badge>{r.kind === "cc_payment" ? "Card bill payment" : r.kind}</Badge>}
-      {r.shared && <Badge tone="good">{r.sharedWithPartner ? "Shared with partner" : "Shared"}</Badge>}
+      {r.shared && !hideStatus && <Badge tone="good">{r.sharedWithPartner ? "Shared with partner" : "Shared"}</Badge>}
     </>
   );
 }
 
 const tints = ["bg-accent-soft text-accent", "bg-good-soft text-good", "bg-warn-soft text-warn", "bg-background text-foreground"];
-export function MerchantAvatar({ name, size = 40 }: { name: string; size?: number }) {
+/**
+ * The picture for a merchant: a logo you or AI chose, else a known brand's logo or badge, else a chosen icon, else `fallback`
+ * (for example the category's icon), else the first letter.
+ */
+export function MerchantAvatar({ name, size = 40, fallback }: { name: string; size?: number; fallback?: ReactNode }) {
   const badge = brandBadge(name);
-  const logo = badge ? null : logoFor(name);
-  const { iconsByName } = useStore();
+  const { iconsByName, logosByName } = useStore();
+  const chosenLogo = logosByName[name.trim().toLowerCase()];
+  const logo = chosenLogo ? logoSrc(chosenLogo) : badge ? null : logoFor(name);
   const [failed, setFailed] = useState(false);
   const chosen = iconsByName[name.trim().toLowerCase()];
   if (logo && !failed) {
@@ -57,6 +66,7 @@ export function MerchantAvatar({ name, size = 40 }: { name: string; size?: numbe
   }
   if (badge && !logo) return <span aria-hidden style={{ width: size, height: size, background: badge.bg, color: badge.fg, fontSize: size * (badge.mark.length > 2 ? 0.28 : badge.mark.length > 1 ? 0.36 : 0.5) }} className="grid shrink-0 place-items-center rounded-full font-bold leading-none tracking-tight">{badge.mark}</span>;
   if (chosen && (!logo || failed)) return <Glyph iconKey={chosen} size={size} />;
+  if (fallback) return <>{fallback}</>;
   const tint = tints[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % tints.length];
   return <span aria-hidden style={{ width: size, height: size }} className={cn("grid shrink-0 place-items-center rounded-full text-sm font-semibold", tint)}>{name[0]?.toUpperCase()}</span>;
 }

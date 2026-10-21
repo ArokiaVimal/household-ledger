@@ -1,6 +1,12 @@
 "use client";
-import { ArrowLeftRight, Ban, Banknote, CalendarDays, ChevronDown, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2, Users } from "lucide-react";
+import { ArrowLeftRight, Ban, Banknote, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2, Users } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
+import { cn } from "@/lib/cn";
+import { DupCompare } from "@/components/dup-compare";
+import { useDropZone } from "@/components/drop-zone";
+import { BusyOverlay, ErrorDialog } from "@/components/feedback";
+import { billFileToDataUrl } from "@/lib/image";
+import type { Bill } from "@/lib/import/bill-extract";
 import { useStore } from "@/data/store";
 import { SUGGESTED_VOUCHER_BRANDS } from "@/domain/defaults";
 import { CategoryGlyph, Dot, PersonGlyph } from "@/components/glyphs";
@@ -8,9 +14,10 @@ import { CategorySheet, ListSheet, MerchantSheet, PickerRow } from "@/components
 import { attribute } from "@/domain/groups";
 import { inferCategory, merchantFromNotes } from "@/domain/categorize";
 import { readNote, usualFor } from "@/domain/autofill";
+import { cardViews, suggestPaidCard } from "@/domain/cardbills";
 import { ratioSplit } from "@/domain/splits";
 import { COMMON_MERCHANTS, MERCHANT_ALIASES, rankMerchants } from "@/domain/merchants";
-import { shortName, walletAccountFor, walletBrandFor } from "@/domain/accounts";
+import { accountIsEditable, shortName, walletAccountFor, walletBrandFor } from "@/domain/accounts";
 import { knownVoucherSeller } from "@/domain/vouchers";
 import { formatINR, parseRupees } from "@/domain/money";
 import { equalSplit, validateSplit } from "@/domain/splits";
@@ -31,21 +38,29 @@ const kinds: { id: TxnKind; label: string; icon: ReactNode }[] = [
   { id: "cc_payment", label: "Card bill", icon: <Dot icon={CreditCard} tone="bg-indigo-100 text-indigo-700" /> },
 ];
 
-interface Props { record: ExpenseRecord | null; onClose: () => void; /** Open the next unreviewed record, with how many remain. */ next?: { remaining: number; open: () => void } }
+/** Where this transaction sits in the list it was opened from, so you can move to the neighbours. */
+export interface RecordNav { index: number; total: number; prev?: ExpenseRecord; next?: ExpenseRecord; dir: 1 | -1; go: (d: 1 | -1) => void; /** After a row is verified out of its list: show its neighbour, or close. */ after: () => void }
+interface Props { record: ExpenseRecord | null; onClose: () => void; nav?: RecordNav }
 
-export function TxnEditDialog({ record, onClose, next }: Props) {
-  return (
-    <Dialog open={!!record} onClose={onClose} title="Edit transaction">
-      {record && <Form key={record.id} mode="edit" record={record} onClose={onClose} next={next} />}
-    </Dialog>
-  );
+/** Open one transaction from a list, with arrows and swipes to the previous and next ones in that list. */
+export function useRecordNav(items: ExpenseRecord[]) {
+  const [id, setId] = useState<string | null>(null);
+  const [dir, setDir] = useState<1 | -1>(1);
+  const index = id ? items.findIndex((r) => r.id === id) : -1;
+  const record = index >= 0 ? items[index] : null;
+  const nav: RecordNav | undefined = record ? {
+    index, total: items.length, prev: items[index - 1], next: items[index + 1], dir,
+    go: (d) => { const t = items[index + d]; if (t) { setDir(d); setId(t.id); } },
+    after: () => { const t = items[index + 1] ?? items[index - 1]; setDir(1); setId(t?.id ?? null); },
+  } : undefined;
+  return { record, nav, open: (r: ExpenseRecord) => { setDir(1); setId(r.id); }, close: () => setId(null) };
 }
 
-/** Review queue: edit, then approve into the ledger (or reject). Nothing counts until approved. */
-export function TxnReviewDialog({ record, onClose, next }: Props) {
+/** Edit any transaction. One that is not verified yet gets Save and Save & verify (which also teaches the app). */
+export function TxnEditDialog({ record, onClose, nav }: Props) {
   return (
-    <Dialog open={!!record} onClose={onClose} title="Review imported transaction">
-      {record && <Form key={record.id} mode="review" record={record} onClose={onClose} next={next} />}
+    <Dialog open={!!record} onClose={onClose} title={record?.status === "unreviewed" ? "Verify transaction" : "Edit transaction"}>
+      {record && <Form key={record.id} mode={record.status === "unreviewed" ? "review" : "edit"} record={record} onClose={onClose} nav={nav} />}
     </Dialog>
   );
 }
@@ -65,9 +80,10 @@ export function TxnAddDialog({ open, round, onClose, onAnother, onAdded, splitGr
   );
 }
 
-function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; next?: Props["next"]; onAnother?: () => void; onAdded?: (msg: string) => void }) {
-  const { meId, nameOf, groups, rules, partnerId, splitRatio, today, accounts, participants, recurringItems, categories, records, staged, splitGroups, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
+function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit" | "add" | "review"; record: ExpenseRecord; onClose: () => void; nav?: RecordNav; onAnother?: () => void; onAdded?: (msg: string) => void }) {
+  const { aiEnabled, cardBills, meId, nameOf, groups, rules, partnerId, splitRatio, today, accounts, participants, recurringItems, categories, records, staged, splitGroups, updateRecord, addRecord, updateStaged, approveStaged, deleteRecords, accountName, saveRecurring, voucherBrands, addVoucherBrand } = useStore();
   const [deleting, setDeleting] = useState(false);
+  const [comparing, setComparing] = useState(false);
   const [sheet, setSheet] = useState<null | "pay" | "via" | "wallet" | "merchant" | "category" | "kind" | "topup" | "card" | "bank" | "recurring" | "group">(null);
   const dupOf = record.duplicateOf ? [...records, ...staged].find((r) => r.id === record.duplicateOf) : undefined;
   const adding = mode === "add";
@@ -78,7 +94,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   // "Direct" means the primary itself (a plain Amex payment).
   const startAcct = accounts.find((a) => a.id === record.accountId);
   const startParent = startAcct?.parentId && accounts.some((a) => a.id === startAcct.parentId) ? startAcct.parentId : "";
-  const [primaryId, setPrimaryId] = useState(startParent || record.accountId);
+  const [primaryId, setPrimaryId] = useState(record.needsCard ? "" : startParent || record.accountId);
   const [subId, setSubId] = useState(startParent ? record.accountId : "");
   const accountId = subId || primaryId;
   const keep = (a: { id: string; archived?: boolean }) => !a.archived || a.id === record.accountId || a.id === primaryId || a.id === subId;
@@ -102,6 +118,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   // An import that looks like a monthly commitment starts with "Repeat every month" selected (or its existing recurring item),
   // so approving it adds it to Recurring. You can switch to None before approving.
   const sameItem = recurringItems.find((i) => { const a = i.name.toLowerCase(), b = record.merchant.toLowerCase(); return !!b && (a.includes(b) || b.includes(a)); });
+  const [alsoIn, setAlsoIn] = useState(record.countsInGroupId ?? "");
   const [recurringId, setRecurringId] = useState(record.recurringId ?? (record.recurringHint ? sameItem?.id ?? NEW_RECURRING : ""));
   const [fundedBy, setFundedBy] = useState(record.fundedBy ?? "");
   const [paidCardId, setPaidCardId] = useState(record.paidCardId ?? "");
@@ -133,16 +150,22 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const isUpi = accounts.find((a) => a.id === accountId)?.type === "upi";
   const splitError = topUp ? null : validateSplit(amountPaise, split);
   // Which of your Payment Groups this transaction counts in, from who is in the split (the groups are views, so there is nothing to set).
+  // "Just me" only when nobody else is in it; a split that is entirely someone else's (Varru owes all) is not "just me".
+  const onlyMe = split.mode === "personal" || split.participantIds.length === 0 || (split.participantIds.length === 1 && split.participantIds[0] === meId);
   const countsIn = useMemo(() => {
-    if (topUp || amountPaise <= 0 || kind !== "purchase") return [];
+    // A split being built (a By item split with a blank item, percentages that do not add up) has no shares yet: nothing to count.
+    if (topUp || amountPaise <= 0 || kind !== "purchase" || validateSplit(amountPaise, split)) return [];
     const probe = { ...record, amountPaise, split, payerId, kind, excluded: false, status: "reviewed" as const } as ExpenseRecord;
     return groups.filter((g) => attribute(probe, g, groups, meId)).map((g) => g.name);
   }, [topUp, amountPaise, kind, record, split, payerId, groups, meId]);
   const missing = adding ? (!accountId ? "Add a payment method first (Settings)" : amountPaise <= 0 ? "Enter an amount" : !merchant.trim() ? "Enter a merchant" : !/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Pick a date" : null) : null;
   // New rows must say which voucher (or decide later). Editing something that is already approved is never blocked by it.
   const voucherProblem = promptVoucher && !voucherId && !voucherLater && record.status !== "reviewed" ? "Pick the wallet that was topped up, or choose Decide later" : voucherId && walletId ? "A payment cannot both buy a voucher and be paid with one" : null;
+  const cardPick = !adding && !!record.needsCard;
+  // The payment method can be changed on your own transactions; one that someone shared with you is theirs to change.
+  const canMove = adding || cardPick || (record.payerId === meId && accountIsEditable(record));
   const groupProblem = splitGroup && !topUp ? checkGroupExpense(splitGroup, { payerId, kind, split }, nameOf) : splitGroup && topUp ? "A wallet top-up is personal, so it cannot belong to a group." : null;
-  const bad = splitError ?? missing ?? voucherProblem ?? groupProblem;
+  const bad = splitError ?? missing ?? voucherProblem ?? groupProblem ?? (cardPick && !accountId ? "Pick the card first" : null);
 
   // Guesses from what was typed, no AI: the merchant from the note, the category from the merchant (your history and rules) or the words used.
   // They only fill empty places and never replace something you chose yourself.
@@ -150,7 +173,9 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
   const [catHint, setCatHint] = useState<string | null>(null);
   const [merchantHint, setMerchantHint] = useState<string | null>(null);
   const knownMerchants = useMemo(() => [...rankMerchants([...records, ...staged]).all.map((m) => m.name), ...COMMON_MERCHANTS], [records, staged]);
+  const ccMode = useRef(false);
   const applyCategory = (m: string, n: string) => {
+    if (ccMode.current) return;
     const g = inferCategory({ merchant: m, notes: n, records, rules, categories });
     if (!g) return;
     const free = !catTouched.current && (categoryId === "uncategorized" || categoryId === autoCat.current);
@@ -166,6 +191,11 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
     setAmountText(v);
     const p = parseRupees(v) ?? 0;
     if (split.mode === "custom" && p > 0) setSplit({ ...split, values: equalSplit(p, split.participantIds) });
+  };
+  // Moving a payment out of a voucher wallet (Amazon Pay) means it is no longer paid with that voucher.
+  const leaveWallet = (nextId: string) => {
+    const prev = walletBrandFor(accounts.find((a) => a.id === accountId), voucherBrands);
+    if (prev && paidWithId === prev.id && walletBrandFor(accounts.find((a) => a.id === nextId), voucherBrands)?.id !== prev.id) setPaidWithId("");
   };
   const applyAccount = (id: string) => {
     const a = accounts.find((x) => x.id === id);
@@ -202,7 +232,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       if (f.accountId && !touched.current.account) { applyAccount(f.accountId); if (!got.includes("payment method")) got.push("payment method"); }
       if (f.withIds && !touched.current.split) { setSplit(autoSplit(f.withIds)); if (!got.includes("split")) got.push("split"); }
       if (f.payerId && !touched.current.payer) { setPayerId(f.payerId); got.push("paid by"); }
-      if (f.kind && !touched.current.kind) { setKind(f.kind); got.push("type"); setMore(true); }
+      if (f.kind && !touched.current.kind) { setKind(f.kind); got.push("type"); setMore(true); if (f.kind === "cc_payment") { prefillCardPayment(f.paidCardId ?? "", f.amountPaise); got.push("card"); } }
       if (f.monthly && !touched.current.recurring && !recurringId) { setRecurringId(NEW_RECURRING); got.push("repeats monthly"); setMore(true); }
     }
     if (inferCategory({ merchant: m, notes: v, records, rules, categories })) got.push("category");
@@ -217,8 +247,49 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
     if (got.length) setFilled(got.map((g) => `${g} (usual for ${name})`));
   };
   const onAmount = (v: string) => { touch("amount"); setAmount(v); };
+  // Scan or upload a bill: Claude reads it, the form is filled and the items become an item-wise split to share out.
+  const billInput = useRef<HTMLInputElement>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState<{ error: boolean; text: string } | null>(null);
+  const applyBill = (bill: Bill, warnings: string[]) => {
+    const got: string[] = [];
+    if (bill.merchant && !merchantTouched.current) { setMerchant(bill.merchant); autoMerchant.current = bill.merchant; setMerchantHint("From the bill"); got.push("merchant"); applyCategory(bill.merchant, notes); }
+    setAmount(String(bill.totalPaise / 100)); got.push("amount");
+    if (bill.date) { setDate(bill.date); got.push("date"); }
+    if (bill.items.length > 0) {
+      const who = split.participantIds.length ? split.participantIds : [meId];
+      setSplit({ mode: "items", participantIds: who, items: bill.items.map((i) => ({ id: `i_${Math.random().toString(36).slice(2, 9)}`, name: i.name, amountPaise: i.amountPaise, participantIds: who })) });
+      got.push(`${bill.items.length} item${bill.items.length === 1 ? "" : "s"}`);
+      setSplitOpen(true); // straight to sharing the items out
+    }
+    setFilled(got);
+    setScanMsg(warnings.length ? { error: false, text: warnings.join(" ") } : null);
+  };
+  const scanBill = async (file: File | undefined | null) => {
+    if (!file) return;
+    setScanning(true); setScanMsg(null);
+    try {
+      const url = await billFileToDataUrl(file);
+      const res = await fetch("/api/bill", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ file: url }) });
+      const r = (await res.json()) as { bill?: Bill; warnings?: string[]; error?: string };
+      if (!res.ok || !r.bill) setScanMsg({ error: true, text: r.error ?? "Could not read that bill." }); else applyBill(r.bill, r.warnings ?? []);
+    } catch (e) { setScanMsg({ error: true, text: (e as Error).message || "Could not read that bill." }); } finally { setScanning(false); if (billInput.current) billInput.current.value = ""; }
+  };
+  const billDrop = useDropZone((f) => void scanBill(f), scanning);
+  /** A card-bill payment: pick the card (named, or the one open bill that matches), then fill what is still owed on it. */
+  const prefillCardPayment = (cardId: string, amountPaise?: number) => {
+    const views = cardViews(accounts, cardBills, [...records, ...staged], today);
+    ccMode.current = true;
+    if (!catTouched.current && categories.some((c) => c.id === "transfers")) { setCategoryId("transfers"); autoCat.current = "transfers"; setCatHint("Card payments aren't spending"); }
+    const id = cardId || suggestPaidCard(amountPaise ?? (parseRupees(amountText) ?? undefined), views);
+    if (!id) return;
+    setPaidCardId(id);
+    const bill = views.find((v) => v.card.id === id)?.current;
+    if (bill && bill.state !== "paid" && !touched.current.amount && !(amountPaise ?? parseRupees(amountText))) setAmount(String(bill.remainingPaise / 100));
+    if (!merchantTouched.current && !merchant.trim()) { const n = shortName(accounts.find((a) => a.id === id)?.name ?? ""); setMerchant(`Payment to ${n}`); autoMerchant.current = `Payment to ${n}`; }
+  };
 
-  const save = (action: "close" | "next" | "another" | "draft") => {
+  const save = (action: "save" | "verify" | "another" | "move") => {
     // "Repeat every month": turn this payment into a recurring item (usual amount, due day, split) and link it.
     let linkId = recurringId;
     if (recurringId === NEW_RECURRING) {
@@ -227,8 +298,8 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       if (err) { setRecurringError(err); setMore(true); return; }
     }
     const fields = {
-      merchant: merchant.trim(), categoryId, kind: voucherId ? ("purchase" as const) : kind, voucherBrandId: voucherId || undefined, paidWithVoucherId: walletId || undefined, voucherPending: voucherLater && !voucherId ? true : undefined, payerId, split: topUp ? { mode: "personal" as const, participantIds: [payerId] } : split, shared: topUp ? false : split.mode !== "personal", notes: notes || undefined, excluded,
-      recurringId: linkId || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, recurringHint: undefined, splitGroupId: splitGroupId || undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
+      merchant: merchant.trim(), categoryId: topUp && categories.some((c) => c.id === "vouchers") ? "vouchers" : categoryId, kind: voucherId ? ("purchase" as const) : kind, voucherBrandId: voucherId || undefined, paidWithVoucherId: walletId || undefined, voucherPending: voucherLater && !voucherId ? true : undefined, payerId, split: topUp ? { mode: "personal" as const, participantIds: [payerId] } : split, shared: topUp ? false : split.mode !== "personal", notes: notes || undefined, excluded,
+      recurringId: linkId || undefined, countsInGroupId: alsoIn || undefined, paidCardId: kind === "cc_payment" ? paidCardId || undefined : undefined, recurringHint: undefined, splitGroupId: splitGroupId || undefined, fundedBy: isUpi ? fundedBy || undefined : undefined, status: "reviewed" as const,
     };
     if (adding) {
       // Bought from a wallet: it belongs to the card that topped the wallet up last (the wallet itself is the funding source).
@@ -240,18 +311,49 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       if (action === "another") onAnother?.(); else onClose();
       return;
     }
-    const patch = { ...fields, fundedBy: isUpi ? fundedBy || undefined : record.fundedBy };
+    const patch = { ...fields, fundedBy: isUpi ? fundedBy || undefined : record.fundedBy, ...(cardPick || accountId !== record.accountId ? { accountId } : {}), ...(cardPick ? { needsCard: undefined } : {}) };
+    // Moving to a neighbour keeps what you typed, but only when something actually changed.
+    const same = (x: unknown, y: unknown) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
+    const changed = Object.entries(patch).some(([k, v]) => k !== "status" && !same(v, (record as unknown as Record<string, unknown>)[k]));
     if (mode === "review") {
-      if (action === "draft") updateStaged(record.id, patch); else approveStaged(record.id, patch);
-      if (action === "next" && next) next.open(); else onClose();
+      if (action === "verify") { approveStaged(record.id, patch); if (nav) nav.after(); else onClose(); return; }
+      if (action === "move") { if (changed) updateStaged(record.id, patch); return; }
+      updateStaged(record.id, patch); onClose();
       return;
     }
+    if (action === "move") { if (changed) updateRecord(record.id, patch); return; }
     updateRecord(record.id, patch);
-    if (action === "next" && next) next.open(); else onClose();
+    onClose();
   };
+  const goTo = (d: 1 | -1) => { if (bad) return; save("move"); nav?.go(d); };
+  // Swipe sideways to move to the next or previous transaction. Scrolling rows of chips is left alone.
+  const swipe = useRef<{ x: number; y: number; ok: boolean } | null>(null);
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", nav && (nav.dir === 1 ? "pf-slide-next" : "pf-slide-prev"))}
+      onTouchStart={(e) => { const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY, ok: !!nav && !(e.target as HTMLElement).closest(".overflow-x-auto, input[type=range]") }; }}
+      onTouchEnd={(e) => { const s0 = swipe.current; swipe.current = null; if (!s0?.ok || !nav) return; const t = e.changedTouches[0]; const dx = t.clientX - s0.x, dy = t.clientY - s0.y; if (Math.abs(dx) > 70 && Math.abs(dy) < 50) goTo(dx < 0 ? 1 : -1); }}>
+      {nav && nav.total > 1 && (
+        <div className="-mt-1 flex items-center justify-between gap-2 rounded-xl bg-background px-2 py-1 text-xs text-muted" aria-label="Move between transactions">
+          <button type="button" onClick={() => goTo(-1)} disabled={!nav.prev} aria-label={nav.prev ? `Previous: ${nav.prev.merchant}` : "No previous transaction"} className="flex min-h-9 min-w-0 flex-1 items-center gap-1 rounded-lg px-1 text-left disabled:opacity-30"><ChevronLeft size={16} aria-hidden className="shrink-0" /><span className="truncate">{nav.prev?.merchant ?? ""}</span></button>
+          <span className="num shrink-0 font-medium text-foreground">{nav.index + 1} of {nav.total}</span>
+          <button type="button" onClick={() => goTo(1)} disabled={!nav.next} aria-label={nav.next ? `Next: ${nav.next.merchant}` : "No next transaction"} className="flex min-h-9 min-w-0 flex-1 items-center justify-end gap-1 rounded-lg px-1 text-right disabled:opacity-30"><span className="truncate">{nav.next?.merchant ?? ""}</span><ChevronRight size={16} aria-hidden className="shrink-0" /></button>
+        </div>
+      )}
+      {adding && (
+        <div>
+          <input ref={billInput} type="file" accept="image/*,application/pdf" className="sr-only" aria-label="Choose a bill" onChange={(e) => void scanBill(e.target.files?.[0])} />
+          <button type="button" {...billDrop.bind} disabled={scanning || !aiEnabled} onClick={() => billInput.current?.click()} className={`flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-dashed px-3.5 text-left text-sm font-medium text-accent transition-colors disabled:opacity-60 ${billDrop.over ? "border-accent bg-accent/15" : "border-accent/40 bg-accent/5 hover:bg-accent/10"}`}>
+            <Camera size={18} aria-hidden />
+            <span className="flex-1">{scanning ? "Reading your bill…" : "Scan, upload or drop a bill"}</span>
+            <AiBadge />
+          </button>
+          {!aiEnabled && <p className="mt-1 px-1 text-xs text-muted">AI is off on this server.</p>}
+          {scanMsg && !scanMsg.error && <p role="status" className="mt-1.5 px-1 text-xs text-warn">{scanMsg.text}</p>}
+          <BusyOverlay open={scanning} title="Reading your bill with AI…" detail="Claude is finding the items and the total. This usually takes under half a minute." />
+          <ErrorDialog message={scanMsg?.error ? scanMsg.text : null} onClose={() => setScanMsg(null)} />
+        </div>
+      )}
       {adding ? (
         <div className="rounded-2xl bg-gradient-to-br from-accent/10 to-accent/[0.04] p-4">
           <div className="flex items-center justify-between gap-2">
@@ -271,7 +373,7 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
           <div className="rounded-xl bg-background p-3">
             <div className="flex items-baseline justify-between gap-2">
               <span className="num text-lg font-semibold">{formatINR(record.amountPaise)}</span>
-              <span className="text-xs text-muted">{record.date} · {accountName(record.accountId)}{record.fundedBy ? ` via ${accountName(record.fundedBy)}` : ""}</span>
+              <span className="text-xs text-muted">{record.date} · {record.needsCard ? "Card not chosen" : accountName(record.accountId)}{record.fundedBy ? ` via ${accountName(record.fundedBy)}` : ""}</span>
             </div>
             <div className="mt-1 truncate font-mono text-xs text-muted" title="Original bank text, never edited">{record.originalDescription}</div>
           </div>
@@ -280,14 +382,18 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
       )}
       {adding && filled.length > 0 && <p className="-mt-2 px-1 text-xs text-muted">Filled in for you: <b className="font-medium text-foreground">{filled.join(", ")}</b>. Change anything you like.</p>}
       {mode === "review" && (record.suggested === "ai" || record.suggested === "ai_unsure") && (
-        <p className="flex items-center gap-2 text-xs text-muted"><AiBadge tone={record.suggested === "ai" ? "ai" : "unsure"}>{record.suggested === "ai" ? "AI-powered" : "AI unsure"}</AiBadge>The merchant name and category were suggested by AI. Approving confirms them and teaches the app.</p>
+        <p className="flex items-start gap-2 text-xs text-muted"><AiBadge tone={record.suggested === "ai" ? "ai" : "unsure"}>{record.suggested === "ai" ? "AI-powered" : "AI unsure"}</AiBadge>Merchant and category suggested by AI. Approving confirms them and teaches the app.</p>
       )}
-      {mode === "review" && record.suggested === "memory" && <p className="text-xs text-muted">Filled in from what you approved before.</p>}
+      {mode === "review" && record.suggested === "memory" && <p className="text-xs text-muted">Filled in from what you verified before.</p>}
       {mode === "review" && dupOf && (
-        <p role="note" className="rounded-xl bg-warn-soft p-2.5 text-xs text-warn">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}). Approve only if this is a separate purchase; otherwise reject it.</p>
+        <div role="note" className="flex items-center gap-2 rounded-xl bg-warn-soft p-2.5 text-xs text-warn">
+          <span className="min-w-0 flex-1">Possible duplicate of {dupOf.merchant} on {dupOf.date} ({formatINR(dupOf.amountPaise)}).</span>
+          <Button type="button" onClick={() => setComparing(true)} className="shrink-0">Compare</Button>
+        </div>
       )}
-      {adding && !paidWithId && <PickerRow icon={<MerchantAvatar name={accounts.find((a) => a.id === primaryId)?.name ?? "?"} size={32} />} label="Paid with" value={accounts.find((a) => a.id === primaryId) ? shortName(accounts.find((a) => a.id === primaryId)!.name) : "Choose"} sub={accounts.find((a) => a.id === primaryId) ? typeText[accounts.find((a) => a.id === primaryId)!.type] : undefined} onClick={() => setSheet("pay")} />}
-      {adding && !paidWithId && subs.length > 0 && <PickerRow icon={subId ? <MerchantAvatar name={accounts.find((a) => a.id === subId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="Via (optional)" value={subId ? shortName(accounts.find((a) => a.id === subId)?.name ?? "") : "Direct"} muted={!subId} sub={subId ? undefined : `Paid with ${shortName(accounts.find((a) => a.id === primaryId)?.name ?? "it")} itself`} onClick={() => setSheet("via")} />}
+      {dupOf && <DupCompare open={comparing} onClose={() => setComparing(false)} onDeletedMine={() => (nav ? nav.after() : onClose())} mine={record} other={dupOf} />}
+      {!(adding && paidWithId) && <PickerRow icon={<MerchantAvatar name={accounts.find((a) => a.id === primaryId)?.name ?? "?"} size={32} />} label="Paid with" value={accounts.find((a) => a.id === primaryId) ? shortName(accounts.find((a) => a.id === primaryId)!.name) : "Choose"} sub={!canMove ? "Set by the statement it came from" : accounts.find((a) => a.id === primaryId) ? typeText[accounts.find((a) => a.id === primaryId)!.type] : undefined} onClick={() => canMove && setSheet("pay")} />}
+      {!(adding && paidWithId) && subs.length > 0 && <PickerRow icon={subId ? <MerchantAvatar name={accounts.find((a) => a.id === subId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="Via (optional)" value={subId ? shortName(accounts.find((a) => a.id === subId)?.name ?? "") : "Direct"} muted={!subId} sub={subId ? undefined : `Paid with ${shortName(accounts.find((a) => a.id === primaryId)?.name ?? "it")} itself`} onClick={() => canMove && setSheet("via")} />}
       {adding && impliedBrand && <p className="-mt-1 rounded-xl bg-accent/5 px-3 py-2 text-xs text-muted">Paid from the {impliedBrand.name} wallet: it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
       {voucherBrands.length > 0 && !topUp && !impliedBrand && kind === "purchase" && (!!paidWithId || !accounts.some((a) => a.type === "wallet" && !a.archived)) && (
         <>
@@ -295,28 +401,29 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
           {paidWithId && <p className="-mt-2 px-1 text-xs text-muted">Paid from the {voucherBrands.find((b) => b.id === paidWithId)?.name} wallet, so it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
         </>
       )}
+      <div className="grid gap-2.5 sm:grid-cols-2">
       <PickerRow icon={merchant.trim() ? <MerchantAvatar name={merchant} size={32} /> : <Dot icon={Store} size={32} tone="bg-accent/10 text-accent" />} label="Merchant" value={merchant.trim() || "Where did you pay?"} muted={!merchant.trim()} sub={merchantHint ?? undefined} onClick={() => setSheet("merchant")} />
-      <PickerRow icon={<CategoryGlyph name={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} icon={categories.find((c) => c.id === categoryId)?.icon} size={32} />} label="Category" value={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} muted={categoryId === "uncategorized"} sub={catHint ? `Suggested: ${catHint}` : undefined} onClick={() => setSheet("category")} />
+      {!topUp && <PickerRow icon={<CategoryGlyph name={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} icon={categories.find((c) => c.id === categoryId)?.icon} size={32} />} label="Category" value={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} muted={categoryId === "uncategorized"} sub={catHint ? `Suggested: ${catHint}` : undefined} onClick={() => setSheet("category")} />}
+      </div>
       {promptVoucher && (
-        <FormRow label="Wallet">
+        <FormRow label="Wallet" tip="Adds to that wallet's balance and counts once as spending. A top-up is never split; split wallet purchases instead.">
           <CompactChips label="Wallet topped up" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
             onPick={(id) => { if (id === "__later") { setVoucherLater(true); setVoucherId(""); } else { setVoucherLater(false); pickBrand(id, setVoucherId); } }} adder={voucherAdder} />
-          <p className="mt-1.5 text-xs text-muted">Which wallet is this topping up? It is recorded under {accountName(accountId)} › {merchant || "this merchant"} › the wallet you pick, adds to that wallet&apos;s balance, and counts once as money spent. It is never split. Statement text is never changed.</p>
-          {!voucherId && !voucherLater && record.status !== "reviewed" && <p role="alert" className="mt-1 text-xs font-medium text-warn">Choose a wallet to continue.</p>}
+          {!voucherId && !voucherLater && record.status !== "reviewed" && <p role="alert" className="mt-2 text-xs font-medium text-warn">Pick a wallet to continue.</p>}
         </FormRow>
       )}
       {groupChoices.length > 0 && !topUp && <PickerRow icon={<Dot icon={Users} size={32} tone="bg-accent/10 text-accent" />} label="Group" value={splitGroup?.name ?? "None"} muted={!splitGroup} onClick={() => setSheet("group")} />}
       {splitGroup && !topUp && <p className="-mt-1.5 px-1 text-xs text-muted">Shared with people in {splitGroup.name} only. Imported rows count in the group once you approve them.</p>}
       {groupProblem && <p role="alert" className="-mt-1.5 px-1 text-xs text-danger">{groupProblem}</p>}
       {topUp
-        ? <p className="rounded-xl bg-background p-3 text-xs text-muted">A top-up is your own money, so it isn&apos;t split. Split wallet purchases instead.</p>
+        ? null
         : (
           <>
-            <PickerRow icon={<span className="flex -space-x-2">{(split.participantIds.length ? split.participantIds : [meId]).slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={26} /></span>)}</span>} label="Split with" value={split.mode === "personal" || split.participantIds.length <= 1 ? "Just me" : split.participantIds.map((id) => (id === meId ? "You" : nameOf(id))).join(", ")} sub={splitError ?? (split.participantIds.length > 1 ? "Tap to change who and how" : "Tap to share with someone")} onClick={() => { touch("split"); setSplitOpen(true); }} />
-            {countsIn.length > 0 && <p className="-mt-1 px-1 text-xs text-muted">Counts in <b className="font-medium text-foreground">{countsIn.join(" · ")}</b>. This follows who is in the split.</p>}
+            <PickerRow icon={<span className="flex -space-x-2">{(split.participantIds.length ? split.participantIds : [meId]).slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={26} /></span>)}</span>} label="Split with" value={onlyMe ? "Just me" : split.participantIds.map((id) => (id === meId ? "You" : nameOf(id))).join(", ")} sub={splitError ?? (onlyMe ? "Tap to share with someone" : split.gift ? "You paid for them" : !split.participantIds.includes(meId) ? "You are not in this split" : "Tap to change who and how")} onClick={() => { touch("split"); setSplitOpen(true); }} />
+            {countsIn.length > 0 && <p className="-mt-1 px-1 text-xs text-muted">Counts in <b className="font-medium text-foreground">{countsIn.join(" · ")}</b></p>}
           </>
         )}
-      {(sharing || !adding) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.filter((p) => !splitGroup || splitGroup.participantIds.includes(p.id)).map((p) => ({ id: p.id, label: p.name, icon: <PersonGlyph name={p.name} id={p.id} /> }))} selected={[payerId]} onPick={(id) => { touch("payer"); setPayerId(id); }} /></FormRow>}
+      {(sharing || payerId !== meId) && !topUp && <FormRow label="Paid by"><CompactChips label="Paid by" options={participants.filter((p) => !splitGroup || splitGroup.participantIds.includes(p.id)).map((p) => ({ id: p.id, label: nameOf(p.id), icon: <PersonGlyph name={nameOf(p.id)} id={p.id} /> }))} selected={[payerId]} onPick={(id) => { touch("payer"); setPayerId(id); }} /></FormRow>}
       <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="group flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-border bg-surface px-3 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent">
         <Dot icon={SlidersHorizontal} tone="bg-accent/10 text-accent" size={26} />
         <span className="flex-1 text-sm font-semibold">More options</span>
@@ -339,16 +446,20 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
           {record.recurringHint && !record.recurringId && <p className="-mt-1.5 px-1 text-xs text-muted">Looks like a monthly payment. Approving adds it to Recurring. Choose None to skip.</p>}
           {recurringId === NEW_RECURRING && <p className="-mt-1.5 px-1 text-xs text-muted">Adds “{merchant.trim() || "this payment"}” to Recurring: {formatINR(amountPaise)} due on the {dueDay}{[11, 12, 13].includes(dueDay) ? "th" : ["th", "st", "nd", "rd"][dueDay % 10 < 4 ? dueDay % 10 : 0]} each month, split the same way. You can change it later under Recurring.</p>}
           {recurringError && <p role="alert" className="-mt-1.5 px-1 text-xs text-danger">{recurringError}</p>}
+          {groups.some((g) => g.kind === "people") && (
+            <PickerRow icon={<Dot icon={Users} size={32} tone={alsoIn ? "bg-accent/10 text-accent" : undefined} />} label="Also count in" value={groups.find((g) => g.id === alsoIn)?.name ?? "No other group"} muted={!alsoIn} onClick={() => setSheet("group")} />
+          )}
           <PickerRow icon={<Dot icon={EyeOff} size={32} tone={excluded ? "bg-danger/10 text-danger" : undefined} />} label="Reports" value={excluded ? "Excluded from reports" : "Counted in reports"} muted={!excluded} onClick={() => setExcluded(!excluded)}>
             <span aria-hidden className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${excluded ? "bg-danger" : "bg-border"}`}><span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${excluded ? "left-[1.15rem]" : "left-0.5"}`} /></span>
           </PickerRow>
         </div>
       )}
 
-      <ListSheet open={sheet === "kind"} onClose={() => setSheet(null)} title="Type" value={kind} options={kinds.map((k) => ({ id: k.id, label: k.label, icon: k.icon }))} onPick={(id) => { touch("kind"); setKind(id as TxnKind); }} />
+      <ListSheet open={sheet === "kind"} onClose={() => setSheet(null)} title="Type" value={kind} options={kinds.map((k) => ({ id: k.id, label: k.label, icon: k.icon }))} onPick={(id) => { touch("kind"); setKind(id as TxnKind); if (id !== "cc_payment") ccMode.current = false; if (id === "cc_payment" && !paidCardId) prefillCardPayment(""); }} />
       <ListSheet open={sheet === "topup"} onClose={() => setSheet(null)} title="Tops up wallet" value={voucherId} options={[{ id: "", label: "No", icon: <Dot icon={Ban} size={32} /> }, ...brandOptions.map((o) => ({ id: o.id, label: o.label, icon: o.icon }))]} onPick={(id) => pickBrand(id, setVoucherId)} />
-      <ListSheet open={sheet === "card"} onClose={() => setSheet(null)} title="Which card was paid" value={paidCardId} options={[{ id: "", label: "Not sure", icon: <Dot icon={Ban} size={32} /> }, ...accounts.filter((a) => a.type === "credit_card").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setPaidCardId} />
+      <ListSheet open={sheet === "card"} onClose={() => setSheet(null)} title="Which card was paid" value={paidCardId} options={[{ id: "", label: "Not sure", icon: <Dot icon={Ban} size={32} /> }, ...accounts.filter((a) => a.type === "credit_card").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={(id) => { setPaidCardId(id); if (id) prefillCardPayment(id); }} />
       <ListSheet open={sheet === "bank"} onClose={() => setSheet(null)} title="Paid from bank" value={fundedBy} options={[{ id: "", label: "Unknown", icon: <Dot icon={Ban} size={32} /> }, ...accounts.filter((a) => a.type === "bank").map((a) => ({ id: a.id, label: a.name, icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={setFundedBy} />
+      <ListSheet open={sheet === "group"} onClose={() => setSheet(null)} title="Also count in" value={alsoIn} options={[{ id: "", label: "No other group", icon: <Dot icon={Ban} size={32} /> }, ...groups.filter((g) => g.kind === "people").map((g) => ({ id: g.id, label: g.name, icon: <Dot icon={Users} size={32} /> }))]} onPick={setAlsoIn} />
       <ListSheet open={sheet === "recurring"} onClose={() => { setSheet(null); setRecurringError(null); }} title="Recurring" value={recurringId} options={[{ id: "", label: "None", icon: <Dot icon={Ban} size={32} /> }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name, icon: <Dot icon={Repeat} size={32} tone="bg-red-100 text-red-700" /> })), { id: NEW_RECURRING, label: "Repeat every month", hint: "Adds this payment to Recurring", icon: <Dot icon={Plus} size={32} tone="bg-accent/10 text-accent" /> }]} onPick={(v) => { touch("recurring"); setRecurringId(v); setRecurringError(null); }} />
       <Dialog open={splitOpen} onClose={() => setSplitOpen(false)} title="Split with">
         <div className="space-y-3 pb-2">
@@ -357,29 +468,28 @@ function Form({ mode, record, onClose, next, onAnother, onAdded }: { mode: "edit
         </div>
         <div className="sticky bottom-0 -mx-4 flex justify-end border-t border-border bg-surface px-4 py-3"><Button variant="primary" onClick={() => setSplitOpen(false)}>Done</Button></div>
       </Dialog>
-      <ListSheet open={sheet === "pay"} onClose={() => setSheet(null)} title="Paid with" value={primaryId} options={primaries.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))} onPick={(id) => { touch("account"); setPrimaryId(id); setSubId(""); }} />
-      <ListSheet open={sheet === "via"} onClose={() => setSheet(null)} title="Via" value={subId} options={[{ id: "", label: "Direct", hint: `Paid with ${accounts.find((a) => a.id === primaryId)?.name ?? "it"} itself`, icon: <Dot icon={Ban} size={32} /> }, ...subs.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={(id) => { touch("account"); setSubId(id); }} note="Pick a sub payment method only if the money went through it." />
+      <ListSheet open={sheet === "pay"} onClose={() => setSheet(null)} title="Paid with" value={primaryId} options={primaries.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))} onPick={(id) => { touch("account"); leaveWallet(id); setPrimaryId(id); setSubId(""); }} />
+      <ListSheet open={sheet === "via"} onClose={() => setSheet(null)} title="Via" value={subId} options={[{ id: "", label: "Direct", hint: `Paid with ${accounts.find((a) => a.id === primaryId)?.name ?? "it"} itself`, icon: <Dot icon={Ban} size={32} /> }, ...subs.map((a) => ({ id: a.id, label: a.name, hint: typeText[a.type], icon: <MerchantAvatar name={a.name} size={32} /> }))]} onPick={(id) => { touch("account"); leaveWallet(id || primaryId); setSubId(id); }} note="Pick a sub payment method only if the money went through it." />
       <ListSheet open={sheet === "wallet"} onClose={() => setSheet(null)} title="From wallet" value={paidWithId} options={[{ id: "", label: "No", icon: <Dot icon={Ban} size={32} /> }, ...voucherBrands.map((b) => ({ id: b.id, label: `${b.name} wallet`, icon: <MerchantAvatar name={b.name} size={32} /> }))]} onPick={setPaidWithId} />
       <ListSheet open={sheet === "group"} onClose={() => setSheet(null)} title="Group" value={splitGroupId} options={[{ id: "", label: "None", icon: <Dot icon={Ban} size={32} /> }, ...groupChoices.map((g) => ({ id: g.id, label: g.name, icon: <Dot icon={Users} size={32} tone="bg-accent/10 text-accent" /> }))]} onPick={pickGroup} />
       <MerchantSheet open={sheet === "merchant"} onClose={() => setSheet(null)} value={merchant} onPick={onPickMerchant} />
       <CategorySheet open={sheet === "category"} onClose={() => setSheet(null)} value={categoryId} onPick={(id) => { catTouched.current = true; setCatHint(null); setCategoryId(id); }} />
 
       <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-border bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center">
-        {/* One clear main action; the rest sit quietly beside or below it. */}
-        <Button variant="primary" className="w-full sm:order-last sm:ml-auto sm:w-auto" onClick={() => save(mode !== "add" && next && next.remaining > 0 ? "next" : "close")} disabled={!!bad}>
-          {adding ? "Add" : mode === "review" ? (next && next.remaining > 0 ? `Approve & next (${next.remaining})` : "Approve") : next && next.remaining > 0 ? `Save & next (${next.remaining})` : "Save"}
-        </Button>
+        {/* Two clear actions for an unverified row: keep it as it is, or verify it. One for everything else. */}
+        <div className="flex gap-2 sm:order-last sm:ml-auto">
+          {mode === "review" && <Button className="flex-1 sm:flex-none" onClick={() => save("save")} disabled={!!bad}>Save</Button>}
+          <Button variant="primary" className="flex-1 sm:flex-none" onClick={() => save(mode === "review" ? "verify" : "save")} disabled={!!bad}>{adding ? "Add" : mode === "review" ? "Save & verify" : "Save"}</Button>
+        </div>
         <div className="flex items-center justify-between gap-1 sm:justify-start">
           {mode !== "add" && <Button variant="danger" onClick={() => setDeleting(true)} className="border-0" aria-label="Delete transaction"><Trash2 size={15} aria-hidden /><span>Delete</span></Button>}
-          {mode === "review" && <Button onClick={() => save("draft")} disabled={!!bad} className="border-0">Save draft</Button>}
-          {mode !== "review" && <Button onClick={onClose} className="border-0">Cancel</Button>}
+          {mode === "edit" && <Button onClick={onClose} className="border-0">Cancel</Button>}
           {adding && <Button onClick={() => save("another")} disabled={!!bad} className="border-0">Add another</Button>}
-          {mode !== "add" && next && next.remaining > 0 && <Button onClick={() => save("close")} disabled={!!bad} className="border-0">{mode === "review" ? "Approve only" : "Save only"}</Button>}
         </div>
         {mode !== "add" && (
           <ConfirmDialog open={deleting} onClose={() => setDeleting(false)} title="Delete this transaction?" onConfirm={() => { deleteRecords([record.id]); onClose(); }}>
             <p><strong>{record.merchant}</strong> · {formatINR(record.amountPaise)} · {record.date}</p>
-            <p className="text-muted">{record.status === "reviewed" ? "It will disappear from your reports, balances and dashboard. " : "It will be removed from the review queue. "}The original line stays in the import history, so you can tell what was removed. This cannot be undone.</p>
+            <p className="text-muted">{record.status === "reviewed" ? "It will disappear from your reports, balances and dashboard. " : "It stops counting in your totals. "}The original line stays in the import history, so you can tell what was removed. This cannot be undone.</p>
           </ConfirmDialog>
         )}
       </div>

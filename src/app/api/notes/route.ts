@@ -1,3 +1,4 @@
+import { trackedClaude } from "@/lib/ai-usage/server";
 import { NextResponse } from "next/server";
 import { createFirestoreRepository } from "@/data/firestore-repository";
 import { claudeFromEnv } from "@/lib/import/ai-extract";
@@ -14,7 +15,7 @@ export const maxDuration = 60;
 export async function POST() {
   const who = await authorize();
   if (!who.ok) return who.res;
-  const claude = claudeFromEnv(process.env);
+  const claude = trackedClaude(claudeFromEnv(process.env), who.session.uid, "notes");
   if (!claude) return NextResponse.json({ error: "AI is off on this server. Add an Anthropic API key to switch it on." }, { status: 400 });
   try {
     const repo = createFirestoreRepository(who.membership.household.id);

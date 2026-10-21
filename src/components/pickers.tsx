@@ -154,7 +154,7 @@ export function CategorySheet({ open, onClose, value, onPick }: { open: boolean;
         )}
         {error && <p role="alert" className="mt-1 px-1 text-xs text-danger">{error}</p>}
       </div>
-      <p className="border-t border-border pb-4 pt-3 text-xs text-muted">To rename, delete or merge categories, use <Link href="/categories" className="text-accent underline">Categories</Link>.</p>
+      <p className="border-t border-border pb-4 pt-3 text-xs text-muted">To rename, delete or merge categories, use <Link href="/settings?s=categories" className="text-accent underline">Categories</Link>.</p>
     </Dialog>
   );
 }

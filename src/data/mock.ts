@@ -40,7 +40,7 @@ const personal = (id = "me"): SplitConfig => ({ mode: "personal", participantIds
 const equal = (...ids: string[]): SplitConfig => ({ mode: "equal", participantIds: ids });
 const HOUSE = ["me", "wife"];
 
-interface Opts { kind?: TxnKind; payer?: string; split?: SplitConfig; shared?: boolean; status?: "reviewed" | "unreviewed"; ref?: string; dupOf?: string; excluded?: boolean; notes?: string; receiptId?: string; fundedBy?: string; rec?: string }
+interface Opts { kind?: TxnKind; payer?: string; split?: SplitConfig; shared?: boolean; status?: "reviewed" | "unreviewed"; ref?: string; dupOf?: string; excluded?: boolean; notes?: string; receiptId?: string; fundedBy?: string; rec?: string; needsCard?: boolean }
 let n = 0;
 function t(date: string, merchant: string, desc: string, rupees: number, accountId: string, categoryId: string, o: Opts = {}): ExpenseRecord {
   const split = o.split ?? personal(o.payer ?? "me");
@@ -49,7 +49,7 @@ function t(date: string, merchant: string, desc: string, rupees: number, account
     accountId, categoryId, kind: o.kind ?? "purchase", payerId: o.payer ?? "me",
     shared: o.shared ?? split.mode !== "personal", split, excluded: o.excluded ?? false, status: o.status ?? "reviewed",
     importSource: `${accountId}_Sep2026 (mock)`, referenceId: o.ref, notes: o.notes,
-    duplicateOf: o.dupOf, receiptId: o.receiptId, fundedBy: o.fundedBy, recurringId: o.rec,
+    duplicateOf: o.dupOf, receiptId: o.receiptId, fundedBy: o.fundedBy, recurringId: o.rec, ...(o.needsCard ? { needsCard: true } : {}),
   };
 }
 
@@ -78,7 +78,7 @@ export const initialRecords: ExpenseRecord[] = [
   t("2026-09-12", "BookMyShow", "BOOKMYSHOW MUMBAI", 900, "cc_amex", "entertainment", { split: equal(...HOUSE), ref: "CC0912A" }),
   t("2026-09-13", "Amazon", "AMAZON REFUND CR", 1299, "cc_icici", "refunds", { kind: "refund", ref: "CC0913R" }),
   t("2026-09-13", "Reliance Fresh", "RELIANCE FRESH KORAMANGALA", 1980.75, "cc_hdfc", "groceries", { split: equal(...HOUSE), ref: "CC0913A" }),
-  t("2026-09-14", "Swiggy", "SWIGGY BANGALORE IN", 1180, "cc_hdfc", "food_delivery", { split: equal(...HOUSE), ref: "CC0914A", status: "unreviewed" }),
+  t("2026-09-14", "Swiggy", "SWIGGY BANGALORE IN", 1180, "cc_hdfc", "food_delivery", { split: equal(...HOUSE), ref: "CC0914A", status: "unreviewed", needsCard: true }),
   t("2026-09-14", "Blinkit", "BLINKIT GROFERS INDIA", 455.5, "cc_hdfc", "groceries", { split: equal(...HOUSE), status: "unreviewed" }),
   t("2026-09-15", "HDFC Bank", "CC ANNUAL FEE + GST", 590, "cc_hdfc", "fees", { kind: "fee", ref: "CC0915F" }),
   t("2026-09-15", "Uber", "UBER INDIA SYSTEMS", 512, "cc_hdfc", "transport", { split: { mode: "custom", participantIds: ["me", "priya"], values: { me: r(256), priya: r(256) } }, notes: "Shared cab with Priya" }),

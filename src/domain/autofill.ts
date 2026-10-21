@@ -15,6 +15,8 @@ export interface NoteFacts {
   kind?: TxnKind;
   /** The note says it repeats every month. */
   monthly?: boolean;
+  /** A card-bill payment names the credit card it pays. */
+  paidCardId?: string;
 }
 
 const DAY = 86_400_000;
@@ -105,12 +107,29 @@ export function kindIn(text: string): TxnKind | undefined {
   return undefined;
 }
 
+/** "paid amex bill from hdfc", "credit card bill 48210", "cc payment": a card-bill payment, with the card it names. */
+export function cardPaymentIn(text: string, accounts: Account[]): { paidCardId?: string; bankId?: string } | undefined {
+  const t = norm(text);
+  const live = accounts.filter((a) => !a.archived);
+  // "paid amex bill from hdfc bank": the card is named before "from", the bank after it.
+  const [before, after] = text.split(/\b(?:from|via|using|through)\b/i);
+  const cards = live.filter((a) => a.type === "credit_card");
+  const paidCardId = accountIn(before, cards) ?? accountIn(text, cards);
+  const phrase = / (credit card|card|cc) (bill|payment|dues?|statement) | (bill|payment) (of|for|to) (the )?(credit )?card | pay(ing)? (my |the )?(credit card|card|cc)/.test(t);
+  // A named card plus "bill" or "payment" is enough ("paid amex bill").
+  if (!phrase && !(paidCardId && / (bill|payment|dues?) /.test(t))) return undefined;
+  const bankId = accountIn(after ?? text, live.filter((a) => a.type === "bank" || a.type === "upi"));
+  return { ...(paidCardId ? { paidCardId } : {}), ...(bankId ? { bankId } : {}) };
+}
+
 export function readNote(note: string, ctx: NoteContext): NoteFacts {
   if (note.trim().length < 3) return {};
-  const amountPaise = amountIn(note), date = dateIn(note, ctx.today), accountId = accountIn(note, ctx.accounts), kind = kindIn(note);
+  const cc = cardPaymentIn(note, ctx.accounts);
+  const amountPaise = amountIn(note), date = dateIn(note, ctx.today), kind = cc ? "cc_payment" as const : kindIn(note);
+  const accountId = cc ? cc.bankId : accountIn(note, ctx.accounts);
   const { withIds, payerId } = peopleIn(note, ctx.participants, ctx.meId);
   const monthly = /\b(every month|monthly|per month|each month)\b/i.test(note);
-  return { ...(amountPaise ? { amountPaise } : {}), ...(date ? { date } : {}), ...(accountId ? { accountId } : {}), ...(withIds.length ? { withIds } : {}), ...(payerId ? { payerId } : {}), ...(kind ? { kind } : {}), ...(monthly ? { monthly } : {}) };
+  return { ...(amountPaise ? { amountPaise } : {}), ...(date ? { date } : {}), ...(accountId ? { accountId } : {}), ...(withIds.length ? { withIds } : {}), ...(payerId ? { payerId } : {}), ...(kind ? { kind } : {}), ...(monthly ? { monthly } : {}), ...(cc?.paidCardId ? { paidCardId: cc.paidCardId } : {}) };
 }
 
 /** What you usually do with a merchant, from your approved history: the payment method used most, and the split if the last two were shared the same way. */

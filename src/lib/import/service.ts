@@ -6,6 +6,8 @@ import { classifyRow } from "@/domain/import/classify";
 import { extractRows, type ParsedRow } from "@/domain/import/rows";
 import type { PdfParseResult, StatementCheck, StatementSummary } from "@/domain/import/pdf";
 import { planImport } from "@/domain/dedupe";
+import { impliedVoucherId } from "@/domain/accounts";
+import { cardViews, suggestPaidCard } from "@/domain/cardbills";
 import { resolveChannel } from "@/domain/import/channel";
 import { looksRecurring, repeatsMonthly } from "@/domain/import/recurring-hint";
 import { knownVoucherSeller } from "@/domain/vouchers";
@@ -55,7 +57,7 @@ export interface PreviewRow {
   recurring?: boolean;
   /** A voucher seller (for example Shopwise): review asks which voucher was bought. */
   voucher?: boolean;
-  /** What will happen: skipped duplicates are not added. Defaults to skipping exact duplicates only; your decision overrides it. */
+  /** What will happen: a skipped row is not added. Nothing is skipped on its own: an exact repeat or a lookalike is added and flagged unless you say skip. */
   action: "import" | "skip";
   /** The existing entry this duplicates or resembles (absent when it only repeats another line of the same file). */
   match?: { merchant: string; date: string; amountPaise: number; reviewed: boolean };
@@ -120,6 +122,8 @@ interface ImportBase {
   acceptMismatch?: boolean;
   /** The person confirmed they want to read a file that was already imported. Without it a repeat import is refused. */
   allowReimport?: boolean;
+  /** The source did not name a payment method, so rows wait for the person to pick one (marks them needsCard). */
+  cardUnsure?: boolean;
   /** How the payment method was decided (for the preview). */
   detected?: Preview["detected"];
   /** Your decision for lines that look like entries you already have, keyed by the row's line number. */
@@ -272,9 +276,12 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
   });
   // Per-row routing: a bank row naming GPay is filed under GPay (funded by the bank); a card-bill payment names the card.
   const accounts = await repo.accounts.list();
+  // A bank payment that does not name its card is matched to the one open bill with that amount.
+  const billViews = cardViews(accounts, await repo.cardBills.list(), records, new Date().toISOString().slice(0, 10));
   const withRef = prepared.map((p) => {
     const ch = resolveChannel(p.r.description, p.kind, account, accounts);
-    return { ...p, accountId: ch.accountId, fundedBy: ch.fundedBy, paidCardId: ch.paidCard?.id, voucher: p.voucher, recurring: p.kind !== "cc_payment" && (p.r.recurringHint === true || looksRecurring(p.r.description, p.kind, p.r.direction) || repeatsMonthly(p.r.description, p.r.amountPaise, p.r.date, records)), merchant: ch.merchant ?? p.merchant, referenceId: dedupeKey(d.sha256, input.accountId, p.r, p.occurrence) };
+    const guessedCard = p.kind === "cc_payment" && !ch.paidCard && account.type === "bank" ? suggestPaidCard(p.r.amountPaise, billViews) : undefined;
+    return { ...p, accountId: ch.accountId, fundedBy: ch.fundedBy, paidCardId: ch.paidCard?.id ?? guessedCard, voucher: p.voucher, recurring: p.kind !== "cc_payment" && (p.r.recurringHint === true || looksRecurring(p.r.description, p.kind, p.r.direction) || repeatsMonthly(p.r.description, p.r.amountPaise, p.r.date, records)), merchant: ch.merchant ?? p.merchant, referenceId: dedupeKey(d.sha256, input.accountId, p.r, p.occurrence) };
   });
   const plan = planImport(withRef.map((p) => ({ accountId: p.accountId, fundedBy: p.fundedBy, date: p.r.date, amountPaise: p.r.amountPaise, merchant: p.merchant, referenceId: p.referenceId, direction: p.r.direction })), records);
 
@@ -282,7 +289,7 @@ async function prepare(repo: Repository, input: ImportInput, d: ImportDeps): Pro
     const dup = plan[i].dup;
     const status: PreviewRow["status"] = dup.status === "exact" ? "duplicate" : dup.status === "possible" ? "possible" : "new";
     const chosen = input.decisions?.[String(p.r.line)];
-    const action: PreviewRow["action"] = status === "new" ? "import" : chosen ?? (status === "duplicate" ? "skip" : "import");
+    const action: PreviewRow["action"] = status === "new" ? "import" : chosen ?? "import";
     const found = dup.status === "none" ? undefined : records.find((x) => x.id === dup.matchId);
     return {
       action, match: found ? { merchant: found.merchant, date: found.date, amountPaise: found.amountPaise, reviewed: found.status === "reviewed" } : undefined,
@@ -340,10 +347,13 @@ export async function commitImport(repo: Repository, actor: { uid: string; parti
     const raw: RawTransaction = { id: `${batchId}-${r.line}`, batchId, line: r.line, cells: r.parsed.raw.map((c) => c.slice(0, 1000)).slice(0, 60) };
     await repo.rawTransactions.put(raw);
   }
+  const walletAccounts = await repo.accounts.list();
+  const walletBrands = await repo.voucherBrands.list();
   for (const r of stage) {
+    const walletPaid = impliedVoucherId(walletAccounts.find((a) => a.id === r.accountId), r.kind, walletBrands);
     const rec: ExpenseRecord = {
       id: d.newId(), date: r.date, postedDate: r.parsed.postedDate, merchant: r.merchant, originalDescription: r.description.slice(0, 500), amountPaise: r.amountPaise, currency: "INR",
-      accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), ...(r.paidCardId ? { paidCardId: r.paidCardId } : {}), ...(r.recurring ? { recurringHint: true } : {}), ...(r.voucher ? { voucherPending: true } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
+      accountId: r.accountId, ...(r.fundedBy ? { fundedBy: r.fundedBy } : {}), ...(r.paidCardId ? { paidCardId: r.paidCardId } : {}), ...(input.cardUnsure && r.accountId === input.accountId ? { needsCard: true } : {}), ...(r.recurring ? { recurringHint: true } : {}), ...(walletPaid ? { paidWithVoucherId: walletPaid } : {}), ...(r.voucher && !walletPaid ? { voucherPending: true } : {}), categoryId: r.categoryId, kind: r.kind, payerId: actor.participantId, shared: false, split: { mode: "personal", participantIds: [actor.participantId] },
       excluded: false, status: "unreviewed", suggested: r.suggested, importSource: `${input.filename.slice(0, 150)} (import ${batchId.slice(0, 8)})`, batchId, referenceId: r.referenceId, duplicateOf: r.status !== "new" ? r.matchId : undefined,
     };
     await repo.records.put(JSON.parse(JSON.stringify(rec)) as ExpenseRecord);

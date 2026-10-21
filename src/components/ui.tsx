@@ -159,10 +159,10 @@ export function Badge({ tone = "neutral", children }: { tone?: keyof typeof tone
 
 export function PageHeader({ title, sub, actions, tip }: { title: string; sub?: string; actions?: ReactNode; tip?: string }) {
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-3 flex flex-wrap items-end justify-between gap-3 md:mb-4">
       <div>
         <h1 className="flex items-center gap-1 text-xl font-semibold tracking-tight">{title}{tip && <InfoTip text={tip} />}</h1>
-        {sub && <p className="text-sm text-muted">{sub}</p>}
+        {sub && <p className="hidden text-sm text-muted sm:block">{sub}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -195,12 +195,12 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
       className="m-auto w-[min(36rem,calc(100vw-1.5rem))] rounded-2xl bg-surface p-0 backdrop:bg-black/30 max-sm:mb-0 max-sm:mt-auto max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none"
     >
       {open && (
-        <div className="max-h-[88vh] overflow-y-auto px-4 pt-4">
-          <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex max-h-[88vh] flex-col">
+          <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2 pt-4">
             <h2 className="text-base font-semibold">{title}</h2>
             <button type="button" onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-full text-muted hover:bg-background"><X size={16} aria-hidden /></button>
           </div>
-          {children}
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-1">{children}</div>
         </div>
       )}
     </dialog>
@@ -382,7 +382,7 @@ export function ConfirmDialog({ open, onClose, title, children, confirmLabel = "
 /** Marks anything produced by an AI model, so it is never mistaken for something you or the bank wrote. */
 export function AiBadge({ children = "AI", tone = "ai", title = "Suggested by AI (Claude). Check it before approving." }: { children?: ReactNode; tone?: "ai" | "unsure"; title?: string }) {
   return (
-    <span title={title} className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium", tone === "ai" ? "bg-accent/10 text-accent" : "bg-warn-soft text-warn")}>
+    <span title={title} className={cn("inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium", tone === "ai" ? "bg-accent/10 text-accent" : "bg-warn-soft text-warn")}>
       <svg aria-hidden viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M12 2l1.8 5.6L19.5 9.5l-5.7 1.9L12 17l-1.8-5.6L4.5 9.5l5.7-1.9L12 2zm7 12l.9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9L19 14z" /></svg>
       {children}
     </span>

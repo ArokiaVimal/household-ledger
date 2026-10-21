@@ -74,7 +74,7 @@ export async function categoriseFromNotes(cfg: ClaudeConfig, records: ExpenseRec
         body: JSON.stringify({ model: cfg.model || DEFAULT_MODEL, system: sys, tools: [TOOL], tool_choice: { type: "tool", name: "categorise" }, messages: [{ role: "user", content }], max_tokens: 60 * batch.length + 300, ...extra }),
         signal: AbortSignal.timeout(cfg.timeoutMs ?? 30_000),
       });
-      let res = await request({ temperature: 0 });
+      let res = await request({});
       if (res.status === 400) res = await request({});
       if (!res.ok) { usage.error = await describeFailure(res); break; }
       const body = (await res.json()) as { content?: { type: string; input?: unknown }[]; usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } };

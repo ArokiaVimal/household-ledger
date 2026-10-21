@@ -1,3 +1,4 @@
+import { trackedClaude } from "@/lib/ai-usage/server";
 import { NextResponse } from "next/server";
 import { createFirestoreRepository } from "@/data/firestore-repository";
 import { loadHouseholdData, participantIdFor } from "@/lib/data/load";
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
   let month = "";
   try { month = String(((await req.json()) as { month?: unknown }).month ?? ""); } catch { /* invalid below */ }
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return NextResponse.json({ error: "Pick a month." }, { status: 400 });
-  const claude = claudeFromEnv(process.env);
+  const claude = trackedClaude(claudeFromEnv(process.env), who.session.uid, "insights");
   if (!claude) return NextResponse.json({ error: "AI is off on this server. Add an Anthropic API key to switch it on." }, { status: 400 });
   try {
     const data = await loadHouseholdData(createFirestoreRepository(who.membership.household.id));

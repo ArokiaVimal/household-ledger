@@ -39,6 +39,11 @@ export function attribute(r: ExpenseRecord, group: PaymentGroup, all: PaymentGro
     const allocated = mine + covered;
     return allocated === 0 ? null : { allocatedPaise: allocated, myPaise: mine, onBehalfPaise: covered, paidPaise: paid };
   }
+  // Counted in this group on purpose, in full (set on the transaction).
+  if (r.countsInGroupId === group.id) {
+    const all = signedSpend(r);
+    return all === 0 ? null : { allocatedPaise: all, myPaise: mine, onBehalfPaise: r.payerId === meId ? Math.max(0, paid - mine) : 0, paidPaise: paid };
+  }
   const others = group.memberIds.filter((id) => id !== meId);
   if (!others.some((id) => sh(id) !== 0 || r.payerId === id)) return null;
   const theirs = others.reduce((s, id) => s + sh(id), 0);
