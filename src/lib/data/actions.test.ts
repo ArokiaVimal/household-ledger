@@ -3,6 +3,7 @@ import { createMemoryRepository } from "@/data/memory-repository";
 import type { Repository } from "@/data/repository";
 import type { ExpenseRecord } from "@/domain/types";
 import { ActionError, applyAction } from "./actions";
+import { withdrawOwnShares } from "./withdraw";
 
 const actor = { uid: "u1" };
 const base = { id: "r1", date: "2026-09-05", merchant: "Chai Kadai", amountPaise: 25050, accountId: "cc_hdfc", categoryId: "groceries", kind: "purchase" as const, payerId: "me", shared: false, split: { mode: "personal" as const, participantIds: ["me"] }, excluded: false };
@@ -346,6 +347,26 @@ describe("sharing with a partner", () => {
       if (how === "delete") await applyAction(repo, actor, { type: "record.delete", id: "imp1" }, ctx);
       expect((await couple.sharedExpenses.get("imp1"))!.voided).toBe(true);
     }
+  });
+  it("a shared copy whose original was wiped can be withdrawn by the person who shared it, and by nobody else", async () => {
+    const { repo, couple, ctx } = await linked();
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { shared: true, split } }, ctx);
+    await repo.records.remove("imp1"); // what "Delete all my data" used to leave behind
+    await fails(applyAction(repo, { ...actor, uid: "someone-else" }, { type: "record.delete", id: "imp1" }, ctx), "not_found");
+    expect((await couple.sharedExpenses.get("imp1"))!.voided).toBeFalsy();
+    await applyAction(repo, actor, { type: "record.delete", id: "imp1" }, ctx);
+    expect((await couple.sharedExpenses.get("imp1"))!.voided).toBe(true);
+    await fails(applyAction(repo, actor, { type: "record.delete", id: "imp1" }, ctx), "not_found"); // already withdrawn
+  });
+  it("withdrawOwnShares voids only what you shared", async () => {
+    const { repo, couple, ctx } = await linked();
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { shared: true, split } }, ctx);
+    const mine = (await couple.sharedExpenses.get("imp1"))!;
+    await couple.sharedExpenses.put({ ...mine, id: "theirs", ownerUid: "u-other" });
+    expect(await withdrawOwnShares(couple, "u1", "test")).toBe(1);
+    expect((await couple.sharedExpenses.get("imp1"))!.voided).toBe(true);
+    expect((await couple.sharedExpenses.get("theirs"))!.voided).toBeFalsy();
+    expect(await withdrawOwnShares(couple, "u1", "test")).toBe(0);
   });
   it("editing a shared expense updates the same copy (retry-safe id)", async () => {
     const { repo, couple, ctx } = await linked();

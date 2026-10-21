@@ -19,14 +19,17 @@ import { formatINR } from "@/domain/money";
 export default function PersonSettle() {
   const { id: raw } = useParams<{ id: string }>();
   const personId = decodeURIComponent(raw);
-  const { participants, meId, ledgerRecords, settlements, addSettlement, voidSettlement, nameOf, today, live, partner, partnerId, voucherBrands, categories, records, setParticipantPhoto } = useStore();
+  const { participants, meId, ledgerRecords, settlements, addSettlement, voidSettlement, nameOf, today, live, partner, partnerId, voucherBrands, categories, records, staged, deleteRecords, setParticipantPhoto } = useStore();
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [tab, setTab] = useState<"open" | "settled">("open");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<"selected" | "everything" | null>(null);
   const [voiding, setVoiding] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
   const person = participants.find((p) => p.id === personId);
   const ledger = useMemo(() => personLedger(personId, meId, ledgerRecords, settlements), [personId, meId, ledgerRecords, settlements]);
+  // Payments you shared whose original transaction no longer exists (for example after "Delete all my data") still count here. You can remove them.
+  const orphans = useMemo(() => (live ? ledger.open.filter((e) => e.record.payerId === meId && !records.some((r) => r.id === e.record.id) && !staged.some((r) => r.id === e.record.id)) : []), [live, ledger.open, meId, records, staged]);
   const canSettle = !(live && partner && !partner.active && personId === partner.participantId);
   // Tapping a payment opens its full edit screen (with next/previous); the checkbox only selects it for settling.
   // What is shown here can be the copy shared with them (no card, no category); editing opens your own full record.
@@ -114,6 +117,12 @@ export default function PersonSettle() {
         {ledger.unlinkedPaise !== 0 && <p className="mt-3 text-xs text-muted">{formatINR(Math.abs(ledger.unlinkedPaise))} of this comes from earlier payments recorded as a plain amount, not tied to specific purchases.</p>}
       </section>
 
+      {orphans.length > 0 && (
+        <div role="status" className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl bg-warn-soft px-3 py-2.5 text-sm text-warn">
+          <span className="min-w-0 flex-1">{orphans.length} payment{orphans.length === 1 ? "" : "s"} here {orphans.length === 1 ? "has" : "have"} no original transaction any more, but still {orphans.length === 1 ? "counts" : "count"}.</span>
+          <Button onClick={() => setClearing(true)}>Remove {orphans.length === 1 ? "it" : "them"}…</Button>
+        </div>
+      )}
       <div className="mb-2 flex items-center gap-2">
         <div role="tablist" aria-label="Payments" className="flex min-w-0 flex-1 rounded-full bg-border/60 p-1">
           {([["open", "To settle", ledger.open.length], ["settled", "Settled", ledger.settled.length]] as const).map(([id, label, n]) => (
@@ -216,6 +225,9 @@ export default function PersonSettle() {
           );
         })()}
       </Dialog>
+      <ConfirmDialog open={clearing} onClose={() => setClearing(false)} title={`Remove ${orphans.length} payment${orphans.length === 1 ? "" : "s"}?`} confirmLabel="Remove" onConfirm={() => deleteRecords(orphans.map((e) => e.record.id))}>
+        <p>These payments no longer have an original transaction, but they still count in what {name} owes you. Removing them takes them off both of your screens. They stay in the history as withdrawn.</p>
+      </ConfirmDialog>
       <ConfirmDialog open={!!voiding} onClose={() => setVoiding(null)} title="Void this settlement?" confirmLabel="Void it" onConfirm={() => voiding && voidSettlement(voiding)}>
         <p>It will stop counting, so the amount owed goes back up and its payments become unsettled again.</p>
       </ConfirmDialog>

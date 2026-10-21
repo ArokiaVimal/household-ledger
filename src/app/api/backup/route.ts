@@ -4,6 +4,9 @@ import { createFirestoreRepository, deleteHouseholdData } from "@/data/firestore
 import { buildBackup, restoreBackup, verifyBackup } from "@/lib/backup/backup";
 import { createLinkDeps } from "@/lib/links/server";
 import { removeAccountLinks } from "@/lib/links/service";
+import { createFirestoreHouseholdStore } from "@/lib/households/firestore-store";
+import { getCouple } from "@/lib/households/couple";
+import { withdrawOwnShares } from "@/lib/data/withdraw";
 import { authorize } from "../import/shared";
 
 export const maxDuration = 300;
@@ -57,6 +60,9 @@ export async function POST(req: Request) {
     }
     // delete
     if (a.confirm !== "DELETE MY DATA") return NextResponse.json({ error: "Type DELETE MY DATA to confirm." }, { status: 400 });
+    // The expenses you shared with your partner are withdrawn first, so nobody is left owing money for transactions that no longer exist.
+    const couple = await getCouple(createFirestoreHouseholdStore(), who.session.uid).catch(() => null);
+    if (couple) await withdrawOwnShares(createFirestoreRepository(couple.household.id), who.session.uid, "all data deleted");
     await removeAccountLinks(createLinkDeps(), who.session.uid);
     await deleteHouseholdData(hid);
     return NextResponse.json({ ok: true });

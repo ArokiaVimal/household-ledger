@@ -368,7 +368,22 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
     }
     case "record.delete": {
       const cur = await repo.records.get(a.id);
-      if (!cur) throw new ActionError("not_found", "Record not found.");
+      if (!cur) {
+        // The original is gone (for example after "Delete all my data") but its shared copy still sits in a shared space and still
+        // counts in the balances. The person who shared it can withdraw it (void it; it stays as history).
+        const now = new Date().toISOString();
+        let withdrawn = 0;
+        for (const space of [...(couple ? [couple.repo] : []), ...links.map((l) => l.repo)]) {
+          const copy = await space.sharedExpenses.get(a.id);
+          if (!copy || copy.ownerUid !== actor.uid || copy.voided) continue;
+          await space.sharedExpenses.put({ ...copy, voided: true, ...(copy.version !== undefined ? { version: copy.version + 1 } : {}), updatedAt: now });
+          await space.audit.append({ actorId: actor.uid, action: "delete", entity: "record", entityId: a.id, summary: `Withdrawn: ${copy.merchant} ${money(copy.amountPaise)} (the original was deleted)`.slice(0, 480) });
+          withdrawn++;
+        }
+        if (withdrawn === 0) throw new ActionError("not_found", "Record not found.");
+        await log("delete", "record", a.id, "Removed a shared payment whose original was deleted");
+        return;
+      }
       if (cur.sharedWithPartner) await syncShare({ ...cur, excluded: true }); // deleting withdraws the partner's copy first
       await syncLinks({ ...cur, excluded: true }); // and any linked friend's or family member's copy
       await repo.records.remove(a.id);

@@ -422,12 +422,15 @@ export function StoreProvider({ children, live }: { children: ReactNode; live?: 
   }, [send]);
 
   const deleteRecords = useCallback((ids: string[]) => {
-    if (live && ids.some((id) => !records.some((r) => r.id === id) && !staged.some((r) => r.id === id))) { setSyncError("Only the person who shared this expense can remove it."); return; }
+    // A shared copy whose original is gone (for example after "Delete all my data") can be removed by the person who shared it; the server checks that.
+    const mineShared = (id: string) => sharedRecords.some((r) => r.id === id && r.payerId === meId);
+    if (live && ids.some((id) => !records.some((r) => r.id === id) && !staged.some((r) => r.id === id) && !mineShared(id))) { setSyncError("Only the person who shared this expense can remove it."); return; }
     const gone = new Set(ids);
+    setShared((xs) => xs.filter((x) => !gone.has(x.id)));
     setRecords((rs) => rs.filter((r) => !gone.has(r.id)));
     setStaged((xs) => xs.filter((r) => !gone.has(r.id)).map((r) => { if (!r.duplicateOf || !gone.has(r.duplicateOf)) return r; const { duplicateOf: _d, ...rest } = r; void _d; return rest; }));
     for (const id of ids) void send({ type: "record.delete", id });
-  }, [live, records, staged, send]);
+  }, [live, records, staged, sharedRecords, meId, send]);
 
   const addCategory = useCallback((name: string) => {
     const err = validateCategoryName(name, categories);
