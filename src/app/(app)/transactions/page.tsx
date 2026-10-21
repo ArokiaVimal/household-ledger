@@ -1,6 +1,6 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowDownLeft, ArrowLeftRight, ChevronDown, CreditCard, Landmark, Receipt, Repeat, Search, ShoppingBag, SlidersHorizontal, Store, Tags, Undo2, UserRound, Wallet, X, type LucideIcon } from "lucide-react";
+import { ArrowDownLeft, ArrowLeftRight, ChevronDown, CreditCard, Landmark, QrCode, Receipt, Repeat, Search, ShoppingBag, SlidersHorizontal, Store, Tags, Undo2, UserRound, Wallet, X, type LucideIcon } from "lucide-react";
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Amount, MerchantAvatar, TxnBadges } from "@/components/txn-row";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
@@ -16,6 +16,7 @@ import { CategoryGlyph } from "@/components/glyphs";
 import { useStore } from "@/data/store";
 import { rootOf, shortName, walletBrandFor } from "@/domain/accounts";
 import { formatINR } from "@/domain/money";
+import { isUpiPayment, sourceOf } from "@/domain/payment-mode";
 import { signedSpend, summarize } from "@/domain/reports";
 import { summarizeGroup } from "@/domain/groups";
 import { isVoucherPurchase, needsVoucherBrand } from "@/domain/vouchers";
@@ -157,6 +158,9 @@ function TransactionsView() {
       .filter((r) => !get("kind") || r.kind === get("kind"))
       // A payment method includes the ones under it (Amex includes Amazon Pay and Swiggy Money).
       .filter((r) => !get("account") || r.accountId === get("account") || rootOf(accounts, r.accountId) === get("account"))
+      // UPI or not, and whether it came from a bank account or a credit card (read from the bank's own text).
+      .filter((r) => !get("mode") || isUpiPayment(r, accounts) === (get("mode") === "upi"))
+      .filter((r) => !get("source") || sourceOf(r, accounts) === get("source"))
       .filter((r) => !get("recurring") || (get("recurring") === "1" ? !!r.recurringId : r.recurringId === get("recurring")))
       .filter((r) => !get("shared") || r.shared === (get("shared") === "1"))
       // Vouchers: ?voucher=<brand> (bought), 1 (any bought), none (bought, brand not chosen yet); ?paidWith=<brand> or 1 (paid with a voucher).
@@ -208,7 +212,7 @@ function TransactionsView() {
   const allScope = get("scope") === "all";
   const progress = verifyProgress(shown, get("month") || month);
   const view = get("view") || "all";
-  const active = ["recurring", "q", "category", "merchant", "status", "kind", "account", "shared", "voucher", "paidWith"].filter((k) => get(k));
+  const active = ["recurring", "q", "category", "merchant", "status", "kind", "account", "mode", "source", "shared", "voucher", "paidWith"].filter((k) => get(k));
 
   const filterFields = (
     <>
@@ -218,12 +222,18 @@ function TransactionsView() {
       <Select aria-label="Type" value={get("kind")} onChange={(e) => set("kind", e.target.value)}>
         <option value="">All types</option>{([["purchase", "Purchases"], ["refund", "Refunds"], ["income", "Income"], ["transfer", "Transfers"], ["cc_payment", "Card bill payments"], ["fee", "Fees"]] as const).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
       </Select>
+      <Select aria-label="UPI or not" value={get("mode")} onChange={(e) => set("mode", e.target.value)}>
+        <option value="">UPI and other</option><option value="upi">UPI only</option><option value="other">Not UPI</option>
+      </Select>
+      <Select aria-label="Bank or card" value={get("source")} onChange={(e) => set("source", e.target.value)}>
+        <option value="">Bank and card</option><option value="bank">Bank account</option><option value="card">Credit card</option>
+      </Select>
       <Select aria-label="Account" value={get("account")} onChange={(e) => set("account", e.target.value)}>
         <option value="">All accounts</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
       </Select>
     </>
   );
-  const filterCount = ["category", "kind", "account", "view"].filter((k) => get(k)).length;
+  const filterCount = ["category", "kind", "account", "mode", "source", "view"].filter((k) => get(k)).length;
 
   return (
     <>
@@ -273,11 +283,13 @@ function TransactionsView() {
       <Dialog open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
         <div className="-mx-4 space-y-4 overflow-x-clip pb-3">
           <ChipFilter label="Type" value={get("kind")} onPick={(v) => set("kind", v)} options={TYPES.map(([id, label, I]) => ({ id, label, icon: <I size={15} aria-hidden /> }))} />
+          <ChipFilter label="UPI" value={get("mode")} onPick={(v) => set("mode", v)} options={[{ id: "upi", label: "UPI", icon: <QrCode size={15} aria-hidden /> }, { id: "other", label: "Not UPI", icon: <Receipt size={15} aria-hidden /> }]} />
+          <ChipFilter label="From" value={get("source")} onPick={(v) => set("source", v)} options={[{ id: "bank", label: "Bank account", icon: <Landmark size={15} aria-hidden /> }, { id: "card", label: "Credit card", icon: <CreditCard size={15} aria-hidden /> }]} />
           <ChipFilter label="Paid with" value={get("account")} onPick={(v) => set("account", v)} options={accounts.filter((a) => !a.parentId && !a.archived).map((a) => ({ id: a.id, label: shortName(a.name), icon: <MerchantAvatar name={a.name} size={26} /> }))} />
           <ChipFilter label="Category" value={get("category")} onPick={(v) => set("category", v)} options={categories.map((c) => ({ id: c.id, label: c.name, icon: <CategoryGlyph name={c.name} icon={c.icon} size={26} /> }))} />
           <ChipFilter label="Group by" value={view === "all" ? "" : view} onPick={(v) => set("view", v)} options={VIEWS.filter((x) => x.id !== "all").map((x) => { const I = VIEW_ICON[x.id] ?? Tags; return { id: x.id, label: x.label, icon: <I size={15} aria-hidden /> }; })} />
         </div>
-        <div className="sticky bottom-0 -mx-4 flex justify-between gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => { const p = new URLSearchParams(params.toString()); for (const k of ["category", "kind", "account", "view"]) p.delete(k); router.replace(`/transactions?${p.toString()}`); }}>Reset</Button><Button variant="primary" onClick={() => setFiltersOpen(false)}>Show {rows.length}</Button></div>
+        <div className="sticky bottom-0 -mx-4 flex justify-between gap-2 border-t border-border bg-surface px-4 py-3"><Button onClick={() => { const p = new URLSearchParams(params.toString()); for (const k of ["category", "kind", "account", "mode", "source", "view"]) p.delete(k); router.replace(`/transactions?${p.toString()}`); }}>Reset</Button><Button variant="primary" onClick={() => setFiltersOpen(false)}>Show {rows.length}</Button></div>
       </Dialog>
       <div className="mb-3 hidden gap-2 md:grid md:grid-cols-6">
         <Input className="col-span-2" placeholder="Search merchant, description, notes" aria-label="Search" value={get("q")} onChange={(e) => set("q", e.target.value)} />
@@ -287,7 +299,7 @@ function TransactionsView() {
         <HScroll className="mb-3 flex gap-1.5 text-xs">
           {active.filter((k) => k !== "q").map((k) => (
             <button key={k} type="button" onClick={() => set(k, "")} aria-label={`Remove filter ${k}`} className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-2.5 py-1.5 font-medium text-accent hover:bg-accent/15">
-              {k === "category" ? categoryName(get(k)) : k === "account" ? accountName(get(k)) : k === "recurring" && get(k) !== "1" ? recurringName(get(k)) : (k === "voucher" || k === "paidWith") && get(k) !== "1" && get(k) !== "none" ? voucherBrands.find((b) => b.id === get(k))?.name ?? get(k) : get(k)}
+              {k === "category" ? categoryName(get(k)) : k === "account" ? accountName(get(k)) : k === "mode" ? (get(k) === "upi" ? "UPI" : "Not UPI") : k === "source" ? (get(k) === "card" ? "Credit card" : "Bank account") : k === "recurring" && get(k) !== "1" ? recurringName(get(k)) : (k === "voucher" || k === "paidWith") && get(k) !== "1" && get(k) !== "none" ? voucherBrands.find((b) => b.id === get(k))?.name ?? get(k) : get(k)}
               <X size={12} aria-hidden />
             </button>
           ))}

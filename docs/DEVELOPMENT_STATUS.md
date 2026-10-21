@@ -477,3 +477,9 @@ Cause found: the ICICI reader numbered its rows from 0 and a saved raw row needs
 
 ## Import: exact repeats are flagged, never skipped on their own
 The import preview no longer skips an exact repeat by default. It is added to review, marked "Exact repeat" with the entry it matches, and the person can Skip any of them. Messages and Gmail captures (nobody watching) still leave out an exact repeat.
+
+## UPI view, ICICI credit card statements and .xls files
+- `src/domain/payment-mode.ts`: `isUpiPayment` reads the bank's own text (ICICI `UPI/…`, HDFC `UPI-…`, ICICI card `UPI-<ref>-…`; a UPI-app account counts too), so it works for rows saved long ago and needs no stored tag or repair. `sourceOf` tells a bank account (UPI apps count as their bank) from a credit card.
+- Transactions: filters **UPI / Not UPI** and **From: Bank account / Credit card** (`?mode=upi|other`, `?source=bank|card`), in the Filters sheet, the desktop selects and the active-filter chips.
+- `src/domain/import/pdf/icici-card.ts`: ICICI Bank credit card statements (Coral, Amazon Pay and so on). Rows are read by cell order, since the columns sit at different x on page 1 and later pages; wrapped merchant text is joined; checked against Purchases / Payments / Total due.
+- `src/lib/import/xls.ts`: old Excel (.xls, what HDFC NetBanking exports) read with the small `cfb` package plus a BIFF8 record reader (shared strings with CONTINUE, text, numbers, RK, formula strings). Content decides the format, not the name.

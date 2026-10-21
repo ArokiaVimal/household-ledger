@@ -140,7 +140,7 @@ export function LiveImport() {
     reset();
     if (!f) return;
     if (f.size > MAX_BYTES) return setError("That file is larger than 4 MB. Export a shorter date range.");
-    if (!/\.(csv|txt|xlsx|pdf)$/i.test(f.name)) return setError("Upload a .csv, .xlsx or .pdf statement.");
+    if (!/\.(csv|txt|xlsx|xls|pdf)$/i.test(f.name)) return setError("Upload a .csv, .xls, .xlsx or .pdf statement.");
     void read({ kind: "file", file: f, ai, accountId });
   };
 
@@ -209,7 +209,7 @@ export function LiveImport() {
         <div className="space-y-5">
           <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Entry icon={Sparkles} primary title="Import with AI" onDropFile={(f) => pickFile(f, true)} text="Drop in any statement. We find the bank or card for you." badge={<Badge tone={aiEnabled ? "good" : "neutral"}>{aiEnabled ? "On" : "Off"}</Badge>}>
-              <input ref={aiInput} type="file" accept=".csv,.txt,.xlsx,.pdf" className="sr-only" aria-label="Choose statement file for AI import" onChange={(e) => { pickFile(e.target.files?.[0], true); e.target.value = ""; }} />
+              <input ref={aiInput} type="file" accept=".csv,.txt,.xlsx,.xls,.pdf" className="sr-only" aria-label="Choose statement file for AI import" onChange={(e) => { pickFile(e.target.files?.[0], true); e.target.value = ""; }} />
               <Button variant="primary" disabled={busy} onClick={() => aiInput.current?.click()}><UploadCloud size={16} aria-hidden />{busy && src?.kind === "file" && src.ai ? "Reading…" : "Choose statement"}</Button>
             </Entry>
             <Entry icon={FileUp} title="Choose bank, then file" onDropFile={(f) => { setManualFile(f); setManualOpen(true); }} text="You pick the payment method, we read the file. No AI involved.">
@@ -450,9 +450,9 @@ export function LiveImport() {
           </div>
           <div className="space-y-1.5">
             <div className="text-xs font-medium text-muted">Statement file</div>
-            <input ref={manualInput} type="file" accept=".csv,.txt,.xlsx,.pdf" className="sr-only" aria-label="Choose statement file" onChange={(e) => setManualFile(e.target.files?.[0] ?? null)} />
+            <input ref={manualInput} type="file" accept=".csv,.txt,.xlsx,.xls,.pdf" className="sr-only" aria-label="Choose statement file" onChange={(e) => setManualFile(e.target.files?.[0] ?? null)} />
             <div {...manualDrop.bind} className={`flex flex-wrap items-center gap-2 rounded-2xl border border-dashed p-3 transition-colors ${manualDrop.over ? "border-accent bg-accent/10" : "border-border"}`}>
-              <Button onClick={() => manualInput.current?.click()}><FileUp size={16} aria-hidden />{manualFile ? "Change file" : "Choose .csv, .xlsx or .pdf"}</Button>
+              <Button onClick={() => manualInput.current?.click()}><FileUp size={16} aria-hidden />{manualFile ? "Change file" : "Choose .csv, .xls, .xlsx or .pdf"}</Button>
               {!manualFile && <span className="text-xs text-muted">or drop it here</span>}
               {manualFile && <span className="text-muted">{manualFile.name} · {(manualFile.size / 1024).toFixed(0)} KB</span>}
             </div>

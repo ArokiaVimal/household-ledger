@@ -13,7 +13,7 @@ describe("sniffKind", () => {
     expect(() => sniffKind("a.xls", enc("xx"))).toThrow(FileError);
     expect(() => sniffKind("a.csv", new Uint8Array([65, 0, 66]))).toThrow(/not a text CSV/);
     expect(() => sniffKind("a.csv", new Uint8Array(0))).toThrow(/empty/);
-    expect(() => sniffKind("a.exe", enc("hello"))).toThrow(/\.csv, \.xlsx or \.pdf/);
+    expect(() => sniffKind("a.exe", enc("hello"))).toThrow(/\.csv, \.xls, \.xlsx or \.pdf/);
   });
   it("recognises xlsx by its zip signature", () => {
     expect(sniffKind("s.xlsx", new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2]))).toBe("xlsx");

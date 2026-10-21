@@ -3,6 +3,7 @@ import readExcelFile from "read-excel-file/node";
 import { parseCsv } from "@/domain/import/csv";
 import { detectLayout } from "@/domain/import/columns";
 import { MAX_FILE_BYTES } from "./service";
+import { isOldExcel, readXls } from "./xls";
 
 export type FileKind = "csv" | "xlsx" | "pdf";
 export class FileError extends Error {}
@@ -23,8 +24,13 @@ export function sniffKind(name: string, bytes: Uint8Array): FileKind {
     if (!lower.endsWith(".xlsx")) throw new FileError("That looks like a zip or Office file. Upload a .xlsx or .csv statement.");
     return "xlsx";
   }
-  if (lower.endsWith(".xls")) throw new FileError("Old .xls files aren't supported. Save it as .xlsx or .csv and try again.");
-  if (!/\.(csv|txt)$/.test(lower)) throw new FileError("Upload a .csv, .xlsx or .pdf statement.");
+  // The old Excel format (.xls) is read like .xlsx; its content decides, not the name.
+  if (isOldExcel(bytes)) {
+    if (!lower.endsWith(".xls")) throw new FileError("That looks like an old Excel file. Rename it to end in .xls, or save it as .xlsx or .csv.");
+    return "xlsx";
+  }
+  if (lower.endsWith(".xls")) throw new FileError("That .xls file could not be read. Save it as .xlsx or .csv and try again.");
+  if (!/\.(csv|txt)$/.test(lower)) throw new FileError("Upload a .csv, .xls, .xlsx or .pdf statement.");
   if (bytes.subarray(0, 4096).includes(0)) throw new FileError("That file is not a text CSV.");
   return "csv";
 }
@@ -40,7 +46,7 @@ const cellText = (v: unknown): string => {
 export async function readTable(kind: "csv" | "xlsx", bytes: Uint8Array): Promise<string[][]> {
   if (kind === "csv") return parseCsv(new TextDecoder("utf-8").decode(bytes));
   let sheets: { sheet: string; data: unknown[][] }[];
-  try { sheets = (await readExcelFile(Buffer.from(bytes))) as unknown as { sheet: string; data: unknown[][] }[]; } catch { throw new FileError("Could not open that Excel file. It may be damaged or password protected."); }
+  try { sheets = isOldExcel(bytes) ? readXls(bytes) : ((await readExcelFile(Buffer.from(bytes))) as unknown as { sheet: string; data: unknown[][] }[]); } catch { throw new FileError("Could not open that Excel file. It may be damaged or password protected."); }
   let last: string[][] = [];
   for (const { data } of sheets.slice(0, 8)) {
     const table = data.map((r) => r.map(cellText)).filter((r) => r.some((c) => c !== ""));
