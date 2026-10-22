@@ -246,7 +246,7 @@ export default function Settings() {
       </OpenSection.Provider>
 
       <footer className="mt-10 pb-2 text-center text-xs text-muted">
-        <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy policy</Link>
+        <Link href="/privacy" className="inline-flex min-h-8 items-center underline underline-offset-2 hover:text-foreground">Privacy policy</Link>
       </footer>
 
       <Dialog open={!!dlg} onClose={() => setDlg(null)} title={dlg?.acc ? `Edit ${dlg.acc.name}` : isSub ? "Add a sub payment method" : "Add a primary payment method"}>

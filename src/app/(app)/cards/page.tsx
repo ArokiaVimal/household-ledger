@@ -96,7 +96,7 @@ function PaymentHistory({ cardId, payments, accountName }: { cardId: string; pay
   return (
     <section aria-label="Payment history" className="text-sm">
       <div className="flex items-center justify-between"><h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Payment history{payments.length > 0 ? ` · ${payments.length}` : ""}</h3>
-        <Link href={`/transactions?kind=cc_payment&account=${cardId}`} className="text-xs font-medium text-accent">See in Transactions</Link></div>
+        <Link href={`/transactions?kind=cc_payment&account=${cardId}`} className="inline-flex min-h-8 items-center text-xs font-medium text-accent">See in Transactions</Link></div>
       {payments.length === 0 ? <p className="mt-1 text-xs text-muted">No payments recorded yet.</p> : (
         <>
           <ul className="divide-y divide-border">{payments.slice(0, 3).map(row)}</ul>

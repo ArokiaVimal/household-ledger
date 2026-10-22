@@ -10,10 +10,10 @@
   --border: #ebe9f3;
   --accent: #5b3fd1;
   --accent-soft: #ece8fb;
-  --danger: #d6455d;
-  --warn: #a8700f;
+  --danger: #c0364f;
+  --warn: #8f5c06;
   --warn-soft: #fbf0d9;
-  --good: #1f9d63;
+  --good: #157a4a;
   --good-soft: #e0f5ea;
   /* iPhone safe-area insets (0 on desktop). Bars and floating buttons are positioned from these. */
   --sab: env(safe-area-inset-bottom, 0px);
@@ -68,6 +68,11 @@ body:has([data-selection-bar]) [data-fab] { display: none; }
 @media (pointer: coarse) { input#amount-input { font-size: 2.25rem; } }
 
 .num { font-variant-numeric: tabular-nums; }
+
+/* Every interactive element shows where the keyboard is. :where() keeps this at zero specificity, so a component's own ring still wins. */
+:where(a, button, summary, select, textarea, input, [role="tab"], [role="radio"], [role="switch"], [role="gridcell"]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Decorative motion (the microphone pulse, loading shimmer) stops for people who ask their device for less motion. */
+@media (prefers-reduced-motion: reduce) { .animate-ping, .animate-pulse { animation: none; } }
 
 /* Moving to the next or previous transaction slides the form in from that side. */
 @keyframes pf-slide-next { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }

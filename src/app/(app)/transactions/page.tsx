@@ -215,6 +215,7 @@ function TransactionsView() {
 
   return (
     <>
+      <h1 className="sr-only md:hidden">Transactions</h1>
       <div className="hidden md:block">
         <PageHeader tip="Every transaction, including imported ones you have not verified yet. Verifying one confirms it and teaches the app." title="Transactions" sub={`${rows.length} records · ${get("month") || month}`} actions={<NotesAi />} />
       </div>

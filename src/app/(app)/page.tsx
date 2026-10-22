@@ -68,7 +68,7 @@ function ChecklistCard({ icon: I, title, href, rows, empty, addLabel }: { icon: 
             {open.slice(0, 3).map((r) => (
               <li key={r.key} className="flex items-center gap-1.5 py-2">
                 {r.logo}
-                <Link href={href} className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium leading-tight md:text-[15px]"><span className="md:hidden">{r.name}</span><span className="hidden md:inline">{r.nameLong}</span></span><span className={cn("block truncate text-[11px] leading-tight md:text-[13px]", tone[r.tone])}><span className="md:hidden">{r.sub}</span><span className="hidden md:inline">{r.subLong}</span></span></Link>
+                <Link href={href} className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium leading-tight md:text-[15px]"><span className="md:hidden">{r.name}</span><span className="hidden md:inline">{r.nameLong}</span></span><span className={cn("block truncate text-xs leading-tight md:text-[13px]", tone[r.tone])}><span className="md:hidden">{r.sub}</span><span className="hidden md:inline">{r.subLong}</span></span></Link>
                 <Tick done={false} label={r.tickLabel} onClick={r.onTick} />
               </li>
             ))}
@@ -186,7 +186,7 @@ export default function Dashboard() {
           <Card className="col-span-2 p-3 md:p-4 lg:col-span-1">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h2 className="flex items-center gap-1.5 text-sm font-semibold md:text-base"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent/10 text-accent" aria-hidden><Handshake size={14} /></span>Split</h2>
-              <Link href="/people" className="text-xs font-medium text-accent md:text-sm">Open</Link>
+              <Link href="/people" className="inline-flex min-h-8 items-center text-xs font-medium text-accent md:text-sm">Open</Link>
             </div>
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
               <OweTile tone="out" label="I owe" total={iOweTotal} people={iOwe.map((b) => b.to)} none="Nobody" />

@@ -120,6 +120,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
   const showMonth = !allMonths && (showGroup || unverifiedList || monthScreens.some((h) => path.startsWith(h)));
   // On a phone these screens have no month or group switch, so their title shares the row with the icons instead of sitting under an empty one.
   const phoneTitle = path === "/people" || path === "/groups" ? "Split" : path === "/settings" && !sp.get("s") ? "Settings" : null;
+  const Title = path === "/" ? "h1" : "p"; // the greeting is the Home page's title
   const visibleNav = NAV;
   const phoneBar = BAR_ORDER.flatMap((h) => visibleNav.filter((n) => n.href === h));
   const phoneMore = NAV.filter((n) => !n.bar);
@@ -173,7 +174,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
             <header className="px-4 pb-2 pt-3 max-md:sticky max-md:top-0 max-md:z-30 max-md:bg-background/95 max-md:backdrop-blur md:px-0 md:pb-4">
               <div className="flex items-center gap-3 max-md:justify-end">
                 <div className={cn("min-w-0", path === "/" ? "mr-auto" : "hidden md:mr-auto md:block")}>
-                  <p className={cn("truncate text-xl font-semibold tracking-tight", path !== "/" && "hidden")}>{path === "/" ? <>Hi {profile ? greetingName(profile) : (() => { const n = nameOf(meId); return n && n !== meId ? n.split(/\s+/)[0] : "there"; })()} <span aria-hidden>👋</span></> : "Personal Finance App"}</p>
+                  <Title className={cn("truncate text-xl font-semibold tracking-tight", path !== "/" && "hidden")}>{path === "/" ? <>Hi {profile ? greetingName(profile) : (() => { const n = nameOf(meId); return n && n !== meId ? n.split(/\s+/)[0] : "there"; })()} <span aria-hidden>👋</span></> : "Personal Finance App"}</Title>
                   <p className="hidden text-sm text-muted xl:block">{path === "/" ? "Here's where your money went this month" : "Where your money went, and who owes what"}</p>
                 </div>
                 {phoneTitle && <h1 className="mr-auto flex items-center gap-1 text-xl font-semibold tracking-tight md:hidden">{phoneTitle}{phoneTitle === "Split" && <InfoTip text={SPLIT_TIP} />}</h1>}

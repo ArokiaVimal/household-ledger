@@ -53,7 +53,7 @@ export function DonutChart({ data, total, href }: { data: Datum[]; total: number
       <ul className="min-w-32 flex-1 basis-0 space-y-1.5 text-sm">
         {slices.map((d, i) => (
           <li key={d.label}>
-            <button disabled={!d.key} onClick={() => router.push(href(d.key))} className="flex w-full items-center gap-2 text-left hover:underline disabled:no-underline">
+            <button disabled={!d.key} onClick={() => router.push(href(d.key))} className="flex min-h-8 w-full items-center gap-2 text-left hover:underline disabled:no-underline">
               <span className="size-2.5 shrink-0 rounded-full" style={{ background: PALETTE[i % PALETTE.length] }} />
               <span className="min-w-0 flex-1 truncate">{d.label}</span>
               <span className="num text-xs text-muted">{pctOf(d.value)}%</span>

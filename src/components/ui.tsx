@@ -46,7 +46,7 @@ export function CardTitle({ children, action, tip }: { children: ReactNode; acti
   return (
     <div className="mb-3 flex items-center justify-between gap-2">
       <h2 className="flex items-center gap-1 text-sm font-medium text-muted">{children}{tip && <InfoTip text={tip} />}</h2>
-      {action}
+      {action && <span className="[&_a]:-mr-1 [&_a]:inline-flex [&_a]:min-h-8 [&_a]:items-center [&_a]:px-1">{action}</span>}
     </div>
   );
 }
