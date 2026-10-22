@@ -187,12 +187,12 @@ export function sameSplit(a: SplitConfig, b: SplitConfig): boolean {
 }
 
 /**
- * Which way to split is selected when a NEW expense's split sheet opens: the Quick splits button, until a method is chosen.
- * Not when the split is only between you and your linked partner (their usual split is already chosen), not once a method was
- * picked, and not for a split that is not the plain "everyone pays the same" default.
+ * Which way to split is selected when a NEW expense's split sheet opens: the Quick splits button, until a method is chosen, for you
+ * and one other person. Not for a group of three or more (you plus two or more others): they split equally by default. Not when
+ * the split is only between you and your linked partner (their usual split is already chosen), not once a method was picked, and
+ * not for a split that is not the plain "everyone pays the same" default.
  */
 export function quickSplitIsDefault(o: { newExpense: boolean; methodPicked: boolean; mode: SplitMode; gift?: boolean; others: string[]; partnerId?: string | null }): boolean {
-  if (!o.newExpense || o.methodPicked || o.mode !== "equal" || o.gift || o.others.length === 0) return false;
-  return !(o.others.length === 1 && !!o.partnerId && o.others[0] === o.partnerId);
+  if (!o.newExpense || o.methodPicked || o.mode !== "equal" || o.gift || o.others.length !== 1) return false;
+  return !(!!o.partnerId && o.others[0] === o.partnerId);
 }
-
