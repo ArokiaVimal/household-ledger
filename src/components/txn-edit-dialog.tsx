@@ -412,11 +412,12 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
         </div>
       )}
       {dupOf && <DupCompare open={comparing} onClose={() => setComparing(false)} onDeletedMine={() => (nav ? nav.after() : onClose())} mine={record} other={dupOf} />}
-      <div className="grid grid-cols-2 gap-2.5">
-        {!(adding && paidWithId) && <div className="min-w-0"><PickerRow compact icon={<MerchantAvatar name={accounts.find((a) => a.id === primaryId)?.name ?? "?"} size={32} />} label="Paid with" value={accounts.find((a) => a.id === primaryId) ? shortName(accounts.find((a) => a.id === primaryId)!.name) : "Choose"} sub={!canMove ? "Set by the statement it came from" : accounts.find((a) => a.id === primaryId) ? typeText[accounts.find((a) => a.id === primaryId)!.type] : undefined} onClick={() => canMove && setSheet("pay")} /></div>}
-        <div className={`min-w-0 ${adding && paidWithId ? "col-span-2" : ""}`}><PickerRow compact icon={merchant.trim() ? <MerchantAvatar name={merchant} size={32} /> : <Dot icon={Store} size={32} tone="bg-accent/10 text-accent" />} label="Merchant" value={merchant.trim() || "Add merchant"} muted={!merchant.trim()} sub={merchantHint ?? undefined} onClick={() => setSheet("merchant")} /></div>
-      </div>
-      {!(adding && paidWithId) && subs.length > 0 && <PickerRow icon={subId ? <MerchantAvatar name={accounts.find((a) => a.id === subId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="Via (optional)" value={subId ? shortName(accounts.find((a) => a.id === subId)?.name ?? "") : "Direct"} muted={!subId} sub={subId ? undefined : `Paid with ${shortName(accounts.find((a) => a.id === primaryId)?.name ?? "it")} itself`} onClick={() => canMove && setSheet("via")} />}
+      {!(adding && paidWithId) && (
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className={subs.length > 0 ? "min-w-0" : "col-span-2"}><PickerRow compact={subs.length > 0} icon={<MerchantAvatar name={accounts.find((a) => a.id === primaryId)?.name ?? "?"} size={32} />} label="Paid with" value={accounts.find((a) => a.id === primaryId) ? shortName(accounts.find((a) => a.id === primaryId)!.name) : "Choose"} sub={!canMove ? "Set by the statement it came from" : accounts.find((a) => a.id === primaryId) ? typeText[accounts.find((a) => a.id === primaryId)!.type] : undefined} onClick={() => canMove && setSheet("pay")} /></div>
+          {subs.length > 0 && <div className="min-w-0"><PickerRow compact icon={subId ? <MerchantAvatar name={accounts.find((a) => a.id === subId)?.name ?? "?"} size={32} /> : <Dot icon={Ban} size={32} />} label="Via (optional)" value={subId ? shortName(accounts.find((a) => a.id === subId)?.name ?? "") : "Direct"} muted={!subId} sub={subId ? undefined : `Paid with ${shortName(accounts.find((a) => a.id === primaryId)?.name ?? "it")} itself`} onClick={() => canMove && setSheet("via")} /></div>}
+        </div>
+      )}
       {adding && impliedBrand && <p className="-mt-1 rounded-xl bg-accent/5 px-3 py-2 text-xs text-muted">Paid from the {impliedBrand.name} wallet: it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
       {voucherBrands.length > 0 && !topUp && !impliedBrand && kind === "purchase" && (!!paidWithId || !accounts.some((a) => a.type === "wallet" && !a.archived)) && (
         <>
@@ -424,7 +425,10 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
           {paidWithId && <p className="-mt-2 px-1 text-xs text-muted">Paid from the {voucherBrands.find((b) => b.id === paidWithId)?.name} wallet, so it is not counted as spending again (the top-up already was). Split it below and the others owe you their share.</p>}
         </>
       )}
-      {!topUp && <PickerRow icon={<CategoryGlyph name={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} icon={categories.find((c) => c.id === categoryId)?.icon} size={32} />} label="Category" value={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} muted={categoryId === "uncategorized"} sub={catHint ? `Suggested: ${catHint}` : undefined} onClick={() => setSheet("category")} />}
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className={topUp ? "col-span-2" : "min-w-0"}><PickerRow compact={!topUp} icon={merchant.trim() ? <MerchantAvatar name={merchant} size={32} /> : <Dot icon={Store} size={32} tone="bg-accent/10 text-accent" />} label="Merchant" value={merchant.trim() || "Add merchant"} muted={!merchant.trim()} sub={merchantHint ?? undefined} onClick={() => setSheet("merchant")} /></div>
+        {!topUp && <div className="min-w-0"><PickerRow compact icon={<CategoryGlyph name={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} icon={categories.find((c) => c.id === categoryId)?.icon} size={32} />} label="Category" value={categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"} muted={categoryId === "uncategorized"} sub={catHint ? `Suggested: ${catHint}` : undefined} onClick={() => setSheet("category")} /></div>}
+      </div>
       {promptVoucher && (
         <FormRow label="Wallet" tip="Adds to that wallet's balance and counts once as spending. A top-up is never split; split wallet purchases instead.">
           <CompactChips label="Wallet topped up" options={[...brandOptions, { id: "__later", label: "Decide later" }]} selected={voucherLater && !voucherId ? ["__later"] : voucherId ? [voucherId] : []}
