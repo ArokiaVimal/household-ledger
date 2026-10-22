@@ -11,9 +11,9 @@ import { rankMerchants, searchMerchants } from "@/domain/merchants";
 import { cn } from "@/lib/cn";
 
 /** A form row that shows the current choice (small label above the value) and opens a sheet when tapped. */
-export function PickerRow({ icon, label, value, sub, onClick, muted, children }: { icon: ReactNode; label: string; value: string; sub?: string; onClick: () => void; muted?: boolean; children?: ReactNode }) {
+export function PickerRow({ icon, label, value, sub, onClick, muted, children, compact }: { icon: ReactNode; label: string; value: string; sub?: string; onClick: () => void; muted?: boolean; children?: ReactNode; /** Half-width: no arrow and tighter spacing, so two sit side by side. */ compact?: boolean }) {
   return (
-    <button type="button" onClick={onClick} aria-label={`${label}: ${value}. Change`} className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-1.5 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent">
+    <button type="button" onClick={onClick} aria-label={`${label}: ${value}. Change`} className={cn("flex min-h-12 w-full items-center rounded-2xl border border-border bg-surface py-1.5 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent", compact ? "h-full gap-2.5 px-2.5" : "gap-3 px-3")}>
       <span className="grid size-8 shrink-0 place-items-center">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[11px] font-semibold uppercase tracking-wide text-muted/80">{label}</span>
@@ -21,7 +21,7 @@ export function PickerRow({ icon, label, value, sub, onClick, muted, children }:
         {sub && <span className="block truncate text-xs text-muted">{sub}</span>}
       </span>
       {children}
-      <ChevronRight size={18} aria-hidden className="shrink-0 text-muted" />
+      {!compact && <ChevronRight size={18} aria-hidden className="shrink-0 text-muted" />}
     </button>
   );
 }
