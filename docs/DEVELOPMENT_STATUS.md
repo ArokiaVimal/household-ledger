@@ -629,3 +629,6 @@ Measured at 375px on every main screen in the demo (contrast of each piece of te
 ## Unverified tab toolbar and 12px small text
 - On a phone the Unverified tab now has the same row as All and Verified: tabs, then search, AI notes and filters (the queue portals its buttons into the tab row; search opens below, filters in the same sheet). Wide screens keep the bar inside the queue.
 - All 11px text (badges, labels, small counts) is now 12px (`text-xs`) so it is easier to read.
+
+## "Voucher" payment method type
+- Adding a sub payment method now offers **Voucher** next to Wallet, UPI app and Cash (`Account.type` gains `"voucher"`; schema, actions, labels, filters, import picker and icon updated). A voucher method behaves like a wallet everywhere: the brand name in it (Westside, Amazon) links it to that voucher wallet, so spending from it is not counted twice and can be split. Checked in the browser (type chips); typecheck, lint and 723 tests pass. Not yet tried with a real voucher method on live data.

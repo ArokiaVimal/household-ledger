@@ -109,7 +109,7 @@ function Pill({ tone, children }: { tone: "good" | "bad"; children: ReactNode })
 }
 
 /** Shown once after the first review is finished (the review page links here with ?reviewed=1). */
-const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet, wallet: Wallet } as const;
+const acctIcon = { credit_card: CreditCard, bank: Landmark, upi: Smartphone, cash: Wallet, wallet: Wallet, voucher: Wallet } as const;
 
 export default function Dashboard() {
   const skipSetup = useDeviceFlag("pf-setup-open") === "1";

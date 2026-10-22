@@ -26,7 +26,7 @@ import { CategoriesView } from "../categories/categories-view";
 import { ProfileForm } from "../profile/profile-form";
 import { RemindersCard } from "./reminders-card";
 
-const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet" };
+const typeLabel: Record<Account["type"], string> = { credit_card: "Credit card", bank: "Bank account", upi: "UPI app", cash: "Cash", wallet: "Wallet", voucher: "Voucher" };
 
 const MENU: { id: string; group: string; label: string; hint: string; icon: LucideIcon; liveOnly?: boolean; /** Opens another screen instead of a section here. */ href?: string }[] = [
   { id: "methods", group: "Set up", label: "Payment methods", hint: "Cards, UPI, banks", icon: Wallet },
@@ -92,14 +92,14 @@ export default function Settings() {
     setFParent(d.acc?.parentId ?? d.parent ?? ""); setFTheme(d.acc?.theme ?? "");
     setFBalance(d.acc?.balance ? (d.acc.balance.amountPaise / 100).toFixed(2) : ""); setFAsOf(d.acc?.balance?.asOf ?? today);
   };
-  const subTypes: Account["type"][] = ["wallet", "upi", "cash"];
+  const subTypes: Account["type"][] = ["wallet", "voucher", "upi", "cash"];
   const isSub = !!fParent;
   const canBeSub = !dlg?.acc || childrenOf(dlg.acc.id).length === 0;
   const parentOptions = roots.filter((p) => (p.type === "credit_card" || p.type === "bank") && p.id !== dlg?.acc?.id);
   const balancePaise = fBalance.trim() === "" ? null : parseRupees(fBalance);
   const saveDialog = () => {
     if (fBalance.trim() !== "" && (balancePaise === null || !/^\d{4}-\d{2}-\d{2}$/.test(fAsOf))) return setFError("Enter the balance as a number and pick the date it was read.");
-    const type = isSub && fType !== "wallet" && fType !== "upi" && fType !== "cash" ? "wallet" : fType;
+    const type = isSub && fType !== "wallet" && fType !== "voucher" && fType !== "upi" && fType !== "cash" ? "wallet" : fType;
     const err = dlg?.acc
       ? updateAccount(dlg.acc.id, { name: fName, type, parentId: fParent || null, theme: type === "credit_card" && !isSub && fTheme ? fTheme : null, ...(type === "bank" || type === "cash" ? { balance: balancePaise === null ? null : { amountPaise: balancePaise, asOf: fAsOf } } : {}) })
       : addAccount(fName, type, fParent || undefined, type === "credit_card" && !isSub && fTheme ? fTheme : undefined);

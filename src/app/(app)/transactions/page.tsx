@@ -126,7 +126,7 @@ function TransactionsView() {
     const inGroup = groupRecords(m || month);
     // Money paid with a voucher counts as nothing for you (the voucher purchase was the outflow), so a payment group would drop it; keep it, it is listed under its voucher.
     const have = new Set(inGroup.map((r) => r.id));
-    const isWallet = (id: string) => accounts.find((a) => a.id === id)?.type === "wallet";
+    const isWallet = (id: string) => accounts.find((a) => a.id === id)?.type === "wallet" || accounts.find((a) => a.id === id)?.type === "voucher";
     const base = activeGroup.kind === "mine" ? [...inGroup, ...recordsFor(m || month).filter((r) => !have.has(r.id) && (r.paidWithVoucherId || isWallet(r.accountId)))] : inGroup;
     const text = (params.get("q") ?? "").trim().toLowerCase();
     return base

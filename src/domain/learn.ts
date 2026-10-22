@@ -123,7 +123,7 @@ export function learnFromVerified(records: ExpenseRecord[], existing: MerchantMe
 }
 
 // ---- icons: the best match for everything that has none yet, with no AI.
-const TYPE_ICON: Record<Account["type"], IconKey> = { bank: "landmark", credit_card: "card", upi: "phone", wallet: "wallet", cash: "banknote" };
+const TYPE_ICON: Record<Account["type"], IconKey> = { bank: "landmark", credit_card: "card", upi: "phone", wallet: "wallet", voucher: "ticket", cash: "banknote" };
 export interface IconPlan {
   categories: { id: string; icon: IconKey }[];
   accounts: { id: string; icon: IconKey }[];

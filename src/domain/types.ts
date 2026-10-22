@@ -74,7 +74,7 @@ export type Relationship = (typeof RELATIONSHIPS)[number];
 export interface Account {
   id: string;
   name: string;
-  type: "credit_card" | "bank" | "upi" | "cash" | "wallet";
+  type: "credit_card" | "bank" | "upi" | "cash" | "wallet" | "voucher";
   /** Sits under another payment method (Amazon Pay under Amex). Reports and groupings roll it up into the parent. */
   parentId?: string;
   /** Colour of the card picture shown for it. Left out, it follows the issuer. */

@@ -4,7 +4,7 @@ import { HScroll } from "@/components/hscroll";
 import type { Account } from "@/domain/types";
 import { cn } from "@/lib/cn";
 
-const ORDER: Account["type"][] = ["bank", "credit_card", "upi", "wallet", "cash"];
+const ORDER: Account["type"][] = ["bank", "credit_card", "upi", "wallet", "voucher", "cash"];
 /** Where the money comes from: UPI apps sit under their bank, so they count as bank money. */
 const SOURCE_TYPES: Record<string, Account["type"][]> = { bank: ["bank", "upi"], card: ["credit_card"] };
 /** Every payment method (UPI apps and wallets too), bank accounts first, then cards, UPI apps and wallets. Archived ones are left out. With a source chosen (bank or card), only the methods that fit it. */

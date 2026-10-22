@@ -11,7 +11,7 @@ const GROUPS: { title: string; types: Account["type"][] }[] = [
   { title: "Bank accounts", types: ["bank"] },
   { title: "Credit cards", types: ["credit_card"] },
   { title: "UPI apps", types: ["upi"] },
-  { title: "Wallets", types: ["wallet", "cash"] },
+  { title: "Wallets", types: ["wallet", "voucher", "cash"] },
 ];
 const NEW_TYPES: { id: "bank" | "credit_card" | "upi"; label: string }[] = [{ id: "bank", label: "Bank account" }, { id: "credit_card", label: "Credit card" }, { id: "upi", label: "UPI app" }];
 

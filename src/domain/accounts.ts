@@ -33,7 +33,7 @@ export function suggestedWithParents(suggested: Account[], existing: Account[]):
 
 /** The voucher wallet a wallet payment method stands for: "Amazon Pay" is the Amazon wallet, "Swiggy Money" the Swiggy wallet. */
 export function walletBrandFor(account: Account | undefined, brands: VoucherBrand[]): VoucherBrand | null {
-  if (!account || account.type !== "wallet") return null;
+  if (!account || (account.type !== "wallet" && account.type !== "voucher")) return null;
   const n = account.name.toLowerCase();
   return [...brands].sort((a, b) => b.name.length - a.name.length).find((b) => n.includes(b.name.toLowerCase())) ?? null;
 }
@@ -56,7 +56,7 @@ export function accountIsEditable(r: { importSource: string; needsCard?: boolean
 /** The wallet payment method for a voucher wallet, when there is one. */
 export function walletAccountFor(brand: VoucherBrand | undefined, accounts: Account[]): Account | null {
   if (!brand) return null;
-  return accounts.find((a) => a.type === "wallet" && a.name.toLowerCase().includes(brand.name.toLowerCase())) ?? null;
+  return accounts.find((a) => (a.type === "wallet" || a.type === "voucher") && a.name.toLowerCase().includes(brand.name.toLowerCase())) ?? null;
 }
 
 /** The user's own order first (0, 1, 2…); anything never ordered keeps its place after them. Stable. */

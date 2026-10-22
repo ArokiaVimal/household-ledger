@@ -69,8 +69,8 @@ export function senseAccount(text: string, accounts: AccountLite[], typeHint?: "
     for (const k of keys) if (hits.has(k)) score += (head.has(k) ? 5 : 0) + Math.min(hits.get(k)!, 6);
     for (const tok of a.name.toLowerCase().split(/[^a-z0-9]+/).filter((x) => x.length >= 5 && !GENERIC.has(x)).slice(0, 2)) if (lower.includes(tok)) score += 1;
     // A statement is never from a UPI app unless it names that app; a clear type mismatch rules a method out.
-    if ((a.type === "upi" || a.type === "wallet") && score === 0) score = -10;
-    if (type && a.type !== "upi" && a.type !== "wallet" && a.type !== type) score -= 10;
+    if ((a.type === "upi" || a.type === "wallet" || a.type === "voucher") && score === 0) score = -10;
+    if (type && a.type !== "upi" && a.type !== "wallet" && a.type !== "voucher" && a.type !== type) score -= 10;
     if (type && a.type === type) score += 2;
     return { id: a.id, name: a.name, score };
   }).sort((x, y) => y.score - x.score);
