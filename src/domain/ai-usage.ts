@@ -1,11 +1,11 @@
 // What the app's AI use adds up to, per profile. Pure helpers: counting happens on the server (src/lib/ai-usage), this only
 // describes the numbers, turns them into an estimated cost and checks the rates a person types in.
 
-export type AiFeature = "import" | "paste" | "screenshot" | "categories" | "icons" | "notes" | "insights" | "bill" | "messages";
+export type AiFeature = "import" | "paste" | "screenshot" | "categories" | "icons" | "notes" | "insights" | "bill" | "messages" | "voice";
 
 export const FEATURE_LABEL: Record<AiFeature, string> = {
   import: "Reading statements", paste: "Pasted text", screenshot: "Screenshots", categories: "Merchant names and categories", icons: "Icons and logos",
-  notes: "Notes", insights: "Insights", bill: "Card bills", messages: "Emails and texts",
+  notes: "Notes", insights: "Insights", bill: "Card bills", messages: "Emails and texts", voice: "Voice expenses",
 };
 
 /**

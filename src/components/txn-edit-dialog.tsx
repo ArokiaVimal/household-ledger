@@ -24,6 +24,7 @@ import { equalSplit, validateSplit } from "@/domain/splits";
 import { checkGroupExpense } from "@/domain/split-groups";
 import type { ExpenseRecord, SplitConfig, SplitGroup, TxnKind } from "@/domain/types";
 import { SplitEditor } from "./split-editor";
+import { VoiceExpense, type VoicePatch } from "./voice-expense";
 import { MerchantAvatar } from "./txn-row";
 import { AiBadge, Button, CompactChips, ConfirmDialog, Dialog, FormRow, Input } from "./ui";
 
@@ -276,6 +277,31 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
     } catch (e) { setScanMsg({ error: true, text: (e as Error).message || "Could not read that bill." }); } finally { setScanning(false); if (billInput.current) billInput.current.value = ""; }
   };
   const billDrop = useDropZone((f) => void scanBill(f), scanning);
+  /**
+   * Fills the form from a spoken expense (first answer) or from one more detail the person chose (a card, an added friend). Fields you
+   * set yourself are replaced only by what you said out loud; everything else keeps its usual guesses.
+   */
+  const applyVoice = (f: VoicePatch) => {
+    const got: string[] = [];
+    if (f.merchant) { merchantTouched.current = true; setMerchant(f.merchant); autoMerchant.current = f.merchant; setMerchantHint("From your voice"); got.push("merchant"); }
+    if (f.amountPaise) { touch("amount"); setAmount(String(f.amountPaise / 100)); got.push("amount"); }
+    if (f.date) { touch("date"); setDate(f.date); got.push("date"); }
+    if (f.note) { setNotes(f.note); got.push("note"); }
+    if (f.accountId && accounts.some((a) => a.id === f.accountId)) { touch("account"); applyAccount(f.accountId); got.push("payment method"); }
+    if (f.payerId) { touch("payer"); setPayerId(f.payerId); got.push("paid by"); }
+    if (f.withIds && f.withIds.length > 0) {
+      touch("split"); setSplit(f.equalSplit ? { mode: "equal", participantIds: [meId, ...f.withIds] } : autoSplit(f.withIds)); got.push("split");
+    }
+    if (f.addWithIds && f.addWithIds.length > 0) {
+      touch("split");
+      setSplit((prev) => ({ mode: "equal", participantIds: [...new Set([meId, ...prev.participantIds, ...f.addWithIds!])] }));
+      got.push("split");
+    }
+    if (f.categoryId) { catTouched.current = true; setCategoryId(f.categoryId); got.push("category"); }
+    else if (f.merchant) applyCategory(f.merchant, f.note ?? notes);
+    if (f.merchant) applyUsual(f.merchant, got); // what you usually do with this merchant fills only what you did not say
+    if (got.length) setFilled([...new Set(got)].map((g) => `${g} (from your voice)`));
+  };
   /** A card-bill payment: pick the card (named, or the one open bill that matches), then fill what is still owed on it. */
   const prefillCardPayment = (cardId: string, amountPaise?: number) => {
     const views = cardViews(accounts, cardBills, [...records, ...staged], today);
@@ -354,6 +380,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
           <ErrorDialog message={scanMsg?.error ? scanMsg.text : null} onClose={() => setScanMsg(null)} />
         </div>
       )}
+      {adding && !record.splitGroupId && <VoiceExpense onFill={applyVoice} />}
       {adding ? (
         <div className="rounded-2xl bg-gradient-to-br from-accent/10 to-accent/[0.04] p-4">
           <div className="flex items-center justify-between gap-2">
