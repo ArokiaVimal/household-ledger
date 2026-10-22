@@ -378,7 +378,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
             <label className="relative inline-flex min-h-8 items-center gap-1.5 rounded-full bg-surface px-2.5 text-xs font-medium shadow-sm focus-within:outline-2 focus-within:outline-accent">
               <CalendarDays size={13} aria-hidden className="text-accent" />
               <span className="num">{date ? new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Date"}</span>
-              <input aria-label="Date" type="date" value={date} onChange={(e) => { touch("date"); setDate(e.target.value); }} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+              <input aria-label="Date" type="date" value={date} onChange={(e) => { touch("date"); setDate(e.target.value); }} onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* older browsers open it on their own */ } }} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
             </label>
             </div>
           </div>
