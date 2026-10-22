@@ -31,7 +31,9 @@ const CASH = /(\batm\b|cash\s*(wdl|withdrawal)|\bnfs\b)/i;
 const FEE = /(charges?|\bfee\b|\bgst\b|\bigst\b|\bcgst\b|\bsgst\b|annual fee|late (payment|fee)|finance charge|\binterest\b|\bsms\b.*charge|penalty)/i;
 const REFUND = /(refund|reversal|\brev\b|cashback|credit voucher|chargeback)/i;
 const SALARY = /(salary|\bsal\b|payroll|stipend)/i;
-const PAYMENT_RECEIVED = /(payment received|payment\s*-?\s*thank|thank you|autopay|bbps payment|net banking payment|neft payment)/i;
+const PAYMENT_RECEIVED = /(payment received|payment\s*-?\s*thank|thank you|autopay|bbps payment|net banking payment|neft payment|credit\s*card\s*payment)/i;
+/** On a card: a charge that is really money sent back to your own bank account (HDFC "EXC PYT REFUND TO AC"). Not spending. */
+const CARD_TO_BANK = /(exc(ess)?\s*pyt?m?t?\s*refund|refund\s*to\s*a\/?c)/i;
 
 export interface Classified { kind: TxnKind; merchant: string }
 
@@ -43,6 +45,7 @@ export function classifyRow(description: string, direction: "debit" | "credit", 
   const merchant = extractMerchant(description);
   if (accountType === "credit_card") {
     if (direction === "credit") return { kind: PAYMENT_RECEIVED.test(description) ? "cc_payment" : REFUND.test(description) ? "refund" : "refund", merchant };
+    if (CARD_TO_BANK.test(description)) return { kind: "transfer", merchant };
     return { kind: FEE.test(description) && !/\b(swiggy|zomato|amazon|uber)\b/i.test(description) ? "fee" : "purchase", merchant };
   }
   // Money moved between your own accounts: not spending and not income, in either direction.

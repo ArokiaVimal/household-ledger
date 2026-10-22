@@ -44,3 +44,12 @@ describe("card bills paid from a bank", () => {
     expect(bank("ACH D- BOB LOAN COLLECTION-9000000000000")).toBe("purchase");
   });
 });
+
+describe("card statement credits and refunds to your own bank", () => {
+  it("files a bill payment on a card as a card payment and an excess-payment refund as a transfer", () => {
+    expect(classifyRow("CREDIT CARD PAYMENTNet Banking (Ref# 0000)", "credit", "credit_card").kind).toBe("cc_payment");
+    expect(classifyRow("PAYMENT THANKYOU (Ref# ST26)", "credit", "credit_card").kind).toBe("cc_payment");
+    expect(classifyRow("EXC PYT REFUND TO AC 2930", "debit", "credit_card").kind).toBe("transfer");
+    expect(classifyRow("SRM GLOBAL HOSPITALS PRIVKANCHIPURA", "debit", "credit_card").kind).toBe("purchase");
+  });
+});

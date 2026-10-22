@@ -11,6 +11,7 @@ import type { ClaudeConfig } from "./ai";
 import { extractWithClaude, MAX_NOTE_CHARS } from "./ai-extract";
 import type { AiUsage } from "./ai";
 import { readTable, sniffKind } from "./files";
+import { directionWarning } from "@/domain/import/direction";
 import { readPdfPages } from "./pdf";
 import { ImportError, type ImportInput, type Preview } from "./service";
 
@@ -68,7 +69,7 @@ export async function intakeFile(bytes: Uint8Array, filename: string, opts: Inta
   if (out.rows.length === 0) throw new ImportError("invalid", `${why} Claude found no transactions it could verify in the text.${out.warnings.length ? ` ${out.warnings.join(" ")}` : ""}`);
   const d = decide(opts, sample.slice(0, SAMPLE), out.accountId);
   if (!d.accountId) return { kind: "need_account", reason: d.detected.reason, candidates: d.sensed.candidates, ai: out.usage };
-  return { kind: "ready", ai: out.usage, input: { ...opts.base, accountId: d.accountId, detected: d.detected, format: "text", rows: out.rows, readBy: "ai", unverified: out.unverified, warnings: out.warnings, bill: out.bill } };
+  return { kind: "ready", ai: out.usage, input: { ...opts.base, accountId: d.accountId, detected: d.detected, format: "text", rows: out.rows, readBy: "ai", unverified: out.unverified, warnings: [...out.warnings, ...(directionWarning(out.rows, opts.accounts.find((a) => a.id === d.accountId)) ?? [])], bill: out.bill } };
 }
 
 /**
@@ -93,5 +94,5 @@ export async function intakeText(text: string, mode: "table" | "ai", opts: Intak
   if (out.rows.length === 0) throw new ImportError("invalid", "No transactions with an amount were found in that text.");
   const d = decide(opts, clean.slice(0, SAMPLE), out.accountId);
   if (!d.accountId) return { kind: "need_account", reason: d.detected.reason, candidates: d.sensed.candidates, ai: out.usage };
-  return { kind: "ready", ai: out.usage, input: { ...opts.base, accountId: d.accountId, detected: d.detected, format: "text", rows: out.rows, readBy: "ai", unverified: out.unverified, warnings: out.warnings, bill: out.bill } };
+  return { kind: "ready", ai: out.usage, input: { ...opts.base, accountId: d.accountId, detected: d.detected, format: "text", rows: out.rows, readBy: "ai", unverified: out.unverified, warnings: [...out.warnings, ...(directionWarning(out.rows, opts.accounts.find((a) => a.id === d.accountId)) ?? [])], bill: out.bill } };
 }

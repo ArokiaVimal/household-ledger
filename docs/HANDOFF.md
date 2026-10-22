@@ -20,7 +20,7 @@ Conflict order when documents disagree: **code and tests > decisions > this file
 
 ## 2. What the product is (since 2026-10-21)
 A **general expense tracker plus a Splitwise-style splitting app**, private and mobile-first (an installable PWA), for one person, a couple, friends, family or colleagues.
-- **Track your own money:** import statements (CSV, Excel `.xlsx` and old `.xls`, PDFs for Amex India, ICICI Bank accounts and ICICI credit cards), review and verify, categories, reports, card bills, recurring payments. AI helps only when asked.
+- **Track your own money:** import statements (CSV, Excel `.xlsx` and old `.xls`, PDFs for Amex India, HDFC credit cards, ICICI Bank accounts and ICICI credit cards), review and verify, categories, reports, card bills, recurring payments. AI helps only when asked.
 - **Split with anyone:** the **Split** tab has *People* and *Groups*. People are contacts (with or without accounts). Groups are trips, dinners, flatmates. Settle up with the fewest payments (or each person pays who paid for them, a per-group switch), record payments, pay by UPI link, export a group to CSV.
 - **Couples are a personalised layer, not the core.** Linking a partner is one optional feature in Settings (partner pin, nickname, usual split ratio, shared view). The app is fully usable with no partner.
 - It started as a household/couple app; the code still says `household` inside (see section 4). Do not describe the product as couple-first or household-first in new copy.
@@ -74,7 +74,7 @@ Recorded in full as items 12 onward in [DECISIONS.md](DECISIONS.md). In short:
 | Area | Open |
 |---|---|
 | Pure business rules (money, splits, ledger, dedupe, classification, reports) | `src/domain/` (no React/Next/Firebase imports) |
-| Statement readers | `src/domain/import/` (CSV/Excel layout, `pdf/` per issuer: `amex-india`, `icici-bank`, `icici-card`), `src/lib/import/` (file intake, `.xls` via `xls.ts`, AI extraction, service) |
+| Statement readers | `src/domain/import/` (CSV/Excel layout, `pdf/` per issuer: `amex-india`, `hdfc-card`, `icici-bank`, `icici-card`), `src/lib/import/` (file intake, `.xls` via `xls.ts`, AI extraction, service) |
 | Import screens | `src/app/(app)/import/` |
 | Data access | `src/data/` (repository interface, memory + Firestore implementations, Zod schemas, demo data, `store.tsx` client state) |
 | Server actions and routes | `src/lib/data/actions.ts` (every change goes through one validated path with an audit event), `src/app/api/*` |
