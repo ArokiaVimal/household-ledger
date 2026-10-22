@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeftRight, Ban, Banknote, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2, Users } from "lucide-react";
+import { ArrowLeftRight, Ban, Banknote, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2, Users } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { DupCompare } from "@/components/dup-compare";
@@ -24,7 +24,7 @@ import { equalSplit, validateSplit } from "@/domain/splits";
 import { checkGroupExpense } from "@/domain/split-groups";
 import type { ExpenseRecord, SplitConfig, SplitGroup, TxnKind } from "@/domain/types";
 import { SplitEditor } from "./split-editor";
-import { VoiceExpense, type VoicePatch } from "./voice-expense";
+import { BillIconButton, useVoiceExpense, type VoicePatch } from "./voice-expense";
 import { MerchantAvatar } from "./txn-row";
 import { AiBadge, Button, CompactChips, ConfirmDialog, Dialog, FormRow, Input } from "./ui";
 
@@ -302,6 +302,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
     if (f.merchant) applyUsual(f.merchant, got); // what you usually do with this merchant fills only what you did not say
     if (got.length) setFilled([...new Set(got)].map((g) => `${g} (from your voice)`));
   };
+  const voice = useVoiceExpense(applyVoice);
   /** A card-bill payment: pick the card (named, or the one open bill that matches), then fill what is still owed on it. */
   const prefillCardPayment = (cardId: string, amountPaise?: number) => {
     const views = cardViews(accounts, cardBills, [...records, ...staged], today);
@@ -366,34 +367,29 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
           <button type="button" onClick={() => goTo(1)} disabled={!nav.next} aria-label={nav.next ? `Next: ${nav.next.merchant}` : "No next transaction"} className="flex min-h-9 min-w-0 flex-1 items-center justify-end gap-1 rounded-lg px-1 text-right disabled:opacity-30"><span className="truncate">{nav.next?.merchant ?? ""}</span><ChevronRight size={16} aria-hidden className="shrink-0" /></button>
         </div>
       )}
-      {adding && (
-        <div>
-          <input ref={billInput} type="file" accept="image/*,application/pdf" className="sr-only" aria-label="Choose a bill" onChange={(e) => void scanBill(e.target.files?.[0])} />
-          <button type="button" {...billDrop.bind} disabled={scanning || !aiEnabled} onClick={() => billInput.current?.click()} className={`flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-dashed px-3.5 text-left text-sm font-medium text-accent transition-colors disabled:opacity-60 ${billDrop.over ? "border-accent bg-accent/15" : "border-accent/40 bg-accent/5 hover:bg-accent/10"}`}>
-            <Camera size={18} aria-hidden />
-            <span className="flex-1">{scanning ? "Reading your bill…" : "Scan, upload or drop a bill"}</span>
-            <AiBadge />
-          </button>
-          {!aiEnabled && <p className="mt-1 px-1 text-xs text-muted">AI is off on this server.</p>}
-          {scanMsg && !scanMsg.error && <p role="status" className="mt-1.5 px-1 text-xs text-warn">{scanMsg.text}</p>}
-          <BusyOverlay open={scanning} title="Reading your bill with AI…" detail="Claude is finding the items and the total. This usually takes under half a minute." />
-          <ErrorDialog message={scanMsg?.error ? scanMsg.text : null} onClose={() => setScanMsg(null)} />
-        </div>
-      )}
-      {adding && !record.splitGroupId && <VoiceExpense onFill={applyVoice} />}
       {adding ? (
-        <div className="rounded-2xl bg-gradient-to-br from-accent/10 to-accent/[0.04] p-4">
+        <div {...billDrop.bind} className={cn("rounded-2xl bg-gradient-to-br from-accent/10 to-accent/[0.04] p-4 transition-shadow", billDrop.over && "ring-2 ring-accent")}>
+          <input ref={billInput} type="file" accept="image/*,application/pdf" className="sr-only" aria-label="Choose a bill" onChange={(e) => void scanBill(e.target.files?.[0])} />
           <div className="flex items-center justify-between gap-2">
             <label htmlFor="amount-input" className="text-[11px] font-semibold uppercase tracking-wide text-muted/80">Amount</label>
+            <div className="flex items-center gap-2">
+            {!record.splitGroupId && voice.mic}
+            <BillIconButton disabled={scanning || !aiEnabled} onClick={() => billInput.current?.click()} />
             <label className="relative inline-flex min-h-8 items-center gap-1.5 rounded-full bg-surface px-2.5 text-xs font-medium shadow-sm focus-within:outline-2 focus-within:outline-accent">
               <CalendarDays size={13} aria-hidden className="text-accent" />
               <span className="num">{date ? new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Date"}</span>
               <input aria-label="Date" type="date" value={date} onChange={(e) => { touch("date"); setDate(e.target.value); }} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
             </label>
+            </div>
           </div>
           <span className="flex items-baseline gap-1.5"><span className="text-3xl font-semibold text-accent">₹</span>
             <input id="amount-input" autoFocus aria-label="Amount" inputMode="decimal" placeholder="0.00" className="num w-full min-w-0 bg-transparent text-4xl font-semibold tracking-tight placeholder:text-muted/40 focus:outline-none" value={amountText} onChange={(e) => onAmount(e.target.value)} /></span>
           <Input aria-label="Note" value={notes} onChange={(e) => onNotes(e.target.value)} maxLength={1000} placeholder="What was this for? (optional, fills in merchant and category)" className="mt-2 bg-surface" />
+          {!aiEnabled && <p className="mt-2 px-1 text-xs text-muted">AI is off on this server, so scanning a bill and speaking an expense are unavailable.</p>}
+          {scanMsg && !scanMsg.error && <p role="status" className="mt-2 px-1 text-xs text-warn">{scanMsg.text}</p>}
+          {!record.splitGroupId && voice.panel}
+          <BusyOverlay open={scanning} title="Reading your bill with AI…" detail="Claude is finding the items and the total. This usually takes under half a minute." />
+          <ErrorDialog message={scanMsg?.error ? scanMsg.text : null} onClose={() => setScanMsg(null)} />
         </div>
       ) : (
         <>
