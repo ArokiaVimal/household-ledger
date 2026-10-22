@@ -353,6 +353,8 @@ export function StoreProvider({ children, live }: { children: ReactNode; live?: 
   // Live with a partner: shared expenses (both people's) as ledger rows. Mine = my own records plus my share of what my
   // partner paid; Together = only what is shared. My own shared expenses appear once, from my records.
   const sharedRecords = useMemo(() => shared.map(sharedToRecord), [shared]);
+  // Names of other people in a shared expense (a friend in a split with your partner), by id. They are not your contacts: only used to show the split.
+  const sharedNames = useMemo(() => Object.assign({}, ...shared.map((s) => s.people ?? {})) as Record<string, string>, [shared]);
   const together = !!live && !!couple;
   // Payment Groups: the selector at the top of every screen. The group decides which of this month's records belong and how much of
   // each one counts; the ledger itself is never touched, and each record is counted once per group.
@@ -830,7 +832,7 @@ export function StoreProvider({ children, live }: { children: ReactNode; live?: 
     updateRecord, addRecord, stageRecords, updateStaged, approveStaged, rejectStaged, deleteRecords, addSettlement, voidSettlement, linkReceipt,
     recurringName: (id) => { const i = recurringItems.find((x) => x.id === id); return i ? (i.place ? `${i.name} · ${i.place}` : i.name) : id; },
     // Nicknames everywhere: what you call each person, and your own profile nickname for yourself.
-    nameOf: (id) => { const p = participants.find((x) => x.id === id); if (!p) return id; if (id === meId && profile) return greetingName(profile); return p.nickname?.trim() || p.name; },
+    nameOf: (id) => { const p = participants.find((x) => x.id === id); if (!p) return sharedNames[id] ?? id; if (id === meId && profile) return greetingName(profile); return p.nickname?.trim() || p.name; },
     categoryName: (id) => categories.find((c) => c.id === id)?.name ?? id,
     accountName: (id) => (id === "shared" ? "Shared" : accounts.find((a) => a.id === id)?.name ?? id),
     syncError, dismissSyncError: () => setSyncError(null),

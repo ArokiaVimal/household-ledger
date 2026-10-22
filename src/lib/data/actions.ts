@@ -141,7 +141,7 @@ async function run(repo: Repository, actor: ActionActor, raw: unknown, couple?: 
     const now = new Date().toISOString();
     if (plan.action === "share") {
       const categoryName = (await repo.categories.get(rec.categoryId))?.name ?? rec.categoryId;
-      await couple.repo.sharedExpenses.put(buildShared(rec, { ownerUid: actor.uid, categoryName, now, createdAt: existing?.createdAt }));
+      await couple.repo.sharedExpenses.put(buildShared(rec, { ownerUid: actor.uid, categoryName, now, createdAt: existing?.createdAt, meId: couple.meId, partnerId: couple.partnerId, names: await namesOf(repo) }));
       if (!existing || existing.voided) await couple.repo.audit.append({ actorId: actor.uid, action: "create", entity: "record", entityId: rec.id, summary: `Shared ${rec.merchant} ${money(rec.amountPaise)}` });
       return { ...rec, sharedWithPartner: true };
     }

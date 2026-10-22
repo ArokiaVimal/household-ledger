@@ -96,3 +96,5 @@ The linked person now sees the **total amount and the other participants' names 
 
 
 > **Note (Oct 2026):** the Mine/Together (household) view switch and the Profile "default view" setting were removed. Payment groups are the only lens on spending and the app always opens on Mine. A linked partner's shared expenses still appear in your lists. "Shared" means only expenses split with other people.
+
+> **Note (Oct 2026):** the partner (couple space) path now follows the same rule as link spaces (section 8.2): when a shared expense also has other people in the split, the whole split is shared and the other people travel by **name only** (`people`). A split with the partner and a friend is no longer refused. See `buildShared` in `src/domain/sharing.ts`.

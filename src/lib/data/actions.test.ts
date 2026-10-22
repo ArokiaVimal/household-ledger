@@ -385,8 +385,21 @@ describe("sharing with a partner", () => {
   it("refuses what cannot be shared, with the record left unchanged", async () => {
     const { repo, ctx } = await linked();
     await fails(applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { shared: true, split, kind: "transfer" } }, ctx), "invalid");
-    await fails(applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { shared: true, split: { mode: "equal", participantIds: ["me", "wife", "friend"] } } }, ctx), "invalid");
     expect((await repo.records.get("imp1"))!.status).toBe("unreviewed");
+  });
+  it("a split with the partner and a friend is shared as a whole, with the friend's name only", async () => {
+    const { repo, couple, ctx } = await linked();
+    await repo.participants.put({ id: "friend", name: "Meera Iyer", userId: null, email: "meera@example.com", upiId: "meera@okhdfc", relationship: "friend" });
+    const three = { mode: "equal" as const, participantIds: ["me", "wife", "friend"] };
+    await applyAction(repo, actor, { type: "record.approve", id: "imp1", patch: { shared: true, split: three } }, ctx);
+    const copy = (await couple.sharedExpenses.get("imp1"))!;
+    expect(copy.split.participantIds).toEqual(["me", "wife", "friend"]);
+    expect(copy.people).toEqual({ friend: "Meera Iyer" });
+    expect(JSON.stringify(copy)).not.toMatch(/meera@example\.com|okhdfc|relationship/);
+    expect((await repo.records.get("imp1"))!.sharedWithPartner).toBe(true);
+    // Taking the partner out withdraws the copy, as before.
+    await applyAction(repo, actor, { type: "record.update", id: "imp1", patch: { split: { mode: "equal" as const, participantIds: ["me", "friend"] } } }, ctx);
+    expect((await couple.sharedExpenses.get("imp1"))!.voided).toBe(true);
   });
   it("after unlinking, nothing new is shared and old copies stay", async () => {
     const { repo, couple, ctx } = await linked();

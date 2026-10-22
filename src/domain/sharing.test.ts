@@ -24,7 +24,6 @@ describe("planShare", () => {
     expect(() => planShare(rec({ kind: "cc_payment" }), ctx)).toThrow(SharingError);
     expect(() => planShare(rec({ kind: "income" }), ctx)).toThrow(/private/);
     expect(() => planShare(rec({ payerId: "u_wife" }), ctx)).toThrow(/paid/);
-    expect(() => planShare(rec({ split: { mode: "equal", participantIds: ["u_me", "u_wife", "p_friend"] } }), ctx)).toThrow(/friend/);
   });
 });
 
@@ -63,3 +62,34 @@ describe("shared balances", () => {
     expect(both).toEqual([]); // two equal expenses paid by each side cancel out
   });
 });
+
+describe("sharing with a partner and others in one expense", () => {
+  const at = "2026-10-02T00:00:00.000Z";
+  const withFriend = (o: Partial<ExpenseRecord> = {}) => rec({ split: { mode: "equal", participantIds: ["u_me", "u_wife", "p_meera"] }, ...o });
+  it("is allowed: the whole split is shared, like a group expense", () => {
+    expect(planShare(withFriend(), ctx)).toEqual({ action: "share" });
+  });
+  it("the shared copy keeps the full split and carries the other people's names, never anything more", () => {
+    const names = { u_me: "Vimal", u_wife: "Sri", p_meera: "Meera Iyer", p_secret: "Not in this expense" };
+    const s = buildShared(withFriend({ notes: "private note" }), { ownerUid: "me", categoryName: "Groceries", now: at, meId: "u_me", partnerId: "u_wife", names });
+    expect(s.split.participantIds).toEqual(["u_me", "u_wife", "p_meera"]);
+    expect(s.people).toEqual({ p_meera: "Meera Iyer" });
+    expect(JSON.stringify(s)).not.toMatch(/p_secret|Not in this expense|private note|cc_amex|ZEPTO MARKETPLACE|amex\.pdf|R1"/);
+  });
+  it("has no names map when it is only the two partners, and uses 'Someone' for a person with no name", () => {
+    expect(buildShared(rec(), { ownerUid: "me", categoryName: "G", now: at, meId: "u_me", partnerId: "u_wife", names: { u_me: "V" } }).people).toBeUndefined();
+    expect(buildShared(withFriend(), { ownerUid: "me", categoryName: "G", now: at, meId: "u_me", partnerId: "u_wife", names: {} }).people).toEqual({ p_meera: "Someone" });
+  });
+  it("your partner's balance with you counts only their own share of a three-way split", () => {
+    const row = { ...sharedToRecord(buildShared(withFriend({ amountPaise: 64200 }), { ownerUid: "me", categoryName: "G", now: at, meId: "u_me", partnerId: "u_wife", names: { p_meera: "Meera" } })) };
+    const b = pairBalances([row], []);
+    expect(b.find((x) => x.from === "u_wife" && x.to === "u_me")).toMatchObject({ owed: 21400, outstanding: 21400 }); // 642 / 3
+    expect(sharedToRecord(buildShared(withFriend(), { ownerUid: "me", categoryName: "G", now: at, meId: "u_me", partnerId: "u_wife", names: {} })).split.participantIds).toContain("p_meera");
+  });
+  it("includes people who only appear in an item-wise split, and a friend who paid is not shareable", () => {
+    const items = rec({ split: { mode: "items", participantIds: ["u_me", "u_wife"], items: [{ id: "i1", name: "Cake", amountPaise: 64200, participantIds: ["u_wife", "p_kid"] }] } });
+    expect(buildShared(items, { ownerUid: "me", categoryName: "G", now: at, meId: "u_me", partnerId: "u_wife", names: { p_kid: "Kid" } }).people).toEqual({ p_kid: "Kid" });
+    expect(() => planShare(withFriend({ payerId: "p_meera" }), ctx)).toThrow(/paid/);
+  });
+});
+

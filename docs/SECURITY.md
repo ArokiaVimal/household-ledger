@@ -35,7 +35,7 @@ Claude receives statement or typed text only after an explicit click (the server
 ## Couple space and privacy (added)
 - Personal spaces never have a second member. Linking creates a separate couple space (`households/{id}` with `kind: "couple"`); invitations are accepted by verified email and no longer add anyone to a personal space.
 - A partner cannot read the other partner's personal space: `isMember` fails for it (emulator tests: partner denied on private records/space, allowed on `sharedExpenses`).
-- `sharedExpenses` are written only by server code (rules: `allow write: if false`). The server shares only spending-like kinds (purchase, refund, fee), only when the signed-in user is the payer, and only for splits between the two partners (a split with a partner and a friend is refused).
+- `sharedExpenses` are written only by server code (rules: `allow write: if false`). The server shares only spending-like kinds (purchase, refund, fee), only when the signed-in user is the payer, and only when both partners are in the split. A split that also includes other people (a friend) is shared as a whole, like a group expense (owner's decision, Oct 2026): the partner sees the full split with the other people's **names** (`SharedExpense.people`, by id) and shares, and never their email, UPI id, relationship or any bank detail. Before Oct 2026 this case was refused.
 - The shared copy is built by `buildShared` and carries no bank text, account, reference or import source; tests assert this.
 - Unlinking sets `endedAt` on the couple space: history stays readable to both, nothing new can be shared or settled.
 
