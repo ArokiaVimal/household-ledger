@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeftRight, Ban, Banknote, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2, Users } from "lucide-react";
+import { ArrowLeftRight, Ban, Banknote, ChevronDown, ChevronLeft, ChevronRight, CreditCard, EyeOff, Plus, Receipt, Repeat, ShoppingBag, SlidersHorizontal, Store, Trash2, Undo2, Users } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { DupCompare } from "@/components/dup-compare";
@@ -24,6 +24,7 @@ import { equalSplit, validateSplit } from "@/domain/splits";
 import { checkGroupExpense } from "@/domain/split-groups";
 import type { ExpenseRecord, SplitConfig, SplitGroup, TxnKind } from "@/domain/types";
 import { SplitEditor } from "./split-editor";
+import { DateChip } from "./date-picker";
 import { BillIconButton, useVoiceExpense, type VoicePatch } from "./voice-expense";
 import { MerchantAvatar } from "./txn-row";
 import { AiBadge, Button, CompactChips, ConfirmDialog, Dialog, FormRow, Input } from "./ui";
@@ -375,11 +376,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
             <div className="flex items-center gap-2">
             {!record.splitGroupId && voice.mic}
             <BillIconButton disabled={scanning || !aiEnabled} onClick={() => billInput.current?.click()} />
-            <label className="relative inline-flex min-h-8 items-center gap-1.5 rounded-full bg-surface px-2.5 text-xs font-medium shadow-sm focus-within:outline-2 focus-within:outline-accent">
-              <CalendarDays size={13} aria-hidden className="text-accent" />
-              <span className="num">{date ? new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Date"}</span>
-              <input aria-label="Date" type="date" value={date} onChange={(e) => { touch("date"); setDate(e.target.value); }} onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* older browsers open it on their own */ } }} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
-            </label>
+            <DateChip value={date} today={today} onPick={(d) => { touch("date"); setDate(d); }} />
             </div>
           </div>
           <span className="flex items-baseline gap-1.5"><span className="text-3xl font-semibold text-accent">₹</span>
