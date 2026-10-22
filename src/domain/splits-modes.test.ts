@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ExpenseRecordSchema } from "@/data/schemas";
-import { computeShares, sameSplit, validateSplit, weightedSplit } from "./splits";
+import { computeShares, quickSplitIsDefault, sameSplit, validateSplit, weightedSplit } from "./splits";
 import type { ExpenseRecord, SplitConfig, SplitItem } from "./types";
 
 const sum = (o: Record<string, number>) => Object.values(o).reduce((s, v) => s + v, 0);
@@ -86,3 +86,19 @@ describe("persistence", () => {
     expect(sameSplit(base.split, { ...base.split, items: [item("i1", 1, ["me"])] })).toBe(false);
   });
 });
+
+describe("quickSplitIsDefault", () => {
+  const base = { newExpense: true, methodPicked: false, mode: "equal" as const, others: ["karthik"], partnerId: "varru" };
+  it("is the selected method for a new expense split with a friend", () => expect(quickSplitIsDefault(base)).toBe(true));
+  it("also with several people", () => expect(quickSplitIsDefault({ ...base, others: ["karthik", "priya", "varru"] })).toBe(true));
+  it("is not, for just you and your linked partner (their usual split is already chosen)", () => expect(quickSplitIsDefault({ ...base, others: ["varru"] })).toBe(false));
+  it("is not, when there is no partner, a friend alone still gets it", () => expect(quickSplitIsDefault({ ...base, others: ["varru"], partnerId: undefined })).toBe(true));
+  it("is not, once a method was picked, for a saved expense, for a gift, for nobody or for any other method", () => {
+    expect(quickSplitIsDefault({ ...base, methodPicked: true })).toBe(false);
+    expect(quickSplitIsDefault({ ...base, newExpense: false })).toBe(false);
+    expect(quickSplitIsDefault({ ...base, gift: true })).toBe(false);
+    expect(quickSplitIsDefault({ ...base, others: [] })).toBe(false);
+    expect(quickSplitIsDefault({ ...base, mode: "percent" })).toBe(false);
+  });
+});
+

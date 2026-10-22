@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useStore } from "@/data/store";
 import { formatINR, parseRupees } from "@/domain/money";
-import { computeShares, equalSplit, itemsExtra, itemSubtotals, ratioSplit, sameSplit, validateSplit } from "@/domain/splits";
+import { computeShares, equalSplit, itemsExtra, itemSubtotals, quickSplitIsDefault, ratioSplit, sameSplit, validateSplit } from "@/domain/splits";
 import type { Paise, SplitConfig, SplitItem, SplitMode } from "@/domain/types";
 import { relationshipText } from "@/domain/contacts";
 import { Dot, PersonGlyph } from "./glyphs";
@@ -39,7 +39,7 @@ const signedRupees = (text: string): number | null => (text.trim() === "" || tex
 const firstName = (s: string) => s.trim().split(/\s+/)[0] || s;
 
 /** Controlled editor. Amounts shown come from computeShares, never recomputed here. */
-export function SplitEditor({ total, value, onChange, peopleLabel = "Split with", only }: { total: Paise; value: SplitConfig; onChange: (v: SplitConfig) => void; /** The label of the people row, when a heading above already says "Split with". */ peopleLabel?: string; /** Limits who can be in the split (a Split Group's people). You are always in. */ only?: string[] }) {
+export function SplitEditor({ total, value, onChange, peopleLabel = "Split with", only, quickFirst = false }: { total: Paise; value: SplitConfig; onChange: (v: SplitConfig) => void; /** A new expense: the Quick splits button is the one selected until a method is chosen (except for just you and your partner, whose usual split is already chosen). */ quickFirst?: boolean; /** The label of the people row, when a heading above already says "Split with". */ peopleLabel?: string; /** Limits who can be in the split (a Split Group's people). You are always in. */ only?: string[] }) {
   const { nameOf, participants, meId, splitRatio, partnerId, pendingPartner, live, partner, addParticipant } = useStore();
   // The couple's usual two-way split (set in Settings). Anchored to the person it names, not to whoever is signed in,
   // so the same expense is split the same way on both phones.
@@ -133,13 +133,16 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   const presetId = howOptions.find((p) => sameSplit(p.config, value))?.label ?? "";
   const [adding, setAdding] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [methodPicked, setMethodPicked] = useState(false);
   const [newName, setNewName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   // Two one-tap splits ("Varru owes all", "I owe all"); every other way is the row of method icons.
   const quick = howOptions.filter((p) => /owes all$|^I owe all$|^I paid for them$/.test(p.label));
   const owesAll = quick.some((p) => p.label === presetId);
   // Quick splits are the first option of the How row; their three cards show while it is chosen (or one of them is in use).
-  const quickOn = quick.length > 0 && (quickOpen || owesAll);
+  // New expense, still on the default (everyone pays the same): the Quick splits button is the selected one. Just you and your partner keep your usual split instead.
+  const quickDefault = quickSplitIsDefault({ newExpense: quickFirst, methodPicked, mode: value.mode, gift: value.gift, others, partnerId });
+  const quickOn = quick.length > 0 && (quickOpen || owesAll || quickDefault);
   const showPanel = others.length > 0 && !owesAll && value.mode !== "equal";
   const summary = ids.map((id) => `${nameOf(id)} ${formatINR(shares[id] ?? 0)}`).join(" · ");
   const pickPreset = (label: string) => {
@@ -219,15 +222,15 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
           <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">How</h3>
           <div role="radiogroup" aria-label="Split method" className="flex gap-1 rounded-2xl bg-background p-1">
             {quick.length > 0 && (
-              <button type="button" role="radio" aria-checked={quickOn} aria-label="Quick splits" title="Quick splits" onClick={() => setQuickOpen(true)}
+              <button type="button" role="radio" aria-checked={quickOn} aria-label="Quick splits" title="Quick splits" onClick={() => { setMethodPicked(false); setQuickOpen(true); }}
                 className={`grid min-h-10 flex-1 place-items-center rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-accent ${quickOn ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-surface hover:text-foreground"}`}><Zap size={18} aria-hidden /></button>
             )}
             {MODES.filter((m) => m.id !== "personal").map((m) => { const on = value.mode === m.id && !quickOn; const [I] = MODE_ICON[m.id]; return (
-              <button key={m.id} type="button" role="radio" aria-checked={on} aria-label={m.label} title={m.label} onClick={() => { setQuickOpen(false); onChange(build(m.id, ids.length ? ids : [meId])); }}
+              <button key={m.id} type="button" role="radio" aria-checked={on} aria-label={m.label} title={m.label} onClick={() => { setQuickOpen(false); setMethodPicked(true); onChange(build(m.id, ids.length ? ids : [meId])); }}
                 className={`grid min-h-10 flex-1 place-items-center rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-accent ${on ? "bg-accent text-white shadow-sm" : "text-muted hover:bg-surface hover:text-foreground"}`}><I size={18} aria-hidden /></button>
             ); })}
           </div>
-          <p className="mt-1.5 text-xs text-muted"><b className="font-medium text-foreground">{quickOn ? (owesAll ? howOptions.find((p) => p.label === presetId)?.label : "Quick splits") : mode.label}</b>. {quickOn ? (owesAll ? howOptions.find((p) => p.label === presetId) && describe(howOptions.find((p) => p.label === presetId)!.config) : "One tap for the usual cases.") : mode.hint}</p>
+          <p className="mt-1.5 text-xs text-muted"><b className="font-medium text-foreground">{quickOn ? (owesAll ? howOptions.find((p) => p.label === presetId)?.label : "Quick splits") : mode.label}</b>. {quickOn ? (owesAll ? howOptions.find((p) => p.label === presetId) && describe(howOptions.find((p) => p.label === presetId)!.config) : value.mode === "equal" ? "One tap for the usual cases. Otherwise everyone ticked pays the same." : "One tap for the usual cases.") : mode.hint}</p>
           {quickOn && (
             <div role="radiogroup" aria-label="Quick splits" className="mt-2 grid grid-cols-3 gap-2">
               {quick.map((p) => {
@@ -280,50 +283,74 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
             </div>
           ) : (
             <>
-              <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface" aria-label="Who is in this expense">
-                {/* Only the people in the split; add or remove people in the picker above. */}
-                {participants.filter((p) => ids.includes(p.id)).map((p) => {
-                  const on = ids.includes(p.id);
-                  const tag = p.pendingEmail ? "invited" : p.id === partnerId || p.relationship === "partner" ? "" : p.userId === null ? relationshipText(p).toLowerCase() : "";
-                  const values = value.values ?? {};
+              <div className="overflow-hidden rounded-2xl bg-background">
+                <ul className="divide-y divide-border/70" aria-label="Who is in this expense">
+                  {/* Only the people in the split; add or remove people in the picker above. */}
+                  {participants.filter((p) => ids.includes(p.id)).map((p) => {
+                    const tag = p.pendingEmail ? "invited" : p.id === partnerId || p.relationship === "partner" ? "" : p.userId === null ? relationshipText(p).toLowerCase() : "";
+                    const values = value.values ?? {};
+                    const amount = !error && total > 0 && ids.length > 1 ? formatINR(shares[p.id] ?? 0) : "";
+                    const hasControl = ["percent", "custom", "shares", "adjust"].includes(value.mode);
+                    // With an input on the right, the person's money sits under their name; otherwise it is the right-hand figure.
+                    const sub = value.mode === "custom" ? (total > 0 ? `${Math.round(((values[p.id] ?? 0) / total) * 1000) / 10}% of the total` : "") : hasControl ? amount : "";
+                    return (
+                      <li key={p.id} className="flex items-center gap-3 px-3.5 py-3 text-sm">
+                        {value.mode === "personal" && (
+                          <button type="button" role="radio" aria-checked aria-label={`${nameOf(p.id)} owes this`} onClick={() => toggle(p.id)} className="grid size-5 shrink-0 place-items-center rounded-full bg-accent text-white"><Check size={12} strokeWidth={3} aria-hidden /></button>
+                        )}
+                        <PersonGlyph name={nameOf(p.id)} id={p.id} size={36} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5"><span className="truncate font-medium">{nameOf(p.id)}{p.id === meId && <span className="font-normal text-muted"> (you)</span>}</span>
+                            {tag && <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-[11px] text-muted">{tag}</span>}</div>
+                          {sub && <div className="num text-xs text-muted">{sub}</div>}
+                        </div>
+                        {value.mode === "percent" && (
+                          <label className="flex h-10 w-[6.5rem] shrink-0 items-center rounded-full bg-surface px-3.5 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent">
+                            <input aria-label={`${nameOf(p.id)} percent`} inputMode="decimal" className="num min-w-0 flex-1 bg-transparent text-right font-medium outline-none"
+                              value={String((values[p.id] ?? 0) / 100)} onChange={(e) => onChange({ ...value, values: { ...values, [p.id]: Math.round((Number(e.target.value) || 0) * 100) } })} />
+                            <span aria-hidden className="pl-1 text-muted">%</span>
+                          </label>
+                        )}
+                        {value.mode === "custom" && (
+                          <label className="flex h-10 w-[7.5rem] shrink-0 items-center rounded-full bg-surface px-3.5 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent">
+                            <span aria-hidden className="pr-1 text-muted">₹</span>
+                            <input aria-label={`${nameOf(p.id)} amount`} inputMode="decimal" className="num min-w-0 flex-1 bg-transparent text-right font-medium outline-none"
+                              defaultValue={((values[p.id] ?? 0) / 100).toFixed(2)} onChange={(e) => onChange({ ...value, values: { ...values, [p.id]: parseRupees(e.target.value) ?? 0 } })} />
+                          </label>
+                        )}
+                        {value.mode === "shares" && (
+                          <span className="flex h-10 shrink-0 items-center gap-1 rounded-full bg-surface px-1 ring-1 ring-border" role="group" aria-label={`${nameOf(p.id)} shares`}>
+                            <button type="button" aria-label={`Fewer shares for ${nameOf(p.id)}`} disabled={(values[p.id] ?? 1) <= 0} onClick={() => onChange({ ...value, values: { ...values, [p.id]: Math.max(0, (values[p.id] ?? 1) - 1) } })} className="grid size-8 place-items-center rounded-full text-muted hover:bg-background disabled:opacity-30"><Minus size={14} aria-hidden /></button>
+                            <span className="num w-6 text-center font-medium">{values[p.id] ?? 1}</span>
+                            <button type="button" aria-label={`More shares for ${nameOf(p.id)}`} onClick={() => onChange({ ...value, values: { ...values, [p.id]: Math.min(1000, (values[p.id] ?? 1) + 1) } })} className="grid size-8 place-items-center rounded-full text-muted hover:bg-background"><Plus size={14} aria-hidden /></button>
+                          </span>
+                        )}
+                        {value.mode === "adjust" && (
+                          <label className="flex h-10 w-[7.5rem] shrink-0 items-center rounded-full bg-surface px-3.5 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent">
+                            <span aria-hidden className="pr-1 text-muted">±₹</span>
+                            <input aria-label={`${nameOf(p.id)} adjustment`} inputMode="decimal" placeholder="0" className="num min-w-0 flex-1 bg-transparent text-right font-medium outline-none"
+                              defaultValue={values[p.id] ? (values[p.id] / 100).toFixed(2) : ""} onChange={(e) => { const v = signedRupees(e.target.value); if (v !== null) onChange({ ...value, values: { ...values, [p.id]: v } }); }} />
+                          </label>
+                        )}
+                        {!hasControl && amount && <span className="num shrink-0 font-semibold">{amount}</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {(value.mode === "percent" || value.mode === "custom") && (() => {
+                  const ok = value.mode === "percent" ? pctTotal === 10000 : assigned === total;
+                  const ratio = value.mode === "percent" ? pctTotal / 10000 : total > 0 ? assigned / total : 0;
+                  const text = value.mode === "percent"
+                    ? (ok ? "Adds up to 100%" : `${pct(pctTotal)}% of 100% · ${pct(Math.abs(10000 - pctTotal))}% ${pctTotal < 10000 ? "left to give" : "too much"}`)
+                    : (ok ? `Adds up to ${formatINR(total)}` : `${formatINR(assigned)} of ${formatINR(total)} · ${formatINR(Math.abs(total - assigned))} ${assigned < total ? "left to assign" : "too much"}`);
                   return (
-                    <li key={p.id} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-sm transition-colors ${on ? "bg-accent/[0.04]" : ""}`}>
-                      <label className="flex min-w-[11rem] flex-1 items-center gap-2.5">
-                        <input type={value.mode === "personal" ? "radio" : "checkbox"} name="split-people" checked={on} onChange={() => toggle(p.id)} className="peer sr-only" />
-                        <span aria-hidden className="grid size-5 shrink-0 place-items-center rounded-full border border-border text-transparent transition-colors peer-checked:border-accent peer-checked:bg-accent peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-accent"><Check size={12} strokeWidth={3} /></span>
-                        <PersonGlyph name={nameOf(p.id)} id={p.id} size={32} />
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium">{nameOf(p.id)}{p.id === meId && <span className="font-normal text-muted"> (you)</span>}</span>
-                          {tag && <span className="inline-block rounded-full bg-background px-2 py-0.5 text-xs text-muted">{tag}</span>}
-                        </span>
-                      </label>
-                      {on && value.mode === "percent" && (
-                        <span className="relative"><Input aria-label={`${nameOf(p.id)} percent`} inputMode="decimal" className="w-[5.5rem] pr-8 text-right"
-                          value={String((values[p.id] ?? 0) / 100)} onChange={(e) => onChange({ ...value, values: { ...values, [p.id]: Math.round((Number(e.target.value) || 0) * 100) } })} /><span aria-hidden className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-muted">%</span></span>
-                      )}
-                      {on && value.mode === "custom" && (
-                        <span className="relative"><span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">₹</span><Input aria-label={`${nameOf(p.id)} amount`} inputMode="decimal" className="w-32 pl-8 text-right"
-                          defaultValue={((values[p.id] ?? 0) / 100).toFixed(2)} onChange={(e) => onChange({ ...value, values: { ...values, [p.id]: parseRupees(e.target.value) ?? 0 } })} /></span>
-                      )}
-                      {on && value.mode === "shares" && (
-                        <span className="flex items-center gap-1" role="group" aria-label={`${nameOf(p.id)} shares`}>
-                          <button type="button" aria-label={`Fewer shares for ${nameOf(p.id)}`} disabled={(values[p.id] ?? 1) <= 0} onClick={() => onChange({ ...value, values: { ...values, [p.id]: Math.max(0, (values[p.id] ?? 1) - 1) } })} className="grid size-8 place-items-center rounded-full border border-border disabled:opacity-40"><Minus size={14} aria-hidden /></button>
-                          <span className="num w-6 text-center font-medium">{values[p.id] ?? 1}</span>
-                          <button type="button" aria-label={`More shares for ${nameOf(p.id)}`} onClick={() => onChange({ ...value, values: { ...values, [p.id]: Math.min(1000, (values[p.id] ?? 1) + 1) } })} className="grid size-8 place-items-center rounded-full border border-border"><Plus size={14} aria-hidden /></button>
-                        </span>
-                      )}
-                      {on && value.mode === "adjust" && (
-                        <span className="flex items-center gap-1">±₹<Input aria-label={`${nameOf(p.id)} adjustment`} inputMode="decimal" placeholder="0" className="w-24 text-right"
-                          defaultValue={values[p.id] ? (values[p.id] / 100).toFixed(2) : ""} onChange={(e) => { const v = signedRupees(e.target.value); if (v !== null) onChange({ ...value, values: { ...values, [p.id]: v } }); }} /></span>
-                      )}
-                      {on && !error && total > 0 && value.mode !== "custom" && ids.length > 1 && <span className="num w-24 text-right text-muted">{formatINR(shares[p.id] ?? 0)}</span>}
-                    </li>
+                    <div role="status" className="space-y-1.5 border-t border-border/70 bg-surface/60 px-3.5 py-2.5">
+                      <div className={`flex items-center gap-1.5 text-xs font-medium ${ok ? "text-good" : "text-warn"}`}>{ok ? <Check size={13} strokeWidth={3} aria-hidden /> : null}<span className="num">{text}</span></div>
+                      <div aria-hidden className="h-1 overflow-hidden rounded-full bg-border"><div className={`h-full rounded-full transition-[width] duration-300 ${ok ? "bg-good" : ratio > 1 ? "bg-danger" : "bg-warn"}`} style={{ width: `${Math.min(100, Math.max(0, ratio * 100))}%` }} /></div>
+                    </div>
                   );
-                })}
-              </ul>
-              {value.mode === "percent" && <p className={`text-xs ${pctTotal === 10000 ? "text-good" : "text-warn"}`}>{pctTotal === 10000 ? "Adds up to 100%." : `Adds up to ${pct(pctTotal)}%. ${pct(Math.abs(10000 - pctTotal))}% ${pctTotal < 10000 ? "left to give" : "too much"}.`}</p>}
-              {value.mode === "custom" && <p className={`text-xs ${assigned === total ? "text-good" : "text-warn"}`}>{assigned === total ? "Adds up to the total." : `${formatINR(Math.abs(total - assigned))} ${assigned < total ? "left to assign" : "too much"}.`}</p>}
-              {value.mode !== "percent" && value.mode !== "custom" && !error && ids.length > 1 && <p className="text-xs text-muted">{summary}</p>}
+                })()}
+              </div>
             </>
           )}
         </div>

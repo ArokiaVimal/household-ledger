@@ -1,5 +1,5 @@
 import { assertPaise } from "./money";
-import type { Paise, SplitConfig, SplitItem } from "./types";
+import type { Paise, SplitConfig, SplitItem, SplitMode } from "./types";
 
 export type Shares = Record<string, Paise>;
 
@@ -185,3 +185,14 @@ export function sameSplit(a: SplitConfig, b: SplitConfig): boolean {
   if (a.mode === "percent" || a.mode === "custom" || a.mode === "shares" || a.mode === "adjust") return a.participantIds.every((id) => (a.values?.[id] ?? 0) === (b.values?.[id] ?? 0));
   return true;
 }
+
+/**
+ * Which way to split is selected when a NEW expense's split sheet opens: the Quick splits button, until a method is chosen.
+ * Not when the split is only between you and your linked partner (their usual split is already chosen), not once a method was
+ * picked, and not for a split that is not the plain "everyone pays the same" default.
+ */
+export function quickSplitIsDefault(o: { newExpense: boolean; methodPicked: boolean; mode: SplitMode; gift?: boolean; others: string[]; partnerId?: string | null }): boolean {
+  if (!o.newExpense || o.methodPicked || o.mode !== "equal" || o.gift || o.others.length === 0) return false;
+  return !(o.others.length === 1 && !!o.partnerId && o.others[0] === o.partnerId);
+}
+

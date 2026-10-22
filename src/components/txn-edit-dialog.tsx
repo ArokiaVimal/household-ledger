@@ -486,7 +486,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
       <ListSheet open={sheet === "recurring"} onClose={() => { setSheet(null); setRecurringError(null); }} title="Recurring" value={recurringId} options={[{ id: "", label: "None", icon: <Dot icon={Ban} size={32} /> }, ...recurringItems.map((i) => ({ id: i.id, label: i.place ? `${i.name} · ${i.place.split(",")[0]}` : i.name, icon: <Dot icon={Repeat} size={32} tone="bg-red-100 text-red-700" /> })), { id: NEW_RECURRING, label: "Repeat every month", hint: "Adds this payment to Recurring", icon: <Dot icon={Plus} size={32} tone="bg-accent/10 text-accent" /> }]} onPick={(v) => { touch("recurring"); setRecurringId(v); setRecurringError(null); }} />
       <Dialog open={splitOpen} onClose={() => setSplitOpen(false)} title="Split with">
         <div className="space-y-3 pb-2">
-          <SplitEditor key={`${split.mode === "custom" ? amountPaise : "s"}${splitGroupId}`} total={amountPaise} value={split} onChange={(v) => { touch("split"); setSplit(v); }} peopleLabel="Who" only={splitGroup?.participantIds} />
+          <SplitEditor key={`${split.mode === "custom" ? amountPaise : "s"}${splitGroupId}`} total={amountPaise} value={split} onChange={(v) => { touch("split"); setSplit(v); }} peopleLabel="Who" only={splitGroup?.participantIds} quickFirst={adding} />
           {splitError && <p role="alert" className="text-xs text-danger">{splitError}</p>}
         </div>
         <div className="sticky bottom-0 -mx-4 flex justify-end border-t border-border bg-surface px-4 py-3"><Button variant="primary" onClick={() => setSplitOpen(false)}>Done</Button></div>
