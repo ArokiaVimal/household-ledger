@@ -300,7 +300,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
     if (f.categoryId) { catTouched.current = true; setCategoryId(f.categoryId); got.push("category"); }
     else if (f.merchant) applyCategory(f.merchant, f.note ?? notes);
     if (f.merchant) applyUsual(f.merchant, got); // what you usually do with this merchant fills only what you did not say
-    if (got.length) setFilled([...new Set(got)].map((g) => `${g} (from your voice)`));
+    setFilled([]); // the form shows what was filled; no separate "Filled in for you" line for voice
   };
   const voice = useVoiceExpense(applyVoice);
   /** A card-bill payment: pick the card (named, or the one open bill that matches), then fill what is still owed on it. */
