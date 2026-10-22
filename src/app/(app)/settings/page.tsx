@@ -126,7 +126,7 @@ export default function Settings() {
               const items = MENU.filter((m) => m.group === g && (live || !m.liveOnly));
               return items.length === 0 ? null : (
                 <section key={g} aria-label={g}>
-                  <h2 className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{g}</h2>
+                  <h2 className="mb-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted/80">{g}</h2>
                   <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5 md:grid-cols-2 md:gap-2 xl:grid-cols-3">
                     {items.map(({ id, label, hint, icon: I, href }) => {
                       const cls = "group flex min-h-16 items-center gap-3 rounded-[var(--radius-card)] bg-surface px-3 py-2 text-left transition-shadow hover:shadow-md";

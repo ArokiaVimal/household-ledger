@@ -89,13 +89,13 @@ function OweTile({ tone, label, total, people, none }: { tone: "in" | "out"; lab
     <Link href="/people" className={cn("flex min-w-0 items-center gap-2.5 rounded-2xl p-2.5 transition-shadow hover:shadow-md", out ? "bg-rose-500/10" : "bg-emerald-500/10")}>
       <span className={cn("grid size-9 shrink-0 place-items-center rounded-full text-white", out ? "bg-rose-400" : "bg-emerald-500")} aria-hidden>{out ? <ArrowUpRight size={17} /> : <ArrowDownLeft size={17} />}</span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[11px] leading-tight text-muted md:text-xs">{label}</span>
+        <span className="block text-xs leading-tight text-muted">{label}</span>
         <span className="num block whitespace-nowrap text-base font-semibold leading-tight tracking-tight md:text-lg">{formatINR(total).replace(/\.00$/, "")}</span>
         <span className="mt-0.5 flex items-center gap-1.5">
-          {people.length === 0 ? <span className="truncate text-[11px] text-muted md:text-xs">{none}</span> : (
+          {people.length === 0 ? <span className="truncate text-xs text-muted">{none}</span> : (
             <>
               <span className="flex -space-x-1.5">{people.slice(0, 3).map((id) => <span key={id} className="rounded-full ring-2 ring-surface"><PersonGlyph name={nameOf(id)} id={id} size={18} /></span>)}</span>
-              <span className="truncate text-[11px] text-muted md:text-xs">{nameOf(people[0])}{people.length > 1 ? ` +${people.length - 1}` : ""}</span>
+              <span className="truncate text-xs text-muted">{nameOf(people[0])}{people.length > 1 ? ` +${people.length - 1}` : ""}</span>
             </>
           )}
         </span>
@@ -105,7 +105,7 @@ function OweTile({ tone, label, total, people, none }: { tone: "in" | "out"; lab
 }
 
 function Pill({ tone, children }: { tone: "good" | "bad"; children: ReactNode }) {
-  return <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium", tone === "good" ? "bg-good-soft text-good" : "bg-danger/10 text-danger")}>{children}</span>;
+  return <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-medium", tone === "good" ? "bg-good-soft text-good" : "bg-danger/10 text-danger")}>{children}</span>;
 }
 
 /** Shown once after the first review is finished (the review page links here with ?reviewed=1). */

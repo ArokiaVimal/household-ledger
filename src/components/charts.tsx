@@ -72,7 +72,7 @@ export function DonutChart({ data, total, href }: { data: Datum[]; total: number
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
-          <div><div className="text-[11px] text-muted">Total spent</div><div className="num text-[11px] font-semibold sm:text-sm">{formatINR(total).replace(/\.00$/, "")}</div></div>
+          <div><div className="text-xs text-muted">Total spent</div><div className="num text-xs font-semibold sm:text-sm">{formatINR(total).replace(/\.00$/, "")}</div></div>
         </div>
       </div>
     </div>

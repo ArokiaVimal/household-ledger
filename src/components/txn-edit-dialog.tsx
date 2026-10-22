@@ -372,7 +372,7 @@ function Form({ mode, record, onClose, nav, onAnother, onAdded }: { mode: "edit"
         <div {...billDrop.bind} className={cn("rounded-2xl bg-gradient-to-br from-accent/10 to-accent/[0.04] p-4 transition-shadow", billDrop.over && "ring-2 ring-accent")}>
           <input ref={billInput} type="file" accept="image/*,application/pdf" className="sr-only" aria-label="Choose a bill" onChange={(e) => void scanBill(e.target.files?.[0])} />
           <div className="flex items-center justify-between gap-2">
-            <label htmlFor="amount-input" className="text-[11px] font-semibold uppercase tracking-wide text-muted/80">Amount</label>
+            <label htmlFor="amount-input" className="text-xs font-semibold uppercase tracking-wide text-muted/80">Amount</label>
             <div className="flex items-center gap-2">
             {!record.splitGroupId && voice.mic}
             <BillIconButton disabled={scanning || !aiEnabled} onClick={() => billInput.current?.click()} />

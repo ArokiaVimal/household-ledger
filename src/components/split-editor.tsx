@@ -185,7 +185,7 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
   return (
     <div className="space-y-2">
       <section aria-label={peopleLabel}>
-        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{peopleLabel}</h3>
+        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted/80">{peopleLabel}</h3>
         <ul role="group" aria-label="Split with" className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
           {[{ id: ME, name: "Me", full: `${nameOf(meId)} (Me)`, glyph: <PersonGlyph name="Me" id={meId} size={36} />, on: meIn }, ...rankedPeople.map((p) => ({ id: p.id, name: firstName(nameOf(p.id)), full: p.pendingEmail ? `${nameOf(p.id)} (invited)` : nameOf(p.id), glyph: <PersonGlyph name={nameOf(p.id)} id={p.id} size={36} />, on: others.includes(p.id) }))].map((t) => (
             <li key={t.id} className="w-[calc((100%-2rem)/5)] min-w-[3.75rem] shrink-0">
@@ -219,7 +219,7 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
       </section>
       {others.length > 0 && (
         <section aria-label="How">
-          <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">How</h3>
+          <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted/80">How</h3>
           <div role="radiogroup" aria-label="Split method" className="flex gap-1 rounded-2xl bg-background p-1">
             {quick.length > 0 && (
               <button type="button" role="radio" aria-checked={quickOn} aria-label="Quick splits" title="Quick splits" onClick={() => { setMethodPicked(false); setQuickOpen(true); }}
@@ -241,7 +241,7 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
                     className={`flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1.5 py-3 text-center transition-colors focus-visible:outline-2 focus-visible:outline-accent ${on ? "border-accent bg-accent/[0.07]" : "border-transparent bg-background hover:bg-border/40"}`}>
                     <span aria-hidden className={`grid size-9 place-items-center rounded-full ${tone}`}><Icon size={18} /></span>
                     <span className="text-[13px] font-medium leading-tight">{p.label}</span>
-                    <span className="text-[11px] leading-tight text-muted">{describe(p.config)}</span>
+                    <span className="text-xs leading-tight text-muted">{describe(p.config)}</span>
                   </button>
                 );
               })}
@@ -301,7 +301,7 @@ export function SplitEditor({ total, value, onChange, peopleLabel = "Split with"
                         <PersonGlyph name={nameOf(p.id)} id={p.id} size={36} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5"><span className="truncate font-medium">{nameOf(p.id)}{p.id === meId && <span className="font-normal text-muted"> (you)</span>}</span>
-                            {tag && <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-[11px] text-muted">{tag}</span>}</div>
+                            {tag && <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-xs text-muted">{tag}</span>}</div>
                           {sub && <div className="num text-xs text-muted">{sub}</div>}
                         </div>
                         {value.mode === "percent" && (

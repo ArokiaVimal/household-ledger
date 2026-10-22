@@ -57,7 +57,7 @@ export function CompactRow({ r, onOpen, onVerify, onDelete, showDate, leading }:
           </span>
           <span className="text-right">
             <Amount r={r} />
-            {r.shared && !r.excluded && mine !== 0 && <span className="num block text-[11px] leading-tight text-muted">mine {formatINR(Math.abs(mine))}</span>}
+            {r.shared && !r.excluded && mine !== 0 && <span className="num block text-xs leading-tight text-muted">mine {formatINR(Math.abs(mine))}</span>}
           </span>
         </button>
       </div>

@@ -22,7 +22,7 @@ export function ChipFilter({ label, value, onPick, options }: { label: string; v
   if (!oneRow) for (const o of options) { const w = o.label.length + 6; const k = widths[0] <= widths[1] ? 0 : 1; rows[k].push(o); widths[k] += w; }
   return (
     <fieldset className="min-w-0">
-      <legend className="mb-1.5 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{label}</legend>
+      <legend className="mb-1.5 px-4 text-xs font-semibold uppercase tracking-wide text-muted/80">{label}</legend>
       <HScroll className="px-4">
         <div className="flex w-max flex-col gap-1.5">
           {rows.map((row, i) => (

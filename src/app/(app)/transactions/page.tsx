@@ -94,6 +94,7 @@ function TransactionsView() {
   const router = useRouter();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [toolsSlot, setToolsSlot] = useState<HTMLElement | null>(null);
 
   const get = (k: string) => params.get(k) ?? "";
   /** Picking bank or card also drops a chosen payment method that no longer fits it. */
@@ -224,10 +225,11 @@ function TransactionsView() {
         <div role="tablist" aria-label="Verified or not" className="flex min-w-0 flex-1 rounded-full bg-border/60 p-1 md:max-w-md">
           {([["", "All", 0], ["verified", "Verified", 0], ["unverified", "Unverified", allScope ? staged.length : progress.left]] as const).map(([id, label, n]) => (
             <button key={id} role="tab" aria-selected={v === id} onClick={() => set("v", id)} className={cn("flex min-h-9 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-full px-1.5 text-[13px] transition-all md:gap-1.5 md:px-2 md:text-sm", v === id ? "bg-surface font-semibold text-foreground shadow-sm" : "text-muted hover:text-foreground")}>
-              {label}{n > 0 && <span className={cn("num rounded-full px-1.5 text-[11px] font-semibold leading-5", v === id ? "bg-warn-soft text-warn" : "bg-warn/15 text-warn")}>{n}</span>}
+              {label}{n > 0 && <span className={cn("num rounded-full px-1.5 text-xs font-semibold leading-5", v === id ? "bg-warn-soft text-warn" : "bg-warn/15 text-warn")}>{n}</span>}
             </button>
           ))}
         </div>
+        {v === "unverified" && <div ref={setToolsSlot} className="flex shrink-0 items-center gap-1.5 md:hidden" />}
         {v !== "unverified" && (
           <div className="flex shrink-0 items-center gap-1.5 md:hidden">
             <button type="button" aria-label="Search" aria-pressed={searching || !!get("q")} onClick={() => setSearching((x) => !x)} className={cn("relative grid size-10 place-items-center rounded-full text-foreground", searching || get("q") ? "bg-accent/15 text-accent" : "bg-border/60 hover:bg-border")}>
@@ -251,7 +253,7 @@ function TransactionsView() {
       {v === "unverified" && allScope && (
         <p className="mb-2 flex items-center justify-between rounded-xl bg-background px-3 py-2 text-xs text-muted"><span>All months · {staged.length} unverified</span><button type="button" onClick={() => set("scope", "")} className="font-medium text-accent">Show {new Date(`${get("month") || month}-01T00:00:00Z`).toLocaleString("en", { month: "long", timeZone: "UTC" })} only</button></p>
       )}
-      {v === "unverified" ? <UnverifiedQueue month={allScope ? undefined : get("month") || month} /> : <>
+      {v === "unverified" ? <UnverifiedQueue toolsSlot={toolsSlot} month={allScope ? undefined : get("month") || month} /> : <>
       {/* Phone: the total. Search, AI notes and filters sit in the row with the tabs. */}
       <div className="mb-3 px-1 md:hidden">
         <div aria-label="Total for this view">

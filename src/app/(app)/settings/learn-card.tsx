@@ -43,7 +43,7 @@ export function LearnCard({ live }: { live: boolean }) {
           <p className="rounded-xl bg-good-soft p-3 text-sm text-good">Done. {result.counts.added} new and {result.counts.upgraded} updated merchants remembered; {result.counts.icons} icons and logos filled in ({result.counts.categories} categories, {result.counts.accounts} payment methods, {result.counts.merchantIcons} merchants).</p>
           {groups.map((g) => (
             <section key={g.t}>
-              <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{TOPIC[g.t]}</h3>
+              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted/80">{TOPIC[g.t]}</h3>
               <ul className="space-y-1.5 text-sm">{g.items.map((l, i) => <li key={i} className="rounded-xl bg-background px-3 py-2">{l.text}</li>)}</ul>
             </section>
           ))}

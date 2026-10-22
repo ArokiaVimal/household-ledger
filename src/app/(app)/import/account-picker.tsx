@@ -39,7 +39,7 @@ export function AccountPicker({ accounts, selected, onPick, rank }: { accounts: 
         if (items.length === 0) return null;
         return (
           <fieldset key={g.title} className="min-w-0">
-            <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{g.title}</legend>
+            <legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted/80">{g.title}</legend>
             <div className="flex flex-wrap gap-1.5">
               {items.map((a) => {
                 const on = selected.includes(a.id);

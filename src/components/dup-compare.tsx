@@ -44,10 +44,10 @@ export function DupCompare({ open, onClose, onDeletedMine, mine, other }: { open
         <dl className="divide-y divide-border rounded-2xl border border-border">
           {lines.map((l) => {
             const diff = l.a !== l.b;
-            const cell = (v: string) => <dd className={`min-w-0 break-words px-2.5 py-1.5 ${l.mono ? "font-mono text-[11px]" : ""} ${diff ? "bg-warn-soft/60" : ""}`}>{v || "—"}</dd>;
+            const cell = (v: string) => <dd className={`min-w-0 break-words px-2.5 py-1.5 ${l.mono ? "font-mono text-xs" : ""} ${diff ? "bg-warn-soft/60" : ""}`}>{v || "—"}</dd>;
             return (
               <div key={l.label}>
-                <dt className="bg-background px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{l.label}</dt>
+                <dt className="bg-background px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-muted/80">{l.label}</dt>
                 <div className="grid grid-cols-2 divide-x divide-border">{cell(l.a)}{cell(l.b)}</div>
               </div>
             );

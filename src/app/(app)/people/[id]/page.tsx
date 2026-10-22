@@ -103,12 +103,12 @@ export default function PersonSettle() {
           </span>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-semibold leading-tight tracking-tight">{name}</h1>
-            <span className="mt-0.5 inline-block rounded-full bg-surface/90 px-2 py-0.5 text-[11px] font-medium text-muted ring-1 ring-border/60">{personId === partnerId ? "Partner" : relationshipText(person)}</span>
+            <span className="mt-0.5 inline-block rounded-full bg-surface/90 px-2 py-0.5 text-xs font-medium text-muted ring-1 ring-border/60">{personId === partnerId ? "Partner" : relationshipText(person)}</span>
           </div>
           {out > 0 && canSettle && <button type="button" aria-label={`Remind ${name}`} title={`Remind ${name}`} onClick={() => void remind()} className="grid size-10 shrink-0 place-items-center rounded-full bg-surface/80 text-foreground ring-1 ring-border/60 hover:bg-surface"><Bell size={17} aria-hidden /></button>}
         </div>
         <div className="mt-4">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">{out === 0 ? "All settled" : out > 0 ? `${name} owes you` : `You owe ${name}`}</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted">{out === 0 ? "All settled" : out > 0 ? `${name} owes you` : `You owe ${name}`}</div>
           <div className={`num text-[34px] font-semibold leading-tight tracking-tight ${out > 0 ? "text-good" : out < 0 ? "text-warn" : ""}`}>{out === 0 ? "₹0" : formatINR(Math.abs(out))}</div>
         </div>
         {out !== 0 && canSettle && <div className="mt-3 flex flex-wrap items-center gap-2"><Button variant="primary" className="min-h-10 px-5" onClick={() => setConfirm("everything")}>Settle everything</Button>{out < 0 && <UpiPay personId={personId} amountPaise={-out} note="Shared expenses" />}</div>}
@@ -127,7 +127,7 @@ export default function PersonSettle() {
         <div role="tablist" aria-label="Payments" className="flex min-w-0 flex-1 rounded-full bg-border/60 p-1">
           {([["open", "To settle", ledger.open.length], ["settled", "Settled", ledger.settled.length]] as const).map(([id, label, n]) => (
             <button key={id} role="tab" aria-selected={tab === id} onClick={() => { setTab(id); setPicked(new Set()); }} className={cn("flex min-h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm transition-all", tab === id ? "bg-surface font-semibold text-foreground shadow-sm" : "text-muted hover:text-foreground")}>
-              {label}<span className={cn("num rounded-full px-1.5 text-[11px] font-semibold leading-5", tab === id ? "bg-accent/10 text-accent" : "bg-border text-muted")}>{n}</span>
+              {label}<span className={cn("num rounded-full px-1.5 text-xs font-semibold leading-5", tab === id ? "bg-accent/10 text-accent" : "bg-border text-muted")}>{n}</span>
             </button>
           ))}
         </div>
@@ -145,7 +145,7 @@ export default function PersonSettle() {
                 <div className="space-y-1.5">
                   {mo.days.map((d) => (
                     <section key={d.date} aria-label={dayLabel(d.date)}>
-                      <div className="px-2 pb-0.5 pt-1 text-[11px] font-medium text-muted">{dayLabel(d.date)}</div>
+                      <div className="px-2 pb-0.5 pt-1 text-xs font-medium text-muted">{dayLabel(d.date)}</div>
                       <ul className="divide-y divide-border">
                         {d.entries.map((e) => {
                           const r = e.record;
@@ -162,7 +162,7 @@ export default function PersonSettle() {
                                   {(() => { const c = categories.find((x) => x.id === r.categoryId); return <MerchantAvatar name={r.merchant} size={34} fallback={<CategoryGlyph name={c?.name ?? "Uncategorized"} icon={c?.icon} size={34} />} />; })()}
                                   <span className="min-w-0 flex-1">
                                     <span className="block truncate text-sm font-medium leading-tight">{r.merchant}</span>
-                                    <span className="block truncate text-[11px] leading-tight text-muted">{r.payerId === meId ? "you paid" : `${name} paid`} {formatINR(r.amountPaise)}{wallet ? ` · ${wallet} wallet` : ""}</span>
+                                    <span className="block truncate text-xs leading-tight text-muted">{r.payerId === meId ? "you paid" : `${name} paid`} {formatINR(r.amountPaise)}{wallet ? ` · ${wallet} wallet` : ""}</span>
                                   </span>
                                   <span className="shrink-0 text-right leading-tight">
                                     <span className={`num block text-sm font-semibold ${theyOwe ? "text-good" : ""}`}>{formatINR(Math.abs(e.sharePaise))}</span>

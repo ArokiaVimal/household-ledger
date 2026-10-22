@@ -243,7 +243,7 @@ export function ChipGroup<T extends string>({ label, options, value, onChange, t
 export function FormRow({ label, children, tip }: { label: string; children: ReactNode; tip?: string }) {
   return (
     <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1">
-      <div className="flex items-center gap-0.5 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{label}{tip && <InfoTip text={tip} />}</div>
+      <div className="flex items-center gap-0.5 pt-3 text-xs font-semibold uppercase tracking-wide text-muted/80">{label}{tip && <InfoTip text={tip} />}</div>
       <div className="min-w-0">{children}</div>
     </div>
   );

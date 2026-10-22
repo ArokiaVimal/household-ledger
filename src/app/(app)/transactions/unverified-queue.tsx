@@ -2,6 +2,7 @@
 import { ClipboardCheck, CreditCard, Landmark, QrCode, Receipt, Search, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { TxnEditDialog, useRecordNav } from "@/components/txn-edit-dialog";
 import { CompactRow } from "@/components/txn-compact";
 import { HScroll } from "@/components/hscroll";
@@ -34,7 +35,7 @@ const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleString("e
 const QUEUE = "/transactions?v=unverified";
 
 /** Imported and captured rows that are not verified yet. They count in your totals; verifying one teaches the app. */
-export function UnverifiedQueue({ month }: { month?: string }) {
+export function UnverifiedQueue({ month, toolsSlot }: { month?: string; toolsSlot?: HTMLElement | null }) {
   const router = useRouter();
   const params = useSearchParams();
   const imported = Number(params.get("imported") || 0);
@@ -73,6 +74,12 @@ export function UnverifiedQueue({ month }: { month?: string }) {
   const charged = shown.reduce((sum, r) => sum + signedSpend(r), 0);
   const monthsIn = [...new Set(staged.map((r) => r.date.slice(0, 7)))].sort().reverse();
   const clearFilters = () => { setQ(""); setAcct(""); setCat(""); setMon(""); setMode(""); setSource(""); setQuick("all"); setPicked(new Set()); };
+  const filterBtn = (cls: string) => (
+    <button type="button" onClick={() => setFiltersOpen(true)} aria-label={`Filters${filterCount ? `, ${filterCount} on` : ""}`} className={`relative grid size-10 shrink-0 place-items-center rounded-full text-foreground ${cls}`}>
+      <SlidersHorizontal size={17} aria-hidden />
+      {filterCount > 0 && <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-accent text-[10px] font-semibold text-white">{filterCount}</span>}
+    </button>
+  );
   const narrow = (set: () => void) => { set(); setPicked(new Set()); };
 
   const view = useRecordNav(shown);
@@ -142,6 +149,11 @@ export function UnverifiedQueue({ month }: { month?: string }) {
           </HScroll>
           {/* The same bar as the All tab: the total, then search (opens when tapped), AI notes and filters. */}
           <div className="mb-3" role="search" aria-label="Search and filter unverified transactions">
+            {toolsSlot && createPortal(<>
+                  <button type="button" aria-label="Search" onClick={() => setSearching((x) => !x)} aria-pressed={searching || !!q} className={`grid size-10 place-items-center rounded-full text-foreground ${searching || q ? "bg-accent/15 text-accent" : "bg-border/60 hover:bg-border"}`}><Search size={17} aria-hidden /></button>
+                  <NotesAi />
+                  {filterBtn("bg-border/60 hover:bg-border")}
+                </>, toolsSlot)}
             {searching || q ? (
               <div className="flex items-center gap-2">
                 <div className="relative min-w-0 flex-1">
@@ -156,13 +168,11 @@ export function UnverifiedQueue({ month }: { month?: string }) {
                   <div className="num text-[22px] font-semibold leading-tight tracking-tight">{formatINR(charged)}</div>
                   <div className="text-xs leading-snug text-muted">{shown.length} unverified{filtered ? ` of ${staged.length}` : ""}</div>
                 </div>
-                <button type="button" aria-label="Search" onClick={() => setSearching(true)} className="grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background"><Search size={17} aria-hidden /></button>
-                {/* On a wide screen the page header already has this button. */}
-                <span className="md:hidden"><NotesAi /></span>
-                <button type="button" onClick={() => setFiltersOpen(true)} aria-label={`Filters${filterCount ? `, ${filterCount} on` : ""}`} className="relative grid size-10 shrink-0 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background">
-                  <SlidersHorizontal size={17} aria-hidden />
-                  {filterCount > 0 && <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-accent text-[10px] font-semibold text-white">{filterCount}</span>}
-                </button>
+                {/* On a phone these three sit in the row with the tabs; on a wide screen they stay here (the page header has the AI button). */}
+                <div className="hidden shrink-0 items-center gap-2 md:flex">
+                  <button type="button" aria-label="Search" onClick={() => setSearching(true)} className="grid size-10 place-items-center rounded-full border border-border bg-surface text-foreground hover:bg-background"><Search size={17} aria-hidden /></button>
+                  {filterBtn("border border-border bg-surface hover:bg-background")}
+                </div>
               </div>
             )}
             {filterCount > 0 && (

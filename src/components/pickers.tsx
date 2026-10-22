@@ -16,7 +16,7 @@ export function PickerRow({ icon, label, value, sub, onClick, muted, children, c
     <button type="button" onClick={onClick} aria-label={`${label}: ${value}. Change`} className={cn("flex min-h-12 w-full items-center rounded-2xl border border-border bg-surface py-1.5 text-left transition-colors hover:bg-background focus-visible:outline-2 focus-visible:outline-accent", compact ? "h-full gap-2.5 px-2.5" : "gap-3 px-3")}>
       <span className="grid size-8 shrink-0 place-items-center">{icon}</span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[11px] font-semibold uppercase tracking-wide text-muted/80">{label}</span>
+        <span className="block text-xs font-semibold uppercase tracking-wide text-muted/80">{label}</span>
         <span className={cn("block truncate text-sm font-medium", muted && "text-muted")}>{value}</span>
         {sub && <span className="block truncate text-xs text-muted">{sub}</span>}
       </span>
@@ -39,7 +39,7 @@ export function TileGrid({ options, selected, onPick, label, multi, columns = 2 
             <button type="button" role={multi ? undefined : "radio"} aria-checked={multi ? undefined : on} aria-pressed={multi ? on : undefined} onClick={() => onPick(o.id)}
               className={cn("relative flex min-h-14 w-full items-center gap-2 rounded-2xl border px-2.5 py-2 text-left transition-colors", on ? "border-accent bg-accent/10" : "border-transparent bg-background hover:border-border")}>
               {o.icon && <span className="grid size-8 shrink-0 place-items-center">{o.icon}</span>}
-              <span className="min-w-0 flex-1"><span className="line-clamp-2 block text-[13px] font-medium leading-tight">{o.label}</span>{o.hint && <span className="block truncate text-[11px] leading-tight text-muted">{o.hint}</span>}</span>
+              <span className="min-w-0 flex-1"><span className="line-clamp-2 block text-[13px] font-medium leading-tight">{o.label}</span>{o.hint && <span className="block truncate text-xs leading-tight text-muted">{o.hint}</span>}</span>
               {on && <Check size={15} aria-hidden className="shrink-0 text-accent" />}
             </button>
           </li>
@@ -89,7 +89,7 @@ export function MerchantSheet({ open, onClose, value, onPick }: { open: boolean;
     <li key={name}>
       <button type="button" onClick={() => pick(name)} aria-label={name} aria-pressed={name === value} className={cn("flex w-full flex-col items-center gap-1 rounded-2xl p-2 hover:bg-background", name === value && "bg-accent/10 ring-1 ring-accent")}>
         <MerchantAvatar name={name} size={48} />
-        <span className="w-full truncate text-center text-[11px] leading-tight text-muted">{name}</span>
+        <span className="w-full truncate text-center text-xs leading-tight text-muted">{name}</span>
       </button>
     </li>
   );
@@ -97,7 +97,7 @@ export function MerchantSheet({ open, onClose, value, onPick }: { open: boolean;
     <li key={name}>
       <button type="button" onClick={() => pick(name)} aria-pressed={name === value} className={cn("flex min-h-11 w-full items-center gap-2 rounded-xl border border-transparent bg-background px-2.5 py-1.5 text-left hover:border-border", name === value && "border-accent bg-accent/5")}>
         <MerchantAvatar name={name} size={24} />
-        <span className="min-w-0 flex-1"><span className="block truncate text-sm">{name}</span>{hint && <span className="block truncate text-[11px] text-muted">{hint}</span>}</span>
+        <span className="min-w-0 flex-1"><span className="block truncate text-sm">{name}</span>{hint && <span className="block truncate text-xs text-muted">{hint}</span>}</span>
       </button>
     </li>
   );

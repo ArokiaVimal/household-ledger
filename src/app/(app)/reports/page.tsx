@@ -27,7 +27,7 @@ function RankList({ rows, pct, onPick, foot }: { rows: [string, string, number][
             <button type="button" onClick={() => onPick(k)} className="num block w-full py-2 text-left hover:bg-background">
               <span className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0 flex-1 truncate">{name}</span>
-                {pct && <span className="text-[11px] text-muted">{pct(v)}%</span>}
+                {pct && <span className="text-xs text-muted">{pct(v)}%</span>}
                 <span>{formatINR(v)}</span>
               </span>
               <span aria-hidden className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border"><span className={cn("block h-full rounded-full", v < 0 ? "bg-good" : "bg-accent")} style={{ width: `${(Math.abs(v) / max) * 100}%` }} /></span>

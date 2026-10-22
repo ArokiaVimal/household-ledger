@@ -39,7 +39,7 @@ export function CardMockup({ name, theme, hidden, large, className = "" }: { nam
       <div className="relative flex h-full flex-col justify-between">
         <div className="flex items-start justify-between gap-2"><span className={`line-clamp-2 font-semibold leading-tight ${large ? "text-xl" : "text-sm"}`}>{name}</span><span className={`font-medium uppercase tracking-widest opacity-80 ${large ? "text-xs" : "text-[10px]"}`}>Credit</span></div>
         <div className={`rounded-md bg-gradient-to-br from-yellow-200 to-yellow-500 opacity-90 ${large ? "h-10 w-14" : "h-7 w-9"}`} aria-hidden />
-        <div className={`tracking-[0.25em] opacity-80 ${large ? "text-base" : "text-[11px]"}`} aria-hidden>••••&nbsp;&nbsp;••••&nbsp;&nbsp;••••&nbsp;&nbsp;••••</div>
+        <div className={`tracking-[0.25em] opacity-80 ${large ? "text-base" : "text-xs"}`} aria-hidden>••••&nbsp;&nbsp;••••&nbsp;&nbsp;••••&nbsp;&nbsp;••••</div>
       </div>
     </div>
   );

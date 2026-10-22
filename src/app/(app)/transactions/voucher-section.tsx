@@ -19,7 +19,7 @@ const monthLabel = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateStri
 export function VoucherSection({ groups, showMonth, onOpen, onVerify, onDelete }: { groups: VoucherGroup[]; showMonth: boolean; onOpen: (r: ExpenseRecord) => void; onVerify: (r: ExpenseRecord) => void; onDelete: (r: ExpenseRecord) => void }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   if (groups.length === 0) return null;
-  const sub = (label: string, total: number) => <h3 className="flex items-baseline justify-between px-1 text-[11px] font-semibold uppercase tracking-wide text-muted"><span>{label}</span><span className="num text-sm normal-case tracking-normal text-foreground">{formatINR(total)}</span></h3>;
+  const sub = (label: string, total: number) => <h3 className="flex items-baseline justify-between px-1 text-xs font-semibold uppercase tracking-wide text-muted"><span>{label}</span><span className="num text-sm normal-case tracking-normal text-foreground">{formatINR(total)}</span></h3>;
   const rows = (list: ExpenseRecord[]) => <ul className="space-y-1.5">{list.map((r) => <li key={r.id}><CompactRow r={r} showDate onOpen={() => onOpen(r)} onVerify={() => onVerify(r)} onDelete={() => onDelete(r)} /></li>)}</ul>;
   return (
     <section aria-label="Vouchers" className="mt-4 space-y-2">

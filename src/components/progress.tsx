@@ -7,7 +7,7 @@ export function ProgressRing({ pct, size = 44, label }: { pct: number; size?: nu
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={4} className="stroke-border" />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={4} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} className={`transition-[stroke-dashoffset] duration-500 ${pct === 100 ? "stroke-good" : "stroke-accent"}`} />
       </svg>
-      <span className="num absolute text-[11px] font-semibold">{pct}%</span>
+      <span className="num absolute text-xs font-semibold">{pct}%</span>
     </span>
   );
 }

@@ -43,7 +43,7 @@ function Entry({ icon: I, title, text, badge, primary, onDropFile, children }: {
         {badge}
       </div>
       <div className="mt-auto">{children}</div>
-      {onDropFile && <p className="hidden text-[11px] text-muted md:block">or drop a file here</p>}
+      {onDropFile && <p className="hidden text-xs text-muted md:block">or drop a file here</p>}
       {over && <div aria-hidden className="pointer-events-none absolute inset-0 grid place-items-center rounded-[var(--radius-card)] bg-accent/10 text-sm font-semibold text-accent">Drop to use this</div>}
     </section>
   );
@@ -282,7 +282,7 @@ export function LiveImport() {
 
               {months.length > 0 && (
                 <section aria-label="Where it goes" className="space-y-2.5">
-                  <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Goes into</h3>
+                  <h3 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted">Goes into</h3>
                   <ul className="space-y-2.5 rounded-2xl bg-background p-3">
                     {months.map(([m, v]) => (
                       <li key={m}>
@@ -381,7 +381,7 @@ export function LiveImport() {
                         <MerchantAvatar name={r.merchant} size={34} fallback={<CategoryGlyph name={categoryName(r.categoryId)} size={34} />} />
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-medium leading-tight">{r.merchant}</div>
-                          <div className="truncate text-[11px] text-muted">{shortDate(r.date)} · {kindLabel[r.kind]}{r.categoryId !== "uncategorized" ? ` · ${categoryName(r.categoryId)}` : ""}{r.accountId !== preview.accountId ? ` · via ${accountName(r.accountId)}` : ""}</div>
+                          <div className="truncate text-xs text-muted">{shortDate(r.date)} · {kindLabel[r.kind]}{r.categoryId !== "uncategorized" ? ` · ${categoryName(r.categoryId)}` : ""}{r.accountId !== preview.accountId ? ` · via ${accountName(r.accountId)}` : ""}</div>
                           {(r.recurring && action(r) === "import") || action(r) === "skip" || (r.status !== "new" && action(r) === "import") ? (
                             <div className="mt-0.5 flex flex-wrap gap-1">
                               {r.recurring && action(r) === "import" && <Badge tone="good">Looks monthly</Badge>}

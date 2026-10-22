@@ -188,7 +188,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
                 {showGroup && <GroupSwitch className="hidden max-w-lg md:flex" />}
                 <Link href="/transactions?v=unverified&scope=all" aria-label={staged.length ? `${staged.length} unverified transactions` : "Unverified transactions"} title="Unverified" className="relative grid size-10 shrink-0 place-items-center rounded-full bg-surface">
                   <ClipboardCheck size={18} aria-hidden />
-                  {staged.length > 0 && <span aria-hidden className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-semibold leading-5 text-white">{staged.length > 99 ? "99+" : staged.length}</span>}
+                  {staged.length > 0 && <span aria-hidden className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-xs font-semibold leading-5 text-white">{staged.length > 99 ? "99+" : staged.length}</span>}
                 </Link>
                 <NotificationsBell />
                 {user && <AccountMenu onSignOut={signOut} />}
@@ -226,12 +226,12 @@ export function AppShell({ children, user }: { children: ReactNode; user: { emai
       <nav aria-label="Primary" style={{ gridTemplateColumns: `repeat(${phoneBar.length + 1}, minmax(0, 1fr))` }} className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-surface pb-[var(--sab)] md:hidden">
         {phoneBar.map(({ href, label, icon: I }) => (
           <Link key={href} href={href} aria-current={active(href) ? "page" : undefined}
-            className={cn("relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", active(href) ? "font-medium text-accent" : "text-muted")}>
+            className={cn("relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs", active(href) ? "font-medium text-accent" : "text-muted")}>
             <I size={20} aria-hidden /> {label}
           </Link>
         ))}
         <button type="button" onClick={() => setMoreOpen(true)} aria-haspopup="dialog" aria-expanded={moreOpen}
-          className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", phoneMore.some((n) => active(n.href)) ? "font-medium text-accent" : "text-muted")}>
+          className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs", phoneMore.some((n) => active(n.href)) ? "font-medium text-accent" : "text-muted")}>
           <MoreHorizontal size={20} aria-hidden /> More
         </button>
       </nav>
