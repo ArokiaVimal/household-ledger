@@ -308,8 +308,10 @@ export function StoreProvider({ children, live }: { children: ReactNode; live?: 
   // In live mode a partner exists only once linked: friends in the list are not a "usual split" partner.
   // An invited partner who has not accepted yet is already usable in splits, under the name typed at invite time.
   const pendingPartner = participants.find((p) => p.pendingEmail) ?? null;
-  const partnerId = couple?.partner.participantId ?? (live ? pendingPartner?.id ?? null : participants.find((p) => p.id !== meId && p.userId)?.id ?? participants.find((p) => p.id !== meId)?.id ?? null);
-  const splitRatio = useMemo(() => (live ? (couple ? { leaderId: couple.ratio.leaderId, leaderBps: couple.ratio.leaderBps } : { leaderId: meId, leaderBps: pendingPartner ? pendingPartner.inviterShareBps ?? 6400 : 5000 }) : { leaderId: ME, leaderBps: OWNER_SHARE_BPS }), [live, couple, meId, pendingPartner]);
+  // The demo has no real partner account, so it uses its sample partner (Varru) and the usual 64/36 split, like a linked account would.
+  const realLive = !!live && !live.demo;
+  const partnerId = couple?.partner.participantId ?? (realLive ? pendingPartner?.id ?? null : participants.find((p) => p.id !== meId && p.relationship === "partner")?.id ?? participants.find((p) => p.id !== meId && p.userId)?.id ?? participants.find((p) => p.id !== meId)?.id ?? null);
+  const splitRatio = useMemo(() => (realLive ? (couple ? { leaderId: couple.ratio.leaderId, leaderBps: couple.ratio.leaderBps } : { leaderId: meId, leaderBps: pendingPartner ? pendingPartner.inviterShareBps ?? 6400 : 5000 }) : { leaderId: meId, leaderBps: OWNER_SHARE_BPS }), [realLive, couple, meId, pendingPartner]);
   const trendHistory = live && !live.demo ? {} : mockTrend;
 
   // After a failed save the server re-sends the household's data; adopt it (React's "adjust state on prop change" pattern).
